@@ -42,26 +42,49 @@
 5. Mark item as `completed` immediately after finishing
 6. Move to next item and repeat
 
-### Rule #3: Understand Project Context
+### Rule #3: File Naming Conventions
+- ✅ **All files must be lowercase with dashes** (e.g., `user-profile.ts`, `event-card.tsx`)
+- ✅ Use kebab-case for file names (e.g., `api-client.ts`, `header-component.tsx`)
+- ❌ **NEVER** use camelCase, PascalCase, or snake_case for file names
+- ❌ **NEVER** use uppercase letters in file names (except documented exceptions)
+
+**Exceptions (uppercase allowed at repository root only):**
+- `AGENTS.md`
+- `CHANGELOG.md`
+- `CODE_OF_CONDUCT.md`
+- `CONTRIBUTING.md`
+- `LICENSE`
+- `README.md`
+- `SECURITY.md`
+
+**Examples:**
+- ✅ `src/components/event-card.tsx`
+- ✅ `src/utils/date-formatter.ts`
+- ✅ `docs/processes/branching-strategy.md`
+- ❌ `src/components/EventCard.tsx`
+- ❌ `src/utils/dateFormatter.ts`
+- ❌ `docs/processes/Branching_Strategy.md`
+
+### Rule #4: Understand Project Context
 This is a **fake/demo training repository**:
 - Not a real application
 - Used for teaching Git workflows and Kanban processes
 - No feedback collected or worked on
 - Use at own risk
 
-### Rule #4: Follow Established Patterns
+### Rule #5: Follow Established Patterns
 - Always check existing files before creating new ones
 - Follow the project structure already in place
 - Maintain consistency with existing code style
 - Reference existing documentation
 
-### Rule #5: Branch Workflow Adherence
+### Rule #6: Branch Workflow Adherence
 - Understand the four-branch strategy: `develop` → `test` → `staging` → `main`
 - Never suggest direct commits to protected branches
 - Always use proper branch naming conventions
 - Reference: [docs/processes/BRANCHING_STRATEGY.md](docs/processes/BRANCHING_STRATEGY.md)
 
-### Rule #6: Work Item Hierarchy
+### Rule #7: Work Item Hierarchy
 Enforce the strict hierarchy:
 ```
 Theme (standalone)
@@ -76,35 +99,35 @@ Theme (standalone)
 - Security Issues: Vulnerability findings
 - Feature Requests: Enhancement suggestions
 
-### Rule #7: Code Quality Standards
+### Rule #8: Code Quality Standards
 - TypeScript strict mode required
 - React functional components with hooks
 - Named exports preferred over default exports
 - Comprehensive testing required (>80% coverage)
 - Accessibility compliance mandatory
 
-### Rule #8: Documentation Discipline
+### Rule #9: Documentation Discipline
 - Keep documentation in sync with code
 - Use conventional commit messages
 - Link PRs to issues
 - Update CHANGELOG.md for releases
 - Cross-reference related documentation
 
-### Rule #9: Security Awareness
+### Rule #10: Security Awareness
 - Never commit secrets or API keys
 - Sanitize user input
 - Use environment variables for config
 - Validate all data
 - Follow secure coding practices
 
-### Rule #10: Training Repository Focus
+### Rule #11: Training Repository Focus
 Remember this is for **training purposes**:
 - Emphasize learning Git workflows
 - Support Kanban process understanding
 - Enable collaborative development practice
 - Provide realistic project structure
 
-### Rule #11: AI Assistant Behavior
+### Rule #12: AI Assistant Behavior
 When assisting with code or documentation:
 1. **Read this guide first** on every request
 2. Check for existing patterns and follow them
