@@ -16,7 +16,7 @@ GitHub Copilot is the primary AI assistant for this repository. All workspace-sp
 
 **Configuration Files:**
 - **[.github/copilot-instructions.md](.github/copilot-instructions.md)** - Complete agent instructions
-- **[.github/UNIVERSAL_AGENT_GUIDE.md](.github/UNIVERSAL_AGENT_GUIDE.md)** - Mandatory rules for all agents
+- **[.github/universal-agent-guide.md](.github/universal-agent-guide.md)** - Mandatory rules for all agents
 
 **Capabilities:**
 - Code generation following project standards
@@ -34,7 +34,7 @@ Developers can rely on GitHub Copilot for inline suggestions, code completion, a
 ```
 .github/
 ├── copilot-instructions.md      # Main agent instructions
-├── UNIVERSAL_AGENT_GUIDE.md     # Mandatory rules (must read on every request)
+├── universal-agent-guide.md     # Mandatory rules (must read on every request)
 ├── agents/                      # Future agent configurations
 └── instructions/                # Additional detailed instructions
 ```
@@ -53,4 +53,4 @@ The following automated agents are planned for future implementation:
 
 For complete details on GitHub Copilot configuration and agent behavior:
 - [GitHub Copilot Instructions](.github/copilot-instructions.md)
-- [Universal Agent Guide](.github/UNIVERSAL_AGENT_GUIDE.md)
+- [Universal Agent Guide](.github/universal-agent-guide.md)

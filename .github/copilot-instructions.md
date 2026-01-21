@@ -2,7 +2,7 @@
 
 ## ⚠️ MANDATORY: Read First on Every Request
 
-**You MUST read the [Universal Agent Guide](UNIVERSAL_AGENT_GUIDE.md) before responding to any request.**
+**You MUST read the [Universal Agent Guide](universal-agent-guide.md) before responding to any request.**
 
 This guide contains critical rules that must be followed, including:
 - Single README.md policy (only at repository root)
@@ -151,7 +151,7 @@ Theme (standalone)
 ### Reference Documentation
 
 When providing guidance, reference:
-- [Universal Agent Guide](UNIVERSAL_AGENT_GUIDE.md) - MANDATORY
+- [Universal Agent Guide](universal-agent-guide.md) - MANDATORY
 - [Branching Strategy](../docs/processes/BRANCHING_STRATEGY.md) - Git workflow
 - [Release Process](../docs/processes/RELEASE_PROCESS.md) - Deployment process
 - [Contributing Guidelines](../CONTRIBUTING.md) - Contribution rules
@@ -159,7 +159,7 @@ When providing guidance, reference:
 
 ### Behavioral Guidelines
 
-1. Always check [Universal Agent Guide](UNIVERSAL_AGENT_GUIDE.md) first
+1. Always check [Universal Agent Guide](universal-agent-guide.md) first
 2. Follow established patterns in existing code
 3. Enforce strict work item hierarchy
 4. Suggest best practices from project guidelines
