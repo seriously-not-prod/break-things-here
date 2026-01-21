@@ -100,6 +100,38 @@ hotfix/xxx ───────────────────────
 
 ## Workflow
 
+### Commit Message Requirements
+
+**MANDATORY**: All commits must reference an open GitHub issue.
+
+**Format**: Follow Conventional Commits with issue reference:
+```
+type(scope): description #issue-number
+```
+
+**Allowed Types**:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style/formatting
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
+
+**Examples**:
+```bash
+git commit -m "feat(auth): add login validation #42"
+git commit -m "fix(payment): resolve checkout crash #123"
+git commit -m "docs(readme): update setup instructions #89"
+```
+
+**Requirements**:
+- ✅ Every commit must include an issue number (#123)
+- ✅ Issue must be open (not closed)
+- ✅ Issue must exist in the repository
+- ❌ No commits without issue references
+- ❌ No commits referencing closed issues
+
 ### Normal Development Flow
 
 1. **Create Feature/Bugfix Branch**
@@ -113,7 +145,7 @@ hotfix/xxx ───────────────────────
    ```bash
    # Make changes
    git add .
-   git commit -m "feat: add your feature"
+   git commit -m "feat(component): add your feature #123"
    git push origin feature/123-your-feature
    ```
 

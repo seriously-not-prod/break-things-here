@@ -1,0 +1,47 @@
+#!/bin/bash
+#
+# Git commit-msg hook to enforce commit message requirements
+# 
+# This hook ensures:
+# 1. Commit messages reference a GitHub issue (#123)
+# 2. Commit messages follow Conventional Commits format
+#
+# To install: 
+#   cp .git-hooks/commit-msg .git/hooks/commit-msg
+#   chmod +x .git/hooks/commit-msg
+
+commit_msg_file=$1
+commit_msg=$(cat "$commit_msg_file")
+
+# Colors for output
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
+# Check if commit message contains a GitHub issue reference (#123)
+if ! echo "$commit_msg" | grep -qE '#[0-9]+'; then
+    echo -e "${RED}ERROR: Commit message must reference a GitHub issue!${NC}"
+    echo -e "${YELLOW}Format: type(scope): description #123${NC}"
+    echo -e "${YELLOW}Example: feat(auth): add login validation #42${NC}"
+    echo ""
+    echo "Your commit message:"
+    echo "$commit_msg"
+    exit 1
+fi
+
+# Check if commit message follows Conventional Commits format
+if ! echo "$commit_msg" | grep -qE '^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?: .+ #[0-9]+'; then
+    echo -e "${YELLOW}WARNING: Commit message should follow Conventional Commits format${NC}"
+    echo -e "${YELLOW}Format: type(scope): description #123${NC}"
+    echo -e "${YELLOW}Allowed types: feat, fix, docs, style, refactor, test, chore${NC}"
+    echo ""
+    echo "Your commit message:"
+    echo "$commit_msg"
+    echo ""
+    echo -e "${YELLOW}Proceeding anyway, but please fix for future commits.${NC}"
+fi
+
+# Success
+echo -e "${GREEN}✓ Commit message validation passed${NC}"
+exit 0

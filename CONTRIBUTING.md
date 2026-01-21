@@ -35,6 +35,38 @@ We welcome feature requests! Please open an issue with:
 7. Push to the branch (`git push origin feature/your-feature-name`)
 8. Open a Pull Request
 
+### Commit Message Requirements
+
+**All commits MUST reference an open GitHub issue.**
+
+**Format**: Use Conventional Commits with issue reference:
+```
+type(scope): description #issue-number
+```
+
+**Allowed Types**:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style/formatting (no logic change)
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
+
+**Examples**:
+```bash
+git commit -m "feat(auth): add login validation #42"
+git commit -m "fix(payment): resolve checkout crash #123"
+git commit -m "docs(readme): update setup instructions #89"
+```
+
+**Requirements**:
+- ✅ Every commit must include an issue number (#123)
+- ✅ Issue must be open (not closed)
+- ✅ Issue must exist in the repository
+- ❌ No commits without issue references
+- ❌ No commits referencing closed issues
+
 ### Code Style
 
 - Follow the existing code style

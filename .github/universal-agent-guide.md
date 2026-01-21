@@ -150,6 +150,44 @@ When assisting with code or documentation:
 5. Enforce the rules defined here
 6. Never deviate from established conventions
 
+### Rule #14: Commit Message Requirements (MANDATORY)
+- ✅ **EVERY commit MUST reference an open (non-closed) GitHub issue**
+- ✅ Use issue numbers in commit messages: `#123` or `Closes #123`
+- ✅ Follow Conventional Commits format: `type(scope): description #123`
+- ❌ **NO commits without issue references** - all work must be tracked
+- ❌ **NO commits referencing closed issues** - only active work items
+
+**Commit Message Format:**
+```
+type(scope): description #123
+
+Optional body with more details.
+
+References #123
+Closes #456
+```
+
+**Allowed Types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style/formatting (no logic change)
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
+
+**Examples:**
+- ✅ `feat(auth): add login validation #42`
+- ✅ `fix(payment): resolve checkout crash\n\nCloses #123`
+- ✅ `docs(readme): update setup instructions #89`
+- ❌ `add new feature` (no issue reference)
+- ❌ `fix bug #999` (if #999 is closed)
+
+**Enforcement:**
+- Git commit-msg hook validates issue references
+- CI/CD checks verify issues are open
+- PRs without proper commit messages will be rejected
+
 ## Quick Reference
 
 | Topic | Document |
