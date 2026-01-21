@@ -278,7 +278,7 @@ Follow Semantic Versioning:
 
 ## Related Documentation
 
-- [Release Process](RELEASE_PROCESS.md) - Monthly release workflow
+- [Release Process](release-process.md) - Monthly release workflow
 - [CONTRIBUTING.md](../../CONTRIBUTING.md) - Contribution guidelines
 - [Issue Templates](../../.github/ISSUE_TEMPLATE/) - Creating work items
 - [CODEOWNERS](../../.github/CODEOWNERS) - Code review assignments

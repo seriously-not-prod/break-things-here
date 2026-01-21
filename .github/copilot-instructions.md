@@ -152,8 +152,8 @@ Theme (standalone)
 
 When providing guidance, reference:
 - [Universal Agent Guide](universal-agent-guide.md) - MANDATORY
-- [Branching Strategy](../docs/processes/BRANCHING_STRATEGY.md) - Git workflow
-- [Release Process](../docs/processes/RELEASE_PROCESS.md) - Deployment process
+- [Branching Strategy](../docs/processes/branching-strategy.md) - Git workflow
+- [Release Process](../docs/processes/release-process.md) - Deployment process
 - [Contributing Guidelines](../CONTRIBUTING.md) - Contribution rules
 - [Issue Templates](ISSUE_TEMPLATE/) - Creating work items
 

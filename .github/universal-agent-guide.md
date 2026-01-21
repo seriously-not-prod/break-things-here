@@ -63,7 +63,7 @@
 - ✅ `docs/processes/branching-strategy.md`
 - ❌ `src/components/EventCard.tsx`
 - ❌ `src/utils/dateFormatter.ts`
-- ❌ `docs/processes/Branching_Strategy.md`
+- ❌ `docs/processes/branching-strategy-wrong.md`
 
 ### Rule #4: Repository Documentation Review (MANDATORY)
 - ✅ **ALWAYS** include a todo item on every request to review and update repo root markdown documents
@@ -96,7 +96,7 @@ This is a **fake/demo training repository**:
 - Understand the four-branch strategy: `develop` → `test` → `staging` → `main`
 - Never suggest direct commits to protected branches
 - Always use proper branch naming conventions
-- Reference: [docs/processes/BRANCHING_STRATEGY.md](docs/processes/BRANCHING_STRATEGY.md)
+- Reference: [docs/processes/branching-strategy.md](docs/processes/branching-strategy.md)
 
 ### Rule #8: Work Item Hierarchy
 Enforce the strict hierarchy:
@@ -154,8 +154,8 @@ When assisting with code or documentation:
 
 | Topic | Document |
 |-------|----------|
-| Branching | [docs/processes/BRANCHING_STRATEGY.md](docs/processes/BRANCHING_STRATEGY.md) |
-| Releases | [docs/processes/RELEASE_PROCESS.md](docs/processes/RELEASE_PROCESS.md) |
+| Branching | [docs/processes/branching-strategy.md](docs/processes/branching-strategy.md) |
+| Releases | [docs/processes/release-process.md](docs/processes/release-process.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Issue Templates | [.github/ISSUE_TEMPLATE/](.github/ISSUE_TEMPLATE/) |
 | Code Ownership | [.github/CODEOWNERS](.github/CODEOWNERS) |

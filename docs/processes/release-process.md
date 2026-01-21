@@ -28,7 +28,7 @@ This project uses a **four-branch strategy** with environment progression:
 
 **Standard Flow**: `develop` → `test` → `staging` → `main`
 
-For detailed branching guidelines, see [Branching Strategy](BRANCHING_STRATEGY.md).
+For detailed branching guidelines, see [Branching Strategy](branching-strategy.md).
 
 ## Kanban Board Structure
 
@@ -291,7 +291,7 @@ Track the following metrics for continuous improvement:
 
 ## References
 
-- [Branching Strategy](BRANCHING_STRATEGY.md) - Detailed branch workflow and naming
+- [Branching Strategy](branching-strategy.md) - Detailed branch workflow and naming
 - [CHANGELOG.md](../../CHANGELOG.md) - Release history
 - [CONTRIBUTING.md](../../CONTRIBUTING.md) - Contribution guidelines
 - [Issue Templates](../ISSUE_TEMPLATE/) - Creating work items
