@@ -65,26 +65,40 @@
 - ❌ `src/utils/dateFormatter.ts`
 - ❌ `docs/processes/Branching_Strategy.md`
 
-### Rule #4: Understand Project Context
+### Rule #4: Repository Documentation Review (MANDATORY)
+- ✅ **ALWAYS** include a todo item on every request to review and update repo root markdown documents
+- ✅ Review: README.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, AGENTS.md, CHANGELOG.md
+- ✅ Update documents if changes are needed based on work performed
+- ⚠️ **CHANGELOG.md Special Rule**: NEVER change existing changelog history
+- ✅ For CHANGELOG.md: Only ADD new entries, never modify or remove existing ones
+
+**Documentation Review Workflow:**
+1. Add todo item to review repo root documentation
+2. After completing work, check if any root documents need updates
+3. Update relevant documents (README, CONTRIBUTING, etc.)
+4. For CHANGELOG.md: Add new entries under [Unreleased] section only
+5. Commit documentation updates separately if changes were made
+
+### Rule #5: Understand Project Context
 This is a **fake/demo training repository**:
 - Not a real application
 - Used for teaching Git workflows and Kanban processes
 - No feedback collected or worked on
 - Use at own risk
 
-### Rule #5: Follow Established Patterns
+### Rule #6: Follow Established Patterns
 - Always check existing files before creating new ones
 - Follow the project structure already in place
 - Maintain consistency with existing code style
 - Reference existing documentation
 
-### Rule #6: Branch Workflow Adherence
+### Rule #7: Branch Workflow Adherence
 - Understand the four-branch strategy: `develop` → `test` → `staging` → `main`
 - Never suggest direct commits to protected branches
 - Always use proper branch naming conventions
 - Reference: [docs/processes/BRANCHING_STRATEGY.md](docs/processes/BRANCHING_STRATEGY.md)
 
-### Rule #7: Work Item Hierarchy
+### Rule #8: Work Item Hierarchy
 Enforce the strict hierarchy:
 ```
 Theme (standalone)
@@ -99,35 +113,35 @@ Theme (standalone)
 - Security Issues: Vulnerability findings
 - Feature Requests: Enhancement suggestions
 
-### Rule #8: Code Quality Standards
+### Rule #9: Code Quality Standards
 - TypeScript strict mode required
 - React functional components with hooks
 - Named exports preferred over default exports
 - Comprehensive testing required (>80% coverage)
 - Accessibility compliance mandatory
 
-### Rule #9: Documentation Discipline
+### Rule #10: Documentation Discipline
 - Keep documentation in sync with code
 - Use conventional commit messages
 - Link PRs to issues
 - Update CHANGELOG.md for releases
 - Cross-reference related documentation
 
-### Rule #10: Security Awareness
+### Rule #11: Security Awareness
 - Never commit secrets or API keys
 - Sanitize user input
 - Use environment variables for config
 - Validate all data
 - Follow secure coding practices
 
-### Rule #11: Training Repository Focus
+### Rule #12: Training Repository Focus
 Remember this is for **training purposes**:
 - Emphasize learning Git workflows
 - Support Kanban process understanding
 - Enable collaborative development practice
 - Provide realistic project structure
 
-### Rule #12: AI Assistant Behavior
+### Rule #13: AI Assistant Behavior
 When assisting with code or documentation:
 1. **Read this guide first** on every request
 2. Check for existing patterns and follow them
