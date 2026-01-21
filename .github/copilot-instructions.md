@@ -1,216 +1,168 @@
 # GitHub Copilot Instructions
 
-> **⚠️ DISCLAIMER: This is a fake project for demonstration/testing purposes only.**
->
-> **No feedback will be collected or worked on. Use at your own risk.**
+## ⚠️ MANDATORY: Read First on Every Request
 
-## Project Context
+**You MUST read the [Universal Agent Guide](UNIVERSAL_AGENT_GUIDE.md) before responding to any request.**
 
-This is a **Festival Event Planner** application built with React and TypeScript. It's a training repository designed to teach Git workflows, Kanban processes, and collaborative development practices.
+This guide contains critical rules that must be followed, including:
+- Single README.md policy (only at repository root)
+- Project context and conventions
+- Work item hierarchy enforcement
+- Security and quality requirements
 
-## Code Style & Standards
+## Agent Instructions
 
-### TypeScript
-- Use strict TypeScript configuration
-- Prefer interfaces over types for object shapes
-- Use explicit return types for functions
+### Primary Directive
+You are assisting with a **fake/demo Festival Event Planner** training repository. This project teaches Git workflows, Kanban processes, and collaborative development practices.
+
+### Code Generation Standards
+
+**TypeScript:**
+- Use strict mode configuration
+- Prefer `interface` over `type` for object shapes
+- Explicit return types for functions
 - Avoid `any` - use proper types or `unknown`
-- Enable strict null checks
 
-### React
-- Use functional components with hooks
-- Prefer named exports over default exports
-- Use TypeScript for props interfaces
-- Follow component naming: PascalCase for components, camelCase for utilities
-- Keep components small and focused (< 200 lines)
+**React:**
+- Functional components with hooks only
+- Named exports preferred
+- PascalCase for components, camelCase for utilities
+- Keep components under 200 lines
 
-### File Organization
-- Components: `src/components/ComponentName/ComponentName.tsx`
-- Hooks: `src/hooks/useHookName.ts`
-- Utils: `src/utils/utilityName.ts`
-- Types: `src/types/typeName.ts`
-- Tests: Co-locate with source files as `*.test.tsx` or `*.spec.tsx`
-
-### Naming Conventions
-- Components: `PascalCase` (e.g., `EventCard`, `UserProfile`)
-- Files: Match component names (e.g., `EventCard.tsx`)
-- Variables/Functions: `camelCase` (e.g., `handleSubmit`, `fetchEvents`)
-- Constants: `UPPER_SNAKE_CASE` (e.g., `API_BASE_URL`, `MAX_RETRIES`)
-- Interfaces/Types: `PascalCase` with descriptive names (e.g., `UserProfile`, `EventData`)
-
-## Git Workflow
-
-### Branch Naming
-- Features: `feature/issue-number-short-description`
-- Bugs: `bugfix/issue-number-short-description`
-- Hotfixes: `hotfix/issue-number-short-description`
-
-### Commit Messages
-Follow Conventional Commits:
-- `feat:` New features
-- `fix:` Bug fixes
-- `docs:` Documentation changes
-- `style:` Code style changes (formatting, no logic change)
-- `refactor:` Code refactoring
-- `test:` Adding or updating tests
-- `chore:` Maintenance tasks
-
-Examples:
+**File Organization:**
 ```
-feat(auth): add login form validation
-fix(events): resolve date picker timezone issue
-docs(readme): update installation instructions
+src/
+├── components/ComponentName/ComponentName.tsx
+├── hooks/useHookName.ts
+├── utils/utilityName.ts
+├── types/typeName.ts
+└── __tests__/*.test.tsx
 ```
 
-### Branch Flow
-Always follow the standard progression:
+**Naming:**
+- Components: `PascalCase` (e.g., `EventCard`)
+- Variables/Functions: `camelCase` (e.g., `handleSubmit`)
+- Constants: `UPPER_SNAKE_CASE` (e.g., `API_BASE_URL`)
+- Types/Interfaces: `PascalCase` (e.g., `UserProfile`)
+
+### Git Workflow Instructions
+
+**Branch Naming:**
+- `feature/issue-number-description`
+- `bugfix/issue-number-description`
+- `hotfix/issue-number-description`
+
+**Commit Format (Conventional Commits):**
+```
+type(scope): description
+
+Types: feat, fix, docs, style, refactor, test, chore
+```
+
+**Branch Progression:**
 ```
 develop → test → staging → main
 ```
 
-## Work Item References
+**Pull Requests:**
+- Always link to related issue (Theme/Story/Task)
+- Include issue number in branch name
+- Use `Closes #123` in commit messages
 
-When implementing features, always reference the related issue:
-- Link to parent User Story or Task in PR description
-- Use issue numbers in branch names
-- Close issues via commit messages: `Closes #123`
+### Testing Instructions
 
-## Testing Requirements
-
-### Unit Tests
 - Write tests for all utility functions
-- Test components with React Testing Library
-- Aim for >80% code coverage
-- Test user interactions, not implementation details
+- Use React Testing Library for components
+- Target >80% code coverage
+- Test user interactions, not implementation
 
-### Test Structure
 ```typescript
 describe('ComponentName', () => {
   it('should render correctly', () => {
-    // Test
-  });
-  
-  it('should handle user interaction', () => {
-    // Test
+    // Test implementation
   });
 });
 ```
 
-## API Integration
+### API Integration Patterns
 
-### Fetch Patterns
-- Use async/await over promises
-- Always handle errors with try/catch
-- Use proper TypeScript types for responses
-- Implement loading and error states
-
-Example:
 ```typescript
-const fetchEvents = async (): Promise<Event[]> => {
+const fetchData = async (): Promise<DataType[]> => {
   try {
-    const response = await fetch('/api/events');
-    if (!response.ok) throw new Error('Failed to fetch');
+    const response = await fetch('/api/endpoint');
+    if (!response.ok) throw new Error('Fetch failed');
     return await response.json();
   } catch (error) {
-    console.error('Error fetching events:', error);
+    console.error('Error:', error);
     throw error;
   }
 };
 ```
 
-## Accessibility
+### Code Quality Requirements
 
-- Use semantic HTML elements
-- Include ARIA labels where needed
-- Ensure keyboard navigation works
-- Maintain proper heading hierarchy
-- Test with screen readers
+- Semantic HTML elements
+- ARIA labels for accessibility
+- Keyboard navigation support
+- Error boundaries for React components
+- Input sanitization
+- Environment variables for configuration
 
-## Performance
+### Performance Optimization
 
-- Use React.memo for expensive components
-- Implement code splitting with lazy loading
-- Optimize images and assets
-- Avoid unnecessary re-renders
-- Use useCallback and useMemo appropriately
+- `React.memo` for expensive components
+- Code splitting with lazy loading
+- `useCallback` and `useMemo` appropriately
+- Optimize assets and images
 
-## Security
+### Security Mandates
 
-- Never commit API keys or secrets
-- Sanitize user input
-- Use environment variables for configuration
-- Implement proper authentication/authorization
-- Validate data on both client and server
+- Never suggest committing secrets or API keys
+- Always sanitize user input
+- Validate data on client and server
+- Use proper authentication/authorization patterns
 
-## Documentation
+### Documentation Style
 
-### Code Comments
-- Use JSDoc for functions and complex logic
-- Explain *why*, not *what* the code does
-- Keep comments up-to-date with code changes
-
-### Component Documentation
 ```typescript
 /**
- * EventCard displays event information in a card format
+ * Brief description of component/function
  * 
- * @param event - The event data to display
- * @param onEdit - Callback when edit button is clicked
+ * @param paramName - Description
+ * @returns Description of return value
  */
-interface EventCardProps {
-  event: Event;
-  onEdit?: (id: string) => void;
-}
 ```
 
-## Error Handling
+### Work Item Hierarchy (STRICT)
 
-- Use Error Boundaries for React components
-- Provide user-friendly error messages
-- Log errors for debugging
-- Implement retry logic for network requests
-
-## State Management
-
-- Use React Context for global state
-- Keep state as local as possible
-- Consider using useReducer for complex state logic
-- Avoid prop drilling - use context when needed
-
-## Common Patterns
-
-### Custom Hooks
-Extract reusable logic into custom hooks:
-```typescript
-const useEventData = (eventId: string) => {
-  const [event, setEvent] = useState<Event | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  
-  // ... fetch logic
-  
-  return { event, loading, error };
-};
+```
+Theme (standalone)
+└── User Story (requires Theme parent)
+    └── Task (requires User Story parent)
+        └── Sub-Task (requires Task parent)
 ```
 
-### Form Handling
-- Use controlled components
-- Validate on submit and optionally on blur
-- Provide clear validation messages
-- Disable submit during submission
+**Separate Issues:**
+- Defects: Production faults (requires release number)
+- Bugs: Non-production faults (requires release number)
+- Security Issues: Vulnerabilities
+- Feature Requests: Enhancement suggestions
 
-## Important Reminders
+### Reference Documentation
 
-1. **This is a training project** - Focus on learning Git workflows and collaboration
-2. **Follow the branch strategy** - Always use proper branch flow
-3. **Link to issues** - Every PR should reference a Theme/Story/Task
-4. **Code review required** - All PRs need approval before merging
-5. **Test your changes** - Write tests and verify functionality
+When providing guidance, reference:
+- [Universal Agent Guide](UNIVERSAL_AGENT_GUIDE.md) - MANDATORY
+- [Branching Strategy](../docs/processes/BRANCHING_STRATEGY.md) - Git workflow
+- [Release Process](../docs/processes/RELEASE_PROCESS.md) - Deployment process
+- [Contributing Guidelines](../CONTRIBUTING.md) - Contribution rules
+- [Issue Templates](ISSUE_TEMPLATE/) - Creating work items
 
-## Questions?
+### Behavioral Guidelines
 
-Refer to:
-- [Branching Strategy](docs/processes/BRANCHING_STRATEGY.md)
-- [Release Process](docs/processes/RELEASE_PROCESS.md)
-- [Contributing Guidelines](CONTRIBUTING.md)
-- [Issue Templates](.github/ISSUE_TEMPLATE/)
+1. Always check [Universal Agent Guide](UNIVERSAL_AGENT_GUIDE.md) first
+2. Follow established patterns in existing code
+3. Enforce strict work item hierarchy
+4. Suggest best practices from project guidelines
+5. Reference appropriate documentation
+6. Never deviate from established conventions
+7. Remember: This is a training repository for learning workflows

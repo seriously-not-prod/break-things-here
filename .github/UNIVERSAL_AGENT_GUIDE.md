@@ -1,0 +1,124 @@
+# Universal Agent Guide
+
+> **⚠️ MANDATORY: All AI agents and assistants must read and follow this guide on EVERY request.**
+
+## Critical Rules
+
+### Rule #1: Single README.md Policy
+- ✅ **ONLY ONE** `README.md` file exists in this repository
+- ✅ Location: Repository root (`/README.md`)
+- ❌ **NEVER** create `README.md` files in subdirectories
+- ❌ **NEVER** create `README.md` files in any other location
+
+**Examples of FORBIDDEN README locations:**
+```
+❌ .github/README.md
+❌ docs/README.md
+❌ src/README.md
+❌ .github/agents/README.md
+❌ .github/instructions/README.md
+❌ ANY subdirectory/README.md
+```
+
+**When documentation is needed in subdirectories:**
+- Create files with descriptive names (e.g., `GUIDE.md`, `SETUP.md`, `INDEX.md`)
+- Link to them from the root README.md if necessary
+- NEVER name them `README.md`
+
+### Rule #2: Understand Project Context
+This is a **fake/demo training repository**:
+- Not a real application
+- Used for teaching Git workflows and Kanban processes
+- No feedback collected or worked on
+- Use at own risk
+
+### Rule #3: Follow Established Patterns
+- Always check existing files before creating new ones
+- Follow the project structure already in place
+- Maintain consistency with existing code style
+- Reference existing documentation
+
+### Rule #4: Branch Workflow Adherence
+- Understand the four-branch strategy: `develop` → `test` → `staging` → `main`
+- Never suggest direct commits to protected branches
+- Always use proper branch naming conventions
+- Reference: [docs/processes/BRANCHING_STRATEGY.md](docs/processes/BRANCHING_STRATEGY.md)
+
+### Rule #5: Work Item Hierarchy
+Enforce the strict hierarchy:
+```
+Theme (standalone)
+└── User Story (must have parent Theme)
+    └── Task (must have parent User Story)
+        └── Sub-Task (must have parent Task)
+```
+
+**Separate Issue Types:**
+- Defects: Production faults with release number
+- Bugs: Non-production faults with release number
+- Security Issues: Vulnerability findings
+- Feature Requests: Enhancement suggestions
+
+### Rule #6: Code Quality Standards
+- TypeScript strict mode required
+- React functional components with hooks
+- Named exports preferred over default exports
+- Comprehensive testing required (>80% coverage)
+- Accessibility compliance mandatory
+
+### Rule #7: Documentation Discipline
+- Keep documentation in sync with code
+- Use conventional commit messages
+- Link PRs to issues
+- Update CHANGELOG.md for releases
+- Cross-reference related documentation
+
+### Rule #8: Security Awareness
+- Never commit secrets or API keys
+- Sanitize user input
+- Use environment variables for config
+- Validate all data
+- Follow secure coding practices
+
+### Rule #9: Training Repository Focus
+Remember this is for **training purposes**:
+- Emphasize learning Git workflows
+- Support Kanban process understanding
+- Enable collaborative development practice
+- Provide realistic project structure
+
+### Rule #10: AI Assistant Behavior
+When assisting with code or documentation:
+1. **Read this guide first** on every request
+2. Check for existing patterns and follow them
+3. Reference appropriate documentation
+4. Suggest best practices from project guidelines
+5. Enforce the rules defined here
+6. Never deviate from established conventions
+
+## Quick Reference
+
+| Topic | Document |
+|-------|----------|
+| Branching | [docs/processes/BRANCHING_STRATEGY.md](docs/processes/BRANCHING_STRATEGY.md) |
+| Releases | [docs/processes/RELEASE_PROCESS.md](docs/processes/RELEASE_PROCESS.md) |
+| Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Issue Templates | [.github/ISSUE_TEMPLATE/](.github/ISSUE_TEMPLATE/) |
+| Code Ownership | [.github/CODEOWNERS](.github/CODEOWNERS) |
+| Changelog | [CHANGELOG.md](CHANGELOG.md) |
+| Security | [SECURITY.md](SECURITY.md) |
+
+## Enforcement
+
+These rules are **MANDATORY**. Violations indicate:
+1. The guide was not read
+2. Instructions were not followed
+3. Project conventions were ignored
+
+Always prioritize following this guide over convenience or assumptions.
+
+## Updates
+
+This guide may be updated as the project evolves. Always check for the latest version before providing assistance.
+
+**Last Updated**: January 21, 2026
