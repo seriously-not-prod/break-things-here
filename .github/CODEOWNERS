@@ -1,0 +1,25 @@
+# CODEOWNERS file for Festival Event Planner
+# This file defines code ownership for automatic review assignment
+
+# Default owners for everything in the repo
+* @seriously-not-prod
+
+# Documentation
+*.md @seriously-not-prod
+/docs/ @seriously-not-prod
+
+# Configuration files
+*.json @seriously-not-prod
+*.yml @seriously-not-prod
+*.yaml @seriously-not-prod
+
+# Source code (when created)
+/src/ @seriously-not-prod
+
+# Tests (when created)
+/tests/ @seriously-not-prod
+**/__tests__/ @seriously-not-prod
+*.test.ts @seriously-not-prod
+*.test.tsx @seriously-not-prod
+*.spec.ts @seriously-not-prod
+*.spec.tsx @seriously-not-prod
