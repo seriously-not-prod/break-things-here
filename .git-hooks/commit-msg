@@ -5,6 +5,9 @@
 # This hook ensures:
 # 1. Commit messages reference a GitHub issue (#123)
 # 2. Commit messages follow Conventional Commits format
+# 3. Subject line is under 72 characters
+# 4. Imperative mood is used
+# 5. No trailing period in subject
 #
 # To install: 
 #   cp .git-hooks/commit-msg .git/hooks/commit-msg
@@ -12,6 +15,7 @@
 
 commit_msg_file=$1
 commit_msg=$(cat "$commit_msg_file")
+subject_line=$(echo "$commit_msg" | head -n 1)
 
 # Colors for output
 RED='\033[0;31m'
@@ -31,7 +35,7 @@ if ! echo "$commit_msg" | grep -qE '#[0-9]+'; then
 fi
 
 # Check if commit message follows Conventional Commits format
-if ! echo "$commit_msg" | grep -qE '^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?: .+ #[0-9]+'; then
+if ! echo "$subject_line" | grep -qE '^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?: .+ #[0-9]+'; then
     echo -e "${YELLOW}WARNING: Commit message should follow Conventional Commits format${NC}"
     echo -e "${YELLOW}Format: type(scope): description #123${NC}"
     echo -e "${YELLOW}Allowed types: feat, fix, docs, style, refactor, test, chore${NC}"
@@ -40,6 +44,25 @@ if ! echo "$commit_msg" | grep -qE '^(feat|fix|docs|style|refactor|test|chore)(\
     echo "$commit_msg"
     echo ""
     echo -e "${YELLOW}Proceeding anyway, but please fix for future commits.${NC}"
+fi
+
+# Check subject line length (should be <= 72 characters)
+subject_length=${#subject_line}
+if [ "$subject_length" -gt 72 ]; then
+    echo -e "${YELLOW}WARNING: Subject line is ${subject_length} characters (max 72 recommended)${NC}"
+    echo -e "${YELLOW}Consider shortening: ${subject_line}${NC}"
+fi
+
+# Check for trailing period in subject line
+if echo "$subject_line" | grep -qE '\.$'; then
+    echo -e "${YELLOW}WARNING: Subject line should not end with a period${NC}"
+    echo -e "${YELLOW}Remove the trailing period from: ${subject_line}${NC}"
+fi
+
+# Check for imperative mood (common non-imperative words)
+if echo "$subject_line" | grep -qiE '(added|adds|adding|fixed|fixes|fixing|changed|changes|changing|updated|updates|updating|removed|removes|removing)'; then
+    echo -e "${YELLOW}WARNING: Use imperative mood in subject line${NC}"
+    echo -e "${YELLOW}Use 'add' instead of 'added/adds', 'fix' instead of 'fixed/fixes', etc.${NC}"
 fi
 
 # Success

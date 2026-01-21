@@ -183,6 +183,28 @@ Closes #456
 - ❌ `add new feature` (no issue reference)
 - ❌ `fix bug #999` (if #999 is closed)
 
+**Additional Commit Best Practices:**
+- ✅ **Subject line**: Keep under 72 characters
+- ✅ **Imperative mood**: Use "add" not "added" or "adds"
+- ✅ **No trailing period** in subject line
+- ✅ **Separate subject from body** with blank line
+- ✅ **Body lines**: Wrap at 72 characters
+- ✅ **Atomic commits**: One logical change per commit
+- ✅ **Use rebase**: Avoid merge commits in feature branches
+- ⚠️ **Breaking changes**: Mark with `BREAKING CHANGE:` in footer
+
+**Breaking Change Example:**
+```
+feat(api): update authentication endpoint #123
+
+Change authentication to use JWT tokens instead of sessions.
+
+BREAKING CHANGE: Session-based auth endpoints removed. 
+Clients must migrate to JWT authentication.
+
+Closes #123
+```
+
 **Enforcement:**
 - Git commit-msg hook validates issue references
 - CI/CD checks verify issues are open
