@@ -15,6 +15,21 @@ This project follows a **Kanban-based release process** with **monthly productio
 - **Code Freeze**: 3 business days before release
 - **Hotfixes**: As needed for critical production issues
 
+## Branch Structure
+
+This project uses a **four-branch strategy** with environment progression:
+
+| Branch    | Environment   | Purpose                        | Auto-Deploy |
+|-----------|---------------|--------------------------------|-------------|
+| `develop` | Development   | Integration and active dev     | Yes         |
+| `test`    | Testing/QA    | Quality assurance testing      | Yes         |
+| `staging` | Staging/UAT   | Pre-production validation      | Yes         |
+| `main`    | Production    | Live production environment    | Manual      |
+
+**Standard Flow**: `develop` → `test` → `staging` → `main`
+
+For detailed branching guidelines, see [Branching Strategy](BRANCHING_STRATEGY.md).
+
 ## Kanban Board Structure
 
 ### Columns
@@ -78,18 +93,20 @@ Theme (standalone)
 1. **Pull from Ready**
    - Developers pull items from Ready column
    - Move to In Progress
-   - Create feature branch
+   - Create feature branch from `develop`
 
 2. **Implementation**
+   - Branch: `feature/issue-number-description` or `bugfix/issue-number-description`
    - Follow coding standards
    - Write tests
    - Update documentation
    - Create Sub-Tasks as needed
 
-3. **Pull Request**
-   - Submit PR when complete
+3. **Pull Request to develop**
+   - Submit PR when complete: `feature/xxx` → `develop`
    - Move to Code Review column
    - Request reviewers per CODEOWNERS
+   - Link to related issue (Theme/Story/Task)
 
 ### Phase 3: Review & Testing (Continuous)
 
@@ -98,32 +115,49 @@ Theme (standalone)
    - Address feedback
    - Approve when ready
 
-2. **Testing**
-   - Automated tests run in CI/CD
-   - Manual testing in staging
-   - Verify acceptance criteria
-   - Update test results
+2. **Merge to develop**
+   - Merge approved PR to `develop`
+   - Auto-deploy to development environment
+   - Delete feature branch
 
-3. **Approval**
+3. **Promote to test**
+   - Create PR: `develop` → `test`
+   - Auto-deploy to testing environment
+   - Move to Testing column in Kanban
+
+4. **QA Testing**
+   - Automated tests run in CI/CD
+   - Manual testing in test environment
+   - Verify acceptance criteria
+   - Document test results
+
+5. **Promote to staging**
+   - Create PR: `test` → `staging`
+   - Auto-deploy to staging environment
+   - Ready for UAT
+
+6. **Staging Validation**
+   - User Acceptance Testing
+   - Performance testing
+   - Security scanning
    - Move to Ready for Release
-   - Tag with release version
 
 ### Phase 4: Release Preparation (T-7 days)
 
-1. **Create Release Branch**
-   - Branch from main: `release/vX.Y.Z`
+1. **Prepare staging for Release**
+   - Ensure all items in Ready for Release are merged to `staging`
    - Update version numbers
-   - Generate release notes
+   - Generate preliminary release notes
 
 2. **Final Testing**
-   - UAT in staging environment
-   - Security scan
-   - Performance testing
+   - Complete UAT in staging environment
+   - Security scan results reviewed
+   - Performance testing validated
 
 3. **Code Freeze (T-3 days)**
-   - No new features added to release branch
+   - Freeze merges to `staging`
    - Only critical bug fixes allowed
-   - All fixes require approval
+   - All fixes require expedited approval
 
 ### Phase 5: Deployment (Monthly)
 
@@ -131,8 +165,12 @@ Theme (standalone)
    - Backup production database
    - Notify stakeholders
    - Prepare rollback plan
+   - Create final release notes
 
 2. **Deployment**
+   - Create PR: `staging` → `main`
+   - Get final approval
+   - Merge to `main`
    - Deploy to production (first Tuesday)
    - Monitor application health
    - Verify critical paths
@@ -153,23 +191,32 @@ Theme (standalone)
 For critical production issues (Defects):
 
 1. **Identification**
-   - Create Defect issue
+   - Create Defect issue with production release number
    - Assess severity and impact
+   - Determine if hotfix is required
 
 2. **Hotfix Branch**
-   - Branch from production tag: `hotfix/issue-number`
+   - Branch from `main`: `hotfix/issue-number-description`
    - Implement fix
-   - Test thoroughly
+   - Test thoroughly in local/dev environment
 
 3. **Expedited Review**
-   - Mandatory code review
-   - Fast-track testing
+   - Create PR: `hotfix/xxx` → `main`
+   - Mandatory code review (expedited)
+   - Fast-track testing in staging
    - Approve for deployment
 
-4. **Deploy**
+4. **Deploy to Production**
+   - Merge to `main`
    - Deploy to production immediately
-   - Update CHANGELOG
-   - Merge back to main and current release branch
+   - Tag release with patch version
+   - Monitor closely
+
+5. **Back-Merge to Other Branches**
+   - Merge `main` → `staging`
+   - Merge `staging` → `test`
+   - Merge `test` → `develop`
+   - This ensures hotfix flows through all environments
 
 5. **Post-Hotfix**
    - Document lessons learned
@@ -244,6 +291,8 @@ Track the following metrics for continuous improvement:
 
 ## References
 
+- [Branching Strategy](BRANCHING_STRATEGY.md) - Detailed branch workflow and naming
 - [CHANGELOG.md](../../CHANGELOG.md) - Release history
 - [CONTRIBUTING.md](../../CONTRIBUTING.md) - Contribution guidelines
 - [Issue Templates](../ISSUE_TEMPLATE/) - Creating work items
+- [CODEOWNERS](../../.github/CODEOWNERS) - Code review assignments
