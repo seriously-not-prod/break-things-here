@@ -1,0 +1,65 @@
+name: Sub-Task
+description: Create a Sub-Task that relates to a Task
+title: "[SUBTASK] "
+labels: ["sub-task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Sub-Task Information
+        Sub-Tasks must relate to a Task. Cannot be standalone.
+        
+  - type: input
+    id: related-task
+    attributes:
+      label: Related Task
+      description: Link to the parent Task issue (e.g., #123)
+      placeholder: "#"
+    validations:
+      required: true
+      
+  - type: input
+    id: subtask-title
+    attributes:
+      label: Sub-Task Title
+      description: A clear, concise title for this sub-task
+      placeholder: "e.g., Write unit tests for login validation"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Detailed description of this sub-task
+      placeholder: Describe what needs to be done
+    validations:
+      required: true
+      
+  - type: textarea
+    id: completion-criteria
+    attributes:
+      label: Completion Criteria
+      description: How will we know this sub-task is done?
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+    validations:
+      required: true
+      
+  - type: input
+    id: estimated-hours
+    attributes:
+      label: Estimated Hours
+      description: Time estimate in hours
+      placeholder: "e.g., 1, 2, 4"
+    validations:
+      required: false
+      
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Notes
+      description: Any additional context or implementation details
+    validations:
+      required: false

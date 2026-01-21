@@ -1,0 +1,67 @@
+name: Theme
+description: Create a new Theme for organizing User Stories
+title: "[THEME] "
+labels: ["theme"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Theme Information
+        Themes are high-level organizational units that contain User Stories. They represent major areas of functionality or strategic initiatives.
+        
+  - type: input
+    id: theme-name
+    attributes:
+      label: Theme Name
+      description: A short, descriptive name for this theme
+      placeholder: "e.g., Event Management, User Authentication"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Detailed description of this theme and its purpose
+      placeholder: Describe the overall goal and scope of this theme
+    validations:
+      required: true
+      
+  - type: textarea
+    id: business-value
+    attributes:
+      label: Business Value
+      description: Explain the business value and impact of this theme
+      placeholder: Why is this theme important? What value does it provide?
+    validations:
+      required: true
+      
+  - type: textarea
+    id: success-criteria
+    attributes:
+      label: Success Criteria
+      description: How will we measure the success of this theme?
+      placeholder: Define the criteria that indicate this theme is complete and successful
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: What is the priority of this theme?
+      options:
+        - Critical
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+      
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Notes
+      description: Any additional context, dependencies, or considerations
+    validations:
+      required: false

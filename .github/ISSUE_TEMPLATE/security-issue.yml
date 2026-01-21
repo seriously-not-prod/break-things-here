@@ -1,0 +1,119 @@
+name: Security Issue
+description: Report a security vulnerability (private)
+title: "[SECURITY] "
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Security Vulnerability Report
+        
+        ⚠️ **IMPORTANT**: If this is a critical security issue in production, consider reporting it privately.
+        See [SECURITY.md](../../SECURITY.md) for private reporting guidelines.
+        
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this security issue?
+      options:
+        - Critical - Immediate exploitation possible
+        - High - Significant risk
+        - Medium - Moderate risk
+        - Low - Minor risk
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: vulnerability-type
+    attributes:
+      label: Vulnerability Type
+      description: What type of vulnerability is this?
+      options:
+        - Authentication/Authorization
+        - SQL Injection
+        - XSS (Cross-Site Scripting)
+        - CSRF (Cross-Site Request Forgery)
+        - Dependency Vulnerability
+        - Information Disclosure
+        - Denial of Service
+        - Other
+    validations:
+      required: true
+      
+  - type: textarea
+    id: description
+    attributes:
+      label: Vulnerability Description
+      description: Detailed description of the security issue
+      placeholder: Describe the vulnerability
+    validations:
+      required: true
+      
+  - type: textarea
+    id: affected-components
+    attributes:
+      label: Affected Components
+      description: What parts of the system are affected?
+      placeholder: List affected files, endpoints, or components
+    validations:
+      required: true
+      
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: How can this vulnerability be reproduced?
+      placeholder: |
+        1. Step 1
+        2. Step 2
+        3. Step 3
+    validations:
+      required: true
+      
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: What is the potential impact of this vulnerability?
+      placeholder: Data breach, unauthorized access, service disruption, etc.
+    validations:
+      required: true
+      
+  - type: textarea
+    id: affected-versions
+    attributes:
+      label: Affected Versions
+      description: Which versions are affected?
+      placeholder: "e.g., All versions, v1.0.0 - v1.2.0"
+    validations:
+      required: false
+      
+  - type: textarea
+    id: suggested-fix
+    attributes:
+      label: Suggested Fix
+      description: If you have suggestions for fixing this issue
+      placeholder: Describe potential solutions or mitigations
+    validations:
+      required: false
+      
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to CVEs, security advisories, or related documentation
+      placeholder: URLs to relevant security resources
+    validations:
+      required: false
+      
+  - type: checkboxes
+    id: disclosure
+    attributes:
+      label: Disclosure
+      description: Responsible disclosure agreement
+      options:
+        - label: I agree to follow responsible disclosure practices
+          required: true
+        - label: I have not publicly disclosed this vulnerability
+          required: false

@@ -1,0 +1,89 @@
+name: User Story
+description: Create a User Story that relates to a Theme
+title: "[STORY] "
+labels: ["user-story"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## User Story Information
+        User Stories must relate to a Theme and can only have Tasks as children. Cannot be standalone.
+        
+  - type: input
+    id: related-theme
+    attributes:
+      label: Related Theme
+      description: Link to the parent Theme issue (e.g., #123)
+      placeholder: "#"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: user-story
+    attributes:
+      label: User Story
+      description: Write the user story in standard format
+      placeholder: "As a [role], I want [feature] so that [benefit]"
+      value: "As a , I want  so that "
+    validations:
+      required: true
+      
+  - type: textarea
+    id: description
+    attributes:
+      label: Detailed Description
+      description: Provide additional context and details
+      placeholder: Explain the user story in more detail
+    validations:
+      required: true
+      
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: List the criteria that must be met for this story to be complete
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+        - [ ] Criterion 3
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: What is the priority of this user story?
+      options:
+        - Critical
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+      
+  - type: input
+    id: story-points
+    attributes:
+      label: Story Points
+      description: Estimated effort (optional - can be added during planning)
+      placeholder: "e.g., 1, 2, 3, 5, 8, 13"
+    validations:
+      required: false
+      
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List any dependencies on other stories or themes
+      placeholder: Links to related issues or external dependencies
+    validations:
+      required: false
+      
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Notes
+      description: Any additional context or technical considerations
+    validations:
+      required: false

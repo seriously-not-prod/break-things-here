@@ -1,0 +1,105 @@
+name: Bug
+description: Report a bug found in non-production environments
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Bug Report
+        Bugs are for non-production faults. Must include the release number where the fault was found/reproduced.
+        
+        ⚠️ For production issues, use the Defect template instead.
+        
+  - type: input
+    id: release-number
+    attributes:
+      label: Release Number
+      description: The release number where this bug was found/reproduced
+      placeholder: "e.g., v1.2.0"
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      description: Where was this bug found?
+      options:
+        - Development
+        - Testing
+        - Staging
+        - UAT
+        - Other Non-Production
+    validations:
+      required: true
+      
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Clear and concise description of what the bug is
+      placeholder: Describe the bug
+    validations:
+      required: true
+      
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: true
+      
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: Describe what should happen
+    validations:
+      required: true
+      
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: Describe what actually happens
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this bug?
+      options:
+        - Critical - System unusable
+        - High - Major functionality broken
+        - Medium - Feature partially broken
+        - Low - Minor issue
+    validations:
+      required: true
+      
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots/Logs
+      description: Add screenshots, error messages, or log files
+      placeholder: Paste screenshots or logs here
+    validations:
+      required: false
+      
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Browser info, OS, or any other relevant details
+    validations:
+      required: false

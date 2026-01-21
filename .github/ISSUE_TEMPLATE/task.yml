@@ -1,0 +1,92 @@
+name: Task
+description: Create a Task that relates to a User Story
+title: "[TASK] "
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Task Information
+        Tasks must relate to a User Story and can only have Sub-Tasks as children. Cannot be standalone.
+        
+  - type: input
+    id: related-story
+    attributes:
+      label: Related User Story
+      description: Link to the parent User Story issue (e.g., #123)
+      placeholder: "#"
+    validations:
+      required: true
+      
+  - type: input
+    id: task-title
+    attributes:
+      label: Task Title
+      description: A clear, concise title for this task
+      placeholder: "e.g., Implement login form validation"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Detailed description of what needs to be done
+      placeholder: Describe the task in detail
+    validations:
+      required: true
+      
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: Specific criteria to determine when this task is complete
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+        - [ ] Criterion 3
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: task-type
+    attributes:
+      label: Task Type
+      description: What type of work is this?
+      options:
+        - Development
+        - Design
+        - Documentation
+        - Testing
+        - Research
+        - Configuration
+        - Other
+    validations:
+      required: true
+      
+  - type: input
+    id: estimated-hours
+    attributes:
+      label: Estimated Hours
+      description: Time estimate in hours (optional)
+      placeholder: "e.g., 4, 8, 16"
+    validations:
+      required: false
+      
+  - type: textarea
+    id: technical-notes
+    attributes:
+      label: Technical Notes
+      description: Technical details, approach, or implementation notes
+      placeholder: Any technical considerations or approach
+    validations:
+      required: false
+      
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List any dependencies on other tasks
+      placeholder: Links to related issues or blockers
+    validations:
+      required: false

@@ -1,0 +1,126 @@
+name: Defect
+description: Report a defect found in production
+title: "[DEFECT] "
+labels: ["defect", "production"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Production Defect Report
+        Defects are for production-only faults. Must include the release number where the fault was found/reproduced.
+        
+        🚨 This is for PRODUCTION issues only. For non-production bugs, use the Bug template.
+        
+  - type: input
+    id: release-number
+    attributes:
+      label: Production Release Number
+      description: The production release number where this defect was found/reproduced
+      placeholder: "e.g., v1.2.0"
+    validations:
+      required: true
+      
+  - type: input
+    id: date-discovered
+    attributes:
+      label: Date Discovered
+      description: When was this defect first discovered?
+      placeholder: "YYYY-MM-DD"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: description
+    attributes:
+      label: Defect Description
+      description: Clear and concise description of the production issue
+      placeholder: Describe the defect
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: What is the impact to production?
+      options:
+        - Critical - Production down/Major data loss
+        - High - Core functionality broken
+        - Medium - Feature partially broken
+        - Low - Minor cosmetic issue
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: impact
+    attributes:
+      label: User Impact
+      description: How many users are affected?
+      options:
+        - All users
+        - Many users
+        - Some users
+        - Few users
+        - Single user
+    validations:
+      required: true
+      
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce in production
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: true
+      
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: What should happen
+      placeholder: Describe expected behavior
+    validations:
+      required: true
+      
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual Behavior
+      description: What is happening in production
+      placeholder: Describe actual behavior
+    validations:
+      required: true
+      
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround
+      description: Is there a temporary workaround available?
+      placeholder: Describe any available workarounds
+    validations:
+      required: false
+      
+  - type: textarea
+    id: screenshots-logs
+    attributes:
+      label: Screenshots/Logs
+      description: Production logs, error messages, or screenshots
+      placeholder: |
+        ⚠️ Ensure no sensitive data is included
+        Paste screenshots or sanitized logs here
+    validations:
+      required: false
+      
+  - type: textarea
+    id: business-impact
+    attributes:
+      label: Business Impact
+      description: What is the business impact of this defect?
+      placeholder: Revenue loss, customer complaints, SLA breach, etc.
+    validations:
+      required: true
