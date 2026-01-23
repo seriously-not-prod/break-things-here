@@ -7,17 +7,22 @@ body:
     attributes:
       value: |
         ## Sub-Task Information
-        Sub-Tasks must relate to a Task. Cannot be standalone.
         
-  - type: input
-    id: related-task
-    attributes:
-      label: Related Task
-      description: Link to the parent Task issue (e.g., #123)
-      placeholder: "#"
-    validations:
-      required: true
-      
+        ⚠️ **IMPORTANT: Sub-Tasks must be created as sub-issues of a Task.**
+        
+        ### How to Create:
+        1. Navigate to the parent Task issue
+        2. Click "Create sub-issue" at the bottom of the issue description
+        3. Select this Sub-Task template
+        
+        ### Alternatively:
+        If you create this issue first, you must:
+        1. Navigate to the parent Task issue
+        2. Click the dropdown next to "Create sub-issue"
+        3. Select "Add existing issue" and link this issue
+        
+        Sub-Tasks can have their own sub-issues (up to 8 levels of nesting).
+        
   - type: input
     id: subtask-title
     attributes:
@@ -47,12 +52,18 @@ body:
     validations:
       required: true
       
-  - type: input
+  - type: dropdown
     id: estimated-hours
     attributes:
       label: Estimated Hours
       description: Time estimate in hours
-      placeholder: "e.g., 1, 2, 4"
+      options:
+        - Not Estimated
+        - "1 hour"
+        - "2 hours"
+        - "4 hours"
+        - "8 hours"
+        - "1 day"
     validations:
       required: false
       

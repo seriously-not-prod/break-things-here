@@ -15,8 +15,8 @@ body:
     id: release-number
     attributes:
       label: Production Release Number
-      description: The production release number where this defect was found/reproduced
-      placeholder: "e.g., v1.2.0"
+      description: The production release number where this defect was found/reproduced (format vX.Y.Z)
+      placeholder: "v1.2.0"
     validations:
       required: true
       
