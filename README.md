@@ -49,6 +49,8 @@ This repository is designed to teach:
 .
 ├── .github/
 │   ├── ISSUE_TEMPLATE/       # Issue templates (Theme, Story, Task, etc.)
+│   ├── workflows/
+│   │   └── pr-validation.yml # CI validation workflow
 │   ├── copilot-instructions.md
 │   ├── universal-agent-guide.md
 │   ├── pull_request_template.md
@@ -62,7 +64,8 @@ This repository is designed to teach:
 │   │   └── release-process.md
 │   └── requirements/         # Project requirement documents
 ├── scripts/
-│   └── setup-hooks.sh        # Git hooks installation script
+│   ├── setup-hooks.sh        # Git hooks installation script
+│   └── validate-issue-hierarchy.js  # Issue hierarchy validator
 ├── AGENTS.md                 # AI assistant configuration
 ├── CHANGELOG.md
 ├── CODE_OF_CONDUCT.md
@@ -85,15 +88,21 @@ This repository is designed to teach:
 
 ### Creating Work Items
 
-Follow the strict hierarchy:
+Follow the strict hierarchy using GitHub's **native sub-issues**:
 ```
-Theme (standalone)
-└── User Story (must have parent Theme)
-    └── Task (must have parent User Story)
-        └── Sub-Task (must have parent Task)
+Theme (standalone issue)
+└── User Story (sub-issue of Theme)
+    └── Task (sub-issue of User Story)
+        └── Sub-Task (sub-issue of Task)
 ```
 
-Use the [issue templates](.github/ISSUE_TEMPLATE/) to create work items.
+**How to Create:**
+1. Start by creating a Theme issue
+2. Open the Theme and click "Create sub-issue" → Select User Story template
+3. Open the User Story and click "Create sub-issue" → Select Task template
+4. Open the Task and click "Create sub-issue" → Select Sub-Task template
+
+Use the [issue templates](.github/ISSUE_TEMPLATE/) for structured work items.
 
 ### Making Changes
 
@@ -102,8 +111,11 @@ Use the [issue templates](.github/ISSUE_TEMPLATE/) to create work items.
 3. Make changes with atomic commits
 4. Commit with issue reference: `feat(scope): description #123`
 5. Create Pull Request to `develop`
-6. Address review feedback
-7. Merge after approval
+6. **CI automatically validates:**
+   - Issue hierarchy is correct
+   - All commits reference open issues
+7. Address review feedback
+8. Merge after approval
 
 ### Commit Message Format
 
@@ -165,6 +177,8 @@ See [.git-hooks/SETUP.md](.git-hooks/SETUP.md) for details.
 - ✅ Strict work item hierarchy enforcement
 - ✅ Complete issue template collection
 - ✅ Automated commit message validation
+- ✅ **Automated CI validation of issue hierarchy**
+- ✅ **Automated commit message validation in PRs**
 - ✅ Pull request template
 - ✅ Code ownership and review process
 - ✅ Monthly release cadence
