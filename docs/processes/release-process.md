@@ -30,9 +30,13 @@ This project uses a **four-branch strategy** with environment progression:
 
 For detailed branching guidelines, see [Branching Strategy](branching-strategy.md).
 
-## Kanban Board Structure
+## GitHub Projects Board
 
-### Columns
+This repository uses **GitHub Projects** (Project 1) for visual workflow management.
+
+**Project URL**: https://github.com/orgs/seriously-not-prod/projects/1
+
+### Workflow Status Fields
 
 1. **Backlog** - All themes, stories, and issues not yet started
 2. **Ready** - Items refined and ready to be worked on
@@ -47,6 +51,14 @@ For detailed branching guidelines, see [Branching Strategy](branching-strategy.m
 - **In Progress**: Max 5 items per developer
 - **Code Review**: Max 10 items total
 - **Testing**: Max 8 items total
+
+### Adding Issues to Project
+
+All issues should be added to Project 1:
+```bash
+# Add issue to project (via web UI or automation)
+gh issue edit <issue-number> --add-project "Project 1"
+```
 
 ## Work Item Hierarchy
 
@@ -288,11 +300,12 @@ Track the following metrics for continuous improvement:
 
 ## Tools
 
-- **Project Board**: GitHub Projects (Kanban view)
-- **Issue Tracking**: GitHub Issues
+- **Project Board**: GitHub Projects (Project 1) - Kanban and table views
+- **Issue Tracking**: GitHub Issues with native sub-issues
 - **Version Control**: Git/GitHub
 - **CI/CD**: GitHub Actions
 - **Monitoring**: Application logs and metrics
+- **Automation**: GitHub Actions workflows for status updates
 
 ## Roles & Responsibilities
 

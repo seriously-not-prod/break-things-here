@@ -12,6 +12,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- GitHub Projects (Project 1) integration for visual Kanban workflow management
+- Project automation workflow to auto-add issues and PRs to Project 1
+- Workflow status fields: Backlog → Ready → In Progress → Code Review → Testing → Ready for Release → Released
+- Project Board link in README and release process documentation
+- Instructions for adding issues to Project 1
+
+### Changed
+- Updated README.md with GitHub Projects workflow integration
+- Updated docs/processes/release-process.md with Project 1 details and workflow states
+- Enhanced Making Changes section with project board workflow steps
+
+## [Unreleased - Previously]
+
+### Added
 - Initial project structure
 - Documentation framework
 - Issue templates for project management (Theme, User Story, Task, Sub-Task, Bug, Defect, Security Issue, Feature Request)

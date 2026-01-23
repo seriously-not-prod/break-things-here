@@ -10,11 +10,13 @@ A training repository for learning Git workflows, Kanban processes, and collabor
 
 This repository is designed to teach:
 - **Git Workflow**: Four-branch strategy (develop → test → staging → main)
-- **Kanban Process**: Work item hierarchy and continuous flow
+- **Kanban Process**: Work item hierarchy and continuous flow with GitHub Projects
 - **Commit Standards**: Conventional Commits with issue tracking
 - **Code Review**: Pull request workflow and CODEOWNERS
 - **Release Management**: Monthly production releases
 - **Documentation**: Complete project documentation standards
+
+**Project Board**: https://github.com/orgs/seriously-not-prod/projects/1
 
 ## Getting Started
 
@@ -106,16 +108,17 @@ Use the [issue templates](.github/ISSUE_TEMPLATE/) for structured work items.
 
 ### Making Changes
 
-1. Create an issue (Theme, Story, or Task)
-2. Create a branch: `feature/123-description` or `bugfix/456-description`
-3. Make changes with atomic commits
-4. Commit with issue reference: `feat(scope): description #123`
-5. Create Pull Request to `develop`
-6. **CI automatically validates:**
+1. **Select work from [Project Board](https://github.com/orgs/seriously-not-prod/projects/1)**: Choose an item from **Ready** column
+2. **Move to In Progress**: Drag the item to **In Progress** status
+3. Create a branch: `feature/123-description` or `bugfix/456-description`
+4. Make changes with atomic commits
+5. Commit with issue reference: `feat(scope): description #123`
+6. Create Pull Request to `develop` (auto-moves to **Code Review** status)
+7. **CI automatically validates:**
    - Issue hierarchy is correct
    - All commits reference open issues
-7. Address review feedback
-8. Merge after approval
+8. Address review feedback
+9. Merge after approval (moves to **Testing** → **Ready for Release** → **Released**)
 
 ### Commit Message Format
 
@@ -174,6 +177,7 @@ See [.git-hooks/SETUP.md](.git-hooks/SETUP.md) for details.
 ## Key Features
 
 - ✅ Four-branch workflow with environment progression
+- ✅ **GitHub Projects (Project 1)** for visual Kanban workflow
 - ✅ Strict work item hierarchy enforcement
 - ✅ Complete issue template collection
 - ✅ Automated commit message validation
