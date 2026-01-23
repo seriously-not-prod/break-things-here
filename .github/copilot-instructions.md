@@ -136,11 +136,17 @@ const fetchData = async (): Promise<DataType[]> => {
 ### Work Item Hierarchy (STRICT)
 
 ```
-Theme (standalone)
-└── User Story (requires Theme parent)
-    └── Task (requires User Story parent)
-        └── Sub-Task (requires Task parent)
+Theme (standalone issue)
+└── User Story (sub-issue of Theme)
+    └── Task (sub-issue of User Story)
+        └── Sub-Task (sub-issue of Task)
 ```
+
+**How to Create:**
+- Themes: Create directly using Theme template
+- User Stories: Create as sub-issue of Theme (click "Create sub-issue" in Theme)
+- Tasks: Create as sub-issue of User Story
+- Sub-Tasks: Create as sub-issue of Task
 
 **Separate Issues:**
 - Defects: Production faults (requires release number)

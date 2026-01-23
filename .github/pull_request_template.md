@@ -17,9 +17,10 @@ Closes #
 
 ## Work Item Hierarchy
 <!-- Indicate the work item hierarchy this PR relates to -->
+<!-- CI will automatically validate that issues follow proper hierarchy -->
 - Theme: #
-- User Story: #
-- Task: #
+- User Story: # (must be sub-issue of Theme)
+- Task: # (must be sub-issue of User Story)
 
 ## Changes Made
 <!-- List the main changes in this PR -->
@@ -50,6 +51,7 @@ Closes #
 - [ ] Any dependent changes have been merged and published
 - [ ] All commits reference an open GitHub issue (#123)
 - [ ] All commits follow Conventional Commits format
+- [ ] Referenced issues follow proper hierarchy (validated by CI)
 
 ## Breaking Changes
 <!-- If this PR contains breaking changes, describe them here -->
@@ -76,6 +78,7 @@ Closes #
 **Reviewer Checklist:**
 - [ ] Code quality and style are consistent
 - [ ] All commits reference open issues
+- [ ] Issue hierarchy is valid (CI validates automatically)
 - [ ] Tests are adequate and passing
 - [ ] Documentation is updated
 - [ ] No security concerns identified

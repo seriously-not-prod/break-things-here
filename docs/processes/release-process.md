@@ -52,19 +52,32 @@ For detailed branching guidelines, see [Branching Strategy](branching-strategy.m
 
 ### Structure
 
+GitHub's **native sub-issues** are used to create the work item hierarchy:
+
 ```
-Theme (standalone)
-└── User Story (must have parent Theme)
-    └── Task (must have parent User Story)
-        └── Sub-Task (must have parent Task)
+Theme (standalone issue)
+└── User Story (sub-issue of Theme)
+    └── Task (sub-issue of User Story)
+        └── Sub-Task (sub-issue of Task)
 ```
 
 ### Rules
 
-- **Themes**: Standalone items that organize User Stories
-- **User Stories**: Must relate to a Theme; cannot be standalone
-- **Tasks**: Must relate to a User Story; cannot be standalone
-- **Sub-Tasks**: Must relate to a Task; cannot be standalone
+- **Themes**: Standalone issues that organize User Stories
+- **User Stories**: Created as sub-issues of a Theme
+- **Tasks**: Created as sub-issues of a User Story
+- **Sub-Tasks**: Created as sub-issues of a Task
+
+**How to Create Hierarchy:**
+1. Create a Theme issue using the Theme template
+2. Open the Theme → Click "Create sub-issue" → Select User Story template
+3. Open the User Story → Click "Create sub-issue" → Select Task template
+4. Open the Task → Click "Create sub-issue" → Select Sub-Task template
+
+**Adding Existing Issues:**
+- Click the dropdown next to "Create sub-issue"
+- Select "Add existing issue"
+- Search for and select the issue to link
 
 ### Other Issue Types
 

@@ -99,13 +99,19 @@ This is a **fake/demo training repository**:
 - Reference: [docs/processes/branching-strategy.md](docs/processes/branching-strategy.md)
 
 ### Rule #8: Work Item Hierarchy
-Enforce the strict hierarchy:
+Enforce the strict hierarchy using GitHub's native sub-issues:
 ```
-Theme (standalone)
-└── User Story (must have parent Theme)
-    └── Task (must have parent User Story)
-        └── Sub-Task (must have parent Task)
+Theme (standalone issue)
+└── User Story (sub-issue of Theme)
+    └── Task (sub-issue of User Story)
+        └── Sub-Task (sub-issue of Task)
 ```
+
+**How to Create:**
+- Themes: Create directly using Theme template
+- User Stories: Create as sub-issue of Theme (click "Create sub-issue" in Theme)
+- Tasks: Create as sub-issue of User Story
+- Sub-Tasks: Create as sub-issue of Task
 
 **Separate Issue Types:**
 - Defects: Production faults with release number
