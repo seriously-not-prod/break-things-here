@@ -20,12 +20,13 @@ export function RegistrationForm() {
   const isFormFilled =
     fields.displayName.trim() !== '' &&
     fields.email.trim() !== '' &&
-    fields.password !== '' &&
-    fields.confirmPassword !== '';
+    fields.password.length >= 8 &&
+    fields.confirmPassword !== '' &&
+    fields.password === fields.confirmPassword;
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target;
-    setFields((prev) => ({ ...prev, [name]: value }));
+    setFields((prev) => ({ ...prev, [name as keyof FormFields]: value }));
   }
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -44,8 +45,7 @@ export function RegistrationForm() {
           value={fields.displayName}
           onChange={handleChange}
           autoComplete="name"
-          aria-label="Display name"
-          aria-required="true"
+          required
         />
       </div>
 
@@ -58,8 +58,7 @@ export function RegistrationForm() {
           value={fields.email}
           onChange={handleChange}
           autoComplete="email"
-          aria-label="Email address"
-          aria-required="true"
+          required
         />
       </div>
 
@@ -72,8 +71,7 @@ export function RegistrationForm() {
           value={fields.password}
           onChange={handleChange}
           autoComplete="new-password"
-          aria-label="Password"
-          aria-required="true"
+          required
         />
       </div>
 
@@ -86,8 +84,7 @@ export function RegistrationForm() {
           value={fields.confirmPassword}
           onChange={handleChange}
           autoComplete="new-password"
-          aria-label="Confirm password"
-          aria-required="true"
+          required
         />
       </div>
 
