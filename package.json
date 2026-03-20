@@ -1,0 +1,39 @@
+{
+  "name": "break-things-here",
+  "version": "1.0.0",
+  "description": "> **⚠️ DISCLAIMER: This is a fake project for demonstration/testing purposes only. This is not a real application or repository.** > > **No feedback will be collected or worked on. Use at your own risk.**",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "jest --config=./jest.config.js",
+    "test:watch": "jest --watch --config=./jest.config.js",
+    "test:coverage": "jest --coverage --config=./jest.config.js",
+    "build": "tsc",
+    "build:watch": "tsc --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seriously-not-prod/break-things-here.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/seriously-not-prod/break-things-here/issues"
+  },
+  "homepage": "https://github.com/seriously-not-prod/break-things-here#readme",
+  "dependencies": {
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.2"
+  }
+}
