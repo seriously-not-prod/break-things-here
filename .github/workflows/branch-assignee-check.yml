@@ -1,0 +1,58 @@
+name: Branch Assignee Check
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'hotfix/**'
+
+permissions:
+  issues: read
+
+jobs:
+  verify-assignee:
+    name: Verify pusher is issue assignee
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract issue number from branch
+        id: extract
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          # Extract issue number: feature/123-description → 123
+          ISSUE_NUMBER=$(echo "$BRANCH" | sed -n 's|^[^/]*/\([0-9]*\)-.*|\1|p')
+
+          if [[ -z "$ISSUE_NUMBER" ]]; then
+            echo "::error::Could not extract issue number from branch name '$BRANCH'"
+            exit 1
+          fi
+
+          echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Extracted issue #$ISSUE_NUMBER from branch '$BRANCH'"
+
+      - name: Check if pusher is assigned to issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.extract.outputs.issue_number }}
+          PUSHER: ${{ github.actor }}
+        run: |
+          echo "Checking if '$PUSHER' is assigned to issue #$ISSUE_NUMBER"
+
+          ASSIGNEES=$(gh api "repos/${{ github.repository }}/issues/$ISSUE_NUMBER" \
+            --jq '[.assignees[].login] | join(",")')
+
+          if [[ -z "$ASSIGNEES" ]]; then
+            echo "::error::Issue #$ISSUE_NUMBER has no assignees. Assign yourself to the issue before pushing."
+            exit 1
+          fi
+
+          echo "Issue #$ISSUE_NUMBER assignees: $ASSIGNEES"
+
+          if echo "$ASSIGNEES" | tr ',' '\n' | grep -qx "$PUSHER"; then
+            echo "✅ $PUSHER is assigned to issue #$ISSUE_NUMBER"
+          else
+            echo "::error::$PUSHER is not assigned to issue #$ISSUE_NUMBER. Only assignees ($ASSIGNEES) can push to this branch."
+            exit 1
+          fi

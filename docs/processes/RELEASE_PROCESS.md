@@ -15,9 +15,28 @@ This project follows a **Kanban-based release process** with **monthly productio
 - **Code Freeze**: 3 business days before release
 - **Hotfixes**: As needed for critical production issues
 
-## Kanban Board Structure
+## Branch Structure
 
-### Columns
+This project uses a **four-branch strategy** with environment progression:
+
+| Branch    | Environment   | Purpose                        | Auto-Deploy |
+|-----------|---------------|--------------------------------|-------------|
+| `develop` | Development   | Integration and active dev     | Yes         |
+| `test`    | Testing/QA    | Quality assurance testing      | Yes         |
+| `stage`   | Stage/UAT     | Pre-production validation      | Yes         |
+| `main`    | Production    | Live production environment    | Manual      |
+
+**Standard Flow**: `develop` → `test` → `stage` → `main`
+
+For detailed branching guidelines, see [Branching Strategy](branching-strategy.md).
+
+## GitHub Projects Board
+
+This repository uses **GitHub Projects** (Project 1) for visual workflow management.
+
+**Project URL**: https://github.com/orgs/seriously-not-prod/projects/1
+
+### Workflow Status Fields
 
 1. **Backlog** - All themes, stories, and issues not yet started
 2. **Ready** - Items refined and ready to be worked on
@@ -33,23 +52,44 @@ This project follows a **Kanban-based release process** with **monthly productio
 - **Code Review**: Max 10 items total
 - **Testing**: Max 8 items total
 
+### Adding Issues to Project
+
+All issues should be added to Project 1:
+```bash
+# Add issue to project (via web UI or automation)
+gh issue edit <issue-number> --add-project "Project 1"
+```
+
 ## Work Item Hierarchy
 
 ### Structure
 
+GitHub's **native sub-issues** are used to create the work item hierarchy:
+
 ```
-Theme (standalone)
-└── User Story (must have parent Theme)
-    └── Task (must have parent User Story)
-        └── Sub-Task (must have parent Task)
+Theme (standalone issue)
+└── User Story (sub-issue of Theme)
+    └── Task (sub-issue of User Story)
+        └── Sub-Task (sub-issue of Task)
 ```
 
 ### Rules
 
-- **Themes**: Standalone items that organize User Stories
-- **User Stories**: Must relate to a Theme; cannot be standalone
-- **Tasks**: Must relate to a User Story; cannot be standalone
-- **Sub-Tasks**: Must relate to a Task; cannot be standalone
+- **Themes**: Standalone issues that organize User Stories
+- **User Stories**: Created as sub-issues of a Theme
+- **Tasks**: Created as sub-issues of a User Story
+- **Sub-Tasks**: Created as sub-issues of a Task
+
+**How to Create Hierarchy:**
+1. Create a Theme issue using the Theme template
+2. Open the Theme → Click "Create sub-issue" → Select User Story template
+3. Open the User Story → Click "Create sub-issue" → Select Task template
+4. Open the Task → Click "Create sub-issue" → Select Sub-Task template
+
+**Adding Existing Issues:**
+- Click the dropdown next to "Create sub-issue"
+- Select "Add existing issue"
+- Search for and select the issue to link
 
 ### Other Issue Types
 
@@ -78,18 +118,20 @@ Theme (standalone)
 1. **Pull from Ready**
    - Developers pull items from Ready column
    - Move to In Progress
-   - Create feature branch
+   - Create feature branch from `develop`
 
 2. **Implementation**
+   - Branch: `feature/issue-number-description` or `bugfix/issue-number-description`
    - Follow coding standards
    - Write tests
    - Update documentation
    - Create Sub-Tasks as needed
 
-3. **Pull Request**
-   - Submit PR when complete
+3. **Pull Request to develop**
+   - Submit PR when complete: `feature/xxx` → `develop`
    - Move to Code Review column
    - Request reviewers per CODEOWNERS
+   - Link to related issue (Theme/Story/Task)
 
 ### Phase 3: Review & Testing (Continuous)
 
@@ -98,32 +140,49 @@ Theme (standalone)
    - Address feedback
    - Approve when ready
 
-2. **Testing**
-   - Automated tests run in CI/CD
-   - Manual testing in staging
-   - Verify acceptance criteria
-   - Update test results
+2. **Merge to develop**
+   - Merge approved PR to `develop`
+   - Auto-deploy to development environment
+   - Delete feature branch
 
-3. **Approval**
+3. **Promote to test**
+   - Create PR: `develop` → `test`
+   - Auto-deploy to testing environment
+   - Move to Testing column in Kanban
+
+4. **QA Testing**
+   - Automated tests run in CI/CD
+   - Manual testing in test environment
+   - Verify acceptance criteria
+   - Document test results
+
+5. **Promote to stage**
+   - Create PR: `test` → `stage`
+   - Auto-deploy to stage environment
+   - Ready for UAT
+
+6. **Stage Validation**
+   - User Acceptance Testing
+   - Performance testing
+   - Security scanning
    - Move to Ready for Release
-   - Tag with release version
 
 ### Phase 4: Release Preparation (T-7 days)
 
-1. **Create Release Branch**
-   - Branch from main: `release/vX.Y.Z`
+1. **Prepare stage for Release**
+   - Ensure all items in Ready for Release are merged to `stage`
    - Update version numbers
-   - Generate release notes
+   - Generate preliminary release notes
 
 2. **Final Testing**
-   - UAT in staging environment
-   - Security scan
-   - Performance testing
+   - Complete UAT in stage environment
+   - Security scan results reviewed
+   - Performance testing validated
 
 3. **Code Freeze (T-3 days)**
-   - No new features added to release branch
+   - Freeze merges to `stage`
    - Only critical bug fixes allowed
-   - All fixes require approval
+   - All fixes require expedited approval
 
 ### Phase 5: Deployment (Monthly)
 
@@ -131,8 +190,12 @@ Theme (standalone)
    - Backup production database
    - Notify stakeholders
    - Prepare rollback plan
+   - Create final release notes
 
 2. **Deployment**
+   - Create PR: `stage` → `main`
+   - Get final approval
+   - Merge to `main`
    - Deploy to production (first Tuesday)
    - Monitor application health
    - Verify critical paths
@@ -153,23 +216,32 @@ Theme (standalone)
 For critical production issues (Defects):
 
 1. **Identification**
-   - Create Defect issue
+   - Create Defect issue with production release number
    - Assess severity and impact
+   - Determine if hotfix is required
 
 2. **Hotfix Branch**
-   - Branch from production tag: `hotfix/issue-number`
+   - Branch from `main`: `hotfix/issue-number-description`
    - Implement fix
-   - Test thoroughly
+   - Test thoroughly in local/dev environment
 
 3. **Expedited Review**
-   - Mandatory code review
-   - Fast-track testing
+   - Create PR: `hotfix/xxx` → `main`
+   - Mandatory code review (expedited)
+   - Fast-track testing in stage
    - Approve for deployment
 
-4. **Deploy**
+4. **Deploy to Production**
+   - Merge to `main`
    - Deploy to production immediately
-   - Update CHANGELOG
-   - Merge back to main and current release branch
+   - Tag release with patch version
+   - Monitor closely
+
+5. **Back-Merge to Other Branches**
+   - Merge `main` → `stage`
+   - Merge `stage` → `test`
+   - Merge `test` → `develop`
+   - This ensures hotfix flows through all environments
 
 5. **Post-Hotfix**
    - Document lessons learned
@@ -228,11 +300,12 @@ Track the following metrics for continuous improvement:
 
 ## Tools
 
-- **Project Board**: GitHub Projects (Kanban view)
-- **Issue Tracking**: GitHub Issues
+- **Project Board**: GitHub Projects (Project 1) - Kanban and table views
+- **Issue Tracking**: GitHub Issues with native sub-issues
 - **Version Control**: Git/GitHub
 - **CI/CD**: GitHub Actions
 - **Monitoring**: Application logs and metrics
+- **Automation**: GitHub Actions workflows for status updates
 
 ## Roles & Responsibilities
 
@@ -244,6 +317,8 @@ Track the following metrics for continuous improvement:
 
 ## References
 
+- [Branching Strategy](branching-strategy.md) - Detailed branch workflow and naming
 - [CHANGELOG.md](../../CHANGELOG.md) - Release history
 - [CONTRIBUTING.md](../../CONTRIBUTING.md) - Contribution guidelines
 - [Issue Templates](../ISSUE_TEMPLATE/) - Creating work items
+- [CODEOWNERS](../../.github/CODEOWNERS) - Code review assignments
