@@ -4,11 +4,17 @@
 >
 > **No feedback will be collected or worked on. Use at your own risk.**
 
-A React TypeScript application for planning and managing festival events.
+A React TypeScript frontend and Node.js backend for planning and managing festival events.
 
 ## Overview
 
 This application helps organize and manage festival events, providing tools for event planning, coordination, and execution.
+
+Current implementation includes a login flow with:
+- React + Material UI login form
+- Loading and error states
+- 3 failed login attempt limit
+- 10 minute temporary lockout after max failures
 
 ## Getting Started
 
@@ -19,20 +25,37 @@ This application helps organize and manage festival events, providing tools for 
 
 ### Installation
 
+Install dependencies in both applications:
+
 ```bash
-npm install
+cd backend && npm install
+cd ../frontend && npm install
 ```
 
 ### Development
 
+Run backend API:
+
 ```bash
-npm start
+cd backend && npm run dev
 ```
+
+Run frontend app in another terminal:
+
+```bash
+cd frontend && npm run dev
+```
+
+Frontend runs on `http://localhost:5173` and backend runs on `http://localhost:3001`.
+
+Demo login credentials (configurable by environment variables):
+- Email: `user@example.com`
+- Password: `Password123!`
 
 ### Build
 
 ```bash
-npm run build
+cd frontend && npm run build
 ```
 
 ## Documentation
