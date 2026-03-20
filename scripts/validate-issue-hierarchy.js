@@ -21,6 +21,7 @@ const https = require('https');
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY || 'seriously-not-prod/break-things-here';
 const [OWNER, REPO] = GITHUB_REPOSITORY.split('/');
+const GRAPHQL_API = '/graphql';
 
 // Label hierarchy rules
 const HIERARCHY = {
@@ -68,35 +69,56 @@ function githubRequest(path, options = {}) {
 }
 
 /**
- * Get issue details including labels and parent
+ * Make GitHub GraphQL API request
+ */
+function graphqlRequest(query, variables = {}) {
+  const body = JSON.stringify({ query, variables });
+  return githubRequest(GRAPHQL_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body
+  });
+}
+
+/**
+ * Get issue details including labels and parent via GraphQL
  */
 async function getIssue(issueNumber) {
   try {
-    const issue = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}`);
-    
-    // Get sub-issues (children) and parent from timeline
-    const timeline = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}/timeline`);
-    
-    // Find parent relationship from timeline
-    let parentIssue = null;
-    for (const event of timeline) {
-      if (event.event === 'connected' && event.source?.issue) {
-        // This issue is a sub-issue of the connected issue
-        const connectedIssue = event.source.issue;
-        // Check if connected issue is the parent (this issue was added as sub-issue)
-        if (event.subject?.type === 'issue') {
-          parentIssue = connectedIssue.number;
-          break;
+    const query = `
+      query($owner: String!, $repo: String!, $number: Int!) {
+        repository(owner: $owner, name: $repo) {
+          issue(number: $number) {
+            number
+            title
+            state
+            labels(first: 20) {
+              nodes { name }
+            }
+            parent {
+              number
+            }
+          }
         }
       }
+    `;
+    const result = await graphqlRequest(query, {
+      owner: OWNER,
+      repo: REPO,
+      number: parseInt(issueNumber, 10)
+    });
+
+    if (result.errors) {
+      throw new Error(result.errors.map(e => e.message).join(', '));
     }
-    
+
+    const issue = result.data.repository.issue;
     return {
       number: issue.number,
       title: issue.title,
-      labels: issue.labels.map(l => l.name),
-      state: issue.state,
-      parent: parentIssue
+      labels: issue.labels.nodes.map(l => l.name),
+      state: issue.state.toLowerCase(),
+      parent: issue.parent ? issue.parent.number : null
     };
   } catch (error) {
     throw new Error(`Failed to fetch issue #${issueNumber}: ${error.message}`);
