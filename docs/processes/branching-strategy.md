@@ -263,7 +263,7 @@ All long-lived branches (`main`, `stage`, `test`, `develop`) have the following 
 2. Code review by CODEOWNERS
 3. At least 1 approval required
 4. Address all comments
-5. Squash and merge (optional)
+5. Squash and merge (required)
 
 ## Environment Mapping
 

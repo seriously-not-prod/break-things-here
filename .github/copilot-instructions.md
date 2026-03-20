@@ -54,9 +54,11 @@ src/
 
 **Commit Format (Conventional Commits):**
 ```
-type(scope): description
+type(scope): description #issue-number
 
 Types: feat, fix, docs, style, refactor, test, chore
+
+Closes #123
 ```
 
 **Branch Progression:**
