@@ -20,8 +20,18 @@ This repository is designed to teach:
 
 ## Getting Started
 
+### Tech Stack
+
+- **Frontend**: [Next.js](https://nextjs.org/) (App Router) with [TypeScript](https://www.typescriptlang.org/)
+- **UI Library**: [MUI (Material UI)](https://mui.com/)
+- **Backend**: Next.js API Routes
+- **Data Tier**: TBD (database config in `src/data/`)
+- **Package Manager**: npm
+
 ### Prerequisites
 
+- [Node.js](https://nodejs.org/) (v18+)
+- npm
 - Git
 - GitHub account
 - Basic understanding of version control
@@ -60,6 +70,21 @@ This repository is designed to teach:
 ├── .git-hooks/
 │   ├── commit-msg            # Validates commit messages
 │   └── SETUP.md
+├── src/
+│   ├── app/                  # Next.js App Router pages and layouts
+│   │   ├── api/              # Backend API route handlers
+│   │   ├── layout.tsx        # Root layout with MUI theme
+│   │   └── page.tsx          # Home page
+│   ├── components/           # Reusable React components
+│   ├── data/                 # Data tier
+│   │   ├── config/           # Database configuration
+│   │   ├── models/           # Data models
+│   │   └── migrations/       # Database migrations
+│   ├── hooks/                # Custom React hooks
+│   ├── theme/                # MUI theme configuration
+│   ├── types/                # Shared TypeScript types
+│   ├── utils/                # Utility functions
+│   └── __tests__/            # Test files
 ├── docs/
 │   ├── processes/
 │   │   ├── branching-strategy.md
