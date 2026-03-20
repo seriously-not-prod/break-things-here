@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Docker Compose development environment with frontend, backend, and PostgreSQL services
+- Frontend Dockerfile with multi-stage build (development and production targets)
+- Backend Dockerfile with multi-stage build (development and production targets)
+- PostgreSQL database initialization script with events, users, and registrations schema
+- `.env.example` environment variable template
+- `.dockerignore` files for frontend, backend, and root
+- Docker Desktop setup instructions in README
 - GitHub Projects (Project 1) integration for visual Kanban workflow management
 - Project automation workflow to auto-add issues and PRs to Project 1
 - Workflow status fields: Backlog → Ready → In Progress → Code Review → Testing → Ready for Release → Released

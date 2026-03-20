@@ -25,6 +25,7 @@ This repository is designed to teach:
 - Git
 - GitHub account
 - Basic understanding of version control
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for local development)
 
 ### Initial Setup
 
@@ -39,7 +40,14 @@ This repository is designed to teach:
    ./scripts/setup-hooks.sh
    ```
 
-3. **Read the documentation**
+3. **Set up local development environment**
+   ```bash
+   cp .env.example .env       # Configure environment variables
+   docker compose up           # Start all services
+   ```
+   This starts the frontend (port 3000), backend (port 4000), and PostgreSQL (port 5432).
+
+4. **Read the documentation**
    - [Universal Agent Guide](.github/universal-agent-guide.md) - Mandatory rules
    - [Branching Strategy](docs/processes/branching-strategy.md) - Git workflow
    - [Release Process](docs/processes/release-process.md) - Deployment process
@@ -65,9 +73,20 @@ This repository is designed to teach:
 │   │   ├── branching-strategy.md
 │   │   └── release-process.md
 │   └── requirements/         # Project requirement documents
+├── frontend/
+│   ├── Dockerfile            # Frontend container (React)
+│   └── .dockerignore
+├── backend/
+│   ├── Dockerfile            # Backend container (Node.js)
+│   └── .dockerignore
+├── database/
+│   └── init.sql              # PostgreSQL initialization script
 ├── scripts/
 │   ├── setup-hooks.sh        # Git hooks installation script
 │   └── validate-issue-hierarchy.js  # Issue hierarchy validator
+├── docker-compose.yml        # Docker Compose services
+├── .env.example              # Environment variable template
+├── .dockerignore
 ├── AGENTS.md                 # AI assistant configuration
 ├── CHANGELOG.md
 ├── CODE_OF_CONDUCT.md
@@ -188,6 +207,7 @@ See [.git-hooks/SETUP.md](.git-hooks/SETUP.md) for details.
 - ✅ Monthly release cadence
 - ✅ Comprehensive documentation
 - ✅ AI assistant configuration (GitHub Copilot)
+- ✅ Docker Compose development environment (frontend, backend, PostgreSQL)
 
 ## Learning Objectives
 

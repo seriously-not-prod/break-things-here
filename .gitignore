@@ -76,3 +76,6 @@ out/
 
 # Vite
 *.local
+
+# Docker
+docker-compose.override.yml
