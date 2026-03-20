@@ -10,12 +10,16 @@ const VALID = {
   confirmPassword: 'SecureP@ss1',
 };
 
-async function fillForm(overrides: Partial<typeof VALID> = {}): Promise<void> {
+async function fillForm(
+  overrides: Partial<typeof VALID> = {}
+): Promise<ReturnType<typeof userEvent.setup>> {
+  const user = userEvent.setup();
   const values = { ...VALID, ...overrides };
-  await userEvent.type(screen.getByLabelText('Display name'), values.displayName);
-  await userEvent.type(screen.getByLabelText('Email address'), values.email);
-  await userEvent.type(screen.getByLabelText('Password'), values.password);
-  await userEvent.type(screen.getByLabelText('Confirm password'), values.confirmPassword);
+  await user.type(screen.getByLabelText('Display name'), values.displayName);
+  await user.type(screen.getByLabelText('Email address'), values.email);
+  await user.type(screen.getByLabelText('Password'), values.password);
+  await user.type(screen.getByLabelText('Confirm password'), values.confirmPassword);
+  return user;
 }
 
 describe('RegistrationForm', () => {
@@ -46,8 +50,9 @@ describe('RegistrationForm', () => {
 
   it('shows password mismatch error when confirm password differs', async () => {
     render(<RegistrationForm />);
-    await userEvent.type(screen.getByLabelText('Password'), VALID.password);
-    await userEvent.type(screen.getByLabelText('Confirm password'), 'WrongP@ss1');
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Password'), VALID.password);
+    await user.type(screen.getByLabelText('Confirm password'), 'WrongP@ss1');
     expect(screen.getByRole('alert')).toHaveTextContent('Passwords do not match.');
   });
 
@@ -65,8 +70,8 @@ describe('RegistrationForm', () => {
 
   it('clears fields after successful submission', async () => {
     render(<RegistrationForm />);
-    await fillForm();
-    await userEvent.click(screen.getByRole('button', { name: /create account/i }));
+    const user = await fillForm();
+    await user.click(screen.getByRole('button', { name: /create account/i }));
     expect(screen.getByLabelText('Display name')).toHaveValue('');
     expect(screen.getByLabelText('Email address')).toHaveValue('');
     expect(screen.getByLabelText('Password')).toHaveValue('');
@@ -80,7 +85,9 @@ describe('RegistrationForm', () => {
 
   it('all inputs are accessible via keyboard', () => {
     render(<RegistrationForm />);
-    const inputs = screen.getAllByRole('textbox');
-    inputs.forEach((input) => expect(input).toBeVisible());
+    expect(screen.getByLabelText('Display name')).toBeVisible();
+    expect(screen.getByLabelText('Email address')).toBeVisible();
+    expect(screen.getByLabelText('Password')).toBeVisible();
+    expect(screen.getByLabelText('Confirm password')).toBeVisible();
   });
 });

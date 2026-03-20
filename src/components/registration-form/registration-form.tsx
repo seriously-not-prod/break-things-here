@@ -1,4 +1,4 @@
-import { useState, ChangeEvent, FormEvent } from 'react';
+import { useState, ChangeEvent, FormEvent, ReactElement } from 'react';
 
 interface FormFields {
   displayName: string;
@@ -15,7 +15,9 @@ const initialFields: FormFields = {
 };
 
 const PASSWORD_MIN_LENGTH = 8;
-const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
+const PASSWORD_PATTERN = new RegExp(
+  `^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z\\d]).{${PASSWORD_MIN_LENGTH},}$`
+);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function isValidPassword(value: string): boolean {
@@ -26,14 +28,13 @@ function isValidEmail(value: string): boolean {
   return EMAIL_PATTERN.test(value);
 }
 
-export function RegistrationForm(): JSX.Element {
+export function RegistrationForm(): ReactElement {
   const [fields, setFields] = useState<FormFields>(initialFields);
 
   const passwordsMatch = fields.password === fields.confirmPassword;
   const isFormValid =
     fields.displayName.trim() !== '' &&
     isValidEmail(fields.email) &&
-    fields.password.length >= PASSWORD_MIN_LENGTH &&
     isValidPassword(fields.password) &&
     fields.confirmPassword !== '' &&
     passwordsMatch;
