@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, UpdateProfileRequest } from '../../types/user';
+import { validateProfilePhoto } from '../../utils/file-validation';
 
 interface ProfileEditProps {
   profile: UserProfile;
@@ -24,7 +25,6 @@ export function ProfileEdit({
   const [emailNotifications, setEmailNotifications] = useState(profile.notificationPreferences.emailNotifications);
   const [pushNotifications, setPushNotifications] = useState(profile.notificationPreferences.pushNotifications);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isDirty, setIsDirty] = useState(false);
   const [photoError, setPhotoError] = useState('');
 
   const isProfileDirty =
@@ -35,19 +35,15 @@ export function ProfileEdit({
     pushNotifications !== profile.notificationPreferences.pushNotifications;
 
   useEffect(() => {
-    setIsDirty(isProfileDirty);
-  }, [isProfileDirty]);
-
-  useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent): void => {
-      if (isDirty) {
+      if (isProfileDirty) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [isDirty]);
+  }, [isProfileDirty]);
 
   function validate(): boolean {
     const newErrors: Record<string, string> = {};
@@ -64,7 +60,7 @@ export function ProfileEdit({
   }
 
   function handleCancel(): void {
-    if (isDirty && !window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+    if (isProfileDirty && !window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
       return;
     }
     onCancel();
@@ -86,13 +82,9 @@ export function ProfileEdit({
     const file = e.target.files?.[0];
     if (!file) return;
     setPhotoError('');
-    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowed.includes(file.type)) {
-      setPhotoError('Only JPEG, PNG, or WebP images are allowed.');
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setPhotoError('Photo must be smaller than 2 MB.');
+    const validation = validateProfilePhoto(file);
+    if (!validation.valid) {
+      setPhotoError(validation.error ?? 'Invalid file.');
       return;
     }
     await onPhotoChange(file);

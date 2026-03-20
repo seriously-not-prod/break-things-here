@@ -11,7 +11,7 @@
  * a helper to check whether a pending email change exists on the profile.
  */
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL ?? '/api';
+import { API_BASE_URL } from './config';
 
 /**
  * Confirm an email change using the single-use token sent to the new address.

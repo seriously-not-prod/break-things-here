@@ -1,6 +1,5 @@
 import { UserProfile, UpdateProfileRequest } from '../types/user';
-
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL ?? '/api';
+import { API_BASE_URL } from './config';
 
 async function request<T>(path: string, options: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
