@@ -14,24 +14,40 @@ const initialFields: FormFields = {
   confirmPassword: '',
 };
 
-export function RegistrationForm() {
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isValidPassword(value: string): boolean {
+  return PASSWORD_PATTERN.test(value);
+}
+
+function isValidEmail(value: string): boolean {
+  return EMAIL_PATTERN.test(value);
+}
+
+export function RegistrationForm(): JSX.Element {
   const [fields, setFields] = useState<FormFields>(initialFields);
 
-  const isFormFilled =
+  const passwordsMatch = fields.password === fields.confirmPassword;
+  const isFormValid =
     fields.displayName.trim() !== '' &&
-    fields.email.trim() !== '' &&
-    fields.password.length >= 8 &&
+    isValidEmail(fields.email) &&
+    fields.password.length >= PASSWORD_MIN_LENGTH &&
+    isValidPassword(fields.password) &&
     fields.confirmPassword !== '' &&
-    fields.password === fields.confirmPassword;
+    passwordsMatch;
 
-  function handleChange(e: ChangeEvent<HTMLInputElement>) {
+  function handleChange(e: ChangeEvent<HTMLInputElement>): void {
     const { name, value } = e.target;
+    if (!(name in initialFields)) return;
     setFields((prev) => ({ ...prev, [name as keyof FormFields]: value }));
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: FormEvent<HTMLFormElement>): void {
     e.preventDefault();
     // Validation and submission handled by parent / #21
+    setFields(initialFields);
   }
 
   return (
@@ -58,8 +74,10 @@ export function RegistrationForm() {
           value={fields.email}
           onChange={handleChange}
           autoComplete="email"
+          aria-describedby="email-hint"
           required
         />
+        <span id="email-hint">Enter a valid email address.</span>
       </div>
 
       <div>
@@ -71,8 +89,12 @@ export function RegistrationForm() {
           value={fields.password}
           onChange={handleChange}
           autoComplete="new-password"
+          aria-describedby="password-hint"
           required
         />
+        <span id="password-hint">
+          At least 8 characters with uppercase, lowercase, number and special character.
+        </span>
       </div>
 
       <div>
@@ -86,11 +108,27 @@ export function RegistrationForm() {
           autoComplete="new-password"
           required
         />
+        {fields.confirmPassword !== '' && !passwordsMatch && (
+          <span role="alert" aria-live="polite">
+            Passwords do not match.
+          </span>
+        )}
       </div>
 
-      <button type="submit" disabled={!isFormFilled}>
+      <p>
+        By registering, you agree to our{' '}
+        <a href="/privacy-policy">Privacy Policy</a>.
+      </p>
+
+      <button type="submit" disabled={!isFormValid}>
         Create account
       </button>
+
+      {!isFormValid && fields.displayName !== '' && (
+        <span role="status" aria-live="polite">
+          Please fill in all fields correctly to continue.
+        </span>
+      )}
     </form>
   );
 }
