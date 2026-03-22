@@ -25,7 +25,11 @@ export function ProfileView({ profile, onEditClick, isLoading = false, error }: 
     );
   }
 
-  const maskedEmail = profile.email.replace(/(.{2}).+(@.+)/, '$1***$2');
+  const atIndex = profile.email.indexOf('@');
+  const local = profile.email.slice(0, atIndex);
+  const domain = profile.email.slice(atIndex);
+  const visibleChars = Math.min(2, local.length);
+  const maskedEmail = local.slice(0, visibleChars) + (local.length > visibleChars ? '***' : '') + domain;
 
   return (
     <main aria-labelledby="profile-heading">

@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { AccountDeletion } from '../components/account-deletion/account-deletion';
+import { AccountDeletion } from '../components/AccountDeletion/AccountDeletion';
 
 describe('AccountDeletion', () => {
   it('renders the confirmation dialog', () => {

@@ -62,6 +62,7 @@ export async function uploadProfilePhoto(file: File): Promise<{ photoUrl: string
   });
 
   if (response.status === 401) throw new Error('Unauthorized');
+  if (response.status === 403) throw new Error('Forbidden');
   if (response.status === 400) {
     const body = await response.json().catch(() => ({ message: 'Invalid file' }));
     throw new Error(body.message ?? 'Invalid file');

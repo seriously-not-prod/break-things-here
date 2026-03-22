@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ProfileView } from '../components/profile-view/profile-view';
+import { ProfileView } from '../components/ProfileView/ProfileView';
 import { UserProfile } from '../types/user';
 
 const mockProfile: UserProfile = {

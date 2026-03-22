@@ -79,15 +79,21 @@ export function ProfileEdit({
   }
 
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) {
+      input.value = '';
+      return;
+    }
     setPhotoError('');
     const validation = validateProfilePhoto(file);
     if (!validation.valid) {
       setPhotoError(validation.error ?? 'Invalid file.');
+      input.value = '';
       return;
     }
     await onPhotoChange(file);
+    input.value = '';
   }
 
   return (
@@ -135,7 +141,7 @@ export function ProfileEdit({
             type="file"
             accept="image/jpeg,image/png,image/webp"
             onChange={handlePhotoChange}
-            aria-describedby="photo-hint photo-error"
+            aria-describedby={photoError ? 'photo-hint photo-error' : 'photo-hint'}
           />
           <span id="photo-hint">JPEG, PNG, or WebP. Max 2 MB.</span>
           {photoError && <span id="photo-error" role="alert">{photoError}</span>}
