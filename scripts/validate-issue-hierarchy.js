@@ -34,7 +34,7 @@ const HIERARCHY = {
 const STANDALONE_LABELS = ['bug', 'defect', 'security-issue', 'feature-request', 'theme'];
 
 /**
- * Make GitHub API request
+ * Make GitHub REST API request
  */
 function githubRequest(path, options = {}) {
   return new Promise((resolve, reject) => {
@@ -68,6 +68,69 @@ function githubRequest(path, options = {}) {
 }
 
 /**
+ * Make GitHub GraphQL API request
+ */
+function graphqlRequest(query) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ query });
+    const requestOptions = {
+      hostname: 'api.github.com',
+      path: '/graphql',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        'User-Agent': 'Issue-Hierarchy-Validator'
+      }
+    };
+
+    const req = https.request(requestOptions, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        const parsed = JSON.parse(data || '{}');
+        if (parsed.errors) {
+          reject(new Error(`GraphQL error: ${JSON.stringify(parsed.errors)}`));
+        } else {
+          resolve(parsed.data);
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+/**
+ * Get parent issue number via GraphQL (used for issues linked via the
+ * GitHub sub-issues API, which creates 'parent_issue_added' timeline events
+ * rather than 'connected' events).
+ */
+async function getParentViaGraphQL(issueNumber) {
+  try {
+    const query = `
+      query {
+        repository(owner: "${OWNER}", name: "${REPO}") {
+          issue(number: ${issueNumber}) {
+            parent { number }
+          }
+        }
+      }
+    `;
+    const data = await graphqlRequest(query);
+    return data && data.repository && data.repository.issue && data.repository.issue.parent
+      ? data.repository.issue.parent.number
+      : null;
+  } catch (err) {
+    // GraphQL fallback failure is non-fatal; parent remains null
+    return null;
+  }
+}
+
+/**
  * Get issue details including labels and parent
  */
 async function getIssue(issueNumber) {
@@ -77,18 +140,30 @@ async function getIssue(issueNumber) {
     // Get sub-issues (children) and parent from timeline
     const timeline = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}/timeline`);
     
-    // Find parent relationship from timeline
+    // Find parent relationship from timeline.
+    // GitHub creates 'connected' events for issues cross-referenced via markdown,
+    // but 'parent_issue_added' events for issues linked via the sub-issues API.
+    // 'parent_issue_added' events do not include the parent number in the REST
+    // timeline response, so we fall back to the GraphQL API in that case.
     let parentIssue = null;
+    let hasParentIssueAdded = false;
     for (const event of timeline) {
-      if (event.event === 'connected' && event.source?.issue) {
-        // This issue is a sub-issue of the connected issue
+      if (event.event === 'connected' && event.source && event.source.issue) {
+        // Legacy: issue linked via markdown cross-reference
         const connectedIssue = event.source.issue;
-        // Check if connected issue is the parent (this issue was added as sub-issue)
-        if (event.subject?.type === 'issue') {
+        if (event.subject && event.subject.type === 'issue') {
           parentIssue = connectedIssue.number;
           break;
         }
       }
+      if (event.event === 'parent_issue_added') {
+        hasParentIssueAdded = true;
+      }
+    }
+    // If parent was added via the sub-issues API and REST didn't return the number,
+    // query GraphQL which exposes issue.parent.number directly.
+    if (!parentIssue && hasParentIssueAdded) {
+      parentIssue = await getParentViaGraphQL(issueNumber);
     }
     
     return {
