@@ -52,6 +52,30 @@ Demo login credentials (configurable by environment variables):
 - Email: `user@example.com`
 - Password: `Password123!`
 
+### Backend Environment Variables
+
+The backend supports environment-based configuration so deployments do not require source changes.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `3001` | Backend server port |
+| `DEMO_EMAIL` | `user@example.com` | Demo login email |
+| `DEMO_PASSWORD` | `Password123!` | Demo login password |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated list of allowed CORS origins |
+| `LOGIN_RECORD_TTL_MS` | `600000` | How long login attempt records are retained after lockout expires |
+| `MAX_TRACKED_LOGIN_RECORDS` | `5000` | Maximum number of login attempt records kept in memory |
+
+For local development, the backend allows requests from `http://localhost:5173` by default. In non-local environments, set `CORS_ALLOWED_ORIGINS` to a comma-separated list of frontend origins instead of changing the code.
+
+`LOGIN_RECORD_TTL_MS` and `MAX_TRACKED_LOGIN_RECORDS` must be positive integers. Invalid values fall back to the defaults.
+
+Example:
+
+```bash
+cd backend
+CORS_ALLOWED_ORIGINS="https://festival.example.com,https://staging.example.com" npm run dev
+```
+
 ### Build
 
 ```bash

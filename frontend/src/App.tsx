@@ -1,7 +1,7 @@
 import { Box, Paper, Typography } from '@mui/material';
-import LoginForm from './components/login-form.tsx';
+import { LoginForm } from './components/LoginForm/LoginForm.tsx';
 
-function App() {
+function App(): JSX.Element {
   return (
     <Box
       sx={{

@@ -10,15 +10,15 @@ import {
   Typography
 } from '@mui/material';
 
-type LoginResponse = {
+interface LoginResponse {
   message: string;
-};
+}
 
-type LoginError = {
+interface LoginError {
   message: string;
   attemptsRemaining?: number;
   lockedUntil?: number;
-};
+}
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
@@ -29,7 +29,7 @@ function toRemainingSeconds(lockedUntil?: number): number {
   return Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
 }
 
-function LoginForm() {
+export function LoginForm(): JSX.Element {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -80,7 +80,7 @@ function LoginForm() {
     setRememberMe(event.target.checked);
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -184,5 +184,3 @@ function LoginForm() {
     </Box>
   );
 }
-
-export default LoginForm;
