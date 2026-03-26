@@ -135,16 +135,18 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
     );
 
     // Delete old photo if exists
+    // profile_photo_url already contains 'uploads/profile-photos/...' — do NOT prepend 'uploads' again
     if (existingProfile?.profile_photo_url) {
       try {
-        const oldFilePath = path.join(process.cwd(), 'uploads', existingProfile.profile_photo_url);
+        const oldFilePath = path.join(process.cwd(), existingProfile.profile_photo_url);
         await fs.unlink(oldFilePath);
       } catch (err) {
         console.error('Failed to delete old profile photo:', err);
       }
     }
 
-    const relativePhotoUrl = path.join('uploads', req.file.filename);
+    // Build relative path that matches the actual multer storage destination
+    const relativePhotoUrl = path.join('uploads', 'profile-photos', req.file.filename);
 
     // Update database with new photo URL
     await db.run('UPDATE user_profiles SET profile_photo_url = ? WHERE user_id = ?', [

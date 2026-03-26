@@ -53,7 +53,27 @@ router.delete('/users/me', authenticateToken, usersController.deleteMe);
 // ============ PROFILE ROUTES (extended data) ============
 router.get('/profile', authenticateToken, profileController.getUserProfile);
 router.put('/profile', authenticateToken, profileController.updateUserProfile);
-router.post('/profile/photo', authenticateToken, upload.single('photo'), profileController.uploadProfilePhoto);
+
+// Profile photo upload — multer errors (wrong MIME / oversized) are caught inline
+// and returned as 400 instead of falling through to Express's 500 default handler
+router.post(
+  '/profile/photo',
+  authenticateToken,
+  (req, res, next) => {
+    upload.single('photo')(req, res, (err: unknown) => {
+      if (err instanceof multer.MulterError) {
+        // e.g. LIMIT_FILE_SIZE
+        return res.status(400).json({ error: 'File size must not exceed 2MB' });
+      }
+      if (err instanceof Error) {
+        // fileFilter rejection (wrong MIME type)
+        return res.status(400).json({ error: err.message });
+      }
+      next();
+    });
+  },
+  profileController.uploadProfilePhoto,
+);
 router.delete('/profile/photo', authenticateToken, profileController.deleteProfilePhoto);
 router.post('/profile/change-email', authenticateToken, profileController.changeEmail);
 router.post('/profile/confirm-email-change', profileController.confirmEmailChange);
