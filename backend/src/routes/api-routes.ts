@@ -60,33 +60,33 @@ router.post('/profile/change-email', authenticateToken, profileController.change
 // ============ RBAC ROUTES ============
 router.get('/roles', authenticateToken, rbacController.getAllRoles);
 router.get('/roles/:roleId', authenticateToken, rbacController.getRoleWithPermissions);
-router.post('/roles', authenticateToken, (await authorizeRole(['Admin'])), rbacController.createRole);
+router.post('/roles', authenticateToken, authorizeRole(['Admin']), rbacController.createRole);
 
 router.post(
   '/roles/assign-role',
   authenticateToken,
-  (await authorizePermission('roles.manage')),
+  authorizePermission('roles.manage'),
   rbacController.assignRoleToUser,
 );
 
 router.post(
   '/roles/add-permission',
   authenticateToken,
-  (await authorizePermission('roles.manage')),
+  authorizePermission('roles.manage'),
   rbacController.addPermissionToRole,
 );
 
 router.post(
   '/roles/remove-permission',
   authenticateToken,
-  (await authorizePermission('roles.manage')),
+  authorizePermission('roles.manage'),
   rbacController.removePermissionFromRole,
 );
 
 router.get(
   '/permissions',
   authenticateToken,
-  (await authorizePermission('roles.manage')),
+  authorizePermission('roles.manage'),
   rbacController.getAllPermissions,
 );
 
