@@ -74,20 +74,12 @@ async function getIssue(issueNumber) {
   try {
     const issue = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}`);
     
-    // Get sub-issues (children) and parent from timeline
-    const timeline = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}/timeline`);
-    
-    // Find parent relationship from timeline
+    // Use parent_issue_url from the issue response (GitHub sub-issues API)
     let parentIssue = null;
-    for (const event of timeline) {
-      if (event.event === 'connected' && event.source?.issue) {
-        // This issue is a sub-issue of the connected issue
-        const connectedIssue = event.source.issue;
-        // Check if connected issue is the parent (this issue was added as sub-issue)
-        if (event.subject?.type === 'issue') {
-          parentIssue = connectedIssue.number;
-          break;
-        }
+    if (issue.parent_issue_url) {
+      const match = issue.parent_issue_url.match(/\/issues\/(\d+)$/);
+      if (match) {
+        parentIssue = parseInt(match[1], 10);
       }
     }
     
