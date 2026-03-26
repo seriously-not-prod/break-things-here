@@ -94,6 +94,12 @@ export async function verifyPassword(
     throw new PasswordHashError('Password and hash must be strings');
   }
 
+  // Pre-validate hash format — bcrypt silently returns false for invalid hashes,
+  // which would mask implementation errors. Throw instead.
+  if (!/^\$2[ab]\$\d{2}\$[./0-9A-Za-z]{53}$/.test(hashedPassword)) {
+    throw new PasswordHashError('Invalid hash format');
+  }
+
   try {
     const isValid = await bcrypt.compare(plainPassword, hashedPassword);
     return isValid;
