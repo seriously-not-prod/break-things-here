@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import { 
   hashPassword, 
   verifyPassword, 
@@ -181,14 +182,20 @@ describe('Password Hashing Utility', () => {
   describe('Security: Plain-text Password Never Stored', () => {
     it('should never return or log plain-text password in errors', async () => {
       const sensitivePassword = 'superSecret123';
-      
+
+      // Force bcrypt to throw internally so we can assert the error message is sanitized
+      const spy = jest.spyOn(bcrypt, 'hash').mockRejectedValueOnce(new Error('bcrypt internal failure') as never);
+
       try {
-        // This should succeed, but we're testing error messages don't contain password
         await hashPassword(sensitivePassword);
+        fail('Expected hashPassword to throw');
       } catch (error) {
+        expect(error).toBeInstanceOf(PasswordHashError);
         if (error instanceof Error) {
           expect(error.message).not.toContain(sensitivePassword);
         }
+      } finally {
+        spy.mockRestore();
       }
     });
 

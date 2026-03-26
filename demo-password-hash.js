@@ -15,7 +15,7 @@ async function demo() {
     // Test 1: Hash a password
     console.log('Test 1: Hashing a password');
     const plainPassword = 'mySecurePassword123!';
-    console.log(`Plain password: ${plainPassword}`);
+    console.log('Plain password: [REDACTED]');
     
     const hashedPassword = await hashPassword(plainPassword);
     console.log(`Hashed password: ${hashedPassword}`);

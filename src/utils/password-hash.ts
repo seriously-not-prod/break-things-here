@@ -71,7 +71,7 @@ export async function hashPassword(plainPassword: string): Promise<string> {
  * @param plainPassword - The plain-text password to verify
  * @param hashedPassword - The hashed password to compare against
  * @returns Promise<boolean> - True if password matches, false otherwise
- * @throws {PasswordHashError} If verification fails due to invalid input
+ * @throws {PasswordHashError} If verification fails due to invalid input or an internal error (for example, an invalid hash format)
  * 
  * @example
  * ```typescript
