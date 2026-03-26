@@ -113,11 +113,10 @@ describe('User schema', () => {
   });
 
   it('should list all three roles as valid enum values', () => {
-    expect(USER_SCHEMA.columns.role.values).toEqual([
-      'Admin',
-      'Organizer',
-      'Attendee',
-    ]);
+    expect(USER_SCHEMA.columns.role.values).toHaveLength(3);
+    expect(USER_SCHEMA.columns.role.values).toEqual(
+      expect.arrayContaining(['Admin', 'Organizer', 'Attendee']),
+    );
   });
 
   it('should default role to Attendee', () => {

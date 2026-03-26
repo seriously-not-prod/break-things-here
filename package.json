@@ -2,10 +2,6 @@
   "name": "break-things-here",
   "version": "1.0.0",
   "description": "> **⚠️ DISCLAIMER: This is a fake project for demonstration/testing purposes only. This is not a real application or repository.** > > **No feedback will be collected or worked on. Use at your own risk.**",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
-  },
   "scripts": {
     "test": "jest",
     "test:coverage": "jest --coverage",
@@ -13,7 +9,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^25.5.0",

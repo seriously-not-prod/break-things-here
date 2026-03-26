@@ -1,18 +1,24 @@
-import { UserRole, DEFAULT_ROLE } from './user-role';
+import { UserRole, USER_ROLES, DEFAULT_ROLE } from './user-role';
 
 /**
- * User data model representing a user record in the database.
+ * Public user data — safe for API responses (no credentials).
  */
 export interface User {
   id: string;
   email: string;
   displayName: string;
-  passwordHash: string;
   role: UserRole;
   emailConfirmed: boolean;
   profilePhotoUrl?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/**
+ * Internal user record including credentials — never return directly in API responses.
+ */
+export interface UserRecord extends User {
+  passwordHash: string;
 }
 
 /**
@@ -28,7 +34,7 @@ export const USER_SCHEMA = {
     passwordHash: { type: 'varchar(255)', nullable: false },
     role: {
       type: 'enum',
-      values: Object.values(UserRole),
+      values: [...USER_ROLES],
       nullable: false,
       default: DEFAULT_ROLE,
     },
