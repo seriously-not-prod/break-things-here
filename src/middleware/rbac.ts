@@ -1,5 +1,6 @@
 import { UserRole } from '../types/user-role';
 import { ApiRequest, ApiResponse, ApiHandler } from '../types/api';
+import { HTTP_STATUS, AUTH_ERRORS } from '../utils/http-errors';
 
 /**
  * RBAC middleware that restricts access to users with the required role(s).
@@ -19,11 +20,11 @@ export function requireRole(
 
   return (req: ApiRequest, res: ApiResponse) => {
     if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required' });
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json(AUTH_ERRORS.UNAUTHENTICATED);
     }
 
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+      return res.status(HTTP_STATUS.FORBIDDEN).json(AUTH_ERRORS.FORBIDDEN);
     }
 
     return handler(req, res);
@@ -36,7 +37,7 @@ export function requireRole(
 export function requireAuth(handler: ApiHandler): ApiHandler {
   return (req: ApiRequest, res: ApiResponse) => {
     if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required' });
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json(AUTH_ERRORS.UNAUTHENTICATED);
     }
 
     return handler(req, res);

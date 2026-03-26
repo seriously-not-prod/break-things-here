@@ -2,6 +2,7 @@ import { requireRole } from '../../middleware/rbac';
 import { UserRole } from '../../types/user-role';
 import { ApiRequest, ApiResponse } from '../../types/api';
 import { findUserById, updateUserRole, isValidRole } from '../../data/user-store';
+import { HTTP_STATUS, AUTH_ERRORS } from '../../utils/http-errors';
 
 /**
  * PATCH /api/admin/users/:id/role
@@ -22,24 +23,20 @@ export const handleUpdateUserRole = requireRole(
     const { role } = req.body as { role?: unknown };
 
     if (!isValidRole(role)) {
-      return res.status(400).json({
-        error: 'Invalid role. Must be one of: Admin, Organizer, Attendee',
-      });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(AUTH_ERRORS.INVALID_ROLE);
     }
 
     // Prevent admin from demoting their own account
     if (req.user!.id === targetUserId && role !== UserRole.Admin) {
-      return res.status(403).json({
-        error: 'Cannot change your own role',
-      });
+      return res.status(HTTP_STATUS.FORBIDDEN).json(AUTH_ERRORS.SELF_ROLE_CHANGE);
     }
 
     const targetUser = findUserById(targetUserId);
     if (!targetUser) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(HTTP_STATUS.NOT_FOUND).json(AUTH_ERRORS.USER_NOT_FOUND);
     }
 
     const updatedUser = updateUserRole(targetUserId, role);
-    return res.status(200).json(updatedUser);
+    return res.status(HTTP_STATUS.OK).json(updatedUser);
   },
 );
