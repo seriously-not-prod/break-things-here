@@ -10,7 +10,8 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "start": "npm run build && node dist/utils/password-hash.js",
+    "start": "npm run build",
+    "demo:password-hash": "npm run build && node demo-password-hash.js",
     "test": "jest --config=./jest.config.js",
     "test:watch": "jest --watch --config=./jest.config.js",
     "test:coverage": "jest --coverage --config=./jest.config.js",
@@ -35,7 +36,7 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/jest": "^29.5.14",
-    "@types/node": "^18.0.0",
+    "@types/node": "^22.10.5",
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
     "typescript": "^5.7.2"

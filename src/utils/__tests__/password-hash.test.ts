@@ -62,9 +62,9 @@ describe('Password Hashing Utility', () => {
     });
 
     it('should throw error for non-string password', async () => {
-      await expect(hashPassword(null as any)).rejects.toThrow(PasswordHashError);
-      await expect(hashPassword(undefined as any)).rejects.toThrow(PasswordHashError);
-      await expect(hashPassword(123 as any)).rejects.toThrow('Password must be a string');
+      await expect(hashPassword(null as unknown as string)).rejects.toThrow(PasswordHashError);
+      await expect(hashPassword(undefined as unknown as string)).rejects.toThrow(PasswordHashError);
+      await expect(hashPassword(123 as unknown as string)).rejects.toThrow('Password must be a string');
     });
 
     it('should handle long passwords', async () => {
@@ -135,8 +135,8 @@ describe('Password Hashing Utility', () => {
     it('should throw error for non-string inputs', async () => {
       const hashed = await hashPassword('testPassword');
       
-      await expect(verifyPassword(null as any, hashed)).rejects.toThrow(PasswordHashError);
-      await expect(verifyPassword('test', null as any)).rejects.toThrow(PasswordHashError);
+      await expect(verifyPassword(null as unknown as string, hashed)).rejects.toThrow(PasswordHashError);
+      await expect(verifyPassword('test', null as unknown as string)).rejects.toThrow(PasswordHashError);
     });
 
     it('should throw error for invalid hash format', async () => {
@@ -188,7 +188,7 @@ describe('Password Hashing Utility', () => {
 
       try {
         await hashPassword(sensitivePassword);
-        fail('Expected hashPassword to throw');
+        throw new Error('Expected hashPassword to throw');
       } catch (error) {
         expect(error).toBeInstanceOf(PasswordHashError);
         if (error instanceof Error) {
