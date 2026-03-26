@@ -11,6 +11,13 @@ export function findUserById(id: string): UserRecord | undefined {
   return users.get(id);
 }
 
+export function findUserByEmail(email: string): UserRecord | undefined {
+  for (const record of users.values()) {
+    if (record.email === email) return record;
+  }
+  return undefined;
+}
+
 export function updateUserRole(id: string, role: UserRole): User | undefined {
   const user = users.get(id);
   if (!user) return undefined;

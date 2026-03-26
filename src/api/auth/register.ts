@@ -1,6 +1,5 @@
-import { requireAuth } from '../../middleware/rbac';
 import { ApiRequest, ApiResponse } from '../../types/api';
-import { createUser } from '../../data/user-store';
+import { createUser, findUserByEmail } from '../../data/user-store';
 
 /**
  * Accepted fields in the registration request body.
@@ -31,11 +30,29 @@ export function handleRegister(req: ApiRequest, res: ApiResponse): void {
     return;
   }
 
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    res.status(400).json({ error: 'Invalid email format' });
+    return;
+  }
+
+  // Check for duplicate email
+  if (findUserByEmail(email)) {
+    res.status(409).json({ error: 'Email already registered' });
+    return;
+  }
+
+  // Sanitize displayName to prevent XSS
+  const sanitizedDisplayName = displayName
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
   // In production, hash the password with bcrypt (Task #23).
   // Role is NOT accepted from the request — always defaults to Attendee.
   const user = createUser({
     email,
-    displayName,
+    displayName: sanitizedDisplayName,
     passwordHash: `hashed:${password}`, // placeholder
   });
 
