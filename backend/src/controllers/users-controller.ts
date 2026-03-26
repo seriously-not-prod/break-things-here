@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
-import { validateEmailFormat } from '../utils/auth-helpers.js';
+import { validateEmailFormat, verifyPassword } from '../utils/auth-helpers.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -13,6 +13,7 @@ interface AuthRequest extends Request {
  * Returns 400 for invalid input, 401 for unauthenticated.
  */
 export async function updateMe(req: AuthRequest, res: Response): Promise<Response> {
+  try {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -80,6 +81,10 @@ export async function updateMe(req: AuthRequest, res: Response): Promise<Respons
   }
 
   return res.status(200).json(updated);
+  } catch (error) {
+    console.error('updateMe error:', error);
+    return res.status(500).json({ error: 'Failed to update profile' });
+  }
 }
 
 /**
@@ -87,6 +92,7 @@ export async function updateMe(req: AuthRequest, res: Response): Promise<Respons
  * Returns current authenticated user's public profile.
  */
 export async function getMe(req: AuthRequest, res: Response): Promise<Response> {
+  try {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -111,6 +117,10 @@ export async function getMe(req: AuthRequest, res: Response): Promise<Response> 
   user.email_masked = `${local.slice(0, 2)}****@${domain}`;
 
   return res.status(200).json(user);
+  } catch (error) {
+    console.error('getMe error:', error);
+    return res.status(500).json({ error: 'Failed to retrieve profile' });
+  }
 }
 
 /**
@@ -120,6 +130,7 @@ export async function getMe(req: AuthRequest, res: Response): Promise<Response> 
  * Soft-deletes user and invalidates all sessions.
  */
 export async function deleteMe(req: AuthRequest, res: Response): Promise<Response> {
+  try {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -140,7 +151,6 @@ export async function deleteMe(req: AuthRequest, res: Response): Promise<Respons
     return res.status(404).json({ error: 'User not found' });
   }
 
-  const { verifyPassword } = await import('../utils/auth-helpers.js');
   const valid = await verifyPassword(password, user.password_hash);
   if (!valid) {
     return res.status(401).json({ error: 'Invalid password' });
@@ -173,4 +183,8 @@ export async function deleteMe(req: AuthRequest, res: Response): Promise<Respons
   res.clearCookie('refreshToken');
 
   return res.status(204).send();
+  } catch (error) {
+    console.error('deleteMe error:', error);
+    return res.status(500).json({ error: 'Failed to delete account' });
+  }
 }
