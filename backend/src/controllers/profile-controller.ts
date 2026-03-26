@@ -1,5 +1,11 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import {
+  validateEmailFormat,
+  verifyPassword,
+  generateVerificationToken,
+  sendVerificationEmail,
+} from '../utils/auth-helpers.js';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -212,8 +218,7 @@ export async function changeEmail(req: AuthRequest, res: Response) {
       return res.status(400).json({ error: 'newEmail and password are required' });
     }
 
-    const { validateEmailFormat, verifyPassword, generateVerificationToken, sendVerificationEmail } =
-      await import('../utils/auth-helpers.js');
+
 
     if (!validateEmailFormat(newEmail)) {
       return res.status(400).json({ error: 'Invalid email format' });
@@ -373,7 +378,7 @@ export async function deleteAccount(req: AuthRequest, res: Response) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const { verifyPassword } = await import('../utils/auth-helpers.js');
+
     const passwordMatch = await verifyPassword(password, user.password_hash);
     if (!passwordMatch) {
       return res.status(401).json({ error: 'Invalid password' });
