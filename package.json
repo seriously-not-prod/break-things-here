@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "> **⚠️ DISCLAIMER: This is a fake project for demonstration/testing purposes only. This is not a real application or repository.** > > **No feedback will be collected or worked on. Use at your own risk.**",
   "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "lint": "tsc --noEmit"

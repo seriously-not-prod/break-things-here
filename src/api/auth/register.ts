@@ -1,3 +1,4 @@
+import { scryptSync, randomBytes } from 'crypto';
 import { ApiRequest, ApiResponse } from '../../types/api';
 import { createUser, findUserByEmail } from '../../data/user-store';
 
@@ -23,9 +24,23 @@ interface RegisterBody {
  *   400 — Missing required fields
  */
 export function handleRegister(req: ApiRequest, res: ApiResponse): void {
-  const { email, displayName, password } = req.body as RegisterBody;
+  const body = req.body;
 
-  if (!email || !displayName || !password) {
+  if (!body || typeof body !== 'object') {
+    res.status(400).json({ error: 'Invalid request body' });
+    return;
+  }
+
+  const { email, displayName, password } = body as RegisterBody;
+
+  if (
+    typeof email !== 'string' ||
+    typeof displayName !== 'string' ||
+    typeof password !== 'string' ||
+    !email.trim() ||
+    !displayName.trim() ||
+    !password
+  ) {
     res.status(400).json({ error: 'email, displayName, and password are required' });
     return;
   }
@@ -48,12 +63,16 @@ export function handleRegister(req: ApiRequest, res: ApiResponse): void {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
-  // In production, hash the password with bcrypt (Task #23).
+  // Hash password with scrypt (secure, built-in, synchronous)
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(password, salt, 64).toString('hex');
+  const passwordHash = `${salt}:${hash}`;
+
   // Role is NOT accepted from the request — always defaults to Attendee.
   const user = createUser({
     email,
     displayName: sanitizedDisplayName,
-    passwordHash: `hashed:${password}`, // placeholder
+    passwordHash,
   });
 
   res.status(201).json(user);
