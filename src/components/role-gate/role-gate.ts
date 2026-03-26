@@ -1,5 +1,5 @@
-import { UserRole } from '../types/user-role';
-import { isVisibleForRole } from '../hooks/use-user-role';
+import { UserRole } from '../../types/user-role';
+import { isVisibleForRole } from '../../hooks/use-user-role';
 
 /**
  * Role-based component visibility helper.
