@@ -2,7 +2,8 @@ import { Router, Request, Response } from 'express';
 import { hashPassword } from '../../utils/password-hash';
 import { inMemoryUserStore, UserStore } from './userStore';
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Bounded quantifiers prevent ReDoS on user-controlled input
+const EMAIL_REGEX = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{1,63}$/;
 const MIN_PASSWORD_LENGTH = parseInt(process.env.MIN_PASSWORD_LENGTH ?? '8', 10);
 
 interface RegistrationBody {
