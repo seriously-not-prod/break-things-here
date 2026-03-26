@@ -108,21 +108,21 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
     }
 
     // Validate file type
-    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedMimes.includes(req.file.mimetype)) {
       // Clean up the uploaded file
       await fs.unlink(req.file.path);
       return res.status(400).json({
-        error: 'Only image files are allowed (JPEG, PNG, GIF, WebP)',
+        error: 'Only JPEG, PNG, and WebP images are accepted',
       });
     }
 
-    // Validate file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024;
+    // Validate file size (max 2MB)
+    const maxSize = 2 * 1024 * 1024;
     if (req.file.size > maxSize) {
       await fs.unlink(req.file.path);
       return res.status(400).json({
-        error: 'File size must not exceed 5MB',
+        error: 'File size must not exceed 2MB',
       });
     }
 
