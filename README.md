@@ -9,7 +9,7 @@ A training repository for learning Git workflows, Kanban processes, and collabor
 ## Purpose
 
 This repository is designed to teach:
-- **Git Workflow**: Four-branch strategy (develop → test → staging → main)
+- **Git Workflow**: Four-branch strategy (develop → test → stage → main)
 - **Kanban Process**: Work item hierarchy and continuous flow with GitHub Projects
 - **Commit Standards**: Conventional Commits with issue tracking
 - **Code Review**: Pull request workflow and CODEOWNERS
@@ -138,7 +138,7 @@ cd frontend && npm run build
 |-----------|-------------------|-----------------|
 | `develop` | Integration       | Development     |
 | `test`    | QA Testing        | Test            |
-| `staging` | Pre-production    | Staging/UAT     |
+| `stage`   | Pre-production    | Stage/UAT       |
 | `main`    | Production        | Production      |
 
 ### Creating Work Items
