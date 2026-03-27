@@ -9,6 +9,7 @@ node_modules/
 # Production
 /build
 /dist
+frontend/dist/
 
 # Misc
 .DS_Store
@@ -76,6 +77,5 @@ out/
 
 # Vite
 *.local
-
-# Docker
-docker-compose.override.yml
+frontend/vite.config.js
+frontend/vite.config.d.ts

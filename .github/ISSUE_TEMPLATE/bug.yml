@@ -28,7 +28,7 @@ body:
       options:
         - Development
         - Testing
-        - Staging
+        - Stage
         - UAT
         - Other Non-Production
     validations:
