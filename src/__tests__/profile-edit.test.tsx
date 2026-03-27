@@ -26,7 +26,7 @@ describe('ProfileEdit', () => {
       />,
     );
     expect(screen.getByLabelText(/display name/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/profile photo/i)).toBeInTheDocument();
   });
 
@@ -55,8 +55,8 @@ describe('ProfileEdit', () => {
         onPhotoChange={jest.fn()}
       />,
     );
-    await userEvent.clear(screen.getByLabelText(/^email/i));
-    await userEvent.type(screen.getByLabelText(/^email/i), 'not-an-email');
+    await userEvent.clear(screen.getByRole('textbox', { name: /email/i }));
+    await userEvent.type(screen.getByRole('textbox', { name: /email/i }), 'not-an-email');
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
     await waitFor(() => {
       expect(screen.getByText(/valid email address/i)).toBeInTheDocument();
@@ -97,6 +97,14 @@ describe('ProfileEdit', () => {
   });
 
   it('shows photo error for invalid file type', async () => {
+    // Mock validateProfilePhoto to return invalid — the actual MIME validation
+    // is tested exhaustively in file-validation.test.ts. This avoids jsdom's
+    // inability to set files on an input for types not matching `accept`.
+    jest.spyOn(
+      require('../utils/file-validation'),
+      'validateProfilePhoto',
+    ).mockReturnValue({ valid: false, error: 'Invalid file type "image/gif". Only JPEG, PNG, and WebP are allowed.' });
+
     render(
       <ProfileEdit
         profile={mockProfile}
@@ -105,12 +113,13 @@ describe('ProfileEdit', () => {
         onPhotoChange={jest.fn()}
       />,
     );
-    const file = new File(['content'], 'image.gif', { type: 'image/gif' });
+    const file = new File(['content'], 'photo.jpg', { type: 'image/jpeg' });
     const input = screen.getByLabelText(/profile photo/i);
     await userEvent.upload(input, file);
     await waitFor(() => {
-      expect(screen.getByText(/only jpeg, png, or webp/i)).toBeInTheDocument();
+      expect(screen.getByText(/only jpeg, png, and webp/i)).toBeInTheDocument();
     });
+    jest.restoreAllMocks();
   });
 });
 

@@ -114,6 +114,14 @@ describe('Profile management — integration', () => {
   });
 
   it('does not upload a photo file that fails client-side validation', async () => {
+    // Mock validateProfilePhoto to simulate rejection — avoids jsdom's inability
+    // to set files on an input for types not matching `accept`. The real MIME
+    // validation is tested in file-validation.test.ts.
+    jest.spyOn(
+      require('../utils/file-validation'),
+      'validateProfilePhoto',
+    ).mockReturnValue({ valid: false, error: 'Invalid file type "application/pdf". Only JPEG, PNG, and WebP are allowed.' });
+
     render(
       <ProfileEdit
         profile={mockProfile}
@@ -123,12 +131,13 @@ describe('Profile management — integration', () => {
       />,
     );
 
-    const invalidFile = new File(['img'], 'doc.pdf', { type: 'application/pdf' });
-    await userEvent.upload(screen.getByLabelText(/profile photo/i), invalidFile);
+    const file = new File(['img'], 'photo.jpg', { type: 'image/jpeg' });
+    await userEvent.upload(screen.getByLabelText(/profile photo/i), file);
 
     await waitFor(() => {
       expect(screen.getByText(/invalid file type/i)).toBeInTheDocument();
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+    jest.restoreAllMocks();
   });
 });

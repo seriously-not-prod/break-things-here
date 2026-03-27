@@ -58,6 +58,6 @@ describe('AccountDeletion', () => {
   it('shows deleting state when isDeleting is true', async () => {
     render(<AccountDeletion onConfirm={jest.fn()} onCancel={jest.fn()} isDeleting />);
     await userEvent.type(screen.getByLabelText(/type.*delete/i), 'DELETE');
-    expect(screen.getByRole('button', { name: /permanently delete/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /deleting/i })).toBeDisabled();
   });
 });
