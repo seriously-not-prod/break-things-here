@@ -148,11 +148,15 @@ Remember this is for **training purposes**:
 - Provide realistic project structure
 
 ### Rule #13: GitHub CLI Required (MANDATORY)
-- ✅ **ALWAYS** use the GitHub CLI (`gh`) for any interaction with github.com
-- ✅ Use `gh` for creating issues, pull requests, releases, and all GitHub operations
+- ✅ **ALWAYS** use the GitHub CLI (`gh`) for any interaction with github.com **when a `gh` command exists for the operation**
+- ✅ Use `gh` for creating issues, pull requests, releases, and all GitHub operations that `gh` supports
 - ❌ **NEVER** use the GitHub REST API directly via `curl`, `fetch`, or HTTP clients
 - ❌ **NEVER** use the GitHub GraphQL API directly
+- ✅ Prefer high-level `gh` subcommands (e.g., `gh issue`, `gh pr`, `gh repo`) over low-level API calls
+- ✅ `gh api` / `gh api graphql` may be used **only when no suitable first-class `gh` command exists** for the required GitHub operation
+- ❌ **NEVER** use `gh api` / `gh api graphql` to circumvent the bans on direct REST/GraphQL usage via other HTTP clients
 - ❌ **NEVER** suggest manual browser-based actions when `gh` can accomplish the task
+- ✅ You may suggest the GitHub web UI **only when no equivalent `gh` support exists** for the required GitHub action (e.g., creating sub-issues, features not yet supported by `gh`)
 
 **Common `gh` Commands:**
 ```bash
@@ -179,8 +183,9 @@ gh repo clone owner/repo
 gh run list
 gh run view 123
 
-# Sub-issues (if supported)
-gh issue develop 123 --base develop
+# Sub-issues
+# Note: `gh` does not natively support creating/linking sub-issues.
+# Use the GitHub web UI for sub-issue management.
 ```
 
 **Why GitHub CLI:**
