@@ -1,13 +1,39 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { Pool } from 'pg';
 
 const app = express();
 const port = parseInt(process.env.PORT || '4000', 10);
 
+// Simple in-memory rate limiter
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX = 100;
+
+const rateLimiter = (req: Request, res: Response, next: NextFunction): void => {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+
+  if (!entry || now > entry.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    next();
+    return;
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    res.status(429).json({ error: 'Too many requests, please try again later' });
+    return;
+  }
+
+  entry.count++;
+  next();
+};
+
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(rateLimiter);
 
 // Database connection pool
 const pool = new Pool({
@@ -15,7 +41,7 @@ const pool = new Pool({
   port: parseInt(process.env.DATABASE_PORT || '5432', 10),
   database: process.env.DATABASE_NAME || 'festival_planner',
   user: process.env.DATABASE_USER || 'festival_user',
-  password: process.env.DATABASE_PASSWORD || 'festival_pass',
+  password: process.env.DATABASE_PASSWORD || 'change_me_in_local_env',
 });
 
 // Health check endpoint
