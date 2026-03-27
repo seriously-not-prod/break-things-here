@@ -22,51 +22,6 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY || 'seriously-not-prod/break-things-here';
 const [OWNER, REPO] = GITHUB_REPOSITORY.split('/');
 
-// Label hierarchy rules
-const HIERARCHY = {
-  'theme': { parent: null, label: 'theme' },
-  'user-story': { parent: 'theme', label: 'user-story' },
-  'task': { parent: 'user-story', label: 'task' },
-  'sub-task': { parent: 'task', label: 'sub-task' }
-};
-
-// Labels that don't require parent validation
-const STANDALONE_LABELS = ['bug', 'defect', 'security-issue', 'feature-request', 'theme'];
-
-/**
- * Make GitHub REST API request
- */
-function githubRequest(path, options = {}) {
-  return new Promise((resolve, reject) => {
-    const requestOptions = {
-      hostname: 'api.github.com',
-      path: path,
-      method: options.method || 'GET',
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Issue-Hierarchy-Validator',
-        ...options.headers
-      }
-    };
-
-    const req = https.request(requestOptions, (res) => {
-      let data = '';
-      res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(JSON.parse(data || '{}'));
-        } else {
-          reject(new Error(`GitHub API error: ${res.statusCode} ${data}`));
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.end(options.body);
-  });
-}
-
 /**
  * Make GitHub GraphQL API request
  */
@@ -81,7 +36,7 @@ function graphqlRequest(query) {
         'Authorization': `Bearer ${GITHUB_TOKEN}`,
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
-        'User-Agent': 'Issue-Hierarchy-Validator'
+        'User-Agent': 'Issue-Hierarchy-Validator',
       }
     };
 
@@ -89,11 +44,10 @@ function graphqlRequest(query) {
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
-        const parsed = JSON.parse(data || '{}');
-        if (parsed.errors) {
-          reject(new Error(`GraphQL error: ${JSON.stringify(parsed.errors)}`));
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(JSON.parse(data || '{}'));
         } else {
-          resolve(parsed.data);
+          reject(new Error(`GitHub GraphQL error: ${res.statusCode} ${data}`));
         }
       });
     });
@@ -104,74 +58,49 @@ function graphqlRequest(query) {
   });
 }
 
-/**
- * Get parent issue number via GraphQL (used for issues linked via the
- * GitHub sub-issues API, which creates 'parent_issue_added' timeline events
- * rather than 'connected' events).
- */
-async function getParentViaGraphQL(issueNumber) {
-  try {
-    const query = `
-      query {
-        repository(owner: "${OWNER}", name: "${REPO}") {
-          issue(number: ${issueNumber}) {
-            parent { number }
-          }
-        }
-      }
-    `;
-    const data = await graphqlRequest(query);
-    return data && data.repository && data.repository.issue && data.repository.issue.parent
-      ? data.repository.issue.parent.number
-      : null;
-  } catch (err) {
-    // GraphQL fallback failure is non-fatal; parent remains null
-    return null;
-  }
-}
+// Label hierarchy rules
+const HIERARCHY = {
+  'theme': { parent: null, label: 'theme' },
+  'user-story': { parent: 'theme', label: 'user-story' },
+  'task': { parent: 'user-story', label: 'task' },
+  'sub-task': { parent: 'task', label: 'sub-task' }
+};
+
+// Labels that don't require parent validation
+const STANDALONE_LABELS = ['bug', 'defect', 'security-issue', 'feature-request', 'theme'];
 
 /**
- * Get issue details including labels and parent
+ * Get issue details including labels and parent using GraphQL.
+ * Uses `issue.parent` (sub-issues API) which is set by addSubIssue mutations
+ * and creates `parent_issue_added` timeline events — not `connected` events.
  */
 async function getIssue(issueNumber) {
   try {
-    const issue = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}`);
-    
-    // Get sub-issues (children) and parent from timeline
-    const timeline = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}/timeline`);
-    
-    // Find parent relationship from timeline.
-    // GitHub creates 'connected' events for issues cross-referenced via markdown,
-    // but 'parent_issue_added' events for issues linked via the sub-issues API.
-    // 'parent_issue_added' events do not include the parent number in the REST
-    // timeline response, so we fall back to the GraphQL API in that case.
-    let parentIssue = null;
-    let hasParentIssueAdded = false;
-    for (const event of timeline) {
-      if (event.event === 'connected' && event.source && event.source.issue) {
-        // Legacy: issue linked via markdown cross-reference
-        const connectedIssue = event.source.issue;
-        if (event.subject && event.subject.type === 'issue') {
-          parentIssue = connectedIssue.number;
-          break;
+    const query = `{
+      repository(owner: "${OWNER}", name: "${REPO}") {
+        issue(number: ${issueNumber}) {
+          number
+          title
+          state
+          labels(first: 20) { nodes { name } }
+          parent { number }
         }
       }
-      if (event.event === 'parent_issue_added') {
-        hasParentIssueAdded = true;
-      }
+    }`;
+
+    const response = await graphqlRequest(query);
+    const issue = response?.data?.repository?.issue;
+
+    if (!issue) {
+      throw new Error(`Issue #${issueNumber} not found`);
     }
-    // If parent was added via the sub-issues API and REST didn't return the number,
-    // query GraphQL which exposes issue.parent.number directly.
-    if (!parentIssue && hasParentIssueAdded) {
-      parentIssue = await getParentViaGraphQL(issueNumber);
-    }
-    
+
     return {
       number: issue.number,
       title: issue.title,
-      labels: issue.labels.map(l => l.name),
-      state: issue.state,
-      parent: parentIssue
+      labels: issue.labels.nodes.map(l => l.name),
+      state: issue.state.toLowerCase(),
+      parent: issue.parent?.number ?? null,
     };
   } catch (error) {
     throw new Error(`Failed to fetch issue #${issueNumber}: ${error.message}`);
