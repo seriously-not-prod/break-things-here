@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Next.js App Router project scaffold with TypeScript (#50)
+- MUI (Material UI) integration with theme provider and CssBaseline (#50)
+- Frontend folder structure: components, hooks, utils, types (#50)
+- Backend API routes scaffold under `src/app/api/` (#50)
+- Data tier structure: models, config, migrations under `src/data/` (#50)
+- Initial app layout with MUI AppBar (#50)
+- ESLint configuration with Next.js rules (#50)
 - GitHub Projects (Project 1) integration for visual Kanban workflow management
 - Project automation workflow to auto-add issues and PRs to Project 1
 - Workflow status fields: Backlog → Ready → In Progress → Code Review → Testing → Ready for Release → Released
