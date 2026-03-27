@@ -22,6 +22,42 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY || 'seriously-not-prod/break-things-here';
 const [OWNER, REPO] = GITHUB_REPOSITORY.split('/');
 
+/**
+ * Make GitHub GraphQL API request
+ */
+function graphqlRequest(query) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ query });
+    const requestOptions = {
+      hostname: 'api.github.com',
+      path: '/graphql',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        'User-Agent': 'Issue-Hierarchy-Validator',
+      }
+    };
+
+    const req = https.request(requestOptions, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(JSON.parse(data || '{}'));
+        } else {
+          reject(new Error(`GitHub GraphQL error: ${res.statusCode} ${data}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
 // Label hierarchy rules
 const HIERARCHY = {
   'theme': { parent: null, label: 'theme' },
@@ -34,123 +70,37 @@ const HIERARCHY = {
 const STANDALONE_LABELS = ['bug', 'defect', 'security-issue', 'feature-request', 'theme'];
 
 /**
- * Make GitHub API request
- */
-function githubRequest(path, options = {}) {
-  return new Promise((resolve, reject) => {
-    const requestOptions = {
-      hostname: 'api.github.com',
-      path: path,
-      method: options.method || 'GET',
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Issue-Hierarchy-Validator',
-        ...options.headers
-      }
-    };
-
-    const req = https.request(requestOptions, (res) => {
-      let data = '';
-      res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(JSON.parse(data || '{}'));
-        } else {
-          reject(new Error(`GitHub API error: ${res.statusCode} ${data}`));
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.end(options.body);
-  });
-}
-
-/**
- * Make GitHub GraphQL API request
- */
-function githubGraphQL(query, variables = {}) {
-  const body = JSON.stringify({ query, variables });
-  return new Promise((resolve, reject) => {
-    const requestOptions = {
-      hostname: 'api.github.com',
-      path: '/graphql',
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'User-Agent': 'Issue-Hierarchy-Validator',
-        'Content-Length': Buffer.byteLength(body)
-      }
-    };
-
-    const req = https.request(requestOptions, (res) => {
-      let data = '';
-      res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          const parsed = JSON.parse(data || '{}');
-          if (parsed.errors) {
-            reject(new Error(`GraphQL error: ${JSON.stringify(parsed.errors)}`));
-          } else {
-            resolve(parsed.data);
-          }
-        } else {
-          reject(new Error(`GitHub GraphQL API error: ${res.statusCode} ${data}`));
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.write(body);
-    req.end();
-  });
-}
-
-/**
- * Get issue details including labels and parent using GraphQL sub-issues API
+ * Get issue details including labels and parent using GraphQL.
+ * Uses `issue.parent` (sub-issues API) which is set by addSubIssue mutations
+ * and creates `parent_issue_added` timeline events — not `connected` events.
  */
 async function getIssue(issueNumber) {
   try {
-    const data = await githubGraphQL(`
-      query($owner: String!, $repo: String!, $number: Int!) {
-        repository(owner: $owner, name: $repo) {
-          issue(number: $number) {
-            number
-            title
-            state
-            labels(first: 10) {
-              nodes { name }
-            }
-            parent {
-              number
-              title
-              labels(first: 10) {
-                nodes { name }
-              }
-            }
-          }
+    const query = `{
+      repository(owner: "${OWNER}", name: "${REPO}") {
+        issue(number: ${issueNumber}) {
+          number
+          title
+          state
+          labels(first: 20) { nodes { name } }
+          parent { number }
         }
       }
-    `, { owner: OWNER, repo: REPO, number: issueNumber });
+    }`;
 
-    const issue = data.repository.issue;
-    const parentNumber = issue.parent ? issue.parent.number : null;
-    const parentDetails = issue.parent ? {
-      number: issue.parent.number,
-      title: issue.parent.title,
-      labels: issue.parent.labels.nodes.map(l => l.name)
-    } : null;
+    const response = await graphqlRequest(query);
+    const issue = response?.data?.repository?.issue;
+
+    if (!issue) {
+      throw new Error(`Issue #${issueNumber} not found`);
+    }
 
     return {
       number: issue.number,
       title: issue.title,
       labels: issue.labels.nodes.map(l => l.name),
       state: issue.state.toLowerCase(),
-      parent: parentNumber,
-      parentDetails: parentDetails
+      parent: issue.parent?.number ?? null,
     };
   } catch (error) {
     throw new Error(`Failed to fetch issue #${issueNumber}: ${error.message}`);
@@ -239,8 +189,11 @@ async function validateIssues(issueNumbers) {
         continue;
       }
       
-      // Get parent issue details from inline data
-      let parentIssue = issue.parentDetails || null;
+      // Get parent issue details if exists
+      let parentIssue = null;
+      if (issue.parent) {
+        parentIssue = await getIssue(issue.parent);
+      }
       
       // Validate hierarchy
       const validation = validateIssueHierarchy(issue, parentIssue);
