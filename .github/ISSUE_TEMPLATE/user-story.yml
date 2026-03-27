@@ -7,17 +7,22 @@ body:
     attributes:
       value: |
         ## User Story Information
-        User Stories must relate to a Theme and can only have Tasks as children. Cannot be standalone.
         
-  - type: input
-    id: related-theme
-    attributes:
-      label: Related Theme
-      description: Link to the parent Theme issue (e.g., #123)
-      placeholder: "#"
-    validations:
-      required: true
-      
+        ⚠️ **IMPORTANT: User Stories must be created as sub-issues of a Theme.**
+        
+        ### How to Create:
+        1. Navigate to the parent Theme issue
+        2. Click "Create sub-issue" at the bottom of the issue description
+        3. Select this User Story template
+        
+        ### Alternatively:
+        If you create this issue first, you must:
+        1. Navigate to the parent Theme issue
+        2. Click the dropdown next to "Create sub-issue"
+        3. Select "Add existing issue" and link this issue
+        
+        User Stories can only have Tasks as sub-issues.
+        
   - type: textarea
     id: user-story
     attributes:
@@ -62,12 +67,20 @@ body:
     validations:
       required: true
       
-  - type: input
-    id: story-points
+  - type: dropdown
+    id: estimated-hours
     attributes:
-      label: Story Points
+      label: Estimated Hours
       description: Estimated effort (optional - can be added during planning)
-      placeholder: "e.g., 1, 2, 3, 5, 8, 13"
+      options:
+        - Not Estimated
+        - "1-4 hours"
+        - "4-8 hours"
+        - "1-2 days"
+        - "2-5 days"
+        - "1-2 weeks"
+        - "2-4 weeks"
+        - "1+ months"
     validations:
       required: false
       
