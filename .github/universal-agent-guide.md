@@ -93,7 +93,7 @@ This is a **fake/demo training repository**:
 - Reference existing documentation
 
 ### Rule #7: Branch Workflow Adherence
-- Understand the four-branch strategy: `develop` → `test` → `staging` → `main`
+- Understand the four-branch strategy: `develop` → `test` → `stage` → `main`
 - Never suggest direct commits to protected branches
 - Always use proper branch naming conventions
 - Reference: [docs/processes/branching-strategy.md](docs/processes/branching-strategy.md)

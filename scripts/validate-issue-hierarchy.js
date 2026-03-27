@@ -22,6 +22,42 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY || 'seriously-not-prod/break-things-here';
 const [OWNER, REPO] = GITHUB_REPOSITORY.split('/');
 
+/**
+ * Make GitHub GraphQL API request
+ */
+function graphqlRequest(query) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ query });
+    const requestOptions = {
+      hostname: 'api.github.com',
+      path: '/graphql',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        'User-Agent': 'Issue-Hierarchy-Validator',
+      }
+    };
+
+    const req = https.request(requestOptions, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(JSON.parse(data || '{}'));
+        } else {
+          reject(new Error(`GitHub GraphQL error: ${res.statusCode} ${data}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
 // Label hierarchy rules
 const HIERARCHY = {
   'theme': { parent: null, label: 'theme' },
@@ -34,119 +70,37 @@ const HIERARCHY = {
 const STANDALONE_LABELS = ['bug', 'defect', 'security-issue', 'feature-request', 'theme'];
 
 /**
- * Make GitHub API request
- */
-function githubRequest(path, options = {}) {
-  return new Promise((resolve, reject) => {
-    const requestOptions = {
-      hostname: 'api.github.com',
-      path: path,
-      method: options.method || 'GET',
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Issue-Hierarchy-Validator',
-        ...options.headers
-      }
-    };
-
-    const req = https.request(requestOptions, (res) => {
-      let data = '';
-      res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(JSON.parse(data || '{}'));
-        } else {
-          reject(new Error(`GitHub API error: ${res.statusCode} ${data}`));
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.end(options.body);
-  });
-}
-
-/**
- * Make GitHub GraphQL API request
- */
-function githubGraphQL(query) {
-  return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ query });
-    const requestOptions = {
-      hostname: 'api.github.com',
-      path: '/graphql',
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'Issue-Hierarchy-Validator',
-        'Content-Length': Buffer.byteLength(body)
-      }
-    };
-
-    const req = https.request(requestOptions, (res) => {
-      let data = '';
-      res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          const parsed = JSON.parse(data || '{}');
-          if (parsed.errors) {
-            reject(new Error(`GraphQL error: ${JSON.stringify(parsed.errors)}`));
-          } else {
-            resolve(parsed.data);
-          }
-        } else {
-          reject(new Error(`GitHub GraphQL API error: ${res.statusCode} ${data}`));
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.end(body);
-  });
-}
-
-/**
- * Get issue details including labels and parent via GraphQL (supports native sub-issues)
+ * Get issue details including labels and parent using GraphQL.
+ * Uses `issue.parent` (sub-issues API) which is set by addSubIssue mutations
+ * and creates `parent_issue_added` timeline events — not `connected` events.
  */
 async function getIssue(issueNumber) {
   try {
-    const issue = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}`);
-
-    // Use GraphQL to get native sub-issue parent relationship
-    let parentIssue = null;
-    try {
-      const data = await githubGraphQL(`{
-        repository(owner: "${OWNER}", name: "${REPO}") {
-          issue(number: ${issueNumber}) {
-            parent {
-              number
-            }
-          }
-        }
-      }`);
-      parentIssue = data?.repository?.issue?.parent?.number || null;
-    } catch {
-      // Fall back to timeline API for older-style connected events
-      const timeline = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}/timeline`);
-      for (const event of timeline) {
-        if (event.event === 'connected' && event.source?.issue) {
-          const connectedIssue = event.source.issue;
-          if (event.subject?.type === 'issue') {
-            parentIssue = connectedIssue.number;
-            break;
-          }
+    const query = `{
+      repository(owner: "${OWNER}", name: "${REPO}") {
+        issue(number: ${issueNumber}) {
+          number
+          title
+          state
+          labels(first: 20) { nodes { name } }
+          parent { number }
         }
       }
+    }`;
+
+    const response = await graphqlRequest(query);
+    const issue = response?.data?.repository?.issue;
+
+    if (!issue) {
+      throw new Error(`Issue #${issueNumber} not found`);
     }
 
     return {
       number: issue.number,
       title: issue.title,
-      labels: issue.labels.map(l => l.name),
-      state: issue.state,
-      parent: parentIssue
+      labels: issue.labels.nodes.map(l => l.name),
+      state: issue.state.toLowerCase(),
+      parent: issue.parent?.number ?? null,
     };
   } catch (error) {
     throw new Error(`Failed to fetch issue #${issueNumber}: ${error.message}`);

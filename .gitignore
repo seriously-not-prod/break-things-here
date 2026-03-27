@@ -9,6 +9,7 @@ node_modules/
 # Production
 /build
 /dist
+frontend/dist/
 
 # Next.js
 /.next/
@@ -80,3 +81,5 @@ out/
 
 # Vite
 *.local
+frontend/vite.config.js
+frontend/vite.config.d.ts
