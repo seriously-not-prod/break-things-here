@@ -4,11 +4,17 @@ import * as profileController from '../controllers/profile-controller.js';
 import * as usersController from '../controllers/users-controller.js';
 import * as rbacController from '../controllers/rbac-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
+import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
+const apiLimiter = rateLimit({ windowMs: 60_000, max: 100 });
+
 const router = Router();
+
+// Apply rate limiting to all API routes
+router.use(apiLimiter);
 
 // Ensure uploads directory exists outside web root
 const UPLOADS_DIR = path.resolve('uploads/profile-photos');
