@@ -21,14 +21,14 @@ jobs:
         uses: actions/add-to-project@v0.5.0
         with:
           project-url: https://github.com/orgs/seriously-not-prod/projects/1
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.PROJECT_TOKEN }}
 
       - name: Move to Code Review when PR opens
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
         uses: actions/add-to-project@v0.5.0
         with:
           project-url: https://github.com/orgs/seriously-not-prod/projects/1
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.PROJECT_TOKEN }}
 
       - name: Comment on issue with project link
         if: github.event_name == 'issues' && github.event.action == 'opened'
