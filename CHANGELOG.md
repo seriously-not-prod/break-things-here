@@ -12,12 +12,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial project structure
-- Documentation framework
-- Issue templates for project management
-- Release process documentation
+- GitHub Projects (Project 1) integration for visual Kanban workflow management
+- Project automation workflow to auto-add issues and PRs to Project 1
+- Workflow status fields: Backlog → Ready → In Progress → Code Review → Testing → Ready for Release → Released
+- Project Board link in README and release process documentation
+- Instructions for adding issues to Project 1
 
 ### Changed
+- Updated README.md with GitHub Projects workflow integration
+- Updated docs/processes/release-process.md with Project 1 details and workflow states
+- Enhanced Making Changes section with project board workflow steps
+
+## [Unreleased - Previously]
+
+### Added
+- Initial project structure
+- Documentation framework
+- Issue templates for project management (Theme, User Story, Task, Sub-Task, Bug, Defect, Security Issue, Feature Request)
+- GitHub sub-issues integration for work item hierarchy
+- Release process documentation
+- Branching strategy documentation
+- CI validation workflow for PR issue hierarchy
+- CI validation workflow for commit messages
+- Issue hierarchy validation script (validate-issue-hierarchy.js)
+- Git hooks for commit message validation
+- CODEOWNERS file for code review assignments
+- Pull request template with hierarchy validation
+- Automated CI comments on PRs for validation results
+
+### Changed
+- Issue templates updated to use GitHub native sub-issues instead of manual parent references
+- User Story template: removed story points, added hour estimation ranges
+- Task and Sub-Task templates: converted estimated hours to dropdown ranges
+- Workflow naming convention: CI workflows prefixed with `ci-`, CD workflows prefixed with `cd-`
+- Repository structure updated to include workflows and validation scripts
 
 ### Deprecated
 

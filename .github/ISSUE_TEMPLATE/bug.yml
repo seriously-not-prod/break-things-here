@@ -15,8 +15,8 @@ body:
     id: release-number
     attributes:
       label: Release Number
-      description: The release number where this bug was found/reproduced
-      placeholder: "e.g., v1.2.0"
+      description: The release number where this bug was found/reproduced (format vX.Y.Z)
+      placeholder: "v1.2.0"
     validations:
       required: true
       
