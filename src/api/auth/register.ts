@@ -1,80 +1,43 @@
-import { Router, Request, Response } from 'express';
-import { hashPassword } from '../../utils/password-hash';
-import { inMemoryUserStore, UserStore } from './userStore';
+import { requireAuth } from '../../middleware/rbac';
+import { ApiRequest, ApiResponse } from '../../types/api';
+import { createUser } from '../../data/user-store';
 
-// Bounded quantifiers prevent ReDoS on user-controlled input
-const EMAIL_REGEX = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{1,63}$/;
-const MIN_PASSWORD_LENGTH = parseInt(process.env.MIN_PASSWORD_LENGTH ?? '8', 10);
-
-interface RegistrationBody {
-  name?: unknown;
-  email?: unknown;
-  password?: unknown;
-}
-
-interface FieldError {
-  field: string;
-  message: string;
-}
-
-function validateRegistrationInput(body: RegistrationBody): FieldError[] {
-  const errors: FieldError[] = [];
-
-  if (!body.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
-    errors.push({ field: 'name', message: 'Name is required' });
-  }
-
-  if (!body.email || typeof body.email !== 'string' || !EMAIL_REGEX.test(body.email)) {
-    errors.push({ field: 'email', message: 'A valid email address is required' });
-  }
-
-  if (
-    !body.password ||
-    typeof body.password !== 'string' ||
-    body.password.length < MIN_PASSWORD_LENGTH
-  ) {
-    errors.push({
-      field: 'password',
-      message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
-    });
-  }
-
-  return errors;
+/**
+ * Accepted fields in the registration request body.
+ * The role field is intentionally excluded — all new users get Attendee.
+ */
+interface RegisterBody {
+  email?: string;
+  displayName?: string;
+  password?: string;
 }
 
 /**
- * Creates the POST /register route handler.
+ * POST /api/auth/register
  *
- * @param userStore - Injectable user store (defaults to in-memory; swap for DB in production)
+ * Registers a new user. Role is always set to Attendee and cannot
+ * be specified by the caller.
+ *
+ * Request body: { email, displayName, password }
+ * Responses:
+ *   201 — User created (returns public user data)
+ *   400 — Missing required fields
  */
-export function createRegisterRouter(userStore: UserStore = inMemoryUserStore): Router {
-  const router = Router();
+export function handleRegister(req: ApiRequest, res: ApiResponse): void {
+  const { email, displayName, password } = req.body as RegisterBody;
 
-  router.post('/register', async (req: Request, res: Response): Promise<void> => {
-    const body = req.body as RegistrationBody;
+  if (!email || !displayName || !password) {
+    res.status(400).json({ error: 'email, displayName, and password are required' });
+    return;
+  }
 
-    const errors = validateRegistrationInput(body);
-    if (errors.length > 0) {
-      res.status(400).json({ errors });
-      return;
-    }
-
-    const email = (body.email as string).toLowerCase().trim();
-    const name = (body.name as string).trim();
-    const password = body.password as string;
-
-    const existing = await userStore.findByEmail(email);
-    if (existing) {
-      // Return 409 but use a generic message to avoid confirming which emails are registered
-      res.status(409).json({ errors: [{ field: 'email', message: 'Email address is already in use' }] });
-      return;
-    }
-
-    const passwordHash = await hashPassword(password);
-    await userStore.create({ name, email, passwordHash });
-
-    res.status(201).json({ message: 'Registration successful' });
+  // In production, hash the password with bcrypt (Task #23).
+  // Role is NOT accepted from the request — always defaults to Attendee.
+  const user = createUser({
+    email,
+    displayName,
+    passwordHash: `hashed:${password}`, // placeholder
   });
 
-  return router;
+  res.status(201).json(user);
 }

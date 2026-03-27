@@ -1,0 +1,117 @@
+import jwt from 'jsonwebtoken';
+import { Request, Response, NextFunction } from 'express';
+import { getDatabase } from '../db/database.js';
+
+interface AuthRequest extends Request {
+  user?: {
+    id: number;
+    email: string;
+    role_id: number;
+  };
+}
+
+interface TokenPayload {
+  id: number;
+  email: string;
+  role_id: number;
+  iat: number;
+  exp: number;
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+
+export function generateTokens(userId: number, email: string, roleId: number) {
+  const accessToken = jwt.sign(
+    { id: userId, email, role_id: roleId },
+    JWT_SECRET,
+    { expiresIn: '1h' },
+  );
+
+  const refreshToken = jwt.sign(
+    { id: userId, email, role_id: roleId, type: 'refresh' },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN },
+  );
+
+  return { accessToken, refreshToken };
+}
+
+export function verifyToken(token: string): TokenPayload | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  const payload = verifyToken(token);
+  if (!payload) {
+    return res.status(403).json({ error: 'Invalid or expired token' });
+  }
+
+  req.user = {
+    id: payload.id,
+    email: payload.email,
+    role_id: payload.role_id,
+  };
+
+  next();
+}
+
+export function authorizeRole(
+  allowedRoles: string[],
+): (req: AuthRequest, res: Response, next: NextFunction) => Promise<void> {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const db = getDatabase();
+    const role = await db.get<{ name: string }>(
+      'SELECT name FROM roles WHERE id = ?',
+      [req.user.role_id],
+    );
+
+    if (!role || !allowedRoles.includes(role.name)) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    next();
+  };
+}
+
+export function authorizePermission(
+  requiredPermission: string,
+): (req: AuthRequest, res: Response, next: NextFunction) => Promise<void> {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const db = getDatabase();
+    const hasPermission = await db.get(
+      `
+      SELECT 1 FROM role_permissions rp
+      JOIN permissions p ON rp.permission_id = p.id
+      WHERE rp.role_id = ? AND p.name = ?
+      `,
+      [req.user.role_id, requiredPermission],
+    );
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    next();
+  };
+}
