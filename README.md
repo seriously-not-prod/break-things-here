@@ -9,7 +9,7 @@ A training repository for learning Git workflows, Kanban processes, and collabor
 ## Purpose
 
 This repository is designed to teach:
-- **Git Workflow**: Four-branch strategy (develop → test → staging → main)
+- **Git Workflow**: Four-branch strategy (develop → test → stage → main)
 - **Kanban Process**: Work item hierarchy and continuous flow with GitHub Projects
 - **Commit Standards**: Conventional Commits with issue tracking
 - **Code Review**: Pull request workflow and CODEOWNERS
@@ -39,11 +39,64 @@ This repository is designed to teach:
    ./scripts/setup-hooks.sh
    ```
 
-3. **Read the documentation**
+3. **Install dependencies**
+   ```bash
+   cd backend && npm install
+   cd ../frontend && npm install
+   ```
+
+4. **Read the documentation**
    - [Universal Agent Guide](.github/universal-agent-guide.md) - Mandatory rules
    - [Branching Strategy](docs/processes/branching-strategy.md) - Git workflow
    - [Release Process](docs/processes/release-process.md) - Deployment process
    - [Contributing Guidelines](CONTRIBUTING.md) - How to contribute
+
+### Running the Application
+
+Run backend API:
+
+```bash
+cd backend && npm run dev
+```
+
+Run frontend app in another terminal:
+
+```bash
+cd frontend && npm run dev
+```
+
+Frontend runs on `http://localhost:5173` and backend runs on `http://localhost:3001`.
+
+Demo login credentials (configurable by environment variables):
+- Email: `user@example.com`
+- Password: `Password123!`
+
+Current implementation includes a login flow with:
+- React + Material UI login form
+- Loading and error states
+- 3 failed login attempt limit
+- 10 minute temporary lockout after max failures
+
+### Backend Environment Variables
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `3001` | Backend server port |
+| `DEMO_EMAIL` | `user@example.com` | Demo login email |
+| `DEMO_PASSWORD` | `Password123!` | Demo login password |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated list of allowed CORS origins |
+| `LOGIN_RECORD_TTL_MS` | `600000` | How long login attempt records are retained after lockout expires |
+| `MAX_TRACKED_LOGIN_RECORDS` | `5000` | Maximum number of login attempt records kept in memory |
+
+For local development, the backend allows requests from `http://localhost:5173` by default. In non-local environments, set `CORS_ALLOWED_ORIGINS` to a comma-separated list of frontend origins instead of changing the code.
+
+`LOGIN_RECORD_TTL_MS` and `MAX_TRACKED_LOGIN_RECORDS` must be positive integers. Invalid values fall back to the defaults.
+
+### Building for Production
+
+```bash
+cd frontend && npm run build
+```
 
 ## Repository Structure
 
@@ -85,7 +138,7 @@ This repository is designed to teach:
 |-----------|-------------------|-----------------|
 | `develop` | Integration       | Development     |
 | `test`    | QA Testing        | Test            |
-| `staging` | Pre-production    | Staging/UAT     |
+| `stage`   | Pre-production    | Stage/UAT       |
 | `main`    | Production        | Production      |
 
 ### Creating Work Items

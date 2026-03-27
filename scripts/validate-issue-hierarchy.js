@@ -21,7 +21,42 @@ const https = require('https');
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY || 'seriously-not-prod/break-things-here';
 const [OWNER, REPO] = GITHUB_REPOSITORY.split('/');
-const GRAPHQL_API = '/graphql';
+
+/**
+ * Make GitHub GraphQL API request
+ */
+function graphqlRequest(query) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ query });
+    const requestOptions = {
+      hostname: 'api.github.com',
+      path: '/graphql',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        'User-Agent': 'Issue-Hierarchy-Validator',
+      }
+    };
+
+    const req = https.request(requestOptions, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(JSON.parse(data || '{}'));
+        } else {
+          reject(new Error(`GitHub GraphQL error: ${res.statusCode} ${data}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
 
 // Label hierarchy rules
 const HIERARCHY = {
@@ -35,90 +70,37 @@ const HIERARCHY = {
 const STANDALONE_LABELS = ['bug', 'defect', 'security-issue', 'feature-request', 'theme'];
 
 /**
- * Make GitHub API request
- */
-function githubRequest(path, options = {}) {
-  return new Promise((resolve, reject) => {
-    const requestOptions = {
-      hostname: 'api.github.com',
-      path: path,
-      method: options.method || 'GET',
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Issue-Hierarchy-Validator',
-        ...options.headers
-      }
-    };
-
-    const req = https.request(requestOptions, (res) => {
-      let data = '';
-      res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(JSON.parse(data || '{}'));
-        } else {
-          reject(new Error(`GitHub API error: ${res.statusCode} ${data}`));
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.end(options.body);
-  });
-}
-
-/**
- * Make GitHub GraphQL API request
- */
-function graphqlRequest(query, variables = {}) {
-  const body = JSON.stringify({ query, variables });
-  return githubRequest(GRAPHQL_API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body
-  });
-}
-
-/**
- * Get issue details including labels and parent via GraphQL
+ * Get issue details including labels and parent using GraphQL.
+ * Uses `issue.parent` (sub-issues API) which is set by addSubIssue mutations
+ * and creates `parent_issue_added` timeline events — not `connected` events.
  */
 async function getIssue(issueNumber) {
   try {
-    const query = `
-      query($owner: String!, $repo: String!, $number: Int!) {
-        repository(owner: $owner, name: $repo) {
-          issue(number: $number) {
-            number
-            title
-            state
-            labels(first: 20) {
-              nodes { name }
-            }
-            parent {
-              number
-            }
-          }
+    const query = `{
+      repository(owner: "${OWNER}", name: "${REPO}") {
+        issue(number: ${issueNumber}) {
+          number
+          title
+          state
+          labels(first: 20) { nodes { name } }
+          parent { number }
         }
       }
-    `;
-    const result = await graphqlRequest(query, {
-      owner: OWNER,
-      repo: REPO,
-      number: parseInt(issueNumber, 10)
-    });
+    }`;
 
-    if (result.errors) {
-      throw new Error(result.errors.map(e => e.message).join(', '));
+    const response = await graphqlRequest(query);
+    const issue = response?.data?.repository?.issue;
+
+    if (!issue) {
+      throw new Error(`Issue #${issueNumber} not found`);
     }
 
-    const issue = result.data.repository.issue;
     return {
       number: issue.number,
       title: issue.title,
       labels: issue.labels.nodes.map(l => l.name),
       state: issue.state.toLowerCase(),
-      parent: issue.parent ? issue.parent.number : null
+      parent: issue.parent?.number ?? null,
     };
   } catch (error) {
     throw new Error(`Failed to fetch issue #${issueNumber}: ${error.message}`);
