@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import { 
   hashPassword, 
   verifyPassword, 
@@ -61,9 +62,9 @@ describe('Password Hashing Utility', () => {
     });
 
     it('should throw error for non-string password', async () => {
-      await expect(hashPassword(null as any)).rejects.toThrow(PasswordHashError);
-      await expect(hashPassword(undefined as any)).rejects.toThrow(PasswordHashError);
-      await expect(hashPassword(123 as any)).rejects.toThrow('Password must be a string');
+      await expect(hashPassword(null as unknown as string)).rejects.toThrow(PasswordHashError);
+      await expect(hashPassword(undefined as unknown as string)).rejects.toThrow(PasswordHashError);
+      await expect(hashPassword(123 as unknown as string)).rejects.toThrow('Password must be a string');
     });
 
     it('should handle long passwords', async () => {
@@ -103,8 +104,8 @@ describe('Password Hashing Utility', () => {
 
     it('should reject plain-text password when compared to itself', async () => {
       const plainPassword = 'password123';
-
-      // Plain-text is not a valid bcrypt hash — should throw, not silently return false
+      
+      // Attempting to verify plain-text against itself should throw - it is not a valid hash
       await expect(verifyPassword(plainPassword, plainPassword)).rejects.toThrow(PasswordHashError);
     });
 
@@ -134,8 +135,8 @@ describe('Password Hashing Utility', () => {
     it('should throw error for non-string inputs', async () => {
       const hashed = await hashPassword('testPassword');
       
-      await expect(verifyPassword(null as any, hashed)).rejects.toThrow(PasswordHashError);
-      await expect(verifyPassword('test', null as any)).rejects.toThrow(PasswordHashError);
+      await expect(verifyPassword(null as unknown as string, hashed)).rejects.toThrow(PasswordHashError);
+      await expect(verifyPassword('test', null as unknown as string)).rejects.toThrow(PasswordHashError);
     });
 
     it('should throw error for invalid hash format', async () => {
@@ -181,14 +182,20 @@ describe('Password Hashing Utility', () => {
   describe('Security: Plain-text Password Never Stored', () => {
     it('should never return or log plain-text password in errors', async () => {
       const sensitivePassword = 'superSecret123';
-      
+
+      // Force bcrypt to throw internally so we can assert the error message is sanitized
+      const spy = jest.spyOn(bcrypt, 'hash').mockRejectedValueOnce(new Error('bcrypt internal failure') as never);
+
       try {
-        // This should succeed, but we're testing error messages don't contain password
         await hashPassword(sensitivePassword);
+        throw new Error('Expected hashPassword to throw');
       } catch (error) {
+        expect(error).toBeInstanceOf(PasswordHashError);
         if (error instanceof Error) {
           expect(error.message).not.toContain(sensitivePassword);
         }
+      } finally {
+        spy.mockRestore();
       }
     });
 

@@ -35,12 +35,12 @@ export class PasswordHashError extends Error {
  */
 export async function hashPassword(plainPassword: string): Promise<string> {
   // Input validation
-  if (!plainPassword) {
-    throw new PasswordHashError('Password cannot be empty');
-  }
-
   if (typeof plainPassword !== 'string') {
     throw new PasswordHashError('Password must be a string');
+  }
+
+  if (plainPassword.length === 0) {
+    throw new PasswordHashError('Password cannot be empty');
   }
 
   // Prevent logging of plain-text password by not including it in error messages
@@ -71,7 +71,7 @@ export async function hashPassword(plainPassword: string): Promise<string> {
  * @param plainPassword - The plain-text password to verify
  * @param hashedPassword - The hashed password to compare against
  * @returns Promise<boolean> - True if password matches, false otherwise
- * @throws {PasswordHashError} If verification fails due to invalid input
+ * @throws {PasswordHashError} If verification fails due to invalid input or an internal error (for example, an invalid hash format)
  * 
  * @example
  * ```typescript
@@ -94,8 +94,7 @@ export async function verifyPassword(
     throw new PasswordHashError('Password and hash must be strings');
   }
 
-  // Pre-validate hash format — bcrypt silently returns false for invalid hashes,
-  // which would mask implementation errors. Throw instead.
+  // Validate hash format before passing to bcrypt to ensure we throw on invalid input
   if (!/^\$2[ab]\$\d{2}\$[./0-9A-Za-z]{53}$/.test(hashedPassword)) {
     throw new PasswordHashError('Invalid hash format');
   }
