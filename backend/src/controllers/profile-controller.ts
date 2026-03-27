@@ -9,6 +9,17 @@ import {
 import path from 'path';
 import fs from 'fs/promises';
 
+const UPLOADS_DIR = path.resolve('uploads/profile-photos');
+
+/** Ensure a file path is within the allowed uploads directory before operating on it */
+function assertSafePath(filePath: string): string {
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(UPLOADS_DIR)) {
+    throw new Error('Path traversal attempt blocked');
+  }
+  return resolved;
+}
+
 interface AuthRequest extends Request {
   user?: {
     id: number;
@@ -111,7 +122,7 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
     const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedMimes.includes(req.file.mimetype)) {
       // Clean up the uploaded file
-      await fs.unlink(req.file.path);
+      await fs.unlink(assertSafePath(req.file.path));
       return res.status(400).json({
         error: 'Only JPEG, PNG, and WebP images are accepted',
       });
@@ -120,7 +131,7 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
     // Validate file size (max 2MB)
     const maxSize = 2 * 1024 * 1024;
     if (req.file.size > maxSize) {
-      await fs.unlink(req.file.path);
+      await fs.unlink(assertSafePath(req.file.path));
       return res.status(400).json({
         error: 'File size must not exceed 2MB',
       });
@@ -138,7 +149,7 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
     // profile_photo_url already contains 'uploads/profile-photos/...' — do NOT prepend 'uploads' again
     if (existingProfile?.profile_photo_url) {
       try {
-        const oldFilePath = path.join(process.cwd(), existingProfile.profile_photo_url);
+        const oldFilePath = assertSafePath(path.join(process.cwd(), existingProfile.profile_photo_url));
         await fs.unlink(oldFilePath);
       } catch (err) {
         console.error('Failed to delete old profile photo:', err);
@@ -188,7 +199,7 @@ export async function deleteProfilePhoto(req: AuthRequest, res: Response) {
 
     // Delete file from disk
     try {
-      const filePath = path.join(process.cwd(), profile.profile_photo_url);
+      const filePath = assertSafePath(path.join(process.cwd(), profile.profile_photo_url));
       await fs.unlink(filePath);
     } catch (err) {
       console.error('Failed to delete photo file:', err);
