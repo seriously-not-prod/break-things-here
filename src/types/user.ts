@@ -1,38 +1,46 @@
-export type UserRole = 'Admin' | 'Organizer' | 'Attendee';
+import { UserRole, USER_ROLES, DEFAULT_ROLE } from './user-role';
 
-export interface UserProfile {
+/**
+ * Public user data — safe for API responses (no credentials).
+ */
+export interface User {
   id: string;
-  displayName: string;
   email: string;
-  pendingEmail?: string;
-  photoUrl?: string;
+  displayName: string;
   role: UserRole;
   emailConfirmed: boolean;
-  festivalPreferences: FestivalPreferences;
-  notificationPreferences: NotificationPreferences;
-  createdAt: string;
-  updatedAt: string;
+  profilePhotoUrl?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-export interface FestivalPreferences {
-  genres: string[];
-  maxTravelDistance?: number;
-  campingPreferred: boolean;
+/**
+ * Internal user record including credentials — never return directly in API responses.
+ */
+export interface UserRecord extends User {
+  passwordHash: string;
 }
 
-export interface NotificationPreferences {
-  emailNotifications: boolean;
-  pushNotifications: boolean;
-}
-
-export interface UpdateProfileRequest {
-  displayName?: string;
-  email?: string;
-  festivalPreferences?: Partial<FestivalPreferences>;
-  notificationPreferences?: Partial<NotificationPreferences>;
-}
-
-export interface ApiError {
-  message: string;
-  field?: string;
-}
+/**
+ * Schema definition for the user table (database-agnostic).
+ * Can be used as reference for migration scripts.
+ */
+export const USER_SCHEMA = {
+  tableName: 'users',
+  columns: {
+    id: { type: 'uuid', primaryKey: true },
+    email: { type: 'varchar(255)', unique: true, nullable: false },
+    displayName: { type: 'varchar(255)', nullable: false },
+    passwordHash: { type: 'varchar(255)', nullable: false },
+    role: {
+      type: 'enum',
+      values: [...USER_ROLES],
+      nullable: false,
+      default: DEFAULT_ROLE,
+    },
+    emailConfirmed: { type: 'boolean', nullable: false, default: false },
+    profilePhotoUrl: { type: 'varchar(512)', nullable: true },
+    createdAt: { type: 'timestamp', nullable: false, default: 'now()' },
+    updatedAt: { type: 'timestamp', nullable: false, default: 'now()' },
+  },
+} as const;
