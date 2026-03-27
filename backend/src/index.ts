@@ -1,39 +1,24 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import { Pool } from 'pg';
 
 const app = express();
 const port = parseInt(process.env.PORT || '4000', 10);
 
-// Simple in-memory rate limiter
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const RATE_LIMIT_MAX = 100;
-
-const rateLimiter = (req: Request, res: Response, next: NextFunction): void => {
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-
-  if (!entry || now > entry.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
-    next();
-    return;
-  }
-
-  if (entry.count >= RATE_LIMIT_MAX) {
-    res.status(429).json({ error: 'Too many requests, please try again later' });
-    return;
-  }
-
-  entry.count++;
-  next();
-};
+// Rate limiter
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(rateLimiter);
+app.use(limiter);
 
 // Database connection pool
 const pool = new Pool({
