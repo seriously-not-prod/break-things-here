@@ -15,7 +15,7 @@ async function demo() {
     // Test 1: Hash a password
     console.log('Test 1: Hashing a password');
     const plainPassword = 'mySecurePassword123!';
-    console.log(`Plain password: ${plainPassword}`);
+    console.log('Plain password: [REDACTED]');
     
     const hashedPassword = await hashPassword(plainPassword);
     console.log(`Hashed password: ${hashedPassword}`);
@@ -47,13 +47,13 @@ async function demo() {
     try {
       await hashPassword('');
     } catch (error) {
-      console.log(`✓ Empty password rejected: ${error.message}`);
+      console.log(`✓ Empty password rejected: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     try {
       await verifyPassword('test', 'invalid-hash');
     } catch (error) {
-      console.log(`✓ Invalid hash rejected: ${error.message}`);
+      console.log(`✓ Invalid hash rejected: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     console.log('\n✅ All tests passed!');
@@ -65,7 +65,7 @@ async function demo() {
     console.log('  [✓] Unit tests confirm stored value != input password');
 
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.error('❌ Error:', error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 }
