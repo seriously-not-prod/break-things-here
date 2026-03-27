@@ -68,25 +68,72 @@ function githubRequest(path, options = {}) {
 }
 
 /**
+ * Make GitHub GraphQL API request
+ */
+function githubGraphQL(query) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ query });
+    const requestOptions = {
+      hostname: 'api.github.com',
+      path: '/graphql',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'Issue-Hierarchy-Validator',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    };
+
+    const req = https.request(requestOptions, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(JSON.parse(data || '{}'));
+        } else {
+          reject(new Error(`GitHub GraphQL error: ${res.statusCode} ${data}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.end(body);
+  });
+}
+
+/**
  * Get issue details including labels and parent
  */
 async function getIssue(issueNumber) {
   try {
     const issue = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}`);
     
-    // Get sub-issues (children) and parent from timeline
-    const timeline = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}/timeline`);
-    
-    // Find parent relationship from timeline
+    // Use GraphQL to get the parent sub-issue relationship
     let parentIssue = null;
-    for (const event of timeline) {
-      if (event.event === 'connected' && event.source?.issue) {
-        // This issue is a sub-issue of the connected issue
-        const connectedIssue = event.source.issue;
-        // Check if connected issue is the parent (this issue was added as sub-issue)
-        if (event.subject?.type === 'issue') {
-          parentIssue = connectedIssue.number;
-          break;
+    try {
+      const graphqlResult = await githubGraphQL(`
+        {
+          repository(owner: "${OWNER}", name: "${REPO}") {
+            issue(number: ${issueNumber}) {
+              parent {
+                number
+              }
+            }
+          }
+        }
+      `);
+      parentIssue = graphqlResult?.data?.repository?.issue?.parent?.number || null;
+    } catch (graphqlError) {
+      // Fall back to timeline API if GraphQL parent field is unavailable
+      const timeline = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}/timeline`);
+      for (const event of timeline) {
+        if (event.event === 'connected' && event.source?.issue) {
+          const connectedIssue = event.source.issue;
+          if (event.subject?.type === 'issue') {
+            parentIssue = connectedIssue.number;
+            break;
+          }
         }
       }
     }
