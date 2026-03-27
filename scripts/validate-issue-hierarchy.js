@@ -34,7 +34,7 @@ const HIERARCHY = {
 const STANDALONE_LABELS = ['bug', 'defect', 'security-issue', 'feature-request', 'theme'];
 
 /**
- * Make GitHub API request
+ * Make GitHub REST API request
  */
 function githubRequest(path, options = {}) {
   return new Promise((resolve, reject) => {
@@ -68,35 +68,81 @@ function githubRequest(path, options = {}) {
 }
 
 /**
- * Get issue details including labels and parent
+ * Make GitHub GraphQL API request
+ */
+function githubGraphQL(query, variables = {}) {
+  const body = JSON.stringify({ query, variables });
+  return new Promise((resolve, reject) => {
+    const requestOptions = {
+      hostname: 'api.github.com',
+      path: '/graphql',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'Issue-Hierarchy-Validator',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    };
+
+    const req = https.request(requestOptions, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        const parsed = JSON.parse(data || '{}');
+        if (parsed.errors) {
+          reject(new Error(`GraphQL error: ${parsed.errors.map(e => e.message).join(', ')}`));
+        } else {
+          resolve(parsed.data);
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.end(body);
+  });
+}
+
+/**
+ * Get issue details including labels and parent via GraphQL sub-issues API
  */
 async function getIssue(issueNumber) {
   try {
-    const issue = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}`);
-    
-    // Get sub-issues (children) and parent from timeline
-    const timeline = await githubRequest(`/repos/${OWNER}/${REPO}/issues/${issueNumber}/timeline`);
-    
-    // Find parent relationship from timeline
-    let parentIssue = null;
-    for (const event of timeline) {
-      if (event.event === 'connected' && event.source?.issue) {
-        // This issue is a sub-issue of the connected issue
-        const connectedIssue = event.source.issue;
-        // Check if connected issue is the parent (this issue was added as sub-issue)
-        if (event.subject?.type === 'issue') {
-          parentIssue = connectedIssue.number;
-          break;
+    const query = `
+      query($owner: String!, $repo: String!, $number: Int!) {
+        repository(owner: $owner, name: $repo) {
+          issue(number: $number) {
+            number
+            title
+            state
+            labels(first: 20) {
+              nodes { name }
+            }
+            parent {
+              number
+            }
+          }
         }
       }
+    `;
+
+    const data = await githubGraphQL(query, {
+      owner: OWNER,
+      repo: REPO,
+      number: issueNumber
+    });
+
+    const issue = data.repository.issue;
+    if (!issue) {
+      throw new Error(`Issue #${issueNumber} not found`);
     }
-    
+
     return {
       number: issue.number,
       title: issue.title,
-      labels: issue.labels.map(l => l.name),
-      state: issue.state,
-      parent: parentIssue
+      labels: issue.labels.nodes.map(l => l.name),
+      state: issue.state.toLowerCase(),
+      parent: issue.parent ? issue.parent.number : null
     };
   } catch (error) {
     throw new Error(`Failed to fetch issue #${issueNumber}: ${error.message}`);
