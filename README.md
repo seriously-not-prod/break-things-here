@@ -86,6 +86,7 @@ Current implementation includes a login flow with:
 - Loading and error states
 - 3 failed login attempt limit
 - 10 minute temporary lockout after max failures
+- Remember-me aware refresh session behavior
 
 ### Backend Environment Variables
 
@@ -97,10 +98,15 @@ Current implementation includes a login flow with:
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated list of allowed CORS origins |
 | `LOGIN_RECORD_TTL_MS` | `600000` | How long login attempt records are retained after lockout expires |
 | `MAX_TRACKED_LOGIN_RECORDS` | `5000` | Maximum number of login attempt records kept in memory |
+| `NODE_ENV` | `development` | Enables secure cookies when set to `production` |
 
 For local development, the backend allows requests from `http://localhost:5173` by default. In non-local environments, set `CORS_ALLOWED_ORIGINS` to a comma-separated list of frontend origins instead of changing the code.
 
 `LOGIN_RECORD_TTL_MS` and `MAX_TRACKED_LOGIN_RECORDS` must be positive integers. Invalid values fall back to the defaults.
+
+When `rememberMe` is `true` on login, backend sets a persistent `refreshToken` cookie (30-day max age).
+When `rememberMe` is `false`, backend sets a session-scoped `refreshToken` cookie (removed on browser close).
+Server-side session validation is always enforced, and `/api/session/revoke` clears the current session token.
 
 ### Building for Production
 
