@@ -21,6 +21,9 @@ interface TokenPayload {
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
+/** Session inactivity timeout in milliseconds (default: 30 minutes). */
+export const SESSION_TIMEOUT_MS = Number(process.env.SESSION_TIMEOUT_MS) || 30 * 60 * 1000;
+
 export function generateTokens(userId: number, email: string, roleId: number) {
   const accessToken = jwt.sign(
     { id: userId, email, role_id: roleId },
@@ -46,7 +49,7 @@ export function verifyToken(token: string): TokenPayload | null {
   }
 }
 
-export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): void {
+export async function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -60,6 +63,37 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
     res.status(403).json({ error: 'Invalid or expired token' });
     return;
   }
+
+  // Server-side session inactivity check
+  const db = getDatabase();
+  const session = await db.get<{ id: number; last_activity: string | null }>(
+    'SELECT id, last_activity FROM sessions WHERE token = ?',
+    [token],
+  );
+
+  if (!session) {
+    res.status(401).json({ error: 'Session not found or has been invalidated' });
+    return;
+  }
+
+  if (session.last_activity) {
+    const lastActivity = new Date(session.last_activity).getTime();
+    if (Date.now() - lastActivity > SESSION_TIMEOUT_MS) {
+      // Session expired due to inactivity — clean it up
+      await db.run('DELETE FROM sessions WHERE id = ?', [session.id]);
+      res.status(401).json({
+        error: 'Session expired due to inactivity.',
+        code: 'SESSION_TIMEOUT',
+      });
+      return;
+    }
+  }
+
+  // Update last_activity timestamp
+  await db.run(
+    'UPDATE sessions SET last_activity = CURRENT_TIMESTAMP WHERE id = ?',
+    [session.id],
+  );
 
   req.user = {
     id: payload.id,

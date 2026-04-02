@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken } from '../utils/auth-helpers.js';
 import { generateTokens } from '../middleware/auth.js';
+import { SESSION_TIMEOUT_MS } from '../middleware/auth.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -120,8 +121,8 @@ export async function login(req: Request, res: Response): Promise<Response> {
   // Store refresh token in the sessions table
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   await db.run(
-    `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
-     VALUES (?, ?, ?, ?)`,
+    `INSERT INTO sessions (user_id, token, refresh_token, expires_at, last_activity)
+     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
     [user.id, accessToken, refreshToken, expiresAt],
   );
 
@@ -229,6 +230,33 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
   }
 
   return res.status(200).json({ message: 'Logged out successfully.' });
+}
+
+/**
+ * POST /api/auth/session/heartbeat
+ * Updates last_activity for the current session so the inactivity timer resets.
+ * Returns the configured session timeout so the client can synchronise its own timer.
+ */
+export async function sessionHeartbeat(req: AuthRequest, res: Response): Promise<Response> {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+
+  const db = getDatabase();
+  const authHeader = req.headers?.['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (token) {
+    await db.run(
+      'UPDATE sessions SET last_activity = CURRENT_TIMESTAMP WHERE token = ? AND user_id = ?',
+      [token, req.user.id],
+    );
+  }
+
+  return res.status(200).json({
+    message: 'Session activity updated.',
+    sessionTimeoutMs: SESSION_TIMEOUT_MS,
+  });
 }
 
 /**
