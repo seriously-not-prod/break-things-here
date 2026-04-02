@@ -30,7 +30,9 @@ vi.mock('../src/db/database.js', () => ({
 }));
 
 // Mock fs/promises so no real files are touched
-const mockUnlink = vi.fn().mockResolvedValue(undefined);
+const { mockUnlink } = vi.hoisted(() => ({
+  mockUnlink: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('fs/promises', () => ({
   default: { unlink: mockUnlink },
   unlink: mockUnlink,
@@ -145,7 +147,7 @@ describe('[#38] uploadProfilePhoto — file type validation', () => {
   });
 
   it('cleans up rejected file from disk', async () => {
-    const fakePath = '/tmp/uploads/profile-photos/bad-type.gif';
+    const fakePath = path.resolve('uploads/profile-photos/bad-type.gif');
     const req = makeReq({ file: makeFile({ mimetype: 'image/gif', path: fakePath }) });
     const res = makeRes();
     await uploadProfilePhoto(req as never, res as never);
@@ -195,7 +197,7 @@ describe('[#38] uploadProfilePhoto — file size validation', () => {
   });
 
   it('cleans up oversized file from disk', async () => {
-    const fakePath = '/tmp/uploads/profile-photos/huge.jpg';
+    const fakePath = path.resolve('uploads/profile-photos/huge.jpg');
     const req = makeReq({ file: makeFile({ size: MAX + 1, path: fakePath }) });
     const res = makeRes();
     await uploadProfilePhoto(req as never, res as never);
