@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { Pool } from 'pg';
 
@@ -18,6 +19,7 @@ const limiter = rateLimit({
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 app.use(limiter);
 
 // Database connection pool

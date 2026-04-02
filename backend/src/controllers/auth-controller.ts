@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken } from '../utils/auth-helpers.js';
-import { generateTokens } from '../middleware/auth.js';
+import { generateTokens, COOKIE_OPTIONS } from '../middleware/auth.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -125,10 +125,12 @@ export async function login(req: Request, res: Response): Promise<Response> {
     [user.id, accessToken, refreshToken, expiresAt],
   );
 
+  // Set tokens as httpOnly cookies — never expose in response body
+  res.cookie('accessToken', accessToken, COOKIE_OPTIONS.accessToken);
+  res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS.refreshToken);
+
   return res.status(200).json({
     message: 'Login successful.',
-    accessToken,
-    refreshToken,
     user: {
       id: user.id,
       email: user.email,
@@ -222,11 +224,17 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
 
   const db = getDatabase();
   const authHeader = req.headers?.['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const headerToken = authHeader && authHeader.split(' ')[1];
+  const cookieToken = req.cookies?.accessToken;
+  const token = headerToken || cookieToken;
 
   if (token) {
     await db.run('DELETE FROM sessions WHERE token = ? AND user_id = ?', [token, req.user.id]);
   }
+
+  // Clear httpOnly cookies
+  res.clearCookie('accessToken', { path: '/' });
+  res.clearCookie('refreshToken', { path: '/' });
 
   return res.status(200).json({ message: 'Logged out successfully.' });
 }

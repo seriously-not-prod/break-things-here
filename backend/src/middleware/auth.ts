@@ -21,6 +21,25 @@ interface TokenPayload {
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+export const COOKIE_OPTIONS = {
+  accessToken: {
+    httpOnly: true,
+    secure: IS_PRODUCTION,
+    sameSite: 'strict' as const,
+    maxAge: 60 * 60 * 1000,        // 1 hour — matches access token expiry
+    path: '/',
+  },
+  refreshToken: {
+    httpOnly: true,
+    secure: IS_PRODUCTION,
+    sameSite: 'strict' as const,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days — matches refresh token expiry
+    path: '/',
+  },
+};
+
 export function generateTokens(userId: number, email: string, roleId: number) {
   const accessToken = jwt.sign(
     { id: userId, email, role_id: roleId },
@@ -48,7 +67,9 @@ export function verifyToken(token: string): TokenPayload | null {
 
 export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const headerToken = authHeader && authHeader.split(' ')[1];
+  const cookieToken = req.cookies?.accessToken;
+  const token = headerToken || cookieToken;
 
   if (!token) {
     res.status(401).json({ error: 'Access token required' });
