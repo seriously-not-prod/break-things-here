@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { getDatabase } from '../db/database.js';
 
@@ -29,7 +30,7 @@ export function generateTokens(userId: number, email: string, roleId: number) {
   );
 
   const refreshToken = jwt.sign(
-    { id: userId, email, role_id: roleId, type: 'refresh' },
+    { id: userId, email, role_id: roleId, type: 'refresh', jti: crypto.randomUUID() },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions,
   );
