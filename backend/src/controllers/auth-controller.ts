@@ -23,6 +23,19 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 
 /**
+ * Lazily-cached valid bcrypt hash used when a login attempt targets an unknown
+ * email. Feeding bcrypt.compare a real hash ensures the operation takes the same
+ * time as a genuine credential check, preventing timing-based user enumeration.
+ */
+let _dummyHashPromise: Promise<string> | null = null;
+function getDummyHash(): Promise<string> {
+  if (!_dummyHashPromise) {
+    _dummyHashPromise = hashPassword('__anti_enumeration_dummy__');
+  }
+  return _dummyHashPromise;
+}
+
+/**
  * POST /api/auth/login
  *
  * Validates credentials against bcrypt hash, issues JWT access + refresh tokens.
@@ -53,8 +66,8 @@ export async function login(req: Request, res: Response): Promise<Response> {
 
   // Return same generic error whether user exists or not (prevents enumeration)
   if (!user) {
-    // Perform a dummy bcrypt compare to keep response time consistent
-    await verifyPassword(password, '$2b$12$invalidhashplaceholdervalue.paddingtomakevalidlength');
+    // Run bcrypt.compare against a real hash to keep response time consistent
+    await verifyPassword(password, await getDummyHash());
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
 
