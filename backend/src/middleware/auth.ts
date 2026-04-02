@@ -46,9 +46,11 @@ export function verifyToken(token: string): TokenPayload | null {
   }
 }
 
-export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): void {
+export async function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const headerToken = authHeader && authHeader.split(' ')[1];
+  const cookieToken = req.cookies?.accessToken;
+  const token = headerToken || cookieToken;
 
   if (!token) {
     res.status(401).json({ error: 'Access token required' });
@@ -58,6 +60,18 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
   const payload = verifyToken(token);
   if (!payload) {
     res.status(403).json({ error: 'Invalid or expired token' });
+    return;
+  }
+
+  // Verify the session still exists in the database (rejected after logout)
+  const db = getDatabase();
+  const session = await db.get(
+    'SELECT id FROM sessions WHERE token = ? AND user_id = ?',
+    [token, payload.id],
+  );
+
+  if (!session) {
+    res.status(401).json({ error: 'Session has been invalidated' });
     return;
   }
 

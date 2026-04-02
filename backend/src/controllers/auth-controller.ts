@@ -222,11 +222,17 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
 
   const db = getDatabase();
   const authHeader = req.headers?.['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const headerToken = authHeader && authHeader.split(' ')[1];
+  const cookieToken = req.cookies?.accessToken;
+  const token = headerToken || cookieToken;
 
   if (token) {
     await db.run('DELETE FROM sessions WHERE token = ? AND user_id = ?', [token, req.user.id]);
   }
+
+  // Clear httpOnly cookies
+  res.clearCookie('accessToken', { path: '/' });
+  res.clearCookie('refreshToken', { path: '/' });
 
   return res.status(200).json({ message: 'Logged out successfully.' });
 }
