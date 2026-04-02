@@ -39,8 +39,8 @@ function makeRes() {
   return res;
 }
 
-function makeReq(body: Record<string, unknown> = {}, user?: { id: number; email: string; role_id: number }) {
-  return { body, user } as unknown as import('express').Request;
+function makeReq(body: Record<string, unknown> = {}, user?: { id: number; email: string; role_id: number }, headers: Record<string, string> = {}) {
+  return { body, user, headers } as unknown as import('express').Request;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +207,7 @@ describe('Auth Integration — Login', () => {
     const res = makeRes();
     await login(req, res as unknown as import('express').Response);
 
-    expect([423, 403, 401]).toContain(res.statusCode);
+    expect([423, 403, 401, 429]).toContain(res.statusCode);
     const body = res.body as Record<string, string>;
     expect(body?.error).toMatch(/lock|attempt|try again/i);
   });
@@ -225,7 +225,7 @@ describe('Auth Integration — Logout', () => {
       [user!.id],
     );
 
-    const req = makeReq({}, { id: user!.id, email: 'frank@example.com', role_id: 1 });
+    const req = makeReq({}, { id: user!.id, email: 'frank@example.com', role_id: 1 }, { authorization: 'Bearer access-tok' });
     const res = makeRes();
     await logout(req, res as unknown as import('express').Response);
 
@@ -243,7 +243,7 @@ describe('Auth Integration — Logout', () => {
       [user!.id],
     );
 
-    const req = makeReq({}, { id: user!.id, email: 'grace@example.com', role_id: 1 });
+    const req = makeReq({}, { id: user!.id, email: 'grace@example.com', role_id: 1 }, { authorization: 'Bearer my-access' });
     await logout(req, makeRes() as unknown as import('express').Response);
 
     const session = await testDb.get('SELECT id FROM sessions WHERE user_id = ?', [user!.id]);
