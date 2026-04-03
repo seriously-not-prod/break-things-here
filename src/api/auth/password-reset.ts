@@ -6,7 +6,7 @@ import {
   consumePasswordResetToken,
   PasswordResetTokenError,
 } from '../../utils/password-reset-token';
-import { clearRevokedTokens } from '../../utils/session';
+import { revokeAllUserTokens } from '../../utils/session';
 import { validatePassword } from '../../utils/validation';
 
 const SALT_ROUNDS = 12;
@@ -186,10 +186,8 @@ export function createPasswordResetRouter(userStore: UserStore = inMemoryUserSto
     const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
     await userStore.updatePasswordHash(email, passwordHash);
 
-    // Invalidate all existing sessions for the user.
-    // Full per-user session invalidation requires a DB-backed token store;
-    // here we clear the global set as a best-effort demo implementation.
-    clearRevokedTokens();
+    // Invalidate all existing sessions for this user only.
+    revokeAllUserTokens(email);
 
     auditLog.push({
       timestamp: new Date(),

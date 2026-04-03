@@ -16,7 +16,7 @@ const MAX_LOCAL_LENGTH = 64;
  *   4. Domain contains a '.' with content on both sides.
  *   5. No whitespace anywhere in the address.
  */
-function isValidEmailFormat(email: string): boolean {
+export function isValidEmailFormat(email: string): boolean {
   if (email.length > MAX_EMAIL_LENGTH) return false;
   if (/\s/.test(email)) return false;
 

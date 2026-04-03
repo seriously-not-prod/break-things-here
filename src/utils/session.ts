@@ -37,6 +37,13 @@ export interface SessionPayload {
 const revokedTokens = new Set<string>();
 
 /**
+ * Per-user invalidation timestamp.
+ * Any token issued before this timestamp for a given user is considered revoked.
+ * Swap for a DB column (e.g. `tokens_revoked_before`) in production.
+ */
+const userTokensRevokedBefore = new Map<string, number>();
+
+/**
  * Issue a signed JWT for the given user.
  *
  * @param payload - The session payload to encode.
@@ -60,7 +67,16 @@ export function verifyToken(token: string): SessionPayload {
   if (revokedTokens.has(token)) {
     throw new Error('Token has been revoked');
   }
-  return jwt.verify(token, getJwtSecret()) as SessionPayload;
+
+  const payload = jwt.verify(token, getJwtSecret()) as SessionPayload & { iat?: number };
+
+  // Per-user invalidation: reject tokens issued before the revocation timestamp
+  const revokedBefore = userTokensRevokedBefore.get(payload.email);
+  if (revokedBefore && payload.iat && payload.iat < revokedBefore) {
+    throw new Error('Token has been revoked');
+  }
+
+  return payload;
 }
 
 /**
@@ -73,7 +89,18 @@ export function revokeToken(token: string): void {
   revokedTokens.add(token);
 }
 
+/**
+ * Invalidate all tokens issued before now for a specific user.
+ * Tokens issued after this call remain valid.
+ *
+ * @param email - The user's email (normalised to lower-case).
+ */
+export function revokeAllUserTokens(email: string): void {
+  userTokensRevokedBefore.set(email.toLowerCase(), Math.floor(Date.now() / 1000));
+}
+
 /** Clear the revoked-token set — intended for use in tests only */
 export function clearRevokedTokens(): void {
   revokedTokens.clear();
+  userTokensRevokedBefore.clear();
 }
