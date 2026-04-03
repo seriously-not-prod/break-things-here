@@ -25,7 +25,7 @@ vi.mock('bcryptjs', () => ({
   },
 }));
 
-import { resetPassword, generateResetToken } from '../src/controllers/password-reset-controller.js';
+import { resetPassword, generateResetToken, forgotPassword } from '../src/controllers/password-reset-controller.js';
 
 // Minimal Express req/res mocks
 function makeReq(body: Record<string, unknown>, ip = '127.0.0.1') {
@@ -232,5 +232,285 @@ describe('resetPassword – user enumeration prevention', () => {
     // Both return 400 — same status
     expect(res1.statusCode).toBe(400);
     expect(res2.statusCode).toBe(400);
+  });
+});
+
+// ─── forgotPassword – input validation ──────────────────────────────────────
+
+describe('forgotPassword – input validation', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns 400 when email is missing', async () => {
+    const req = makeReq({});
+    const res = makeRes();
+    await forgotPassword(req, res as never);
+    expect(res.statusCode).toBe(400);
+    expect((res.body as { message: string }).message).toMatch(/email.*required/i);
+  });
+
+  it('returns 400 when email is not a string', async () => {
+    const req = makeReq({ email: 12345 });
+    const res = makeRes();
+    await forgotPassword(req, res as never);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('returns 400 for invalid email format', async () => {
+    const req = makeReq({ email: 'not-an-email' });
+    const res = makeRes();
+    await forgotPassword(req, res as never);
+    expect(res.statusCode).toBe(400);
+    expect((res.body as { message: string }).message).toMatch(/valid email/i);
+  });
+
+  it('normalizes email (trims whitespace and lowercases) before processing', async () => {
+    // Should pass validation after normalization
+    mockDbGet
+      .mockResolvedValueOnce(undefined) // no rate limit entry
+      .mockResolvedValueOnce(undefined); // user not found
+    mockDbRun.mockResolvedValue({});
+    const req = makeReq({ email: '  USER@EXAMPLE.COM  ' });
+    const res = makeRes();
+    await forgotPassword(req, res as never);
+    expect(res.statusCode).toBe(200);
+    const insertCall = mockDbRun.mock.calls.find(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' &&
+        (call[0] as string).includes('INSERT INTO password_reset_tokens')
+    );
+    expect(insertCall).toBeDefined();
+    expect((insertCall![1] as unknown[])[1]).toBe('user@example.com');
+  });
+});
+
+// ─── forgotPassword – rate limiting ─────────────────────────────────────────
+
+describe('forgotPassword – rate limiting (AC #77)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns 200 with generic message when rate limit is exceeded', async () => {
+    mockDbGet.mockResolvedValueOnce({
+      request_count: 3,
+      window_start: new Date(Date.now() - 10_000).toISOString(), // 10 s ago, within 1 h window
+    });
+    mockDbRun.mockResolvedValue({});
+    const req = makeReq({ email: 'test@example.com' });
+    const res = makeRes();
+    await forgotPassword(req, res as never);
+    expect(res.statusCode).toBe(200);
+    expect((res.body as { message: string }).message).toMatch(/if an account exists/i);
+  });
+
+  it('does NOT store a new token when rate limit is exceeded', async () => {
+    mockDbGet.mockResolvedValueOnce({
+      request_count: 3,
+      window_start: new Date(Date.now() - 10_000).toISOString(),
+    });
+    mockDbRun.mockResolvedValue({});
+    const req = makeReq({ email: 'test@example.com' });
+    const res = makeRes();
+    await forgotPassword(req, res as never);
+    const tokenInsert = mockDbRun.mock.calls.find(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' &&
+        (call[0] as string).includes('INSERT INTO password_reset_tokens')
+    );
+    expect(tokenInsert).toBeUndefined();
+  });
+
+  it('increments request_count within the rate-limit window', async () => {
+    mockDbGet
+      .mockResolvedValueOnce({
+        request_count: 1,
+        window_start: new Date(Date.now() - 10_000).toISOString(),
+      })
+      .mockResolvedValueOnce(undefined); // user not found
+    mockDbRun.mockResolvedValue({});
+    const req = makeReq({ email: 'test@example.com' });
+    const res = makeRes();
+    await forgotPassword(req, res as never);
+    const incrementCall = mockDbRun.mock.calls.find(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' &&
+        (call[0] as string).includes('request_count = request_count + 1')
+    );
+    expect(incrementCall).toBeDefined();
+  });
+
+  it('creates a new rate-limit entry on first request for an email', async () => {
+    mockDbGet
+      .mockResolvedValueOnce(undefined) // no rate-limit entry
+      .mockResolvedValueOnce(undefined); // user not found
+    mockDbRun.mockResolvedValue({});
+    const req = makeReq({ email: 'new@example.com' });
+    const res = makeRes();
+    await forgotPassword(req, res as never);
+    const insertRateLimit = mockDbRun.mock.calls.find(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' &&
+        (call[0] as string).includes('INSERT INTO password_reset_rate_limit')
+    );
+    expect(insertRateLimit).toBeDefined();
+  });
+
+  it('resets the rate-limit counter when the window has expired', async () => {
+    mockDbGet
+      .mockResolvedValueOnce({
+        request_count: 5,
+        window_start: new Date(Date.now() - 2 * 60 * 60 * 1_000).toISOString(), // 2 h ago
+      })
+      .mockResolvedValueOnce(undefined); // user not found
+    mockDbRun.mockResolvedValue({});
+    const req = makeReq({ email: 'test@example.com' });
+    const res = makeRes();
+    await forgotPassword(req, res as never);
+    const resetCall = mockDbRun.mock.calls.find(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' &&
+        (call[0] as string).includes('SET request_count = 1, window_start = CURRENT_TIMESTAMP')
+    );
+    expect(resetCall).toBeDefined();
+  });
+});
+
+// ─── forgotPassword – token storage and enumeration prevention ──────────────
+
+describe('forgotPassword – token storage and enumeration prevention', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('stores a token in the database for a valid request (user exists)', async () => {
+    mockDbGet
+      .mockResolvedValueOnce(undefined) // no rate-limit entry
+      .mockResolvedValueOnce({ id: 42 }); // user found
+    mockDbRun.mockResolvedValue({});
+    const req = makeReq({ email: 'user@example.com' });
+    const res = makeRes();
+    await forgotPassword(req, res as never);
+    const insertToken = mockDbRun.mock.calls.find(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' &&
+        (call[0] as string).includes('INSERT INTO password_reset_tokens')
+    );
+    expect(insertToken).toBeDefined();
+  });
+
+  it('stores a token in the database even when user does not exist', async () => {
+    mockDbGet
+      .mockResolvedValueOnce(undefined) // no rate-limit entry
+      .mockResolvedValueOnce(undefined); // user not found
+    mockDbRun.mockResolvedValue({});
+    const req = makeReq({ email: 'ghost@example.com' });
+    const res = makeRes();
+    await forgotPassword(req, res as never);
+    const insertToken = mockDbRun.mock.calls.find(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' &&
+        (call[0] as string).includes('INSERT INTO password_reset_tokens')
+    );
+    expect(insertToken).toBeDefined();
+  });
+
+  it('returns 200 with identical message whether user exists or not', async () => {
+    // User does not exist
+    mockDbGet
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined);
+    mockDbRun.mockResolvedValue({});
+    const res1 = makeRes();
+    await forgotPassword(makeReq({ email: 'ghost@example.com' }), res1 as never);
+
+    vi.clearAllMocks();
+
+    // User exists
+    mockDbGet
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ id: 1 });
+    mockDbRun.mockResolvedValue({});
+    const res2 = makeRes();
+    await forgotPassword(makeReq({ email: 'real@example.com' }), res2 as never);
+
+    expect(res1.statusCode).toBe(200);
+    expect(res2.statusCode).toBe(200);
+    expect((res1.body as { message: string }).message).toBe(
+      (res2.body as { message: string }).message
+    );
+  });
+
+  it('stored token is a 64-character hex string', async () => {
+    let capturedToken = '';
+    mockDbGet
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ id: 42 });
+    mockDbRun.mockImplementation(async (sql: string, params: unknown[]) => {
+      if (typeof sql === 'string' && sql.includes('INSERT INTO password_reset_tokens')) {
+        capturedToken = params[2] as string;
+      }
+      return { lastID: 1, changes: 1 };
+    });
+    const req = makeReq({ email: 'user@example.com' });
+    const res = makeRes();
+    await forgotPassword(req, res as never);
+    expect(capturedToken).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+// ─── Integration: Full password reset flow ───────────────────────────────────
+
+describe('integration – full password reset flow (request → store token → verify → update)', () => {
+  it('completes end-to-end: forgotPassword stores a token that resetPassword can consume', async () => {
+    vi.clearAllMocks();
+
+    // ── Step 1: forgotPassword ────────────────────────────────────────────────
+    let storedToken = '';
+    mockDbGet
+      .mockResolvedValueOnce(undefined) // no rate-limit entry
+      .mockResolvedValueOnce({ id: 42 }); // user found
+    mockDbRun.mockImplementation(async (sql: string, params: unknown[]) => {
+      if (typeof sql === 'string' && sql.includes('INSERT INTO password_reset_tokens')) {
+        storedToken = params[2] as string; // third param is the token
+      }
+      return { lastID: 1, changes: 1 };
+    });
+
+    const forgotReq = makeReq({ email: 'user@example.com' });
+    const forgotRes = makeRes();
+    await forgotPassword(forgotReq, forgotRes as never);
+
+    expect(forgotRes.statusCode).toBe(200);
+    expect(storedToken).toMatch(/^[0-9a-f]{64}$/); // token was generated and captured
+
+    // ── Step 2: resetPassword uses the token ──────────────────────────────────
+    vi.clearAllMocks();
+    const FUTURE = new Date(Date.now() + 3_600_000).toISOString();
+    mockDbGet.mockResolvedValueOnce({
+      id: 10,
+      user_id: 42,
+      email: 'user@example.com',
+      expires_at: FUTURE,
+      used: 0,
+    });
+    mockDbRun.mockResolvedValue({ lastID: 1, changes: 1 });
+
+    const resetReq = makeReq({ token: storedToken, newPassword: 'NewPassword1!' });
+    const resetRes = makeRes();
+    await resetPassword(resetReq, resetRes as never);
+
+    expect(resetRes.statusCode).toBe(200);
+    expect((resetRes.body as { message: string }).message).toMatch(/reset successfully/i);
+
+    // Verify password update and session invalidation were called
+    const updatePasswordCall = mockDbRun.mock.calls.find(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' &&
+        (call[0] as string).includes('UPDATE users SET password_hash')
+    );
+    expect(updatePasswordCall).toBeDefined();
+
+    const sessionInvalidationCall = mockDbRun.mock.calls.find(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' &&
+        (call[0] as string).includes('DELETE FROM sessions')
+    );
+    expect(sessionInvalidationCall).toBeDefined();
   });
 });
