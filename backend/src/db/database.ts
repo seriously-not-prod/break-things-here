@@ -128,6 +128,43 @@ async function createTables(): Promise<void> {
     ALTER TABLE users ADD COLUMN pending_email_token_expiry DATETIME
   `).catch(() => { /* column already exists */ });
 
+  // Password reset tokens table (issue #79)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      email TEXT NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      expires_at DATETIME NOT NULL,
+      used INTEGER DEFAULT 0,
+      used_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Password reset rate limiting table (issue #77)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS password_reset_rate_limit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      requested_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Security audit log table (issues #77, #79)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      action TEXT NOT NULL,
+      ip_address TEXT,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+
   // Seed default roles if they don't exist
   const adminRoleExists = await db.get('SELECT id FROM roles WHERE name = ?', ['Admin']);
   if (!adminRoleExists) {

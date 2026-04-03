@@ -8,6 +8,9 @@
     "dev": "node --watch src/server.js"
   },
   "dependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^25.5.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "express": "^4.21.1"
   }

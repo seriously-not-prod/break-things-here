@@ -3,6 +3,7 @@ import * as authController from '../controllers/auth-controller.js';
 import * as profileController from '../controllers/profile-controller.js';
 import * as usersController from '../controllers/users-controller.js';
 import * as rbacController from '../controllers/rbac-controller.js';
+import * as passwordResetController from '../controllers/password-reset-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
@@ -50,6 +51,9 @@ router.post('/auth/verify-email', authController.verifyEmail);
 router.post('/auth/login', authController.login);
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
+
+// Password reset routes (issues #77, #79)
+router.post('/auth/reset-password', passwordResetController.resetPassword);
 
 // ============ USER (self-service) ROUTES — issues #36, #39 ============
 router.get('/users/me', authenticateToken, usersController.getMe);
