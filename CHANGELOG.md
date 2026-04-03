@@ -12,6 +12,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Forgot password request form UI component with email validation and user enumeration prevention (#75)
+- Password reset form UI component with password strength indicator, ARIA accessibility (#78)
+- Password reset verification and update API endpoint (POST /api/auth/reset-password) with bcrypt hashing, session invalidation, audit logging (#79)
+- Comprehensive unit and integration tests for full password reset flow (31 tests across backend and frontend) (#80)
+- Database schema tables: password_reset_tokens, password_reset_rate_limit, audit_log (#79)
+- Vite env type declarations (src/vite-env.d.ts) for frontend build
+- UserProfile and UpdateProfileRequest type exports to src/types/user.ts
+
+### Fixed
+- Build errors: excluded server/Next.js files from frontend TypeScript compilation
+- Import path for theme in src/theme/theme-provider.tsx
+- Unused React import in src/components/profile-view/profile-view.tsx
+- ProfileView component safety for optional festivalPreferences.genres
+
+### Changed
+- tsconfig.json updated to exclude backend/server files from Vite frontend compilation
+- Installed missing runtime dependencies: @mui/material, @mui/icons-material, bcryptjs, nodemailer, @testing-library/dom
+
+### Added
 - Next.js App Router project scaffold with TypeScript (#50)
 - MUI (Material UI) integration with theme provider and CssBaseline (#50)
 - Frontend folder structure: components, hooks, utils, types (#50)
