@@ -1,43 +1,105 @@
-import { requireAuth } from '../../middleware/rbac';
-import { ApiRequest, ApiResponse } from '../../types/api';
-import { createUser } from '../../data/user-store';
+import { Router, Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import { inMemoryUserStore, UserStore } from './userStore';
+import { generateConfirmationToken } from '../../utils/confirmation-token';
 
-/**
- * Accepted fields in the registration request body.
- * The role field is intentionally excluded — all new users get Attendee.
- */
-interface RegisterBody {
-  email?: string;
-  displayName?: string;
-  password?: string;
+const SALT_ROUNDS = 12;
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_MIN_LENGTH = 8;
+
+interface ValidationError {
+  field: string;
+  message: string;
 }
 
 /**
- * POST /api/auth/register
- *
- * Registers a new user. Role is always set to Attendee and cannot
- * be specified by the caller.
- *
- * Request body: { email, displayName, password }
- * Responses:
- *   201 — User created (returns public user data)
- *   400 — Missing required fields
+ * Validate the registration request body.
+ * Returns a list of field-level errors; empty array means valid.
  */
-export function handleRegister(req: ApiRequest, res: ApiResponse): void {
-  const { email, displayName, password } = req.body as RegisterBody;
+function validateRegistration(body: unknown): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const data = body as Record<string, unknown>;
 
-  if (!email || !displayName || !password) {
-    res.status(400).json({ error: 'email, displayName, and password are required' });
-    return;
+  if (!data['name'] || typeof data['name'] !== 'string' || !data['name'].trim()) {
+    errors.push({ field: 'name', message: 'Name is required.' });
   }
 
-  // In production, hash the password with bcrypt (Task #23).
-  // Role is NOT accepted from the request — always defaults to Attendee.
-  const user = createUser({
-    email,
-    displayName,
-    passwordHash: `hashed:${password}`, // placeholder
+  if (
+    !data['email'] ||
+    typeof data['email'] !== 'string' ||
+    !EMAIL_REGEX.test(data['email'])
+  ) {
+    errors.push({ field: 'email', message: 'A valid email address is required.' });
+  }
+
+  if (
+    !data['password'] ||
+    typeof data['password'] !== 'string' ||
+    data['password'].length < PASSWORD_MIN_LENGTH
+  ) {
+    errors.push({
+      field: 'password',
+      message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`,
+    });
+  }
+
+  return errors;
+}
+
+/**
+ * Creates the POST /register route.
+ *
+ * - Validates name, email, and password strength.
+ * - Normalises email to lower-case before storage.
+ * - Hashes the password with bcrypt (12 rounds).
+ * - Rejects duplicate emails with a generic 409 message (no user enumeration).
+ * - Generates an email confirmation token on success.
+ *
+ * @param userStore - Injectable user store (defaults to in-memory; swap for DB in production)
+ */
+export function createRegisterRouter(userStore: UserStore = inMemoryUserStore): Router {
+  const router = Router();
+
+  router.post('/register', async (req: Request, res: Response): Promise<void> => {
+    const errors = validateRegistration(req.body);
+    if (errors.length > 0) {
+      res.status(400).json({ errors });
+      return;
+    }
+
+    const { name, email, password } = req.body as {
+      name: string;
+      email: string;
+      password: string;
+    };
+
+    const normalizedEmail = email.toLowerCase();
+
+    // Duplicate detection — generic message prevents user enumeration
+    const existing = await userStore.findByEmail(normalizedEmail);
+    if (existing) {
+      res.status(409).json({
+        errors: [{ field: 'email', message: 'This email address cannot be used.' }],
+      });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+
+    await userStore.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      passwordHash,
+    });
+
+    // Generate email confirmation token (fire-and-forget in this demo).
+    // In production, pass the token to sendConfirmationEmail().
+    generateConfirmationToken(normalizedEmail);
+
+    res.status(201).json({ message: 'Registration successful' });
   });
 
-  res.status(201).json(user);
+  return router;
 }
+

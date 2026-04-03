@@ -6,4 +6,16 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
+  transform: {
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        tsconfig: {
+          esModuleInterop: true,
+          module: 'commonjs',
+          moduleResolution: 'node',
+        },
+      },
+    ],
+  },
 };

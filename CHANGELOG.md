@@ -12,6 +12,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- User Registration API (`POST /api/auth/register`) with bcrypt password hashing, email normalisation, duplicate-email detection (409), and field-level validation errors (#16)
+- Email confirmation flow: `confirmEmail` method added to `inMemoryUserStore`; `GET /api/auth/confirm-email` route validates and consumes single-use tokens (#16)
+- User Authentication API (`POST /api/auth/login`) with JWT session tokens, httpOnly cookie support, brute-force protection (account lock after 5 failures), generic credential errors to prevent user enumeration, and email-confirmation gate (#17)
+- Logout endpoint (`POST /api/auth/logout`) that revokes the bearer token and clears the session cookie (#17)
+- Password Reset flow (`POST /api/auth/request-reset` + `POST /api/auth/reset-password`): 1-hour single-use tokens, always-200 responses to prevent enumeration, password-strength validation, audit logging, and rate limiting (#74)
+- `src/utils/session.ts` — JWT issue/verify/revoke helpers
+- `src/utils/login-attempt-tracker.ts` — in-memory brute-force tracker
+- `src/utils/password-reset-token.ts` — cryptographic 1-hour single-use reset tokens
+- `sendPasswordResetEmail` function added to `src/services/email.ts` (#74)
+- `LoginForm` React component with ARIA labels, field-level error messages, and remember-me support (#17)
+- `ForgotPasswordForm` React component with email validation and enumeration-safe success message (#74)
+- `ResetPasswordForm` React component with full password-strength validation and ARIA support (#74)
+- Integration tests: 49 tests across `register`, `confirmEmail`, `login`, and `password-reset` suites (#16, #17, #74)
+- `jest.config.js` updated with `esModuleInterop: true` and `module: commonjs` for correct Express/supertest interop
 - Next.js App Router project scaffold with TypeScript (#50)
 - MUI (Material UI) integration with theme provider and CssBaseline (#50)
 - Frontend folder structure: components, hooks, utils, types (#50)
