@@ -18,4 +18,7 @@ module.exports = {
       },
     ],
   },
+  // Provide a test-only JWT secret so tests never rely on a hardcoded fallback.
+  // This value is NOT a secret — it is committed intentionally for CI use only.
+  setupFiles: ['<rootDir>/src/test-env-setup.ts'],
 };

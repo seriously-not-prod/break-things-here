@@ -30,7 +30,7 @@ describe('POST /api/auth/login', () => {
   // ── Success ───────────────────────────────────────────────────────────────
 
   describe('Success (200)', () => {
-    it('should return 200 with a token for valid credentials', async () => {
+    it('should return 200 with a success message for valid credentials', async () => {
       await createConfirmedUser('alice@example.com', 'SecurePass1!');
 
       const res = await request(app)
@@ -38,8 +38,9 @@ describe('POST /api/auth/login', () => {
         .send({ email: 'alice@example.com', password: 'SecurePass1!' });
 
       expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty('token');
-      expect(typeof res.body.token).toBe('string');
+      expect(res.body.message).toMatch(/login successful/i);
+      // Token must NOT be exposed in the response body (CWE-312)
+      expect(res.body.token).toBeUndefined();
     });
 
     it('should be case-insensitive for email', async () => {

@@ -1,12 +1,27 @@
 import jwt from 'jsonwebtoken';
 
-/**
- * JWT secret — must be overridden via JWT_SECRET env variable in production.
- * Never commit real secrets to source control.
- */
-const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-jwt-secret-change-in-production';
 const JWT_EXPIRY = process.env.JWT_EXPIRY ?? '1h';
 const JWT_REMEMBER_ME_EXPIRY = process.env.JWT_REMEMBER_ME_EXPIRY ?? '7d';
+
+/**
+ * Retrieve the JWT secret from the environment.
+ * Throws at runtime if JWT_SECRET is not set — a hardcoded fallback is
+ * intentionally absent to prevent CWE-798 (Use of Hard-coded Credentials).
+ *
+ * Set JWT_SECRET=<random-256-bit-value> in all environments, including local
+ * development. For tests, set it in jest.config.js `testEnvironment` or a
+ * setup file.
+ */
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error(
+      'JWT_SECRET environment variable is not set. ' +
+      'Generate a secure random value and set it before starting the server.',
+    );
+  }
+  return secret;
+}
 
 /** Shape of the data encoded in a session token */
 export interface SessionPayload {
@@ -29,7 +44,7 @@ const revokedTokens = new Set<string>();
  * @returns Signed JWT string.
  */
 export function issueToken(payload: SessionPayload, rememberMe = false): string {
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, getJwtSecret(), {
     expiresIn: rememberMe ? JWT_REMEMBER_ME_EXPIRY : JWT_EXPIRY,
   });
 }
@@ -45,7 +60,7 @@ export function verifyToken(token: string): SessionPayload {
   if (revokedTokens.has(token)) {
     throw new Error('Token has been revoked');
   }
-  return jwt.verify(token, JWT_SECRET) as SessionPayload;
+  return jwt.verify(token, getJwtSecret()) as SessionPayload;
 }
 
 /**

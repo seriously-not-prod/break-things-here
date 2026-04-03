@@ -22,7 +22,7 @@ const INVALID_CREDENTIALS = { error: 'Invalid email or password.' };
  *   - Enforces brute-force protection (locks account after 5 failures for 15 min).
  *   - Returns a generic error for any credential mismatch (prevents enumeration).
  *   - Requires email confirmation before allowing login.
- *   - Issues a JWT in the response body and as an httpOnly cookie.
+ *   - Issues a JWT stored exclusively in an httpOnly cookie (never in the body).
  *
  * Logout:
  *   - Revokes the bearer token (deny-list).
@@ -86,7 +86,11 @@ export function createLoginRouter(userStore: UserStore = inMemoryUserStore): Rou
       Boolean(rememberMe),
     );
 
-    // httpOnly cookie for browser clients (prevents XSS token theft)
+    // Store the token exclusively in an httpOnly cookie — never expose it
+    // in the response body to prevent cleartext token leakage (CWE-312).
+    // Browser clients read session state from the cookie automatically;
+    // non-browser API clients should use the Authorization header with a
+    // separately issued token rather than reading the cookie value.
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -94,7 +98,7 @@ export function createLoginRouter(userStore: UserStore = inMemoryUserStore): Rou
       maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : 60 * 60 * 1000,
     });
 
-    res.status(200).json({ token });
+    res.status(200).json({ message: 'Login successful.' });
   });
 
   router.post('/logout', (req: Request, res: Response): void => {
