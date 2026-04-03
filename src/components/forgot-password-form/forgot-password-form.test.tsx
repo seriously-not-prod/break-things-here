@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ForgotPasswordForm } from '../forgot-password-form';
+import { ForgotPasswordForm } from './forgot-password-form';
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;

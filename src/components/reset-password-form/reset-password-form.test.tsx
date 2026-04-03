@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ResetPasswordForm } from '../reset-password-form';
+import { ResetPasswordForm } from './reset-password-form';
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -22,8 +22,8 @@ describe('ResetPasswordForm', () => {
 
   it('renders form with new password and confirm password fields', () => {
     render(<ResetPasswordForm />);
-    expect(screen.getByLabelText(/new password/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/confirm new password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('New password')).toBeInTheDocument();
+    expect(screen.getByLabelText('Confirm new password')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /reset password/i })).toBeInTheDocument();
   });
 
@@ -40,15 +40,15 @@ describe('ResetPasswordForm', () => {
 
   it('shows password strength indicator when typing', async () => {
     render(<ResetPasswordForm />);
-    await userEvent.type(screen.getByLabelText(/new password/i), VALID_PASSWORD);
+    await userEvent.type(screen.getByLabelText('New password'), VALID_PASSWORD);
     expect(screen.getByText(/strength:/i)).toBeInTheDocument();
   });
 
   it('validates that passwords match', async () => {
     render(<ResetPasswordForm />);
-    await userEvent.type(screen.getByLabelText(/new password/i), VALID_PASSWORD);
-    await userEvent.type(screen.getByLabelText(/confirm new password/i), 'DifferentPassword1!');
-    fireEvent.submit(screen.getByLabelText(/new password/i).closest('form')!);
+    await userEvent.type(screen.getByLabelText('New password'), VALID_PASSWORD);
+    await userEvent.type(screen.getByLabelText('Confirm new password'), 'DifferentPassword1!');
+    fireEvent.submit(screen.getByLabelText('New password').closest('form')!);
     await waitFor(() => {
       expect(screen.getByText(/passwords do not match/i)).toBeInTheDocument();
     });
@@ -56,9 +56,9 @@ describe('ResetPasswordForm', () => {
 
   it('validates password strength requirements', async () => {
     render(<ResetPasswordForm />);
-    await userEvent.type(screen.getByLabelText(/new password/i), 'weak');
-    await userEvent.type(screen.getByLabelText(/confirm new password/i), 'weak');
-    fireEvent.submit(screen.getByLabelText(/new password/i).closest('form')!);
+    await userEvent.type(screen.getByLabelText('New password'), 'weak');
+    await userEvent.type(screen.getByLabelText('Confirm new password'), 'weak');
+    fireEvent.submit(screen.getByLabelText('New password').closest('form')!);
     await waitFor(() => {
       expect(screen.getAllByRole('alert').some(el => el.textContent?.includes('at least 8'))).toBe(true);
     });
@@ -67,9 +67,9 @@ describe('ResetPasswordForm', () => {
   it('shows loading state during submission', async () => {
     mockFetch.mockImplementation(() => new Promise(() => {}));
     render(<ResetPasswordForm />);
-    await userEvent.type(screen.getByLabelText(/new password/i), VALID_PASSWORD);
-    await userEvent.type(screen.getByLabelText(/confirm new password/i), VALID_PASSWORD);
-    fireEvent.submit(screen.getByLabelText(/new password/i).closest('form')!);
+    await userEvent.type(screen.getByLabelText('New password'), VALID_PASSWORD);
+    await userEvent.type(screen.getByLabelText('Confirm new password'), VALID_PASSWORD);
+    fireEvent.submit(screen.getByLabelText('New password').closest('form')!);
     await waitFor(() => {
       expect(screen.getByRole('button')).toHaveTextContent(/resetting/i);
     });
@@ -78,9 +78,9 @@ describe('ResetPasswordForm', () => {
   it('shows success message on successful reset', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
     render(<ResetPasswordForm />);
-    await userEvent.type(screen.getByLabelText(/new password/i), VALID_PASSWORD);
-    await userEvent.type(screen.getByLabelText(/confirm new password/i), VALID_PASSWORD);
-    fireEvent.submit(screen.getByLabelText(/new password/i).closest('form')!);
+    await userEvent.type(screen.getByLabelText('New password'), VALID_PASSWORD);
+    await userEvent.type(screen.getByLabelText('Confirm new password'), VALID_PASSWORD);
+    fireEvent.submit(screen.getByLabelText('New password').closest('form')!);
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent(/password has been reset/i);
     });
@@ -93,9 +93,9 @@ describe('ResetPasswordForm', () => {
       json: async () => ({ message: 'Token has expired' }),
     });
     render(<ResetPasswordForm />);
-    await userEvent.type(screen.getByLabelText(/new password/i), VALID_PASSWORD);
-    await userEvent.type(screen.getByLabelText(/confirm new password/i), VALID_PASSWORD);
-    fireEvent.submit(screen.getByLabelText(/new password/i).closest('form')!);
+    await userEvent.type(screen.getByLabelText('New password'), VALID_PASSWORD);
+    await userEvent.type(screen.getByLabelText('Confirm new password'), VALID_PASSWORD);
+    fireEvent.submit(screen.getByLabelText('New password').closest('form')!);
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/expired/i);
     });
@@ -103,8 +103,8 @@ describe('ResetPasswordForm', () => {
 
   it('has proper ARIA labels for accessibility', () => {
     render(<ResetPasswordForm />);
-    const newPasswordInput = screen.getByLabelText(/new password/i);
-    const confirmInput = screen.getByLabelText(/confirm new password/i);
+    const newPasswordInput = screen.getByLabelText('New password');
+    const confirmInput = screen.getByLabelText('Confirm new password');
     expect(newPasswordInput).toHaveAttribute('aria-required', 'true');
     expect(confirmInput).toHaveAttribute('aria-required', 'true');
   });
