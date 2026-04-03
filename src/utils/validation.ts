@@ -2,11 +2,40 @@
  * Validation utilities for the registration form.
  */
 
-/** RFC 5322 basic email pattern */
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** RFC 5321 max lengths */
+const MAX_EMAIL_LENGTH = 254;
+const MAX_LOCAL_LENGTH = 64;
 
 /**
- * Validates an email address against a basic RFC 5322 pattern.
+ * Validate an email address without a ReDoS-prone regex (CWE-1333).
+ *
+ * Uses a structural split approach that runs in O(n) time:
+ *   1. Max total length 254 chars (RFC 5321).
+ *   2. Exactly one '@', not at first or last position.
+ *   3. Local part max 64 chars (RFC 5321).
+ *   4. Domain contains a '.' with content on both sides.
+ *   5. No whitespace anywhere in the address.
+ */
+function isValidEmailFormat(email: string): boolean {
+  if (email.length > MAX_EMAIL_LENGTH) return false;
+  if (/\s/.test(email)) return false;
+
+  const atIndex = email.indexOf('@');
+  if (atIndex <= 0 || atIndex !== email.lastIndexOf('@')) return false;
+
+  const local = email.slice(0, atIndex);
+  const domain = email.slice(atIndex + 1);
+
+  if (local.length > MAX_LOCAL_LENGTH || domain.length < 3) return false;
+
+  const lastDot = domain.lastIndexOf('.');
+  if (lastDot <= 0 || lastDot >= domain.length - 1) return false;
+
+  return true;
+}
+
+/**
+ * Validates an email address.
  *
  * @param email - The email string to validate.
  * @returns An error message string, or null if valid.
@@ -15,7 +44,7 @@ export function validateEmail(email: string): string | null {
   if (!email.trim()) {
     return 'Email address is required.';
   }
-  if (!EMAIL_REGEX.test(email)) {
+  if (!isValidEmailFormat(email)) {
     return 'Please enter a valid email address (e.g. user@example.com).';
   }
   return null;

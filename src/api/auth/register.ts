@@ -4,9 +4,44 @@ import { inMemoryUserStore, UserStore } from './userStore';
 import { generateConfirmationToken } from '../../utils/confirmation-token';
 
 const SALT_ROUNDS = 12;
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN_LENGTH = 8;
+
+/** RFC 5321 max lengths */
+const MAX_EMAIL_LENGTH = 254;
+const MAX_LOCAL_LENGTH = 64;
+
+/**
+ * Validate an email address without using a regex that can catastrophically
+ * backtrack on adversarial input (ReDoS / CWE-1333).
+ *
+ * Uses a structural split-and-check approach:
+ *   1. Enforce RFC 5321 maximum total length (254 chars).
+ *   2. Require exactly one '@' that is neither first nor last character.
+ *   3. Enforce RFC 5321 local-part maximum length (64 chars).
+ *   4. Require the domain to contain a '.' with content on both sides.
+ *   5. Reject any whitespace anywhere in the address.
+ *
+ * This runs in O(n) time with no risk of polynomial backtracking.
+ */
+function isValidEmailFormat(email: string): boolean {
+  if (email.length > MAX_EMAIL_LENGTH) return false;
+  if (/\s/.test(email)) return false;           // single-pass whitespace check
+
+  const atIndex = email.indexOf('@');
+  // Must have exactly one '@', not at position 0, not at the last position
+  if (atIndex <= 0 || atIndex !== email.lastIndexOf('@')) return false;
+
+  const local = email.slice(0, atIndex);
+  const domain = email.slice(atIndex + 1);
+
+  if (local.length > MAX_LOCAL_LENGTH || domain.length < 3) return false;
+
+  // Domain must have a '.' with at least one character on each side
+  const lastDot = domain.lastIndexOf('.');
+  if (lastDot <= 0 || lastDot >= domain.length - 1) return false;
+
+  return true;
+}
 
 interface ValidationError {
   field: string;
@@ -28,7 +63,7 @@ function validateRegistration(body: unknown): ValidationError[] {
   if (
     !data['email'] ||
     typeof data['email'] !== 'string' ||
-    !EMAIL_REGEX.test(data['email'])
+    !isValidEmailFormat(data['email'])
   ) {
     errors.push({ field: 'email', message: 'A valid email address is required.' });
   }
