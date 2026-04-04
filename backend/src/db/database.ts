@@ -5,7 +5,6 @@
 
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
-import path from 'path';
 
 let db: Database | null = null;
 
