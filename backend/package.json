@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch .",
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
