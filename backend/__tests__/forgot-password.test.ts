@@ -12,7 +12,7 @@
  * - Input validation and sanitization
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
 import { forgotPassword } from '../src/controllers/password-reset-controller.js';
 
