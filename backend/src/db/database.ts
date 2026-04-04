@@ -16,10 +16,13 @@ export async function initializeDatabase(): Promise<Database> {
   if (db) return db;
 
   // Use in-memory database for testing, file-based for production
-  const dbPath = process.env.DATABASE_URL || ':memory:';
+  const isTestEnv = process.env.NODE_ENV === 'test';
+  const dbPath =
+    process.env.DATABASE_URL ||
+    (isTestEnv ? ':memory:' : path.join(process.cwd(), 'database.sqlite'));
 
   db = await open({
-    filename: dbPath === ':memory:' ? ':memory:' : dbPath,
+    filename: dbPath,
     driver: sqlite3.Database,
   });
 
