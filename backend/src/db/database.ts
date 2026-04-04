@@ -1,44 +1,174 @@
-/**
- * SQLite database initialization and management
- * Sets up the database connection and runs migrations
- */
-
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let db: Database | null = null;
 
-/**
- * Initializes the SQLite database connection
- * @returns Promise resolving to the database instance
- */
 export async function initializeDatabase(): Promise<Database> {
-  if (db) return db;
+  if (db) {
+    return db;
+  }
 
-  // Use in-memory database for testing, file-based for production
-  const isTestEnv = process.env.NODE_ENV === 'test';
-  const dbPath =
-    process.env.DATABASE_URL ||
-    (isTestEnv ? ':memory:' : path.join(process.cwd(), 'database.sqlite'));
+  const dbPath = process.env.DATABASE_URL || path.join(__dirname, '../../festival-planner.db');
 
   db = await open({
     filename: dbPath,
     driver: sqlite3.Database,
   });
 
-  // Enable foreign keys
   await db.exec('PRAGMA foreign_keys = ON');
 
-  // Run migrations
-  await runMigrations();
+  // Create tables
+  await createTables();
 
   return db;
 }
 
-/**
- * Gets the database connection
- * @returns Database instance or null if not initialized
- */
+async function createTables(): Promise<void> {
+  if (!db) throw new Error('Database not initialized');
+
+  // Roles table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS roles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Permissions table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS permissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Role-Permission mapping
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS role_permissions (
+      role_id INTEGER NOT NULL,
+      permission_id INTEGER NOT NULL,
+      PRIMARY KEY (role_id, permission_id),
+      FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+      FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Users table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      display_name TEXT,
+      email_verified BOOLEAN DEFAULT 0,
+      email_verified_at DATETIME,
+      email_verification_token TEXT,
+      account_locked BOOLEAN DEFAULT 0,
+      locked_until DATETIME,
+      login_attempts INTEGER DEFAULT 0,
+      role_id INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      deleted_at DATETIME,
+      FOREIGN KEY (role_id) REFERENCES roles(id)
+    )
+  `);
+
+  // User profiles table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS user_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL UNIQUE,
+      bio TEXT,
+      phone_number TEXT,
+      profile_photo_url TEXT,
+      date_of_birth DATE,
+      address TEXT,
+      city TEXT,
+      state TEXT,
+      zip_code TEXT,
+      country TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Session table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      refresh_token TEXT UNIQUE,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Migration: add pending email change columns if not present (issue #37)
+  await db.exec(`
+    ALTER TABLE users ADD COLUMN pending_email TEXT
+  `).catch(() => { /* column already exists */ });
+  await db.exec(`
+    ALTER TABLE users ADD COLUMN pending_email_token TEXT
+  `).catch(() => { /* column already exists */ });
+  await db.exec(`
+    ALTER TABLE users ADD COLUMN pending_email_token_expiry DATETIME
+  `).catch(() => { /* column already exists */ });
+
+  // Seed default roles if they don't exist
+  const adminRoleExists = await db.get('SELECT id FROM roles WHERE name = ?', ['Admin']);
+  if (!adminRoleExists) {
+    await db.run('INSERT INTO roles (name, description) VALUES (?, ?)', [
+      'Admin',
+      'Full access to the platform',
+    ]);
+    await db.run('INSERT INTO roles (name, description) VALUES (?, ?)', [
+      'Organizer',
+      'Can create and manage events',
+    ]);
+    await db.run('INSERT INTO roles (name, description) VALUES (?, ?)', [
+      'Attendee',
+      'Can browse and register for events',
+    ]);
+  }
+
+  // Seed default permissions if they don't exist
+  const permissionsExist = await db.get('SELECT id FROM permissions LIMIT 1');
+  if (!permissionsExist) {
+    const permissions = [
+      { name: 'users.create', description: 'Create new users' },
+      { name: 'users.read', description: 'View users' },
+      { name: 'users.update', description: 'Update user information' },
+      { name: 'users.delete', description: 'Delete users' },
+      { name: 'roles.manage', description: 'Manage roles and permissions' },
+      { name: 'events.create', description: 'Create events' },
+      { name: 'events.update', description: 'Update events' },
+      { name: 'events.delete', description: 'Delete events' },
+      { name: 'events.read', description: 'View events' },
+    ];
+
+    for (const perm of permissions) {
+      await db.run('INSERT INTO permissions (name, description) VALUES (?, ?)', [
+        perm.name,
+        perm.description,
+      ]);
+    }
+  }
+}
+
 export function getDatabase(): Database {
   if (!db) {
     throw new Error('Database not initialized. Call initializeDatabase() first.');
@@ -46,110 +176,9 @@ export function getDatabase(): Database {
   return db;
 }
 
-/**
- * Closes the database connection
- */
 export async function closeDatabase(): Promise<void> {
   if (db) {
     await db.close();
     db = null;
   }
-}
-
-/**
- * Runs all database migrations
- */
-async function runMigrations(): Promise<void> {
-  if (!db) return;
-
-  // Create users table
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      display_name TEXT NOT NULL,
-      email_verified INTEGER DEFAULT 0,
-      email_verified_at DATETIME,
-      email_verification_token TEXT,
-      role_id INTEGER DEFAULT 1,
-      account_locked INTEGER DEFAULT 0,
-      locked_until DATETIME,
-      login_attempts INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      deleted_at DATETIME
-    )
-  `);
-
-  // Create sessions table
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      token TEXT NOT NULL UNIQUE,
-      refresh_token TEXT NOT NULL UNIQUE,
-      expires_at DATETIME NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Create password_reset_tokens table (for task #77)
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS password_reset_tokens (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      email TEXT NOT NULL,
-      token TEXT NOT NULL UNIQUE,
-      expires_at DATETIME NOT NULL,
-      used INTEGER DEFAULT 0,
-      used_at DATETIME,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-    )
-  `);
-
-  // Create password_reset_rate_limit table for rate limiting
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS password_reset_rate_limit (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT NOT NULL,
-      request_count INTEGER DEFAULT 1,
-      window_start DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(email)
-    )
-  `);
-
-  // Create audit_log table for security logging
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS audit_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      email TEXT,
-      action TEXT NOT NULL,
-      description TEXT,
-      ip_address TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-    )
-  `);
-
-  // Create roles table
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS roles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      description TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // Insert default roles
-  await db.exec(`
-    INSERT OR IGNORE INTO roles (id, name, description) VALUES
-    (1, 'Attendee', 'Default role for new users'),
-    (2, 'Organizer', 'Can create and manage events'),
-    (3, 'Admin', 'Full system access')
-  `);
 }
