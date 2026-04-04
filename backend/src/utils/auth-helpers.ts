@@ -9,6 +9,9 @@ const SALT_ROUNDS = 12;
  * @returns True if email format is valid
  */
 export function validateEmailFormat(email: string): boolean {
+  if (!email || typeof email !== 'string') return false;
+  // Guard against ReDoS by limiting input size (RFC max length for emails is 254)
+  if (email.length > 254) return false;
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
