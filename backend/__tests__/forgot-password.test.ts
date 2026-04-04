@@ -16,6 +16,21 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
 import { forgotPassword } from '../src/controllers/password-reset-controller.js';
 
+// Mock nodemailer so we can assert on sendMail calls from the forgotPassword controller
+const sendMailMock = vi.fn();
+
+vi.mock('nodemailer', () => {
+  return {
+    default: {
+      createTransport: vi.fn(() => ({
+        sendMail: sendMailMock,
+      })),
+    },
+    createTransport: vi.fn(() => ({
+      sendMail: sendMailMock,
+    })),
+  };
+});
 // Mock Express response and request
 function makeRes() {
   return {
