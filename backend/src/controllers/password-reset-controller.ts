@@ -101,18 +101,19 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
       [normalizedEmail],
     );
 
-    // AC: Generate cryptographically secure token
-    const resetToken = generatePasswordResetToken();
-    const expiresAt = new Date(Date.now() + TOKEN_EXPIRATION_MS).toISOString();
-
-    // AC: Store token in database with expiration
-    await db.run(
-      `INSERT INTO password_reset_tokens (user_id, email, token, expires_at) VALUES (?, ?, ?, ?)`,
-      [user?.id || null, normalizedEmail, resetToken, expiresAt],
-    );
-
-    // AC: Send reset email if user exists
+    // AC: Only generate and store token if user exists
     if (user) {
+      // AC: Generate cryptographically secure token
+      const resetToken = generatePasswordResetToken();
+      const expiresAt = new Date(Date.now() + TOKEN_EXPIRATION_MS).toISOString();
+
+      // AC: Store token in database with expiration
+      await db.run(
+        `INSERT INTO password_reset_tokens (user_id, email, token, expires_at) VALUES (?, ?, ?, ?)`,
+        [user.id, normalizedEmail, resetToken, expiresAt],
+      );
+
+      // AC: Send reset email
       try {
         await sendPasswordResetEmail(normalizedEmail, resetToken, baseUrl);
 
