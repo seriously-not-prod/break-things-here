@@ -88,9 +88,11 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
         );
       }
     } else {
-      // Create new rate limit entry
+      // Create new rate limit entry (use UPSERT to be safe under concurrency)
       await db.run(
-        `INSERT INTO password_reset_rate_limit (email, request_count, window_start) VALUES (?, 1, CURRENT_TIMESTAMP)`,
+        `INSERT INTO password_reset_rate_limit (email, request_count, window_start)
+         VALUES (?, 1, CURRENT_TIMESTAMP)
+         ON CONFLICT(email) DO UPDATE SET request_count = password_reset_rate_limit.request_count + 1`,
         [normalizedEmail],
       );
     }
