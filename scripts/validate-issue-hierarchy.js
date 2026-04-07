@@ -92,7 +92,7 @@ async function getIssue(issueNumber) {
     const issue = response?.data?.repository?.issue;
 
     if (!issue) {
-      throw new Error(`Issue #${issueNumber} not found`);
+      return null;
     }
 
     return {
@@ -181,6 +181,12 @@ async function validateIssues(issueNumbers) {
     try {
       console.log(`Checking issue #${issueNumber}...`);
       const issue = await getIssue(issueNumber);
+
+      if (!issue) {
+        console.log(`  ⚠️  #${issueNumber} is not an issue (may be a pull request) — skipping`);
+        results.push({ issue: { number: issueNumber }, valid: true, errors: [], warnings: ['Not an issue — skipped'] });
+        continue;
+      }
       
       // Check if issue is closed
       if (issue.state === 'closed') {
