@@ -16,26 +16,9 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": [
-    "src/vite-env.d.ts",
-    "src/main.tsx",
-    "src/setupTests.ts",
-    "src/test-setup.ts",
-    "src/components/**/*",
-    "src/hooks/**/*",
-    "src/types/**/*",
-    "src/utils/**/*",
-    "src/services/**/*",
-    "src/middleware/**/*",
-    "src/data/**/*",
-    "src/theme/**/*",
-    "src/__tests__/**/*"
-  ],
-  "exclude": [
-    "src/**/*.test.ts",
-    "src/**/*.test.tsx",
-    "src/**/*.spec.ts",
-    "src/**/*.spec.tsx",
-    "src/**/__tests__/**"
+  "include": ["src"],
+  "exclude": ["backend", "node_modules"],
+  "references": [
+    { "path": "./backend" }
   ]
 }
