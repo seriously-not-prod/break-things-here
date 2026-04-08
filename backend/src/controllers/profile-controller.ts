@@ -26,6 +26,16 @@ interface AuthRequest extends Request {
     email: string;
     role_id: number;
   };
+  file?: {
+    fieldname: string;
+    originalname: string;
+    encoding: string;
+    mimetype: string;
+    size: number;
+    destination: string;
+    filename: string;
+    path: string;
+  };
 }
 
 export async function getUserProfile(req: AuthRequest, res: Response) {
