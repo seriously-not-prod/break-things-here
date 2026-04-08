@@ -25,13 +25,13 @@ export function generateTokens(userId: number, email: string, roleId: number) {
   const accessToken = jwt.sign(
     { id: userId, email, role_id: roleId },
     JWT_SECRET,
-    { expiresIn: '1h' },
+    { expiresIn: '1h' } as jwt.SignOptions,
   );
 
   const refreshToken = jwt.sign(
     { id: userId, email, role_id: roleId, type: 'refresh' },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN },
+    { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions,
   );
 
   return { accessToken, refreshToken };
@@ -46,17 +46,19 @@ export function verifyToken(token: string): TokenPayload | null {
   }
 }
 
-export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
+export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
+    res.status(401).json({ error: 'Access token required' });
+    return;
   }
 
   const payload = verifyToken(token);
   if (!payload) {
-    return res.status(403).json({ error: 'Invalid or expired token' });
+    res.status(403).json({ error: 'Invalid or expired token' });
+    return;
   }
 
   req.user = {
@@ -71,9 +73,10 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
 export function authorizeRole(
   allowedRoles: string[],
 ): (req: AuthRequest, res: Response, next: NextFunction) => Promise<void> {
-  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+  return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required' });
+      res.status(401).json({ error: 'Authentication required' });
+      return;
     }
 
     const db = getDatabase();
@@ -83,7 +86,8 @@ export function authorizeRole(
     );
 
     if (!role || !allowedRoles.includes(role.name)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+      res.status(403).json({ error: 'Insufficient permissions' });
+      return;
     }
 
     next();
@@ -93,9 +97,10 @@ export function authorizeRole(
 export function authorizePermission(
   requiredPermission: string,
 ): (req: AuthRequest, res: Response, next: NextFunction) => Promise<void> {
-  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+  return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required' });
+      res.status(401).json({ error: 'Authentication required' });
+      return;
     }
 
     const db = getDatabase();
@@ -109,7 +114,8 @@ export function authorizePermission(
     );
 
     if (!hasPermission) {
-      return res.status(403).json({ error: 'Permission denied' });
+      res.status(403).json({ error: 'Permission denied' });
+      return;
     }
 
     next();
