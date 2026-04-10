@@ -1,25 +1,81 @@
-import { Box, Paper, Typography } from '@mui/material';
-import { LoginForm } from './components/LoginForm/LoginForm.tsx';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { createTheme, ThemeProvider, CssBaseline } from '@mui/material';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import DashboardLayout from './layouts/DashboardLayout';
+import LoginPage      from './pages/auth/LoginPage';
+import RegisterPage   from './pages/auth/RegisterPage';
+import DashboardPage  from './pages/dashboard/DashboardPage';
+import ProjectsPage   from './pages/projects/ProjectsPage';
+import TasksPage      from './pages/tasks/TasksPage';
+import UsersPage      from './pages/users/UsersPage';
+import ActivityPage   from './pages/activity/ActivityPage';
+import ProfilePage    from './pages/profile/ProfilePage';
+import SettingsPage   from './pages/settings/SettingsPage';
+import { Box, CircularProgress } from '@mui/material';
 
-function App(): JSX.Element {
+const theme = createTheme({
+  palette: {
+    primary: { main: '#4f46e5' },
+    secondary: { main: '#7c3aed' },
+    background: { default: '#f5f6fa' },
+  },
+  typography: {
+    fontFamily: '"Inter", "Segoe UI", sans-serif',
+  },
+  components: {
+    MuiButton: { defaultProps: { disableElevation: true } },
+    MuiPaper:  { defaultProps: { elevation: 0 } },
+  },
+});
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+  return user ? <>{children}</> : <Navigate to="/login" replace />;
+}
+
+function AppRoutes() {
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        px: 2,
-        background: 'linear-gradient(180deg, #f5f9fc 0%, #e8f2f7 100%)'
-      }}
-    >
-      <Paper elevation={3} sx={{ width: '100%', maxWidth: 480, p: 4 }}>
-        <Typography component="h1" variant="h5" mb={2}>
-          Login
-        </Typography>
-        <LoginForm />
-      </Paper>
-    </Box>
+    <Routes>
+      <Route path="/login"           element={<LoginPage />} />
+      <Route path="/register"        element={<RegisterPage />} />
+      <Route path="/*" element={
+        <RequireAuth>
+          <DashboardLayout>
+            <Routes>
+              <Route path="/"          element={<DashboardPage />} />
+              <Route path="/projects"  element={<ProjectsPage />} />
+              <Route path="/tasks"     element={<TasksPage />} />
+              <Route path="/users"     element={<UsersPage />} />
+              <Route path="/activity"  element={<ActivityPage />} />
+              <Route path="/profile"   element={<ProfilePage />} />
+              <Route path="/settings"  element={<SettingsPage />} />
+              <Route path="*"          element={<Navigate to="/" replace />} />
+            </Routes>
+          </DashboardLayout>
+        </RequireAuth>
+      } />
+    </Routes>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
+  );
+}
+
