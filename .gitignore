@@ -9,6 +9,11 @@ node_modules/
 # Production
 /build
 /dist
+frontend/dist/
+
+# Next.js
+/.next/
+/out/
 
 # Misc
 .DS_Store
@@ -76,3 +81,5 @@ out/
 
 # Vite
 *.local
+frontend/vite.config.js
+frontend/vite.config.d.ts

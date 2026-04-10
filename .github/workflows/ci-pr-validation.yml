@@ -4,10 +4,19 @@ on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
 
+permissions:
+  contents: read
+  issues: read
+  pull-requests: write
+
 jobs:
   validate-issue-hierarchy:
     name: Validate Issue Hierarchy
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
     
     steps:
       - name: Checkout code

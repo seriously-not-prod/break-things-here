@@ -23,10 +23,10 @@ This project uses a **four-branch strategy** with environment progression:
 |-----------|---------------|--------------------------------|-------------|
 | `develop` | Development   | Integration and active dev     | Yes         |
 | `test`    | Testing/QA    | Quality assurance testing      | Yes         |
-| `staging` | Staging/UAT   | Pre-production validation      | Yes         |
+| `stage`   | Stage/UAT     | Pre-production validation      | Yes         |
 | `main`    | Production    | Live production environment    | Manual      |
 
-**Standard Flow**: `develop` → `test` → `staging` → `main`
+**Standard Flow**: `develop` → `test` → `stage` → `main`
 
 For detailed branching guidelines, see [Branching Strategy](branching-strategy.md).
 
@@ -156,12 +156,12 @@ Theme (standalone issue)
    - Verify acceptance criteria
    - Document test results
 
-5. **Promote to staging**
-   - Create PR: `test` → `staging`
-   - Auto-deploy to staging environment
+5. **Promote to stage**
+   - Create PR: `test` → `stage`
+   - Auto-deploy to stage environment
    - Ready for UAT
 
-6. **Staging Validation**
+6. **Stage Validation**
    - User Acceptance Testing
    - Performance testing
    - Security scanning
@@ -169,18 +169,18 @@ Theme (standalone issue)
 
 ### Phase 4: Release Preparation (T-7 days)
 
-1. **Prepare staging for Release**
-   - Ensure all items in Ready for Release are merged to `staging`
+1. **Prepare stage for Release**
+   - Ensure all items in Ready for Release are merged to `stage`
    - Update version numbers
    - Generate preliminary release notes
 
 2. **Final Testing**
-   - Complete UAT in staging environment
+   - Complete UAT in stage environment
    - Security scan results reviewed
    - Performance testing validated
 
 3. **Code Freeze (T-3 days)**
-   - Freeze merges to `staging`
+   - Freeze merges to `stage`
    - Only critical bug fixes allowed
    - All fixes require expedited approval
 
@@ -193,7 +193,7 @@ Theme (standalone issue)
    - Create final release notes
 
 2. **Deployment**
-   - Create PR: `staging` → `main`
+   - Create PR: `stage` → `main`
    - Get final approval
    - Merge to `main`
    - Deploy to production (first Tuesday)
@@ -228,7 +228,7 @@ For critical production issues (Defects):
 3. **Expedited Review**
    - Create PR: `hotfix/xxx` → `main`
    - Mandatory code review (expedited)
-   - Fast-track testing in staging
+   - Fast-track testing in stage
    - Approve for deployment
 
 4. **Deploy to Production**
@@ -238,8 +238,8 @@ For critical production issues (Defects):
    - Monitor closely
 
 5. **Back-Merge to Other Branches**
-   - Merge `main` → `staging`
-   - Merge `staging` → `test`
+   - Merge `main` → `stage`
+   - Merge `stage` → `test`
    - Merge `test` → `develop`
    - This ensures hotfix flows through all environments
 
