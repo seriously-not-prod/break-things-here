@@ -11,6 +11,15 @@ import fs from 'fs';
 
 const apiLimiter = rateLimit({ windowMs: 60_000, max: 100 });
 
+// Stricter per-IP rate limit for login endpoint — issue #31
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,  // 15-minute window (matches lockout duration)
+  max: 10,                    // max 10 login attempts per IP per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts from this IP, please try again later.' },
+});
+
 const router = Router();
 
 // Apply rate limiting to all API routes
@@ -47,7 +56,7 @@ const upload = multer({
 // ============ AUTH ROUTES ============
 router.post('/auth/register', authController.register);
 router.post('/auth/verify-email', authController.verifyEmail);
-router.post('/auth/login', authController.login);
+router.post('/auth/login', loginLimiter, authController.login);
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
 
