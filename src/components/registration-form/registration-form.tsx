@@ -18,14 +18,23 @@ const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_PATTERN = new RegExp(
   `^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z\\d]).{${PASSWORD_MIN_LENGTH},}$`
 );
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function isValidPassword(value: string): boolean {
   return PASSWORD_PATTERN.test(value);
 }
 
+/**
+ * Safe linear-time email validator — avoids ReDoS from polynomial backtracking.
+ */
 function isValidEmail(value: string): boolean {
-  return EMAIL_PATTERN.test(value);
+  const at = value.indexOf('@');
+  if (at <= 0 || at !== value.lastIndexOf('@')) return false;
+  const local = value.slice(0, at);
+  const domain = value.slice(at + 1);
+  if (!local || !domain) return false;
+  const dot = domain.lastIndexOf('.');
+  if (dot <= 0 || dot === domain.length - 1) return false;
+  return !local.includes(' ') && !domain.includes(' ');
 }
 
 export function RegistrationForm(): ReactElement {
