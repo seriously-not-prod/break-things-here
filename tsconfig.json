@@ -21,9 +21,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"],
-  "exclude": ["backend", "node_modules"],
-  "references": [
-    { "path": "./backend" }
-  ]
+  "include": ["src"]
 }

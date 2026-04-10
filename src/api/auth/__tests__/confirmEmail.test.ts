@@ -62,13 +62,13 @@ describe('GET /api/auth/confirm-email', () => {
 
     // Generate a token and then manually expire it by overriding the date
     const token = generateConfirmationToken('user@example.com');
-    vi.useFakeTimers();
-    vi.advanceTimersByTime(25 * 60 * 60 * 1000); // 25 hours
+    jest.useFakeTimers();
+    jest.advanceTimersByTime(25 * 60 * 60 * 1000); // 25 hours
 
     const app = createApp();
     const res = await request(app).get(`/api/auth/confirm-email?token=${token}`);
 
-    vi.useRealTimers();
+    jest.useRealTimers();
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/expired/i);
   });
@@ -116,8 +116,8 @@ describe('GET /api/auth/confirm-email', () => {
   it('should support injected userStore for isolation', async () => {
     const mockStore = {
       ...inMemoryUserStore,
-      confirmEmail: vi.fn().mockResolvedValue(true),
-      findByEmail: vi.fn().mockResolvedValue({ emailConfirmed: false }),
+      confirmEmail: jest.fn().mockResolvedValue(true),
+      findByEmail: jest.fn().mockResolvedValue({ emailConfirmed: false }),
     };
     const token = generateConfirmationToken('inject@example.com');
 
