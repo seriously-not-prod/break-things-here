@@ -1,6 +1,6 @@
 import { handleRegister } from '../../api/auth/register';
 import { inMemoryUserStore } from '../../api/auth/userStore';
-import express, { Request, Response } from 'express';
+import express from 'express';
 import request from 'supertest';
 
 function buildApp() {

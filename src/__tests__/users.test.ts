@@ -2,7 +2,7 @@ import { getProfile, updateProfile, uploadProfilePhoto, deleteAccount } from '..
 import { UserProfile } from '../types/user';
 
 const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(
-  vi.fn() as jest.MockedFunction<typeof fetch>,
+  vi.fn() as unknown as typeof fetch,
 );
 
 const mockProfile: UserProfile = {

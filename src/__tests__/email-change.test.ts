@@ -1,6 +1,6 @@
 import { confirmEmailChange, hasPendingEmailChange } from '../api/email-change';
 
-vi.spyOn(global, 'fetch').mockImplementation(vi.fn() as jest.MockedFunction<typeof fetch>);
+vi.spyOn(global, 'fetch').mockImplementation(vi.fn() as unknown as typeof fetch);
 
 describe('confirmEmailChange', () => {
   afterEach(() => vi.clearAllMocks());
