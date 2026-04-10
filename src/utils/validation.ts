@@ -2,8 +2,20 @@
  * Validation utilities for the registration form.
  */
 
-/** RFC 5322 basic email pattern */
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/**
+ * Safe linear-time email validator — avoids ReDoS from polynomial backtracking.
+ * Checks: single @, non-empty local, non-empty domain with at least one dot.
+ */
+function isValidEmailFormat(email: string): boolean {
+  const at = email.indexOf('@');
+  if (at <= 0 || at !== email.lastIndexOf('@')) return false;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  if (!local || !domain) return false;
+  const dot = domain.lastIndexOf('.');
+  if (dot <= 0 || dot === domain.length - 1) return false;
+  return !local.includes(' ') && !domain.includes(' ');
+}
 
 /**
  * Validates an email address against a basic RFC 5322 pattern.
@@ -15,7 +27,7 @@ export function validateEmail(email: string): string | null {
   if (!email.trim()) {
     return 'Email address is required.';
   }
-  if (!EMAIL_REGEX.test(email)) {
+  if (!isValidEmailFormat(email)) {
     return 'Please enter a valid email address (e.g. user@example.com).';
   }
   return null;

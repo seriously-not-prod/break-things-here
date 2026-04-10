@@ -2,6 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile, UpdateProfileRequest } from '../../types/user';
 import { validateProfilePhoto } from '../../utils/file-validation';
 
+/**
+ * Safe linear-time email validator — avoids ReDoS from polynomial backtracking.
+ */
+function isValidEmail(email: string): boolean {
+  const at = email.indexOf('@');
+  if (at <= 0 || at !== email.lastIndexOf('@')) return false;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  if (!local || !domain) return false;
+  const dot = domain.lastIndexOf('.');
+  if (dot <= 0 || dot === domain.length - 1) return false;
+  return !local.includes(' ') && !domain.includes(' ');
+}
+
 interface ProfileEditProps {
   profile: UserProfile;
   onSave: (data: UpdateProfileRequest) => Promise<void>;
@@ -52,7 +66,7 @@ export function ProfileEdit({
     }
     if (!email.trim()) {
       newErrors.email = 'Email is required.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    } else if (!isValidEmail(email)) {
       newErrors.email = 'Please enter a valid email address.';
     }
     setErrors(newErrors);
