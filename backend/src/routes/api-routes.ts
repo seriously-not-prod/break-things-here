@@ -64,6 +64,7 @@ router.post('/auth/session/heartbeat', authenticateToken, authController.session
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
 
 // Password reset routes (issues #77, #79)
+router.post('/auth/forgot-password', passwordResetController.forgotPassword);
 router.post('/auth/reset-password', passwordResetController.resetPassword);
 
 // ============ USER (self-service) ROUTES — issues #36, #39 ============
