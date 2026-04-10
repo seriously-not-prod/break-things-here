@@ -75,7 +75,7 @@ export async function handleRegister(req: Request, res: Response): Promise<void>
     return;
   }
 
-  const passwordHash = await bcrypt.hash(body.password!, 10);
+  const passwordHash = await bcrypt.hash(body.password!, 12);
 
   await inMemoryUserStore.create({
     name: body.name!.trim(),
