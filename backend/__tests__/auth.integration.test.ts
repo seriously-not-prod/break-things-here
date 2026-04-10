@@ -121,7 +121,8 @@ beforeEach(async () => {
       user_id INTEGER NOT NULL,
       token TEXT UNIQUE NOT NULL,
       refresh_token TEXT,
-      expires_at DATETIME NOT NULL
+      expires_at DATETIME NOT NULL,
+      last_activity DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     INSERT INTO roles (name) VALUES ('Attendee'), ('Organizer'), ('Admin');
   `);

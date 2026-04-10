@@ -59,6 +59,7 @@ router.post('/auth/verify-email', authController.verifyEmail);
 router.post('/auth/login', loginLimiter, authController.login);
 router.post('/auth/refresh', authController.refreshTokenEndpoint);
 router.post('/auth/logout', authenticateToken, authController.logout);
+router.post('/auth/session/heartbeat', authenticateToken, authController.sessionHeartbeat);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
 
 // ============ USER (self-service) ROUTES — issues #36, #39 ============
