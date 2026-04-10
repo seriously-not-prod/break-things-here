@@ -1,0 +1,18 @@
+import express from 'express';
+import { createRegisterRouter } from './api/auth/register';
+import { createConfirmEmailRouter } from './api/auth/confirmEmail';
+
+/**
+ * Creates and configures the Express application.
+ * Exported without listening to allow supertest integration testing.
+ */
+export function createApp(): express.Application {
+  const app = express();
+
+  app.use(express.json());
+
+  app.use('/api/auth', createRegisterRouter());
+  app.use('/api/auth', createConfirmEmailRouter());
+
+  return app;
+}

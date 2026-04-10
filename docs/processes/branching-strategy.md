@@ -15,14 +15,14 @@ This project uses a **four-branch strategy** to support continuous development w
 - **Stability**: Highest
 - **Protection**: Protected, requires PR approval
 - **Deployment**: Monthly releases (first Tuesday)
-- **Source**: Merges from `staging` only
+- **Source**: Merges from `stage` only
 - **Restrictions**: No direct commits, no force pushes, no deletions
 
-### 2. `staging` - Pre-Production/UAT
+### 2. `stage` - Pre-Production/UAT
 - **Purpose**: User Acceptance Testing and final validation
 - **Stability**: High
 - **Protection**: Protected, requires PR approval
-- **Deployment**: Staging environment
+- **Deployment**: Stage environment
 - **Source**: Merges from `test` only
 - **Code Freeze**: Active 3 business days before production release
 - **Restrictions**: No direct commits, no force pushes, no deletions
@@ -65,14 +65,14 @@ This project uses a **four-branch strategy** to support continuous development w
 ### Hotfix Branches
 - **Pattern**: `hotfix/issue-number-short-description`
 - **Source**: Branch from `main` (for production defects)
-- **Merge to**: `main` AND back-merge to `staging`, `test`, `develop`
+- **Merge to**: `main` AND back-merge to `stage`, `test`, `develop`
 - **Examples**:
   - `hotfix/890-critical-payment-bug`
   - `hotfix/901-security-vulnerability`
 
 ### Release Branches (Optional)
 - **Pattern**: `release/vX.Y.Z`
-- **Source**: Branch from `staging` one week before deployment
+- **Source**: Branch from `stage` one week before deployment
 - **Purpose**: Final release preparation and last-minute fixes
 - **Merge to**: `main` on deployment day
 - **Examples**:
@@ -88,14 +88,14 @@ This project uses a **four-branch strategy** to support continuous development w
 
 feature/bug branches
        │
-       ├─── PR ──→ develop ──→ PR ──→ test ──→ PR ──→ staging ──→ PR ──→ main
+       ├─── PR ──→ develop ──→ PR ──→ test ──→ PR ──→ stage ──→ PR ──→ main
        │              ↑                                                     │
        │              │                                                     │
        └──────────────┘                                                     │
                                                                             │
 hotfix/xxx ──────────────────────────────────────────────────────────────→ │
        │                                                                    │
-       └────── back-merge to staging, test, develop ←─────────────────────┘
+       └────── back-merge to stage, test, develop ←───────────────────────┘
 ```
 
 ## Workflow
@@ -184,8 +184,8 @@ Closes #123
 
 5. **Promote Through Environments**
    - **Develop → Test**: Create PR when features are ready for QA
-   - **Test → Staging**: Create PR when testing is complete
-   - **Staging → Main**: Create PR during release window
+   - **Test → Stage**: Create PR when testing is complete
+   - **Stage → Main**: Create PR during release window
 
 ### Hotfix Flow
 
@@ -209,14 +209,14 @@ Closes #123
 
 4. **Back-Merge to Other Branches**
    ```bash
-   # Merge to staging
-   git checkout staging
+   # Merge to stage
+   git checkout stage
    git merge main
-   git push origin staging
+   git push origin stage
    
    # Merge to test
    git checkout test
-   git merge staging
+   git merge stage
    git push origin test
    
    # Merge to develop
@@ -233,7 +233,7 @@ Closes #123
 
 ## Branch Protection Rules
 
-All long-lived branches (`main`, `staging`, `test`, `develop`) have the following protections:
+All long-lived branches (`main`, `stage`, `test`, `develop`) have the following protections:
 
 - ✅ **Require Pull Request**: All changes must go through PR
 - ✅ **Require 1 Approval**: At least one reviewer must approve
@@ -263,7 +263,7 @@ All long-lived branches (`main`, `staging`, `test`, `develop`) have the followin
 2. Code review by CODEOWNERS
 3. At least 1 approval required
 4. Address all comments
-5. Squash and merge (optional)
+5. Squash and merge (required)
 
 ## Environment Mapping
 
@@ -271,7 +271,7 @@ All long-lived branches (`main`, `staging`, `test`, `develop`) have the followin
 |-----------|---------------|-------------|--------------------------|
 | `develop` | Development   | Yes         | dev.example.com          |
 | `test`    | Testing/QA    | Yes         | test.example.com         |
-| `staging` | Staging/UAT   | Yes         | staging.example.com      |
+| `stage`   | Stage/UAT     | Yes         | stage.example.com        |
 | `main`    | Production    | Manual      | example.com              |
 
 ## Best Practices
@@ -290,8 +290,8 @@ All long-lived branches (`main`, `staging`, `test`, `develop`) have the followin
 - Don't merge PRs without approval
 - Don't force push to shared branches
 - Don't merge `main` into `develop` (except after hotfixes)
-- Don't keep stale branches around
 - Don't skip the environment progression
+- Don't keep stale branches around
 
 ## Version Tagging
 
@@ -356,9 +356,9 @@ gh pr create --base develop --title "feat: description"
 # develop → test
 gh pr create --base test --head develop
 
-# test → staging  
-gh pr create --base staging --head test
+# test → stage  
+gh pr create --base stage --head test
 
-# staging → main (release)
-gh pr create --base main --head staging
+# stage → main (release)
+gh pr create --base main --head stage
 ```

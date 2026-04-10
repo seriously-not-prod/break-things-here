@@ -12,6 +12,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- User registration endpoint with bcrypt password hashing, email normalization, and validation (#16, #20)
+- Email confirmation flow with token generation and single-use enforcement (#16, #74)
+- Password reset and recovery with secure token generation and audit logging (#74)
+- Registration form React component with ARIA accessibility and keyboard navigation (#20)
+- In-memory user store with `emailConfirmed` field and `confirmEmail` method (#16)
+- Express app factory (`createApp`) exposing `/api/auth/register` and `/api/auth/confirm-email` routes (#16)
+- Docker Desktop development environment with frontend, backend, and PostgreSQL services (#52)
+- GitHub Actions workflows: `auto-draft-pr.yml` and `branch-assignee-check.yml` (#48)
+- Branch naming convention enforced via repository ruleset (#48)
+- GitHub CLI usage documented and enforced as the standard for all GitHub interactions (#53)
+- `validate-issue-hierarchy.js` migrated to GraphQL API for reliable sub-issue parent detection (#72)
+
+### Fixed
+- TypeScript error: `AuthRequest` interface now includes `multer` `file` property in profile-controller.ts (#102)
+- Password reset audit log now always written regardless of email delivery success (#74)
+- All test files migrated from `jest.*` API calls to `vi.*` equivalents for vitest compatibility (#26)
+- ESM module mocking patterns corrected using `vi.mock` with `vi.fn()` factory functions (#26)
+- Missing runtime dependencies installed: `@testing-library/dom`, `bcryptjs`, `jsonwebtoken`, `nodemailer`, `supertest`, `express` (#26)
+
+### Next.js App Router project scaffold with TypeScript (#50)
+- MUI (Material UI) integration with theme provider and CssBaseline (#50)
+- Frontend folder structure: components, hooks, utils, types (#50)
+- Backend API routes scaffold under `src/app/api/` (#50)
+- Data tier structure: models, config, migrations under `src/data/` (#50)
+- Initial app layout with MUI AppBar (#50)
+- ESLint configuration with Next.js rules (#50)
 - GitHub Projects (Project 1) integration for visual Kanban workflow management
 - Project automation workflow to auto-add issues and PRs to Project 1
 - Workflow status fields: Backlog → Ready → In Progress → Code Review → Testing → Ready for Release → Released
