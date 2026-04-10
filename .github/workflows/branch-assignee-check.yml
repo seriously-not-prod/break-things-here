@@ -6,6 +6,12 @@ on:
       - 'feature/**'
       - 'bugfix/**'
       - 'hotfix/**'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - test
+      - stage
+      - main
 
 permissions:
   issues: read
@@ -15,8 +21,14 @@ jobs:
     name: Verify pusher is issue assignee
     runs-on: ubuntu-latest
     steps:
+      - name: Pass automatically for promotion PRs
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "✅ Promotion PR (${{ github.head_ref }} → ${{ github.base_ref }}): assignee check not required for environment promotions."
+
       - name: Extract issue number from branch
         id: extract
+        if: github.event_name == 'push'
         run: |
           BRANCH="${GITHUB_REF#refs/heads/}"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
@@ -33,6 +45,7 @@ jobs:
           echo "Extracted issue #$ISSUE_NUMBER from branch '$BRANCH'"
 
       - name: Check if pusher is assigned to issue
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.extract.outputs.issue_number }}
