@@ -54,14 +54,16 @@ src/
 
 **Commit Format (Conventional Commits):**
 ```
-type(scope): description
+type(scope): description #issue-number
 
 Types: feat, fix, docs, style, refactor, test, chore
+
+Closes #123
 ```
 
 **Branch Progression:**
 ```
-develop → test → staging → main
+develop → test → stage → main
 ```
 
 **Pull Requests:**

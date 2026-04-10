@@ -1,0 +1,79 @@
+name: Auto Create Draft PR
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'bugfix/**'
+
+permissions:
+  pull-requests: write
+  contents: read
+  issues: read
+
+jobs:
+  create-draft-pr:
+    name: Create draft PR to develop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for existing PR
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          EXISTING=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --head "$BRANCH" \
+            --base develop \
+            --state open \
+            --json number \
+            --jq 'length')
+
+          echo "existing=$EXISTING" >> "$GITHUB_OUTPUT"
+          echo "Found $EXISTING existing PR(s) for $BRANCH → develop"
+
+      - name: Extract issue number and build PR
+        if: steps.check.outputs.existing == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          # Extract issue number from branch name
+          ISSUE_NUMBER=$(echo "$BRANCH" | sed -n 's|^[^/]*/\([0-9]*\)-.*|\1|p')
+
+          # Get issue title if issue number exists
+          PR_BODY=""
+          PR_TITLE=""
+          if [[ -n "$ISSUE_NUMBER" ]]; then
+            ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" \
+              --repo "${{ github.repository }}" \
+              --json title --jq '.title' 2>/dev/null || echo "")
+
+            if [[ -n "$ISSUE_TITLE" ]]; then
+              # Derive commit type from branch prefix
+              TYPE="feat"
+              if [[ "$BRANCH" == bugfix/* ]]; then
+                TYPE="fix"
+              fi
+
+              PR_TITLE="$TYPE: $ISSUE_TITLE"
+              PR_BODY="Closes #$ISSUE_NUMBER"
+            fi
+          fi
+
+          # Fallback title from branch name if no issue found
+          if [[ -z "$PR_TITLE" ]]; then
+            DESCRIPTION=$(echo "$BRANCH" | sed 's|^[^/]*/[0-9]*-||; s|-| |g')
+            PR_TITLE="draft: $DESCRIPTION"
+          fi
+
+          echo "Creating draft PR: $PR_TITLE"
+
+          gh pr create \
+            --repo "${{ github.repository }}" \
+            --head "$BRANCH" \
+            --base develop \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY" \
+            --draft
