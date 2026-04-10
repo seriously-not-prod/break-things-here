@@ -95,3 +95,57 @@ export async function sendConfirmationEmail(email: string, token: string): Promi
     );
   }
 }
+
+/**
+ * Send a password reset email with a time-limited reset link.
+ *
+ * The link contains only the opaque token — no user ID or email is embedded.
+ *
+ * @param email - Recipient email address
+ * @param token - The password reset token (hex string, expires in 1 hour)
+ */
+export async function sendPasswordResetEmail(email: string, token: string): Promise<void> {
+  if (!email || typeof email !== 'string') {
+    throw new EmailError('A valid recipient email is required');
+  }
+  if (!token || typeof token !== 'string') {
+    throw new EmailError('A valid reset token is required');
+  }
+
+  // Only the token appears in the URL — no sensitive user data
+  const resetUrl = `${APP_BASE_URL}/reset-password?token=${encodeURIComponent(token)}`;
+
+  const transporter = getTransporter();
+
+  try {
+    await transporter.sendMail({
+      from: EMAIL_FROM,
+      to: email,
+      subject: 'Reset your password',
+      text: [
+        'We received a request to reset the password for your account.',
+        '',
+        'Click the link below to set a new password:',
+        resetUrl,
+        '',
+        'This link expires in 1 hour.',
+        '',
+        'If you did not request a password reset, you can safely ignore this email.',
+        'Your password will not be changed.',
+      ].join('\n'),
+      html: `
+        <p>We received a request to reset the password for your account.</p>
+        <p>Click the link below to set a new password:</p>
+        <p><a href="${resetUrl}">Reset my password</a></p>
+        <p>This link expires in 1 hour.</p>
+        <p>If you did not request a password reset, you can safely ignore this email. Your password will not be changed.</p>
+      `,
+    });
+  } catch (error) {
+    // Never expose SMTP credentials or internals in error messages
+    throw new EmailError(
+      'Failed to send password reset email',
+      error instanceof Error ? error : undefined,
+    );
+  }
+}

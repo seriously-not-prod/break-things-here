@@ -80,8 +80,8 @@ export function ProfileView({ profile, onEditClick, isLoading = false, error }: 
           <div>
             <dt>Preferred Genres</dt>
             <dd>
-              {profile.festivalPreferences.genres.length > 0
-                ? profile.festivalPreferences.genres.join(', ')
+              {(profile.festivalPreferences.genres ?? []).length > 0
+                ? (profile.festivalPreferences.genres ?? []).join(', ')
                 : 'None set'}
             </dd>
           </div>

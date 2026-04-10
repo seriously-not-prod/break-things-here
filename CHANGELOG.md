@@ -43,11 +43,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Workflow status fields: Backlog → Ready → In Progress → Code Review → Testing → Ready for Release → Released
 - Project Board link in README and release process documentation
 - Instructions for adding issues to Project 1
+- Remember-me backend session handling with persistent/session cookies and session validation endpoint (#83)
+- Security hardening: timing-safe password comparison, cookie parser crash protection, CORS credentials, body size limit (#83)
+- File naming convention enforcement: renamed LoginForm to login-form, App.tsx to app.tsx (kebab-case Rule #3) (#83)
 
 ### Changed
 - Updated README.md with GitHub Projects workflow integration
 - Updated docs/processes/release-process.md with Project 1 details and workflow states
 - Enhanced Making Changes section with project board workflow steps
+
+### Fixed
+- Add explicit `permissions` blocks to `validate-issue-hierarchy` and `validate-commit-messages` CI jobs to ensure `GITHUB_TOKEN` always has `issues: write` and `pull-requests: write` scopes — resolves false-negative hierarchy validation failures (#72)
 
 ## [Unreleased - Previously]
 

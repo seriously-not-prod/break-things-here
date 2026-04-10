@@ -18,6 +18,8 @@ export interface UserStore {
    * Throws if no user matches the email.
    */
   confirmEmail(email: string): Promise<boolean>;
+  /** Update the password hash for a user identified by email */
+  updatePasswordHash(email: string, passwordHash: string): Promise<void>;
   /** Clear all users — intended for use in tests only */
   clear(): void;
 }
@@ -46,6 +48,12 @@ export const inMemoryUserStore: UserStore = {
     if (user.emailConfirmed) return false;
     user.emailConfirmed = true;
     return true;
+  },
+
+  async updatePasswordHash(email: string, passwordHash: string): Promise<void> {
+    const user = users.find(u => u.email === email.toLowerCase());
+    if (!user) throw new Error(`No user found for email: ${email}`);
+    user.passwordHash = passwordHash;
   },
 
   clear(): void {
