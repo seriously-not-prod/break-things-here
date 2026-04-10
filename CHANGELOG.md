@@ -52,6 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated docs/processes/release-process.md with Project 1 details and workflow states
 - Enhanced Making Changes section with project board workflow steps
 
+### Fixed
+- Add explicit `permissions` blocks to `validate-issue-hierarchy` and `validate-commit-messages` CI jobs to ensure `GITHUB_TOKEN` always has `issues: write` and `pull-requests: write` scopes — resolves false-negative hierarchy validation failures (#72)
+
 ## [Unreleased - Previously]
 
 ### Added
