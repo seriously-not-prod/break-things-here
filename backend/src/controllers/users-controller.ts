@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
-import { validateEmailFormat, verifyPassword } from '../utils/auth-helpers';
+import { validateEmailFormat, verifyPassword } from '../utils/auth-helpers.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };

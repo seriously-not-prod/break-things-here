@@ -12,15 +12,6 @@ import fs from 'fs';
 
 const apiLimiter = rateLimit({ windowMs: 60_000, max: 100 });
 
-// Stricter per-IP rate limit for login endpoint — issue #31
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,  // 15-minute window (matches lockout duration)
-  max: 10,                    // max 10 login attempts per IP per window
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many login attempts from this IP, please try again later.' },
-});
-
 const router = Router();
 
 // Apply rate limiting to all API routes
