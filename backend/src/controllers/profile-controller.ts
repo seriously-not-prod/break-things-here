@@ -26,16 +26,8 @@ interface AuthRequest extends Request {
     email: string;
     role_id: number;
   };
-  file?: {
-    fieldname: string;
-    originalname: string;
-    encoding: string;
-    mimetype: string;
-    size: number;
-    destination: string;
-    filename: string;
-    path: string;
-  };
+  // Use Express.Multer.File which is the correct type from @types/multer
+  file?: Express.Multer.File;
 }
 
 export async function getUserProfile(req: AuthRequest, res: Response) {
