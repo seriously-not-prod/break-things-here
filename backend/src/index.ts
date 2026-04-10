@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcrypt';
 import { initializeDatabase, getDatabase } from './db/database.js';
@@ -17,6 +18,7 @@ const limiter = rateLimit({
 
 app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:3000'] }));
 app.use(express.json());
+app.use(cookieParser());
 app.use(limiter);
 
 // ── Mount existing auth/profile/rbac routes ────────────────────────────────
