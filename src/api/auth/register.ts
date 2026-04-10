@@ -2,6 +2,21 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { inMemoryUserStore } from './userStore';
 
+/**
+ * Safe linear-time email validator — avoids ReDoS from polynomial backtracking.
+ * Checks: single @, non-empty local, non-empty domain with at least one dot.
+ */
+function isValidEmail(email: string): boolean {
+  const atIndex = email.indexOf('@');
+  if (atIndex <= 0 || atIndex !== email.lastIndexOf('@')) return false;
+  const local = email.slice(0, atIndex);
+  const domain = email.slice(atIndex + 1);
+  if (!local || !domain) return false;
+  const dotIndex = domain.lastIndexOf('.');
+  if (dotIndex <= 0 || dotIndex === domain.length - 1) return false;
+  return !local.includes(' ') && !domain.includes(' ');
+}
+
 interface RegisterBody {
   name?: string;
   email?: string;
@@ -22,7 +37,7 @@ function validateRegisterBody(body: RegisterBody): FieldError[] {
 
   if (!body.email) {
     errors.push({ field: 'email', message: 'Email is required' });
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+  } else if (!isValidEmail(body.email)) {
     errors.push({ field: 'email', message: 'Email must be a valid email address' });
   }
 
