@@ -184,7 +184,7 @@ describe('Password Hashing Utility', () => {
       const sensitivePassword = 'superSecret123';
 
       // Force bcrypt to throw internally so we can assert the error message is sanitized
-      const spy = jest.spyOn(bcrypt, 'hash').mockRejectedValueOnce(new Error('bcrypt internal failure') as never);
+      const spy = vi.spyOn(bcrypt, 'hash').mockRejectedValueOnce(new Error('bcrypt internal failure') as never);
 
       try {
         await hashPassword(sensitivePassword);

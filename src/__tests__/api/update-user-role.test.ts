@@ -1,7 +1,7 @@
 import { UserRole } from '../../types/user-role';
 import { ApiRequest, ApiResponse } from '../../types/api';
 import { handleUpdateUserRole } from '../../api/admin/update-user-role';
-import { createUser, resetUserStore } from '../../data/user-store';
+import { createUser, resetUserStore, updateUserRole } from '../../data/user-store';
 import { HTTP_STATUS, AUTH_ERRORS } from '../../utils/http-errors';
 
 function createMockRes(): ApiResponse & { statusCode: number; body: unknown } {
@@ -31,7 +31,6 @@ describe('PATCH /api/admin/users/:id/role', () => {
       passwordHash: 'hashed',
     });
     // Manually promote to Admin (createUser defaults to Attendee)
-    const { updateUserRole } = require('../../data/user-store');
     updateUserRole(adminUser.id, UserRole.Admin);
 
     targetUser = createUser({

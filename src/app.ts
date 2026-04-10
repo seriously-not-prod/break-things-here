@@ -1,5 +1,6 @@
 import express from 'express';
 import { createRegisterRouter } from './api/auth/register';
+import { createConfirmEmailRouter } from './api/auth/confirmEmail';
 
 /**
  * Creates and configures the Express application.
@@ -11,6 +12,7 @@ export function createApp(): express.Application {
   app.use(express.json());
 
   app.use('/api/auth', createRegisterRouter());
+  app.use('/api/auth', createConfirmEmailRouter());
 
   return app;
 }
