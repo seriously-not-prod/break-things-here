@@ -2,6 +2,13 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProfileEdit } from '../components/ProfileEdit/ProfileEdit';
 import { UserProfile } from '../types/user';
+import * as fileValidation from '../utils/file-validation';
+
+vi.mock('../utils/file-validation', () => ({
+  validateProfilePhoto: vi.fn().mockReturnValue({ valid: true }),
+  ALLOWED_PHOTO_MIME_TYPES: ['image/jpeg', 'image/png', 'image/webp'],
+  MAX_PHOTO_SIZE_BYTES: 2 * 1024 * 1024,
+}));
 
 const mockProfile: UserProfile = {
   id: 'user-1',
@@ -20,9 +27,9 @@ describe('ProfileEdit', () => {
     render(
       <ProfileEdit
         profile={mockProfile}
-        onSave={jest.fn()}
-        onCancel={jest.fn()}
-        onPhotoChange={jest.fn()}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        onPhotoChange={vi.fn()}
       />,
     );
     expect(screen.getByLabelText(/display name/i)).toBeInTheDocument();
@@ -34,9 +41,9 @@ describe('ProfileEdit', () => {
     render(
       <ProfileEdit
         profile={mockProfile}
-        onSave={jest.fn()}
-        onCancel={jest.fn()}
-        onPhotoChange={jest.fn()}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        onPhotoChange={vi.fn()}
       />,
     );
     await userEvent.clear(screen.getByLabelText(/display name/i));
@@ -50,9 +57,9 @@ describe('ProfileEdit', () => {
     render(
       <ProfileEdit
         profile={mockProfile}
-        onSave={jest.fn()}
-        onCancel={jest.fn()}
-        onPhotoChange={jest.fn()}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        onPhotoChange={vi.fn()}
       />,
     );
     await userEvent.clear(screen.getByRole('textbox', { name: /email/i }));
@@ -64,13 +71,13 @@ describe('ProfileEdit', () => {
   });
 
   it('calls onSave with updated values on valid submit', async () => {
-    const onSave = jest.fn().mockResolvedValue(undefined);
+    const onSave = vi.fn().mockResolvedValue(undefined);
     render(
       <ProfileEdit
         profile={mockProfile}
         onSave={onSave}
-        onCancel={jest.fn()}
-        onPhotoChange={jest.fn()}
+        onCancel={vi.fn()}
+        onPhotoChange={vi.fn()}
       />,
     );
     await userEvent.clear(screen.getByLabelText(/display name/i));
@@ -87,9 +94,9 @@ describe('ProfileEdit', () => {
     render(
       <ProfileEdit
         profile={mockProfile}
-        onSave={jest.fn()}
-        onCancel={jest.fn()}
-        onPhotoChange={jest.fn()}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        onPhotoChange={vi.fn()}
         saveError="Server error occurred"
       />,
     );
@@ -100,17 +107,14 @@ describe('ProfileEdit', () => {
     // Mock validateProfilePhoto to return invalid — the actual MIME validation
     // is tested exhaustively in file-validation.test.ts. This avoids jsdom's
     // inability to set files on an input for types not matching `accept`.
-    jest.spyOn(
-      require('../utils/file-validation'),
-      'validateProfilePhoto',
-    ).mockReturnValue({ valid: false, error: 'Invalid file type "image/gif". Only JPEG, PNG, and WebP are allowed.' });
+    vi.mocked(fileValidation.validateProfilePhoto).mockReturnValue({ valid: false, error: 'Invalid file type "image/gif". Only JPEG, PNG, and WebP are allowed.' });
 
     render(
       <ProfileEdit
         profile={mockProfile}
-        onSave={jest.fn()}
-        onCancel={jest.fn()}
-        onPhotoChange={jest.fn()}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        onPhotoChange={vi.fn()}
       />,
     );
     const file = new File(['content'], 'photo.jpg', { type: 'image/jpeg' });
@@ -119,21 +123,21 @@ describe('ProfileEdit', () => {
     await waitFor(() => {
       expect(screen.getByText(/only jpeg, png, and webp/i)).toBeInTheDocument();
     });
-    jest.restoreAllMocks();
+    vi.mocked(fileValidation.validateProfilePhoto).mockReturnValue({ valid: true });
   });
 });
 
 describe('ProfileEdit — dirty-state navigation guard', () => {
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
 
   it('registers beforeunload handler when a field is changed', async () => {
-    const addSpy = jest.spyOn(window, 'addEventListener');
+    const addSpy = vi.spyOn(window, 'addEventListener');
     render(
       <ProfileEdit
         profile={mockProfile}
-        onSave={jest.fn()}
-        onCancel={jest.fn()}
-        onPhotoChange={jest.fn()}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        onPhotoChange={vi.fn()}
       />,
     );
     await userEvent.clear(screen.getByLabelText(/display name/i));
@@ -142,13 +146,13 @@ describe('ProfileEdit — dirty-state navigation guard', () => {
   });
 
   it('handleCancel calls onCancel immediately when form is clean', () => {
-    const onCancel = jest.fn();
+    const onCancel = vi.fn();
     render(
       <ProfileEdit
         profile={mockProfile}
-        onSave={jest.fn()}
+        onSave={vi.fn()}
         onCancel={onCancel}
-        onPhotoChange={jest.fn()}
+        onPhotoChange={vi.fn()}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
@@ -156,14 +160,14 @@ describe('ProfileEdit — dirty-state navigation guard', () => {
   });
 
   it('handleCancel prompts when dirty and calls onCancel only if confirmed', async () => {
-    const onCancel = jest.fn();
-    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
+    const onCancel = vi.fn();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(
       <ProfileEdit
         profile={mockProfile}
-        onSave={jest.fn()}
+        onSave={vi.fn()}
         onCancel={onCancel}
-        onPhotoChange={jest.fn()}
+        onPhotoChange={vi.fn()}
       />,
     );
     await userEvent.clear(screen.getByLabelText(/display name/i));
@@ -174,14 +178,14 @@ describe('ProfileEdit — dirty-state navigation guard', () => {
   });
 
   it('handleCancel does not call onCancel when dirty and user cancels confirm', async () => {
-    const onCancel = jest.fn();
-    jest.spyOn(window, 'confirm').mockReturnValue(false);
+    const onCancel = vi.fn();
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(
       <ProfileEdit
         profile={mockProfile}
-        onSave={jest.fn()}
+        onSave={vi.fn()}
         onCancel={onCancel}
-        onPhotoChange={jest.fn()}
+        onPhotoChange={vi.fn()}
       />,
     );
     await userEvent.clear(screen.getByLabelText(/display name/i));

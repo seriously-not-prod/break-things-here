@@ -15,6 +15,45 @@ export interface User {
 }
 
 /**
+ * Extended user profile including festival and notification preferences.
+ */
+export interface UserProfile {
+  id: string;
+  email: string;
+  displayName: string;
+  role: 'Admin' | 'Organizer' | 'Attendee';
+  emailConfirmed: boolean;
+  profilePhotoUrl?: string;
+  photoUrl?: string;
+  pendingEmail?: string;
+  createdAt: string;
+  updatedAt: string;
+  festivalPreferences: {
+    genres: string[];
+    campingPreferred: boolean;
+  };
+  notificationPreferences: {
+    emailNotifications: boolean;
+    pushNotifications: boolean;
+  };
+}
+
+/**
+ * Request body for updating a user profile (all fields optional for partial updates).
+ */
+export interface UpdateProfileRequest {
+  displayName?: string;
+  email?: string;
+  festivalPreferences?: {
+    campingPreferred: boolean;
+  };
+  notificationPreferences?: {
+    emailNotifications: boolean;
+    pushNotifications: boolean;
+  };
+}
+
+/**
  * Internal user record including credentials — never return directly in API responses.
  */
 export interface UserRecord extends User {

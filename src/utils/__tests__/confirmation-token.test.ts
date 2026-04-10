@@ -49,16 +49,16 @@ describe('Confirmation Token Utility', () => {
     });
 
     it('should throw TokenError for an expired token', () => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
 
       const token = generateConfirmationToken('exp@example.com');
 
       // Advance time past the 24-hour expiry
-      jest.advanceTimersByTime(25 * 60 * 60 * 1000);
+      vi.advanceTimersByTime(25 * 60 * 60 * 1000);
 
       expect(() => verifyConfirmationToken(token)).toThrow(TokenError);
 
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('should throw TokenError for an already-used token', () => {
@@ -106,14 +106,14 @@ describe('Confirmation Token Utility', () => {
     });
 
     it('should return false for an expired token', () => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
 
       const token = generateConfirmationToken('timeout@example.com');
-      jest.advanceTimersByTime(25 * 60 * 60 * 1000);
+      vi.advanceTimersByTime(25 * 60 * 60 * 1000);
 
       expect(isTokenValid(token)).toBe(false);
 
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('should return false for a used token', () => {
@@ -127,14 +127,14 @@ describe('Confirmation Token Utility', () => {
 
   describe('Token expiry boundary', () => {
     it('should still be valid just before the 24-hour mark', () => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
 
       const token = generateConfirmationToken('boundary@example.com');
-      jest.advanceTimersByTime(24 * 60 * 60 * 1000 - 1000); // 1 second before expiry
+      vi.advanceTimersByTime(24 * 60 * 60 * 1000 - 1000); // 1 second before expiry
 
       expect(isTokenValid(token)).toBe(true);
 
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
   });
 });
