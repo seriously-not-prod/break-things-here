@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken } from '../utils/auth-helpers.js';
-import { generateTokens, COOKIE_OPTIONS } from '../middleware/auth.js';
+import { generateTokens, COOKIE_OPTIONS, verifyToken } from '../middleware/auth.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -250,6 +250,79 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
   res.clearCookie('refreshToken', { path: '/' });
 
   return res.status(200).json({ message: 'Logged out successfully.' });
+}
+
+/**
+ * POST /api/auth/refresh
+ *
+ * Accepts a refresh token (from httpOnly cookie or request body),
+ * validates it, rotates tokens, and returns a new access token.
+ * Old refresh token is invalidated (refresh token rotation).
+ */
+export async function refreshTokenEndpoint(req: Request, res: Response): Promise<Response> {
+  const refreshTok: string | undefined =
+    req.cookies?.refreshToken || (req.body as { refreshToken?: string })?.refreshToken;
+
+  if (!refreshTok) {
+    return res.status(401).json({ error: 'Refresh token is required.' });
+  }
+
+  const payload = verifyToken(refreshTok);
+  if (!payload) {
+    return res.status(403).json({ error: 'Invalid or expired refresh token.' });
+  }
+
+  const db = getDatabase();
+
+  // Verify the refresh token exists in the sessions table
+  const session = await db.get<{ id: number; user_id: number }>(
+    'SELECT id, user_id FROM sessions WHERE refresh_token = ?',
+    [refreshTok],
+  );
+
+  if (!session) {
+    return res.status(403).json({ error: 'Refresh token has been revoked.' });
+  }
+
+  // Verify the user still exists and is active
+  const user = await db.get<{ id: number; email: string; role_id: number }>(
+    'SELECT id, email, role_id FROM users WHERE id = ? AND deleted_at IS NULL',
+    [session.user_id],
+  );
+
+  if (!user) {
+    // Clean up orphaned session
+    await db.run('DELETE FROM sessions WHERE id = ?', [session.id]);
+    return res.status(403).json({ error: 'User no longer exists.' });
+  }
+
+  // Generate new token pair (rotation)
+  const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateTokens(
+    user.id,
+    user.email,
+    user.role_id,
+  );
+
+  // Replace old session with new tokens (invalidates old refresh token)
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  await db.run(
+    `UPDATE sessions SET token = ?, refresh_token = ?, expires_at = ? WHERE id = ?`,
+    [newAccessToken, newRefreshToken, expiresAt, session.id],
+  );
+
+  // Set new refresh token as httpOnly cookie
+  res.cookie('refreshToken', newRefreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/api/auth',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+
+  return res.status(200).json({
+    message: 'Token refreshed successfully.',
+    accessToken: newAccessToken,
+  });
 }
 
 /**

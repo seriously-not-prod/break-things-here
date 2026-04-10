@@ -57,6 +57,7 @@ const upload = multer({
 router.post('/auth/register', authController.register);
 router.post('/auth/verify-email', authController.verifyEmail);
 router.post('/auth/login', loginLimiter, authController.login);
+router.post('/auth/refresh', authController.refreshTokenEndpoint);
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
 
