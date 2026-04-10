@@ -62,7 +62,7 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
       await forgotPassword(req, res);
 
       expect(res.statusCode).toBe(400);
-      expect(res.body.error).toMatch(/email.*required/i);
+      expect(res.body.message).toMatch(/email.*required/i);
     });
 
     it('should return 400 when email format is invalid', async () => {
@@ -72,7 +72,7 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
       await forgotPassword(req, res);
 
       expect(res.statusCode).toBe(400);
-      expect(res.body.error).toMatch(/invalid.*email/i);
+      expect(res.body.message).toMatch(/invalid.*email/i);
     });
 
     it('should sanitize email (trim and lowercase)', async () => {

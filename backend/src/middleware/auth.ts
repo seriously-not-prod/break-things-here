@@ -85,8 +85,8 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
 
   // Verify the session still exists in the database (rejected after logout)
   const db = getDatabase();
-  const session = await db.get(
-    'SELECT id FROM sessions WHERE token = ? AND user_id = ?',
+  const session = await db.get<{ id: number; last_activity: string | null }>(
+    'SELECT id, last_activity FROM sessions WHERE token = ? AND user_id = ?',
     [token, payload.id],
   );
 
@@ -94,6 +94,22 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
     res.status(401).json({ error: 'Session has been invalidated' });
     return;
   }
+
+  // Check inactivity timeout
+  if (session.last_activity) {
+    const lastActivity = new Date(session.last_activity).getTime();
+    if (Date.now() - lastActivity > SESSION_TIMEOUT_MS) {
+      await db.run('DELETE FROM sessions WHERE id = ?', [session.id]);
+      res.status(401).json({ code: 'SESSION_TIMEOUT', error: 'Session expired due to inactivity' });
+      return;
+    }
+  }
+
+  // Update last_activity timestamp
+  await db.run(
+    'UPDATE sessions SET last_activity = CURRENT_TIMESTAMP WHERE id = ?',
+    [session.id],
+  );
 
   req.user = {
     id: payload.id,
@@ -103,6 +119,8 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
 
   next();
 }
+
+export const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 export function authorizeRole(
   allowedRoles: string[],

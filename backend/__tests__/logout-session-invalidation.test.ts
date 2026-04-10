@@ -128,7 +128,8 @@ beforeEach(async () => {
       user_id INTEGER NOT NULL,
       token TEXT UNIQUE NOT NULL,
       refresh_token TEXT,
-      expires_at DATETIME NOT NULL
+      expires_at DATETIME NOT NULL,
+      last_activity DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     INSERT INTO roles (name) VALUES ('Attendee'), ('Organizer'), ('Admin');
   `);
@@ -202,7 +203,7 @@ describe('Logout endpoint — POST /api/auth/logout (#30)', () => {
     const loginRes = makeRes();
     await login(loginReq, loginRes as unknown as import('express').Response);
 
-    const accessToken = (loginRes.body as Record<string, string>).accessToken;
+    const accessToken = loginRes.cookieEntries['accessToken']?.value;
     const user = await testDb.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['carol@example.com']);
 
     // Verify session exists before logout
@@ -241,7 +242,7 @@ describe('Post-logout token rejection (#30)', () => {
     await login(loginReq, loginRes as unknown as import('express').Response);
     expect(loginRes.statusCode).toBe(200);
 
-    const accessToken = (loginRes.body as Record<string, string>).accessToken;
+    const accessToken = loginRes.cookieEntries['accessToken']?.value;
     expect(accessToken).toBeTruthy();
 
     const user = await testDb.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['dave@example.com']);
@@ -288,7 +289,7 @@ describe('Post-logout token rejection (#30)', () => {
     const loginRes = makeRes();
     await login(loginReq, loginRes as unknown as import('express').Response);
 
-    const accessToken = (loginRes.body as Record<string, string>).accessToken;
+    const accessToken = loginRes.cookieEntries['accessToken']?.value;
     const user = await testDb.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['eve@example.com']);
 
     // Logout
@@ -321,12 +322,12 @@ describe('Post-logout token rejection (#30)', () => {
     const loginReqF = makeReq({ email: 'frank@example.com', password: 'Valid1Pass!' });
     const loginResF = makeRes();
     await login(loginReqF, loginResF as unknown as import('express').Response);
-    const frankToken = (loginResF.body as Record<string, string>).accessToken;
+    const frankToken = loginResF.cookieEntries['accessToken']?.value;
 
     const loginReqG = makeReq({ email: 'grace@example.com', password: 'Valid1Pass!' });
     const loginResG = makeRes();
     await login(loginReqG, loginResG as unknown as import('express').Response);
-    const graceToken = (loginResG.body as Record<string, string>).accessToken;
+    const graceToken = loginResG.cookieEntries['accessToken']?.value;
 
     const frank = await testDb.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['frank@example.com']);
 

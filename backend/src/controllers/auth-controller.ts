@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken } from '../utils/auth-helpers.js';
-import { generateTokens, COOKIE_OPTIONS, verifyToken } from '../middleware/auth.js';
+import { generateTokens, COOKIE_OPTIONS, verifyToken, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -346,4 +346,28 @@ export async function getCurrentUser(req: AuthRequest, res: Response): Promise<R
   }
 
   return res.status(200).json(user);
+}
+
+/**
+ * POST /api/auth/session/heartbeat
+ * Updates session last_activity to prevent inactivity timeout.
+ */
+export async function sessionHeartbeat(req: AuthRequest, res: Response): Promise<Response> {
+  const authHeader = req.headers?.['authorization'];
+  const headerToken = authHeader && authHeader.split(' ')[1];
+  const cookieToken = req.cookies?.accessToken;
+  const token = headerToken || cookieToken;
+
+  if (token) {
+    const db = getDatabase();
+    await db.run(
+      'UPDATE sessions SET last_activity = CURRENT_TIMESTAMP WHERE token = ?',
+      [token],
+    );
+  }
+
+  return res.status(200).json({
+    message: 'Activity updated.',
+    sessionTimeoutMs: SESSION_TIMEOUT_MS,
+  });
 }

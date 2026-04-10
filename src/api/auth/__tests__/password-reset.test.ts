@@ -200,14 +200,14 @@ describe('POST /api/auth/reset-password', () => {
     await registerUser('user@example.com');
     const token = generatePasswordResetToken('user@example.com');
 
-    jest.useFakeTimers();
-    jest.advanceTimersByTime(2 * 60 * 60 * 1000); // 2 hours
+    vi.useFakeTimers();
+    vi.advanceTimersByTime(2 * 60 * 60 * 1000); // 2 hours
 
     const res = await request(app)
       .post('/api/auth/reset-password')
       .send({ token, newPassword: 'NewSecure1!' });
 
-    jest.useRealTimers();
+    vi.useRealTimers();
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/expired/i);

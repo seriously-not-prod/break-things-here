@@ -52,7 +52,7 @@ const userTokensRevokedBefore = new Map<string, number>();
  */
 export function issueToken(payload: SessionPayload, rememberMe = false): string {
   return jwt.sign(payload, getJwtSecret(), {
-    expiresIn: rememberMe ? JWT_REMEMBER_ME_EXPIRY : JWT_EXPIRY,
+    expiresIn: (rememberMe ? JWT_REMEMBER_ME_EXPIRY : JWT_EXPIRY) as import('jsonwebtoken').SignOptions['expiresIn'],
   });
 }
 

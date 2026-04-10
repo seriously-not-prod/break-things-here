@@ -124,7 +124,8 @@ beforeEach(async () => {
       user_id INTEGER NOT NULL,
       token TEXT UNIQUE NOT NULL,
       refresh_token TEXT,
-      expires_at DATETIME NOT NULL
+      expires_at DATETIME NOT NULL,
+      last_activity DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     INSERT INTO roles (name) VALUES ('Attendee'), ('Organizer'), ('Admin');
   `);
@@ -249,7 +250,7 @@ describe('Cookie Session — authenticateToken reads from cookies', () => {
     const res = makeRes();
     let nextCalled = false;
 
-    authenticateToken(
+    await authenticateToken(
       req as unknown as import('express').Request,
       res as unknown as import('express').Response,
       () => { nextCalled = true; },
@@ -295,7 +296,7 @@ describe('Cookie Session — authenticateToken reads from cookies', () => {
     const res = makeRes();
     let nextCalled = false;
 
-    authenticateToken(
+    await authenticateToken(
       req as unknown as import('express').Request,
       res as unknown as import('express').Response,
       () => { nextCalled = true; },

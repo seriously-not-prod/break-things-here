@@ -16,6 +16,7 @@ export interface User {
 
 /**
  * Extended user profile including festival and notification preferences.
+ * Kept standalone (does not extend User) to allow flexible role/date types for API responses.
  */
 export interface UserProfile {
   id: string;
@@ -31,10 +32,15 @@ export interface UserProfile {
   festivalPreferences: {
     genres: string[];
     campingPreferred: boolean;
+    locations?: string[];
+    [key: string]: unknown;
   };
   notificationPreferences: {
     emailNotifications: boolean;
     pushNotifications: boolean;
+    email?: boolean;
+    sms?: boolean;
+    [key: string]: unknown;
   };
 }
 
@@ -43,36 +49,15 @@ export interface UserProfile {
  */
 export interface UpdateProfileRequest {
   displayName?: string;
+  profilePhotoUrl?: string;
   email?: string;
   festivalPreferences?: {
-    campingPreferred: boolean;
-  };
-  notificationPreferences?: {
-    emailNotifications: boolean;
-    pushNotifications: boolean;
-  };
-}
-
-/**
- * Internal user record including credentials — never return directly in API responses.
- */
-export interface UserRecord extends User {
-  passwordHash: string;
-}
-
-/**
- * Alias for backward compatibility with extended profile fields
- */
-export interface UserProfile extends User {
-  photoUrl?: string;
-  pendingEmail?: string;
-  festivalPreferences: {
     campingPreferred?: boolean;
     genres?: string[];
     locations?: string[];
     [key: string]: unknown;
   };
-  notificationPreferences: {
+  notificationPreferences?: {
     emailNotifications?: boolean;
     pushNotifications?: boolean;
     email?: boolean;
@@ -82,14 +67,10 @@ export interface UserProfile extends User {
 }
 
 /**
- * Request type for updating a user profile
+ * Internal user record including credentials — never return directly in API responses.
  */
-export interface UpdateProfileRequest {
-  displayName?: string;
-  profilePhotoUrl?: string;
-  email?: string;
-  festivalPreferences?: UserProfile['festivalPreferences'];
-  notificationPreferences?: UserProfile['notificationPreferences'];
+export interface UserRecord extends User {
+  passwordHash: string;
 }
 
 /**
