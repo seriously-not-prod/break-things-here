@@ -1,43 +1,81 @@
-import { requireAuth } from '../../middleware/rbac';
-import { ApiRequest, ApiResponse } from '../../types/api';
-import { createUser } from '../../data/user-store';
+import { Router, Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import { inMemoryUserStore } from './userStore';
 
-/**
- * Accepted fields in the registration request body.
- * The role field is intentionally excluded — all new users get Attendee.
- */
 interface RegisterBody {
+  name?: string;
   email?: string;
-  displayName?: string;
   password?: string;
+}
+
+interface FieldError {
+  field: string;
+  message: string;
+}
+
+function validateRegisterBody(body: RegisterBody): FieldError[] {
+  const errors: FieldError[] = [];
+
+  if (!body.name || !body.name.trim()) {
+    errors.push({ field: 'name', message: 'Name is required' });
+  }
+
+  if (!body.email) {
+    errors.push({ field: 'email', message: 'Email is required' });
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+    errors.push({ field: 'email', message: 'Email must be a valid email address' });
+  }
+
+  if (!body.password) {
+    errors.push({ field: 'password', message: 'Password is required' });
+  } else if (body.password.length < 8) {
+    errors.push({ field: 'password', message: 'Password must be at least 8 characters' });
+  }
+
+  return errors;
 }
 
 /**
  * POST /api/auth/register
  *
- * Registers a new user. Role is always set to Attendee and cannot
- * be specified by the caller.
- *
- * Request body: { email, displayName, password }
- * Responses:
- *   201 — User created (returns public user data)
- *   400 — Missing required fields
+ * Registers a new user account.
+ * Accepts { name, email, password }. Returns 201 on success.
  */
-export function handleRegister(req: ApiRequest, res: ApiResponse): void {
-  const { email, displayName, password } = req.body as RegisterBody;
+export async function handleRegister(req: Request, res: Response): Promise<void> {
+  const body = req.body as RegisterBody;
+  const errors = validateRegisterBody(body);
 
-  if (!email || !displayName || !password) {
-    res.status(400).json({ error: 'email, displayName, and password are required' });
+  if (errors.length > 0) {
+    res.status(400).json({ errors });
     return;
   }
 
-  // In production, hash the password with bcrypt (Task #23).
-  // Role is NOT accepted from the request — always defaults to Attendee.
-  const user = createUser({
-    email,
-    displayName,
-    passwordHash: `hashed:${password}`, // placeholder
+  const normalizedEmail = body.email!.toLowerCase();
+
+  const existing = await inMemoryUserStore.findByEmail(normalizedEmail);
+  if (existing) {
+    res.status(409).json({
+      errors: [{ field: 'email', message: 'This email address cannot be used' }],
+    });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(body.password!, 10);
+
+  await inMemoryUserStore.create({
+    name: body.name!.trim(),
+    email: normalizedEmail,
+    passwordHash,
   });
 
-  res.status(201).json(user);
+  res.status(201).json({ message: 'Registration successful' });
+}
+
+/**
+ * Creates an Express router for the registration endpoint.
+ */
+export function createRegisterRouter(): Router {
+  const router = Router();
+  router.post('/register', handleRegister);
+  return router;
 }

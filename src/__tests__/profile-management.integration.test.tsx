@@ -2,8 +2,15 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProfileEdit } from '../components/ProfileEdit/ProfileEdit';
 import { updateProfile, uploadProfilePhoto } from '../api/users';
+import * as fileValidation from '../utils/file-validation';
 import { UpdateProfileRequest } from '../types/user';
 import { UserProfile } from '../types/user';
+
+vi.mock('../utils/file-validation', () => ({
+  validateProfilePhoto: vi.fn().mockReturnValue({ valid: true }),
+  ALLOWED_PHOTO_MIME_TYPES: ['image/jpeg', 'image/png', 'image/webp'],
+  MAX_PHOTO_SIZE_BYTES: 2 * 1024 * 1024,
+}));
 
 const mockProfile: UserProfile = {
   id: 'user-1',
@@ -17,8 +24,8 @@ const mockProfile: UserProfile = {
   updatedAt: '2026-03-01T00:00:00Z',
 };
 
-const fetchSpy = jest.spyOn(global, 'fetch').mockImplementation(
-  jest.fn() as jest.MockedFunction<typeof fetch>,
+const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(
+  vi.fn() as unknown as typeof fetch,
 );
 
 beforeEach(() => fetchSpy.mockReset());
@@ -47,8 +54,8 @@ describe('Profile management — integration', () => {
       <ProfileEdit
         profile={mockProfile}
         onSave={saveViaApi}
-        onCancel={jest.fn()}
-        onPhotoChange={jest.fn()}
+        onCancel={vi.fn()}
+        onPhotoChange={vi.fn()}
       />,
     );
 
@@ -77,8 +84,8 @@ describe('Profile management — integration', () => {
     render(
       <ProfileEdit
         profile={mockProfile}
-        onSave={jest.fn()}
-        onCancel={jest.fn()}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
         onPhotoChange={uploadViaApi}
       />,
     );
@@ -99,8 +106,8 @@ describe('Profile management — integration', () => {
       <ProfileEdit
         profile={mockProfile}
         onSave={saveViaApi}
-        onCancel={jest.fn()}
-        onPhotoChange={jest.fn()}
+        onCancel={vi.fn()}
+        onPhotoChange={vi.fn()}
       />,
     );
 
@@ -117,16 +124,13 @@ describe('Profile management — integration', () => {
     // Mock validateProfilePhoto to simulate rejection — avoids jsdom's inability
     // to set files on an input for types not matching `accept`. The real MIME
     // validation is tested in file-validation.test.ts.
-    jest.spyOn(
-      require('../utils/file-validation'),
-      'validateProfilePhoto',
-    ).mockReturnValue({ valid: false, error: 'Invalid file type "application/pdf". Only JPEG, PNG, and WebP are allowed.' });
+    vi.mocked(fileValidation.validateProfilePhoto).mockReturnValue({ valid: false, error: 'Invalid file type "application/pdf". Only JPEG, PNG, and WebP are allowed.' });
 
     render(
       <ProfileEdit
         profile={mockProfile}
-        onSave={jest.fn()}
-        onCancel={jest.fn()}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
         onPhotoChange={uploadViaApi}
       />,
     );
@@ -138,6 +142,6 @@ describe('Profile management — integration', () => {
       expect(screen.getByText(/invalid file type/i)).toBeInTheDocument();
     });
     expect(fetchSpy).not.toHaveBeenCalled();
-    jest.restoreAllMocks();
+    vi.mocked(fileValidation.validateProfilePhoto).mockReturnValue({ valid: true });
   });
 });

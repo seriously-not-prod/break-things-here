@@ -1,14 +1,14 @@
 import nodemailer from 'nodemailer';
 import { sendConfirmationEmail, setTransporter, EmailError } from '../../services/email';
 
-jest.mock('nodemailer');
+vi.mock('nodemailer');
 
-const mockSendMail = jest.fn();
+const mockSendMail = vi.fn();
 const mockCreateTransport = nodemailer.createTransport as jest.Mock;
 
 describe('Email Service', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     // Reset injected transporter so tests use the factory
     setTransporter(null);
     mockCreateTransport.mockReturnValue({ sendMail: mockSendMail });
