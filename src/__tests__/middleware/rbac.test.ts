@@ -27,7 +27,7 @@ function createMockReq(overrides: Partial<ApiRequest> = {}): ApiRequest {
 }
 
 describe('requireRole middleware', () => {
-  const handler = jest.fn();
+  const handler = vi.fn();
 
   beforeEach(() => handler.mockReset());
 
@@ -107,7 +107,7 @@ describe('requireRole middleware', () => {
 });
 
 describe('requireAuth middleware', () => {
-  const handler = jest.fn();
+  const handler = vi.fn();
 
   beforeEach(() => handler.mockReset());
 

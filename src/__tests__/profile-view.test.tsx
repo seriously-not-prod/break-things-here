@@ -17,29 +17,29 @@ const mockProfile: UserProfile = {
 
 describe('ProfileView', () => {
   it('renders the profile heading', () => {
-    render(<ProfileView profile={mockProfile} onEditClick={jest.fn()} />);
+    render(<ProfileView profile={mockProfile} onEditClick={vi.fn()} />);
     expect(screen.getByRole('heading', { name: /my profile/i })).toBeInTheDocument();
   });
 
   it('displays masked email', () => {
-    render(<ProfileView profile={mockProfile} onEditClick={jest.fn()} />);
+    render(<ProfileView profile={mockProfile} onEditClick={vi.fn()} />);
     expect(screen.getByText(/sa\*\*\*@example\.com/i)).toBeInTheDocument();
   });
 
   it('shows loading state', () => {
-    render(<ProfileView profile={mockProfile} onEditClick={jest.fn()} isLoading />);
+    render(<ProfileView profile={mockProfile} onEditClick={vi.fn()} isLoading />);
     expect(screen.getByRole('status')).toBeInTheDocument();
     expect(screen.getByText(/loading profile/i)).toBeInTheDocument();
   });
 
   it('shows error state', () => {
-    render(<ProfileView profile={mockProfile} onEditClick={jest.fn()} error="Network error" />);
+    render(<ProfileView profile={mockProfile} onEditClick={vi.fn()} error="Network error" />);
     expect(screen.getByRole('alert')).toBeInTheDocument();
     expect(screen.getByText(/network error/i)).toBeInTheDocument();
   });
 
   it('calls onEditClick when Edit Profile button is clicked', () => {
-    const onEditClick = jest.fn();
+    const onEditClick = vi.fn();
     render(<ProfileView profile={mockProfile} onEditClick={onEditClick} />);
     fireEvent.click(screen.getByRole('button', { name: /edit your profile/i }));
     expect(onEditClick).toHaveBeenCalledTimes(1);
@@ -47,12 +47,12 @@ describe('ProfileView', () => {
 
   it('shows pending email change notice when pendingEmail is set', () => {
     const profileWithPending = { ...mockProfile, pendingEmail: 'new@example.com' };
-    render(<ProfileView profile={profileWithPending} onEditClick={jest.fn()} />);
+    render(<ProfileView profile={profileWithPending} onEditClick={vi.fn()} />);
     expect(screen.getByText(/change pending confirmation/i)).toBeInTheDocument();
   });
 
   it('displays festival preferences', () => {
-    render(<ProfileView profile={mockProfile} onEditClick={jest.fn()} />);
+    render(<ProfileView profile={mockProfile} onEditClick={vi.fn()} />);
     expect(screen.getByText(/rock, jazz/i)).toBeInTheDocument();
     expect(screen.getByText(/^yes$/i)).toBeInTheDocument();
   });

@@ -113,21 +113,21 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
 
     // AC: Send reset email if user exists
     if (user) {
+      // AC: Log token generation regardless of email delivery outcome
+      await logAudit(
+        db,
+        user.id as number,
+        normalizedEmail,
+        'PASSWORD_RESET_REQUESTED',
+        'Password reset token generated',
+        req.ip,
+      );
+
       try {
         await sendPasswordResetEmail(normalizedEmail, resetToken, baseUrl);
-
-        // AC: Log successful password reset request
-        await logAudit(
-          db,
-          user.id as number,
-          normalizedEmail,
-          'PASSWORD_RESET_REQUESTED',
-          'Password reset token generated and email sent',
-          req.ip,
-        );
       } catch (emailError) {
         console.error('Failed to send password reset email:', emailError);
-        // Continue despite email failure - token is stored
+        // Continue despite email failure - token is stored and audit log is written
       }
     }
 

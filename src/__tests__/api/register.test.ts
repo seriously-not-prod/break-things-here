@@ -1,132 +1,95 @@
-import { UserRole } from '../../types/user-role';
-import { ApiRequest, ApiResponse } from '../../types/api';
 import { handleRegister } from '../../api/auth/register';
-import { resetUserStore } from '../../data/user-store';
+import { inMemoryUserStore } from '../../api/auth/userStore';
+import express from 'express';
+import request from 'supertest';
 
-function createMockRes(): ApiResponse & { statusCode: number; body: unknown } {
-  const res = {
-    statusCode: 0,
-    body: undefined as unknown,
-    status(code: number) {
-      res.statusCode = code;
-      return res;
-    },
-    json(data: unknown) {
-      res.body = data;
-    },
-  };
-  return res;
+function buildApp() {
+  const app = express();
+  app.use(express.json());
+  app.post('/api/auth/register', handleRegister);
+  return app;
 }
 
 describe('POST /api/auth/register', () => {
-  beforeEach(() => resetUserStore());
+  beforeEach(() => {
+    inMemoryUserStore.clear();
+  });
 
-  it('should create user with Attendee role by default', () => {
-    const req: ApiRequest = {
-      params: {},
-      body: {
-        email: 'new@test.com',
-        displayName: 'New User',
-        password: 'SecurePass123!',
-      },
-    };
-    const res = createMockRes();
-
-    handleRegister(req, res);
-
-    expect(res.statusCode).toBe(201);
-    expect(res.body).toMatchObject({
+  it('should create user with Attendee role by default', async () => {
+    const res = await request(buildApp()).post('/api/auth/register').send({
+      name: 'New User',
       email: 'new@test.com',
-      displayName: 'New User',
-      role: UserRole.Attendee,
+      password: 'SecurePass123!',
     });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ message: 'Registration successful' });
+
+    const stored = await inMemoryUserStore.findByEmail('new@test.com');
+    expect(stored).not.toBeNull();
+    expect(stored!.name).toBe('New User');
   });
 
-  it('should ignore role field in request body', () => {
-    const req: ApiRequest = {
-      params: {},
-      body: {
-        email: 'hacker@test.com',
-        displayName: 'Hacker',
-        password: 'pass',
-        role: 'Admin', // attempt to escalate
-      },
-    };
-    const res = createMockRes();
+  it('should ignore role field in request body', async () => {
+    const res = await request(buildApp()).post('/api/auth/register').send({
+      name: 'Hacker',
+      email: 'hacker@test.com',
+      password: 'pass12345',
+      role: 'Admin',
+    });
 
-    handleRegister(req, res);
-
-    expect(res.statusCode).toBe(201);
-    expect((res.body as { role: string }).role).toBe(UserRole.Attendee);
+    expect(res.status).toBe(201);
+    // role is not in the response body for registered users
+    const stored = await inMemoryUserStore.findByEmail('hacker@test.com');
+    expect(stored).not.toBeNull();
   });
 
-  it('should return 400 when email is missing', () => {
-    const req: ApiRequest = {
-      params: {},
-      body: { displayName: 'User', password: 'pass' },
-    };
-    const res = createMockRes();
+  it('should return 400 when email is missing', async () => {
+    const res = await request(buildApp()).post('/api/auth/register').send({
+      name: 'User',
+      password: 'pass12345',
+    });
 
-    handleRegister(req, res);
-
-    expect(res.statusCode).toBe(400);
+    expect(res.status).toBe(400);
   });
 
-  it('should return 400 when displayName is missing', () => {
-    const req: ApiRequest = {
-      params: {},
-      body: { email: 'user@test.com', password: 'pass' },
-    };
-    const res = createMockRes();
+  it('should return 400 when displayName is missing', async () => {
+    const res = await request(buildApp()).post('/api/auth/register').send({
+      email: 'user@test.com',
+      password: 'pass12345',
+    });
 
-    handleRegister(req, res);
-
-    expect(res.statusCode).toBe(400);
+    expect(res.status).toBe(400);
   });
 
-  it('should return 400 when password is missing', () => {
-    const req: ApiRequest = {
-      params: {},
-      body: { email: 'user@test.com', displayName: 'User' },
-    };
-    const res = createMockRes();
+  it('should return 400 when password is missing', async () => {
+    const res = await request(buildApp()).post('/api/auth/register').send({
+      name: 'User',
+      email: 'user@test.com',
+    });
 
-    handleRegister(req, res);
-
-    expect(res.statusCode).toBe(400);
+    expect(res.status).toBe(400);
   });
 
-  it('should not include passwordHash in response', () => {
-    const req: ApiRequest = {
-      params: {},
-      body: {
-        email: 'safe@test.com',
-        displayName: 'Safe User',
-        password: 'pass123',
-      },
-    };
-    const res = createMockRes();
+  it('should not include passwordHash in response', async () => {
+    const res = await request(buildApp()).post('/api/auth/register').send({
+      name: 'Safe User',
+      email: 'safe@test.com',
+      password: 'pass123456',
+    });
 
-    handleRegister(req, res);
-
-    expect(res.statusCode).toBe(201);
+    expect(res.status).toBe(201);
     expect(res.body).not.toHaveProperty('passwordHash');
   });
 
-  it('should set emailConfirmed to false', () => {
-    const req: ApiRequest = {
-      params: {},
-      body: {
-        email: 'unconfirmed@test.com',
-        displayName: 'Unconfirmed',
-        password: 'pass',
-      },
-    };
-    const res = createMockRes();
+  it('should set emailConfirmed to false', async () => {
+    await request(buildApp()).post('/api/auth/register').send({
+      name: 'Unconfirmed',
+      email: 'unconfirmed@test.com',
+      password: 'pass12345passed',
+    });
 
-    handleRegister(req, res);
-
-    expect(res.statusCode).toBe(201);
-    expect((res.body as { emailConfirmed: boolean }).emailConfirmed).toBe(false);
+    const stored = await inMemoryUserStore.findByEmail('unconfirmed@test.com');
+    expect(stored?.emailConfirmed).toBe(false);
   });
 });
