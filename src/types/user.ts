@@ -61,6 +61,38 @@ export interface UserRecord extends User {
 }
 
 /**
+ * Alias for backward compatibility with extended profile fields
+ */
+export interface UserProfile extends User {
+  photoUrl?: string;
+  pendingEmail?: string;
+  festivalPreferences: {
+    campingPreferred?: boolean;
+    genres?: string[];
+    locations?: string[];
+    [key: string]: unknown;
+  };
+  notificationPreferences: {
+    emailNotifications?: boolean;
+    pushNotifications?: boolean;
+    email?: boolean;
+    sms?: boolean;
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * Request type for updating a user profile
+ */
+export interface UpdateProfileRequest {
+  displayName?: string;
+  profilePhotoUrl?: string;
+  email?: string;
+  festivalPreferences?: UserProfile['festivalPreferences'];
+  notificationPreferences?: UserProfile['notificationPreferences'];
+}
+
+/**
  * Schema definition for the user table (database-agnostic).
  * Can be used as reference for migration scripts.
  */
