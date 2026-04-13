@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { getDatabase } from '../db/database.js';
 
@@ -20,16 +21,19 @@ interface TokenPayload {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+export const SESSION_TIMEOUT_MS = parseInt(process.env.SESSION_TIMEOUT_MS || String(30 * 60 * 1000), 10);
 
 export function generateTokens(userId: number, email: string, roleId: number) {
+  const jti = crypto.randomBytes(16).toString('hex');
   const accessToken = jwt.sign(
-    { id: userId, email, role_id: roleId },
+    { id: userId, email, role_id: roleId, jti },
     JWT_SECRET,
     { expiresIn: '1h' } as jwt.SignOptions,
   );
 
+  const refreshJti = crypto.randomBytes(16).toString('hex');
   const refreshToken = jwt.sign(
-    { id: userId, email, role_id: roleId, type: 'refresh' },
+    { id: userId, email, role_id: roleId, type: 'refresh', jti: refreshJti },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions,
   );
@@ -46,7 +50,7 @@ export function verifyToken(token: string): TokenPayload | null {
   }
 }
 
-export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): void {
+export async function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -60,6 +64,36 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
     res.status(403).json({ error: 'Invalid or expired token' });
     return;
   }
+
+  const db = getDatabase();
+
+  // Validate session exists in database
+  const session = await db.get<{ id: number; last_activity: string }>(
+    'SELECT id, last_activity FROM sessions WHERE token = ?',
+    [token],
+  );
+
+  if (!session) {
+    res.status(401).json({ error: 'Session not found' });
+    return;
+  }
+
+  // Check session inactivity timeout
+  if (session.last_activity) {
+    const lastActivity = new Date(session.last_activity).getTime();
+    if (Date.now() - lastActivity > SESSION_TIMEOUT_MS) {
+      // Delete expired session
+      await db.run('DELETE FROM sessions WHERE id = ?', [session.id]);
+      res.status(401).json({ error: 'Session expired due to inactivity', code: 'SESSION_TIMEOUT' });
+      return;
+    }
+  }
+
+  // Update last_activity
+  await db.run(
+    'UPDATE sessions SET last_activity = ? WHERE id = ?',
+    [new Date().toISOString(), session.id],
+  );
 
   req.user = {
     id: payload.id,
