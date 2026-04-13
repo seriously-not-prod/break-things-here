@@ -330,8 +330,9 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
     [hashToken(newAccessToken), hashToken(newRefreshToken), expiresAt, new Date().toISOString(), session.id],
   );
 
-  // Set httpOnly cookie for the new refresh token
-  res.cookie('refreshToken', newRefreshToken, {
+  // Set httpOnly cookie for the new refresh token (encrypt before sending)
+  const newEncrypted = encryptToken(newRefreshToken);
+  res.cookie('refreshToken', newEncrypted, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
