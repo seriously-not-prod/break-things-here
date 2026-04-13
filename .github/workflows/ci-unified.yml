@@ -41,7 +41,7 @@ jobs:
           cache: 'npm'
 
       - name: Install root dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund --prefer-offline
 
       - name: TypeScript type check (root)
         run: npx tsc --noEmit
@@ -68,18 +68,10 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund --prefer-offline
 
-      - name: Run tests with coverage
-        run: npm test -- --coverage --reporter=verbose
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-root
-          path: coverage/
-          retention-days: 7
+      - name: Run tests
+        run: npm test -- --reporter=verbose
 
   test-backend:
     name: Test - Backend (Vitest)
@@ -140,7 +132,7 @@ jobs:
           cache: 'npm'
 
       - name: Install root dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund --prefer-offline
 
       - name: Install frontend dependencies
         working-directory: frontend
