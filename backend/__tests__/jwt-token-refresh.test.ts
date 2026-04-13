@@ -199,15 +199,9 @@ describe('JWT Token Refresh (#81)', () => {
     await refreshTokenEndpoint(req, res as unknown as import('express').Response);
 
     expect(res.statusCode).toBe(200);
-<<<<<<< HEAD
-    const body = res.body as Record<string, string>;
-    expect(body.accessToken).toBeDefined();
-    expect(body.accessToken).not.toBe('old-access-token');
-=======
     // access token is set as encrypted httpOnly cookie
     expect(res.cookies).toHaveProperty('accessToken');
     const body = res.body as Record<string, string>;
->>>>>>> be2cf166a03584f1e7e3a02c2224c2d28181e540
     expect(body.message).toMatch(/refresh/i);
   });
 
@@ -286,12 +280,8 @@ describe('JWT Token Refresh (#81)', () => {
     await refreshTokenEndpoint(req, res as unknown as import('express').Response);
 
     expect(res.statusCode).toBe(200);
-<<<<<<< HEAD
-    expect((res.body as Record<string, string>).accessToken).toBeDefined();
-=======
     // access token is now set as an encrypted httpOnly cookie
     expect(res.cookies).toHaveProperty('accessToken');
->>>>>>> be2cf166a03584f1e7e3a02c2224c2d28181e540
   });
 
   it('reusing a rotated-out refresh token returns 403', async () => {
