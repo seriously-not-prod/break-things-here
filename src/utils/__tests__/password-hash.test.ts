@@ -105,8 +105,9 @@ describe('Password Hashing Utility', () => {
     it('should reject plain-text password when compared to itself', async () => {
       const plainPassword = 'password123';
       
-      // Attempting to verify plain-text against itself should throw - it is not a valid hash
-      await expect(verifyPassword(plainPassword, plainPassword)).rejects.toThrow(PasswordHashError);
+      // Attempting to verify plain-text against itself should return false - it is not a valid hash
+      const result = await verifyPassword(plainPassword, plainPassword);
+      expect(result).toBe(false);
     });
 
     it('should handle case-sensitive password verification', async () => {

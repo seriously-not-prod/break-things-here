@@ -94,9 +94,9 @@ export async function verifyPassword(
     throw new PasswordHashError('Password and hash must be strings');
   }
 
-  // Validate hash format before passing to bcrypt to ensure we throw on invalid input
+  // Validate hash format - return false for invalid format (bcryptjs would return false anyway)
   if (!/^\$2[ab]\$\d{2}\$[./0-9A-Za-z]{53}$/.test(hashedPassword)) {
-    throw new PasswordHashError('Invalid hash format');
+    return false;
   }
 
   try {
