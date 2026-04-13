@@ -159,7 +159,6 @@ jobs:
     name: CI Complete
     runs-on: ubuntu-latest
     needs: [lint-and-typecheck, test-root, test-backend, test-frontend, build-check]
-    permissions: {}
     if: always()
     steps:
       - name: Check all jobs passed
@@ -196,7 +195,6 @@ jobs:
       - name: TypeScript type check (backend)
         working-directory: backend
         run: npx tsc --noEmit
-
   test-root:
     name: Test - Root (Vitest)
     runs-on: ubuntu-latest

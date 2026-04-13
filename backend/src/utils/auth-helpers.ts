@@ -73,6 +73,37 @@ export function hashToken(token: string): string {
 }
 
 /**
+ * Encrypts a token for safe client-side storage (cookie) using AES-256-GCM.
+ * The encryption key must be provided via `REFRESH_TOKEN_ENC_KEY` env var (base64, 32 bytes).
+ * Returns a URL-safe base64 string containing iv|ciphertext|authTag.
+ */
+export function encryptToken(token: string): string {
+  const keyBase64 = process.env.REFRESH_TOKEN_ENC_KEY;
+  const key = keyBase64 ? Buffer.from(keyBase64, 'base64') : crypto.createHash('sha256').update('dev-refresh-key').digest();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, tag, encrypted]).toString('base64url');
+}
+
+/**
+ * Decrypts a token produced by `encryptToken`.
+ */
+export function decryptToken(payload: string): string {
+  const keyBase64 = process.env.REFRESH_TOKEN_ENC_KEY;
+  const key = keyBase64 ? Buffer.from(keyBase64, 'base64') : crypto.createHash('sha256').update('dev-refresh-key').digest();
+  const data = Buffer.from(payload, 'base64url');
+  const iv = data.slice(0, 12);
+  const tag = data.slice(12, 28);
+  const encrypted = data.slice(28);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(tag);
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+  return decrypted.toString('utf8');
+}
+
+/**
  * Sends a verification email (stub for task #16)
  * @param email - Recipient email address
  * @param token - Verification token

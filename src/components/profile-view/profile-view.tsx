@@ -1,150 +1,114 @@
-import { useEffect, useState } from 'react';
-
-interface UserProfile {
-  id: number;
-  display_name: string | null;
-  email_masked: string;
-  email_verified: boolean;
-  role: string;
-  bio: string | null;
-  phone_number: string | null;
-  profile_photo_url: string | null;
-  city: string | null;
-  country: string | null;
-}
+import React from 'react';
+import { UserProfile } from '../../types/user';
 
 interface ProfileViewProps {
+  profile: UserProfile;
   onEditClick: () => void;
+  isLoading?: boolean;
+  error?: string;
 }
 
-type LoadState = 'loading' | 'error' | 'loaded';
-
-export function ProfileView({ onEditClick }: ProfileViewProps) {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [state, setState] = useState<LoadState>('loading');
-  const [errorMessage, setErrorMessage] = useState<string>('');
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadProfile() {
-      try {
-        const response = await fetch('/api/users/me', { credentials: 'include' });
-
-        if (!response.ok) {
-          throw new Error(response.status === 401 ? 'Please log in to view your profile.' : 'Failed to load profile.');
-        }
-
-        const data: UserProfile = await response.json();
-        if (!cancelled) {
-          setProfile(data);
-          setState('loaded');
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred.');
-          setState('error');
-        }
-      }
-    }
-
-    loadProfile();
-    return () => { cancelled = true; };
-  }, []);
-
-  if (state === 'loading') {
+export function ProfileView({ profile, onEditClick, isLoading = false, error }: ProfileViewProps): React.ReactElement {
+  if (isLoading) {
     return (
-      <div className="profile-view profile-view--loading" role="status" aria-live="polite">
-        <span aria-label="Loading profile">Loading your profile…</span>
+      <div role="status" aria-live="polite" aria-label="Loading profile">
+        <p>Loading profile...</p>
       </div>
     );
   }
 
-  if (state === 'error') {
+  if (error) {
     return (
-      <div className="profile-view profile-view--error" role="alert" aria-live="assertive">
-        <p>{errorMessage}</p>
+      <div role="alert" aria-live="assertive">
+        <p>Error loading profile: {error}</p>
       </div>
     );
   }
 
-  if (!profile) return null;
+  const atIndex = profile.email.indexOf('@');
+  const local = profile.email.slice(0, atIndex);
+  const domain = profile.email.slice(atIndex);
+  const visibleChars = Math.min(2, local.length);
+  const maskedEmail = local.slice(0, visibleChars) + (local.length > visibleChars ? '***' : '') + domain;
 
   return (
-    <section className="profile-view" aria-label="Your profile">
-      <div className="profile-view__header">
-        <div className="profile-view__photo-container">
-          {profile.profile_photo_url ? (
-            <img
-              src={profile.profile_photo_url}
-              alt={`${profile.display_name ?? 'User'}'s profile photo`}
-              className="profile-view__photo"
-              width={96}
-              height={96}
-            />
-          ) : (
-            <div
-              className="profile-view__photo-placeholder"
-              role="img"
-              aria-label="No profile photo"
-            >
-              <span aria-hidden="true">👤</span>
-            </div>
-          )}
-        </div>
+    <main aria-labelledby="profile-heading">
+      <h1 id="profile-heading">My Profile</h1>
 
-        <div className="profile-view__identity">
-          <h1 className="profile-view__name">{profile.display_name ?? 'No display name set'}</h1>
-          <p className="profile-view__email">
-            <span className="profile-view__label">Email: </span>
-            <span aria-label={`Masked email: ${profile.email_masked}`}>{profile.email_masked}</span>
-            {!profile.email_verified && (
-              <span className="profile-view__badge profile-view__badge--warning" role="note">
-                {' '}(unverified)
-              </span>
-            )}
-          </p>
-          {profile.role && (
-            <p className="profile-view__role">
-              <span className="profile-view__label">Role: </span>{profile.role}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <dl className="profile-view__details">
-        {profile.bio && (
-          <>
-            <dt className="profile-view__dt">Bio</dt>
-            <dd className="profile-view__dd">{profile.bio}</dd>
-          </>
+      <section aria-label="Profile photo">
+        {profile.photoUrl ? (
+          <img
+            src={profile.photoUrl}
+            alt={`${profile.displayName}'s profile photo`}
+            width={120}
+            height={120}
+          />
+        ) : (
+          <div aria-label="No profile photo" role="img">
+            <span aria-hidden="true">👤</span>
+          </div>
         )}
-        {profile.city || profile.country ? (
-          <>
-            <dt className="profile-view__dt">Location</dt>
-            <dd className="profile-view__dd">
-              {[profile.city, profile.country].filter(Boolean).join(', ')}
+      </section>
+
+      <section aria-label="Account information">
+        <dl>
+          <div>
+            <dt>Display Name</dt>
+            <dd>{profile.displayName}</dd>
+          </div>
+          <div>
+            <dt>Email</dt>
+            <dd>
+              {maskedEmail}
+              {profile.pendingEmail && (
+                <span aria-label="Email change pending confirmation">
+                  {' '}(change pending confirmation)
+                </span>
+              )}
             </dd>
-          </>
-        ) : null}
-        {profile.phone_number && (
-          <>
-            <dt className="profile-view__dt">Phone</dt>
-            <dd className="profile-view__dd">{profile.phone_number}</dd>
-          </>
-        )}
-      </dl>
+          </div>
+          <div>
+            <dt>Role</dt>
+            <dd>{profile.role}</dd>
+          </div>
+        </dl>
+      </section>
 
-      <div className="profile-view__actions">
-        <button
-          type="button"
-          className="profile-view__edit-btn"
-          onClick={onEditClick}
-          aria-label="Edit your profile"
-        >
-          Edit Profile
-        </button>
-      </div>
-    </section>
+      <section aria-label="Festival preferences">
+        <h2>Festival Preferences</h2>
+        <dl>
+          <div>
+            <dt>Preferred Genres</dt>
+            <dd>
+              {profile.festivalPreferences.genres.length > 0
+                ? profile.festivalPreferences.genres.join(', ')
+                : 'None set'}
+            </dd>
+          </div>
+          <div>
+            <dt>Camping Preferred</dt>
+            <dd>{profile.festivalPreferences.campingPreferred ? 'Yes' : 'No'}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section aria-label="Notification preferences">
+        <h2>Notifications</h2>
+        <dl>
+          <div>
+            <dt>Email Notifications</dt>
+            <dd>{profile.notificationPreferences.emailNotifications ? 'Enabled' : 'Disabled'}</dd>
+          </div>
+          <div>
+            <dt>Push Notifications</dt>
+            <dd>{profile.notificationPreferences.pushNotifications ? 'Enabled' : 'Disabled'}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <button type="button" onClick={onEditClick} aria-label="Edit your profile">
+        Edit Profile
+      </button>
+    </main>
   );
 }
