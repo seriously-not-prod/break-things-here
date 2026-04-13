@@ -76,6 +76,7 @@ const STANDALONE_LABELS = ['bug', 'defect', 'security-issue', 'feature-request',
  */
 async function getIssue(issueNumber) {
   try {
+    // Query both issue and pullRequest — GitHub uses the same number space for both
     const query = `{
       repository(owner: "${OWNER}", name: "${REPO}") {
         issue(number: ${issueNumber}) {
@@ -85,11 +86,31 @@ async function getIssue(issueNumber) {
           labels(first: 20) { nodes { name } }
           parent { number }
         }
+        pullRequest(number: ${issueNumber}) {
+          number
+          title
+          state
+          merged
+        }
       }
     }`;
 
     const response = await graphqlRequest(query);
     const issue = response?.data?.repository?.issue;
+    const pr = response?.data?.repository?.pullRequest;
+
+    // If the number belongs to a PR (not an issue), skip hierarchy validation
+    if (!issue && pr) {
+      const prState = pr.merged ? 'merged' : pr.state?.toLowerCase();
+      return {
+        number: pr.number,
+        title: pr.title,
+        labels: [],
+        state: prState || 'closed',
+        parent: null,
+        isPullRequest: true,
+      };
+    }
 
     if (!issue) {
       throw new Error(`Issue #${issueNumber} not found`);
@@ -101,6 +122,7 @@ async function getIssue(issueNumber) {
       labels: issue.labels.nodes.map(l => l.name),
       state: issue.state.toLowerCase(),
       parent: issue.parent?.number ?? null,
+      isPullRequest: false,
     };
   } catch (error) {
     throw new Error(`Failed to fetch issue #${issueNumber}: ${error.message}`);
@@ -182,6 +204,13 @@ async function validateIssues(issueNumbers) {
       console.log(`Checking issue #${issueNumber}...`);
       const issue = await getIssue(issueNumber);
       
+      // Skip pull requests — they are not subject to issue hierarchy rules
+      if (issue.isPullRequest) {
+        console.log(`  ℹ️  #${issueNumber} is a Pull Request — skipping hierarchy check`);
+        results.push({ issue, valid: true, errors: [], warnings: ['Is a Pull Request, not an issue'] });
+        continue;
+      }
+
       // Check if issue is closed
       if (issue.state === 'closed') {
         console.log(`  ⚠️  Issue #${issueNumber} is closed`);

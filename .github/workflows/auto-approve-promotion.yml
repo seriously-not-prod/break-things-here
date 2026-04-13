@@ -24,9 +24,27 @@ jobs:
     steps:
       - name: Auto approve promotion PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use AUTO_APPROVE_TOKEN (a PAT from a different account) when available so that
+          # the reviewer identity differs from the PR author — GitHub does not allow a user
+          # to approve their own PR.  Falls back to GITHUB_TOKEN for repositories where the
+          # PR author is always different from the Actions bot (e.g. bots opening PRs).
+          GH_TOKEN: ${{ secrets.AUTO_APPROVE_TOKEN || secrets.GITHUB_TOKEN }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          ACTOR: ${{ github.actor }}
         run: |
-          gh pr review ${{ github.event.pull_request.number }} \
+          # GitHub blocks self-approval. Attempt the review and handle the error gracefully.
+          # gh api user fails for bot tokens (returns non-JSON), so we capture review output instead.
+          REVIEW_OUTPUT=$(gh pr review ${{ github.event.pull_request.number }} \
             --repo "${{ github.repository }}" \
             --approve \
-            --body "Auto-approved: environment promotion from \`${{ github.head_ref }}\` to \`${{ github.base_ref }}\`."
+            --body "Auto-approved: environment promotion from \`${{ github.head_ref }}\` to \`${{ github.base_ref }}\`." 2>&1) && {
+            echo "✅ PR auto-approved."
+          } || {
+            if echo "$REVIEW_OUTPUT" | grep -q "Can not approve your own pull request"; then
+              echo "⚠️  Skipping auto-approve: token owner is the PR author (self-approval not permitted)."
+              echo "   Set the AUTO_APPROVE_TOKEN secret to a PAT from a different account to enable auto-approval."
+              exit 0
+            fi
+            echo "❌ Auto-approve failed: $REVIEW_OUTPUT"
+            exit 1
+          }

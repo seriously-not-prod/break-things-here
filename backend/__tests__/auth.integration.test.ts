@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { hashPassword } from '../src/utils/auth-helpers.js';
+import { hashPassword, hashToken } from '../src/utils/auth-helpers.js';
 
 // ---------------------------------------------------------------------------
 // Minimal mock of Express req / res
@@ -239,8 +239,8 @@ describe('Auth Integration — Logout', () => {
 
     await testDb.run(
       `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
-       VALUES (?, 'my-access', 'my-refresh', datetime('now', '+1 hour'))`,
-      [user!.id],
+       VALUES (?, ?, 'my-refresh', datetime('now', '+1 hour'))`,
+      [user!.id, hashToken('my-access')],
     );
 
     const req = makeReq({}, { id: user!.id, email: 'grace@example.com', role_id: 1 });
