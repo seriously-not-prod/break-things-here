@@ -43,11 +43,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Workflow status fields: Backlog → Ready → In Progress → Code Review → Testing → Ready for Release → Released
 - Project Board link in README and release process documentation
 - Instructions for adding issues to Project 1
+- Branch assignee validation workflow for feature/bugfix/hotfix/release pushes (#48)
+- Auto draft PR workflow for first push to feature/bugfix branches (#48)
+- Code quality and CodeQL workflows for PR quality gates (#48)
+- Repository ruleset definition files for PR quality gates and branch naming (#48)
 
 ### Changed
 - Updated README.md with GitHub Projects workflow integration
 - Updated docs/processes/release-process.md with Project 1 details and workflow states
 - Enhanced Making Changes section with project board workflow steps
+- Renamed long-lived branch references from `staging` to `stage` in docs/templates (#48)
 
 ## [Unreleased - Previously]
 
