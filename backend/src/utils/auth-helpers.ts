@@ -62,6 +62,17 @@ export function generatePasswordResetToken(): string {
 }
 
 /**
+ * Computes a SHA-256 hash of a token for safe storage.
+ * Raw JWTs must never be stored in the database as clear text.
+ * Store the hash; compare by hashing the incoming token before lookup.
+ * @param token - The JWT or other token string
+ * @returns Hex-encoded SHA-256 digest
+ */
+export function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+/**
  * Sends a verification email (stub for task #16)
  * @param email - Recipient email address
  * @param token - Verification token
