@@ -16,7 +16,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
 import { resetPassword } from '../src/controllers/password-reset-controller.js';
-import { hashPassword } from '../src/utils/auth-helpers.js';
+import { hashPassword, hashToken } from '../src/utils/auth-helpers.js';
 
 function makeRes() {
   return {
@@ -58,7 +58,7 @@ async function seedToken(
   const expiresAt = new Date(Date.now() + expiresInMs).toISOString();
   await db.run(
     `INSERT INTO password_reset_tokens (user_id, email, token, expires_at, used_at) VALUES (?, ?, ?, ?, ?)`,
-    [userId, email, token, expiresAt, usedAt],
+    [userId, email, hashToken(token), expiresAt, usedAt],
   );
 }
 
@@ -168,7 +168,7 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
       const db = getDatabase();
       const row = await db.get(
         `SELECT used_at FROM password_reset_tokens WHERE token = ?`,
-        ['mark-used-token'],
+        [hashToken('mark-used-token')],
       );
       expect(row).toBeTruthy();
       expect((row as any).used_at).not.toBeNull();
