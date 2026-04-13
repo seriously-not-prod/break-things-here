@@ -10,7 +10,7 @@ import {
   encryptToken,
   decryptToken,
 } from '../utils/auth-helpers.js';
-import { generateTokens, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
+import { generateTokens, verifyToken, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -272,6 +272,14 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
       refreshToken = decryptToken(refreshToken);
     } catch (err) {
       return res.status(403).json({ error: 'Invalid refresh token.' });
+    }
+  }
+
+  // If caller provided a signed JWT-style refresh token (legacy), validate it first
+  if (refreshToken && typeof refreshToken === 'string' && refreshToken.includes('.')) {
+    const payload = verifyToken(refreshToken as string);
+    if (!payload) {
+      return res.status(403).json({ error: 'Invalid or expired refresh token.' });
     }
   }
 
