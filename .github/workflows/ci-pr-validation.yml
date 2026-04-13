@@ -119,11 +119,19 @@ jobs:
           for COMMIT in $COMMITS; do
             MESSAGE=$(git log --format=%s -n 1 $COMMIT)
             FULL_MESSAGE=$(git log --format=%B -n 1 $COMMIT)
-            
+            PARENTS=$(git log --format="%P" -n 1 $COMMIT)
+
             echo ""
             echo "Checking commit: $COMMIT"
             echo "Message: $MESSAGE"
-            
+
+            # Skip merge commits (they have two parent SHAs and auto-generated messages)
+            PARENT_COUNT=$(echo $PARENTS | wc -w)
+            if [ "$PARENT_COUNT" -gt 1 ]; then
+              echo "⏭️  Skipping merge commit (auto-generated message)"
+              continue
+            fi
+
             # Check for issue reference (#123)
             if ! echo "$FULL_MESSAGE" | grep -qE '#[0-9]+'; then
               echo "❌ FAIL: No issue reference found (must include #123)"
