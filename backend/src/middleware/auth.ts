@@ -24,10 +24,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 export const SESSION_TIMEOUT_MS = parseInt(process.env.SESSION_TIMEOUT_MS || String(30 * 60 * 1000), 10);
 
-export function generateTokens(userId: number, email: string, roleId: number) {
-  const jti = crypto.randomBytes(16).toString('hex');
+export function generateTokens(userId: number, email: string, roleId: number, jti?: string) {
+  const accessJti = jti || crypto.randomBytes(16).toString('hex');
   const accessToken = jwt.sign(
-    { id: userId, email, role_id: roleId, jti },
+    { id: userId, email, role_id: roleId, jti: accessJti },
     JWT_SECRET,
     { expiresIn: '1h' } as jwt.SignOptions,
   );
@@ -39,7 +39,7 @@ export function generateTokens(userId: number, email: string, roleId: number) {
     { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions,
   );
 
-  return { accessToken, refreshToken };
+  return { accessToken, refreshToken, accessJti, refreshJti };
 }
 
 export function verifyToken(token: string): TokenPayload | null {
@@ -65,13 +65,17 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
     res.status(403).json({ error: 'Invalid or expired token' });
     return;
   }
-
   const db = getDatabase();
 
-  // Validate session exists in database
-  const session = await db.get<{ id: number; last_activity: string }>(
-    'SELECT id, last_activity FROM sessions WHERE token = ?',
-    [hashToken(token)],
+  // Use the access token `jti` (which is a random server-generated session id)
+  // to validate the session and enforce inactivity timeout.
+  const sessionJti = (payload as any).jti as string | undefined;
+  const sessionJtiHash = sessionJti ? crypto.createHash('sha256').update(sessionJti).digest('hex') : null;
+  const tokenHash = hashToken(token);
+
+  const session = await db.get<{ id: number; last_activity: string; user_id: number }>(
+    'SELECT id, last_activity, user_id FROM sessions WHERE token = ? OR token = ?',
+    [sessionJtiHash ?? tokenHash, tokenHash],
   );
 
   if (!session) {
@@ -79,11 +83,9 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
     return;
   }
 
-  // Check session inactivity timeout
   if (session.last_activity) {
     const lastActivity = new Date(session.last_activity).getTime();
     if (Date.now() - lastActivity > SESSION_TIMEOUT_MS) {
-      // Delete expired session
       await db.run('DELETE FROM sessions WHERE id = ?', [session.id]);
       res.status(401).json({ error: 'Session expired due to inactivity', code: 'SESSION_TIMEOUT' });
       return;
@@ -91,10 +93,7 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
   }
 
   // Update last_activity
-  await db.run(
-    'UPDATE sessions SET last_activity = ? WHERE id = ?',
-    [new Date().toISOString(), session.id],
-  );
+  await db.run('UPDATE sessions SET last_activity = ? WHERE id = ?', [new Date().toISOString(), session.id]);
 
   req.user = {
     id: payload.id,

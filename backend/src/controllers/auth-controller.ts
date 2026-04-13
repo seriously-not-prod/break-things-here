@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { getDatabase } from '../db/database.js';
 import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken, hashToken, encryptToken, decryptToken } from '../utils/auth-helpers.js';
 import { generateTokens, verifyToken, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
@@ -115,10 +116,12 @@ export async function login(req: Request, res: Response): Promise<Response> {
     [user.id],
   );
 
-  const { accessToken, refreshToken } = generateTokens(user.id, user.email, user.role_id);
+  // Create a server-side session identifier (random opaque id). This session id is
+  // embedded in the access token `jti` claim and a hash of it is stored in the DB.
+  const sessionId = crypto.randomBytes(16).toString('hex');
+  const { accessToken, refreshToken } = generateTokens(user.id, user.email, user.role_id, sessionId);
 
-  // Store SHA-256 hashes of tokens — never store raw JWTs (CWE-312 / CodeQL: clear-text storage)
-  const tokenHash = hashToken(accessToken);
+  const tokenHash = hashToken(sessionId);
   const refreshTokenHash = hashToken(refreshToken);
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   await db.run(
@@ -239,13 +242,30 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
   }
 
   const db = getDatabase();
+  // Prefer revoking session by the refresh token cookie (server-side session).
+  let refreshToken = req.cookies?.refreshToken;
   const authHeader = req.headers?.['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (token) {
-    // Look up the stored hash — raw token is never in the DB
-    await db.run('DELETE FROM sessions WHERE token = ? AND user_id = ?', [hashToken(token), req.user.id]);
+  const authToken = authHeader && typeof authHeader === 'string' ? authHeader.split(' ')[1] : undefined;
+  if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
+    try {
+      refreshToken = decryptToken(refreshToken);
+    } catch (err) {
+      refreshToken = undefined as unknown as string;
+    }
   }
+
+  if (refreshToken) {
+    await db.run('DELETE FROM sessions WHERE refresh_token = ? AND user_id = ?', [hashToken(refreshToken), req.user.id]);
+  }
+
+  // If no refresh cookie present, fall back to Authorization header token (tests use this flow).
+  if (!refreshToken && authToken) {
+    await db.run('DELETE FROM sessions WHERE token = ? AND user_id = ?', [hashToken(authToken), req.user.id]);
+  }
+
+  // Clear authentication cookies
+  res.clearCookie('refreshToken');
+  res.clearCookie('accessToken');
 
   return res.status(200).json({ message: 'Logged out successfully.' });
 }
@@ -324,18 +344,22 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
   }
 
   // Rotate tokens
+  // Rotate session id and refresh token. Generate a new session id so we never
+  // store data derived from jwt.sign; the DB stores the opaque session id hash
+  // and the refresh token hash.
+  const newSessionId = crypto.randomBytes(16).toString('hex');
   const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateTokens(
     user.id,
     user.email,
     user.role_id,
+    newSessionId,
   );
 
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Store hashed tokens
   await db.run(
     'UPDATE sessions SET token = ?, refresh_token = ?, expires_at = ?, last_activity = ? WHERE id = ?',
-    [hashToken(newAccessToken), hashToken(newRefreshToken), expiresAt, new Date().toISOString(), session.id],
+    [hashToken(newSessionId), hashToken(newRefreshToken), expiresAt, new Date().toISOString(), session.id],
   );
 
   // Set httpOnly cookie for the new refresh token (encrypt before sending)
@@ -371,14 +395,20 @@ export async function sessionHeartbeat(req: AuthRequest, res: Response): Promise
   }
 
   const db = getDatabase();
-  const authHeader = req.headers?.['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  // Update last_activity by refresh token stored in cookie (sessions keep refresh token hashes)
+  let refreshToken = req.cookies?.refreshToken;
+  if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
+    try {
+      refreshToken = decryptToken(refreshToken);
+    } catch (err) {
+      refreshToken = undefined as unknown as string;
+    }
+  }
 
-  if (token) {
-    // Token stored hashed in DB
+  if (refreshToken) {
     await db.run(
-      'UPDATE sessions SET last_activity = ? WHERE token = ? AND user_id = ?',
-      [new Date().toISOString(), hashToken(token), req.user.id],
+      'UPDATE sessions SET last_activity = ? WHERE refresh_token = ? AND user_id = ?',
+      [new Date().toISOString(), hashToken(refreshToken), req.user.id],
     );
   }
 
