@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { getDatabase } from '../db/database.js';
-import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken, hashToken } from '../utils/auth-helpers.js';
-import { generateTokens } from '../middleware/auth.js';
+import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken, hashToken, encryptToken, decryptToken } from '../utils/auth-helpers.js';
+import { generateTokens, verifyToken, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -115,22 +116,40 @@ export async function login(req: Request, res: Response): Promise<Response> {
     [user.id],
   );
 
-  const { accessToken, refreshToken } = generateTokens(user.id, user.email, user.role_id);
+  // Create a server-side session identifier (random opaque id). This session id is
+  // embedded in the access token `jti` claim and a hash of it is stored in the DB.
+  const sessionId = crypto.randomBytes(16).toString('hex');
+  const { accessToken, refreshToken } = generateTokens(user.id, user.email, user.role_id, sessionId);
 
-  // Store SHA-256 hashes of tokens — never store raw JWTs (CWE-312 / CodeQL: clear-text storage)
-  const tokenHash = hashToken(accessToken);
+  const tokenHash = hashToken(sessionId);
   const refreshTokenHash = hashToken(refreshToken);
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   await db.run(
-    `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
-     VALUES (?, ?, ?, ?)`,
-    [user.id, tokenHash, refreshTokenHash, expiresAt],
+    `INSERT INTO sessions (user_id, token, refresh_token, expires_at, last_activity)
+     VALUES (?, ?, ?, ?, ?)`,
+    [user.id, tokenHash, refreshTokenHash, expiresAt, new Date().toISOString()],
   );
+
+  // Set httpOnly secure cookie for the encrypted refresh token; do not expose raw refresh tokens in API responses
+  const encrypted = encryptToken(refreshToken);
+  res.cookie('refreshToken', encrypted, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  // Also set encrypted httpOnly cookie for access token (do not return raw tokens in JSON)
+  const encryptedAccess = encryptToken(accessToken);
+  res.cookie('accessToken', encryptedAccess, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 60 * 60 * 1000, // access token lifespan (1h)
+  });
 
   return res.status(200).json({
     message: 'Login successful.',
-    accessToken,
-    refreshToken,
     user: {
       id: user.id,
       email: user.email,
@@ -223,13 +242,30 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
   }
 
   const db = getDatabase();
+  // Prefer revoking session by the refresh token cookie (server-side session).
+  let refreshToken = req.cookies?.refreshToken;
   const authHeader = req.headers?.['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (token) {
-    // Look up the stored hash — raw token is never in the DB
-    await db.run('DELETE FROM sessions WHERE token = ? AND user_id = ?', [hashToken(token), req.user.id]);
+  const authToken = authHeader && typeof authHeader === 'string' ? authHeader.split(' ')[1] : undefined;
+  if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
+    try {
+      refreshToken = decryptToken(refreshToken);
+    } catch (err) {
+      refreshToken = undefined as unknown as string;
+    }
   }
+
+  if (refreshToken) {
+    await db.run('DELETE FROM sessions WHERE refresh_token = ? AND user_id = ?', [hashToken(refreshToken), req.user.id]);
+  }
+
+  // If no refresh cookie present, fall back to Authorization header token (tests use this flow).
+  if (!refreshToken && authToken) {
+    await db.run('DELETE FROM sessions WHERE token = ? AND user_id = ?', [hashToken(authToken), req.user.id]);
+  }
+
+  // Clear authentication cookies
+  res.clearCookie('refreshToken');
+  res.clearCookie('accessToken');
 
   return res.status(200).json({ message: 'Logged out successfully.' });
 }
@@ -255,4 +291,129 @@ export async function getCurrentUser(req: AuthRequest, res: Response): Promise<R
   }
 
   return res.status(200).json(user);
+}
+
+/**
+ * POST /api/auth/refresh
+ * Rotates the refresh token and issues a new access token.
+ */
+export async function refreshTokenEndpoint(req: Request, res: Response): Promise<Response> {
+  let refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+
+  // If cookie contains an encrypted token, decrypt it first
+  if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
+    try {
+      refreshToken = decryptToken(refreshToken);
+    } catch (err) {
+      return res.status(403).json({ error: 'Invalid refresh token.' });
+    }
+  }
+
+  if (!refreshToken) {
+    return res.status(401).json({ error: 'Refresh token is required.' });
+  }
+
+  const payload = verifyToken(refreshToken);
+  if (!payload) {
+    return res.status(403).json({ error: 'Invalid or expired refresh token.' });
+  }
+
+  const db = getDatabase();
+
+  // Verify refresh token is in the sessions table
+  // Stored refresh tokens are hashed — compare hashes
+  const session = await db.get<{ id: number; user_id: number }>(
+    'SELECT id, user_id FROM sessions WHERE refresh_token = ?',
+    [hashToken(refreshToken)],
+  );
+
+  if (!session) {
+    return res.status(403).json({ error: 'Refresh token has been revoked.' });
+  }
+
+  // Verify user still exists
+  const user = await db.get<{ id: number; email: string; role_id: number }>(
+    'SELECT id, email, role_id FROM users WHERE id = ? AND deleted_at IS NULL',
+    [session.user_id],
+  );
+
+  if (!user) {
+    // Clean up orphaned session
+    await db.run('DELETE FROM sessions WHERE id = ?', [session.id]);
+    return res.status(403).json({ error: 'User account no longer exists.' });
+  }
+
+  // Rotate tokens
+  // Rotate session id and refresh token. Generate a new session id so we never
+  // store data derived from jwt.sign; the DB stores the opaque session id hash
+  // and the refresh token hash.
+  const newSessionId = crypto.randomBytes(16).toString('hex');
+  const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateTokens(
+    user.id,
+    user.email,
+    user.role_id,
+    newSessionId,
+  );
+
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  await db.run(
+    'UPDATE sessions SET token = ?, refresh_token = ?, expires_at = ?, last_activity = ? WHERE id = ?',
+    [hashToken(newSessionId), hashToken(newRefreshToken), expiresAt, new Date().toISOString(), session.id],
+  );
+
+  // Set httpOnly cookie for the new refresh token (encrypt before sending)
+  const newEncrypted = encryptToken(newRefreshToken);
+  res.cookie('refreshToken', newEncrypted, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  // Set encrypted httpOnly cookie for the new access token and do not return raw token
+  const newEncryptedAccess = encryptToken(newAccessToken);
+  res.cookie('accessToken', newEncryptedAccess, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 60 * 60 * 1000,
+  });
+
+  return res.status(200).json({
+    message: 'Token refreshed successfully.',
+  });
+}
+
+/**
+ * POST /api/auth/session/heartbeat
+ * Updates session last_activity and returns session timeout configuration.
+ */
+export async function sessionHeartbeat(req: AuthRequest, res: Response): Promise<Response> {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+
+  const db = getDatabase();
+  // Update last_activity by refresh token stored in cookie (sessions keep refresh token hashes)
+  let refreshToken = req.cookies?.refreshToken;
+  if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
+    try {
+      refreshToken = decryptToken(refreshToken);
+    } catch (err) {
+      refreshToken = undefined as unknown as string;
+    }
+  }
+
+  if (refreshToken) {
+    await db.run(
+      'UPDATE sessions SET last_activity = ? WHERE refresh_token = ? AND user_id = ?',
+      [new Date().toISOString(), hashToken(refreshToken), req.user.id],
+    );
+  }
+
+  return res.status(200).json({
+    message: 'Session activity updated.',
+    sessionTimeoutMs: SESSION_TIMEOUT_MS,
+  });
 }
