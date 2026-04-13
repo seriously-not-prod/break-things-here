@@ -5,6 +5,8 @@ module.exports = defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/setupTests.ts'],
+    include: ['src/**/*.test.{ts,tsx,js}'],
+    exclude: ['node_modules', 'backend/**', 'frontend/**'],
     coverage: {
       provider: 'istanbul',
     },
