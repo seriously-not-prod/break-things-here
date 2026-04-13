@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import {
   extractTokenFromQueryString,
   validatePasswordMatch,
@@ -89,7 +90,7 @@ describe('reset-password-form', () => {
   });
 
   describe('submitPasswordReset', () => {
-    const mockReset = jest.fn().mockResolvedValue(undefined);
+    const mockReset = vi.fn().mockResolvedValue(undefined);
 
     beforeEach(() => {
       mockReset.mockClear();
@@ -127,14 +128,14 @@ describe('reset-password-form', () => {
     });
 
     it('should return the error message when onReset throws', async () => {
-      const failingReset = jest.fn().mockRejectedValue(new Error('Token expired'));
+      const failingReset = vi.fn().mockRejectedValue(new Error('Token expired'));
       const result = await submitPasswordReset('token', 'NewPass123', 'NewPass123', failingReset);
       expect(result.success).toBe(false);
       expect(result.message).toBe('Token expired');
     });
 
     it('should handle a non-Error throw from onReset gracefully', async () => {
-      const failingReset = jest.fn().mockRejectedValue('unexpected');
+      const failingReset = vi.fn().mockRejectedValue('unexpected');
       const result = await submitPasswordReset('token', 'NewPass123', 'NewPass123', failingReset);
       expect(result.success).toBe(false);
       expect(result.message).toBeDefined();
