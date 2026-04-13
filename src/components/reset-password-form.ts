@@ -39,6 +39,7 @@ export const PASSWORD_REQUIREMENTS = [
   'At least 8 characters long',
   'At least one uppercase letter',
   'At least one number',
+  'At least one special character (e.g. !@#$%)',
 ] as const;
 
 /**
@@ -99,6 +100,9 @@ export function checkPasswordStrength(password: string): PasswordStrengthResult 
   }
   if (!/[0-9]/.test(password)) {
     errors.push('Password must contain at least one number');
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    errors.push('Password must contain at least one special character (e.g. !@#$%)');
   }
 
   return { isValid: errors.length === 0, errors };
