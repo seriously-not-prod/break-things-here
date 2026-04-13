@@ -155,6 +155,7 @@ async function runMigrations(db: DbWrapper): Promise<void> {
       id SERIAL PRIMARY KEY,
       user_id INTEGER,
       email TEXT NOT NULL,
+      token_selector TEXT NOT NULL DEFAULT '',
       token TEXT NOT NULL UNIQUE,
       expires_at TIMESTAMP NOT NULL,
       used INTEGER DEFAULT 0,
