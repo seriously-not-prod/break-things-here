@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
-import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken, hashToken } from '../utils/auth-helpers.js';
+import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken, hashToken, encryptToken, decryptToken } from '../utils/auth-helpers.js';
 import { generateTokens, verifyToken, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
 
 interface AuthRequest extends Request {
@@ -127,8 +127,9 @@ export async function login(req: Request, res: Response): Promise<Response> {
     [user.id, tokenHash, refreshTokenHash, expiresAt, new Date().toISOString()],
   );
 
-  // Set httpOnly secure cookie for the refresh token; do not expose refresh tokens in API responses
-  res.cookie('refreshToken', refreshToken, {
+  // Set httpOnly secure cookie for the encrypted refresh token; do not expose raw refresh tokens in API responses
+  const encrypted = encryptToken(refreshToken);
+  res.cookie('refreshToken', encrypted, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
@@ -269,7 +270,16 @@ export async function getCurrentUser(req: AuthRequest, res: Response): Promise<R
  * Rotates the refresh token and issues a new access token.
  */
 export async function refreshTokenEndpoint(req: Request, res: Response): Promise<Response> {
-  const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+  let refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+
+  // If cookie contains an encrypted token, decrypt it first
+  if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
+    try {
+      refreshToken = decryptToken(refreshToken);
+    } catch (err) {
+      return res.status(403).json({ error: 'Invalid refresh token.' });
+    }
+  }
 
   if (!refreshToken) {
     return res.status(401).json({ error: 'Refresh token is required.' });

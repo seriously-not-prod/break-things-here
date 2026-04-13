@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { getDatabase } from '../db/database.js';
+import { hashToken } from '../utils/auth-helpers.js';
 
 interface AuthRequest extends Request {
   user?: {
@@ -70,7 +71,7 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
   // Validate session exists in database
   const session = await db.get<{ id: number; last_activity: string }>(
     'SELECT id, last_activity FROM sessions WHERE token = ?',
-    [token],
+    [hashToken(token)],
   );
 
   if (!session) {
