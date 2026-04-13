@@ -136,9 +136,17 @@ export async function login(req: Request, res: Response): Promise<Response> {
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
+  // Also set encrypted httpOnly cookie for access token (do not return raw tokens in JSON)
+  const encryptedAccess = encryptToken(accessToken);
+  res.cookie('accessToken', encryptedAccess, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 60 * 60 * 1000, // access token lifespan (1h)
+  });
+
   return res.status(200).json({
     message: 'Login successful.',
-    accessToken,
     user: {
       id: user.id,
       email: user.email,
@@ -339,9 +347,17 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
+  // Set encrypted httpOnly cookie for the new access token and do not return raw token
+  const newEncryptedAccess = encryptToken(newAccessToken);
+  res.cookie('accessToken', newEncryptedAccess, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 60 * 60 * 1000,
+  });
+
   return res.status(200).json({
     message: 'Token refreshed successfully.',
-    accessToken: newAccessToken,
   });
 }
 
