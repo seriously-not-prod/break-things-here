@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
-import { validateEmailFormat, generatePasswordResetToken, sendPasswordResetEmail, hashPassword } from '../utils/auth-helpers.js';
+import { validateEmailFormat, generatePasswordResetToken, sendPasswordResetEmail, hashPassword, hashToken } from '../utils/auth-helpers.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -103,12 +103,15 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
 
     // AC: Generate cryptographically secure token
     const resetToken = generatePasswordResetToken();
+    // Store only the SHA-256 hash — sending the plain token in the email URL is intentional;
+    // the DB never holds the raw token (CWE-312 / CodeQL: clear-text sensitive storage)
+    const resetTokenHash = hashToken(resetToken);
     const expiresAt = new Date(Date.now() + TOKEN_EXPIRATION_MS).toISOString();
 
-    // AC: Store token in database with expiration
+    // AC: Store token hash in database with expiration
     await db.run(
       `INSERT INTO password_reset_tokens (user_id, email, token, expires_at) VALUES (?, ?, ?, ?)`,
-      [user?.id || null, normalizedEmail, resetToken, expiresAt],
+      [user?.id || null, normalizedEmail, resetTokenHash, expiresAt],
     );
 
     // AC: Send reset email if user exists
@@ -124,7 +127,7 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
       );
 
       try {
-        await sendPasswordResetEmail(normalizedEmail, resetToken, baseUrl);
+        await sendPasswordResetEmail(normalizedEmail, resetToken, baseUrl);  // plain token in email link
       } catch (emailError) {
         console.error('Failed to send password reset email:', emailError);
         // Continue despite email failure - token is stored and audit log is written
@@ -194,10 +197,10 @@ export async function resetPassword(req: AuthRequest, res: Response): Promise<Re
   const db = getDatabase();
 
   try {
-    // Look up token (must exist, not expired, not used)
+    // Look up token by hash — raw token is never stored in the DB
     const tokenRow = await db.get(
       `SELECT id, user_id, email, expires_at, used_at FROM password_reset_tokens WHERE token = ?`,
-      [token],
+      [hashToken(token)],
     );
 
     if (!tokenRow) {

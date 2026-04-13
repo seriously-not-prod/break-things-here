@@ -1,7 +1,16 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { getDatabase } from '../db/database.js';
-import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken, hashToken } from '../utils/auth-helpers.js';
-import { generateTokens, verifyToken, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
+import {
+  verifyPassword,
+  validateEmailFormat,
+  hashPassword,
+  generateVerificationToken,
+  hashToken,
+  encryptToken,
+  decryptToken,
+} from '../utils/auth-helpers.js';
+import { generateTokens, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -22,14 +31,6 @@ interface UserRow {
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 
-/**
- * POST /api/auth/login
- *
- * Validates credentials against bcrypt hash, issues JWT access + refresh tokens.
- * Returns 401 with generic message for invalid credentials (no user enumeration).
- * Returns 403 for unconfirmed (email not verified) accounts.
- * Returns 429 for locked accounts.
- */
 export async function login(req: Request, res: Response): Promise<Response> {
   const { email, password } = req.body as { email?: string; password?: string };
 
@@ -51,14 +52,11 @@ export async function login(req: Request, res: Response): Promise<Response> {
     [normalizedEmail],
   );
 
-  // Return same generic error whether user exists or not (prevents enumeration)
   if (!user) {
-    // Perform a dummy bcrypt compare to keep response time consistent
     await verifyPassword(password, '$2b$12$invalidhashplaceholdervalue.paddingtomakevalidlength');
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
 
-  // Check if account is locked
   if (user.account_locked && user.locked_until) {
     const lockExpiry = new Date(user.locked_until).getTime();
     const now = Date.now();
@@ -69,7 +67,6 @@ export async function login(req: Request, res: Response): Promise<Response> {
       });
     }
 
-    // Lock has expired — reset
     await db.run(
       `UPDATE users SET account_locked = 0, locked_until = NULL, login_attempts = 0,
                         updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
@@ -79,14 +76,12 @@ export async function login(req: Request, res: Response): Promise<Response> {
     user.login_attempts = 0;
   }
 
-  // Check if email is verified
   if (!user.email_verified) {
     return res.status(403).json({
       error: 'Email address has not been verified. Please check your inbox for a confirmation link.',
     });
   }
 
-  // Verify password
   const passwordValid = await verifyPassword(password, user.password_hash);
   if (!passwordValid) {
     const newAttempts = user.login_attempts + 1;
@@ -108,17 +103,16 @@ export async function login(req: Request, res: Response): Promise<Response> {
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
 
-  // Successful login — reset attempts and issue tokens
   await db.run(
     `UPDATE users SET login_attempts = 0, account_locked = 0, locked_until = NULL,
                       updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
     [user.id],
   );
 
-  const { accessToken, refreshToken } = generateTokens(user.id, user.email, user.role_id);
+  const sessionId = crypto.randomBytes(16).toString('hex');
+  const { accessToken, refreshToken } = generateTokens(user.id, user.email, user.role_id, sessionId);
 
-  // Store SHA-256 hashes of tokens — never store raw JWTs (CWE-312 / CodeQL: clear-text storage)
-  const tokenHash = hashToken(accessToken);
+  const tokenHash = hashToken(sessionId);
   const refreshTokenHash = hashToken(refreshToken);
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   await db.run(
@@ -127,17 +121,24 @@ export async function login(req: Request, res: Response): Promise<Response> {
     [user.id, tokenHash, refreshTokenHash, expiresAt, new Date().toISOString()],
   );
 
-  // Set httpOnly secure cookie for the refresh token; do not expose refresh tokens in API responses
-  res.cookie('refreshToken', refreshToken, {
+  const encrypted = encryptToken(refreshToken);
+  res.cookie('refreshToken', encrypted, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
+  const encryptedAccess = encryptToken(accessToken);
+  res.cookie('accessToken', encryptedAccess, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 60 * 60 * 1000,
+  });
+
   return res.status(200).json({
     message: 'Login successful.',
-    accessToken,
     user: {
       id: user.id,
       email: user.email,
@@ -147,10 +148,6 @@ export async function login(req: Request, res: Response): Promise<Response> {
   });
 }
 
-/**
- * POST /api/auth/register
- * Stub — to be implemented in a separate task.
- */
 export async function register(req: Request, res: Response): Promise<Response> {
   const { email, password, displayName } = req.body as {
     email?: string;
@@ -189,10 +186,6 @@ export async function register(req: Request, res: Response): Promise<Response> {
   });
 }
 
-/**
- * POST /api/auth/verify-email
- * Stub — confirms email verification token.
- */
 export async function verifyEmail(req: Request, res: Response): Promise<Response> {
   const { token } = req.body as { token?: string };
 
@@ -220,31 +213,37 @@ export async function verifyEmail(req: Request, res: Response): Promise<Response
   return res.status(200).json({ message: 'Email verified successfully.' });
 }
 
-/**
- * POST /api/auth/logout
- * Invalidates the current session/tokens.
- */
 export async function logout(req: AuthRequest, res: Response): Promise<Response> {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required.' });
   }
 
   const db = getDatabase();
+  let refreshToken = req.cookies?.refreshToken;
   const authHeader = req.headers?.['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (token) {
-    // Look up the stored hash — raw token is never in the DB
-    await db.run('DELETE FROM sessions WHERE token = ? AND user_id = ?', [hashToken(token), req.user.id]);
+  const authToken = authHeader && typeof authHeader === 'string' ? authHeader.split(' ')[1] : undefined;
+  if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
+    try {
+      refreshToken = decryptToken(refreshToken);
+    } catch (err) {
+      refreshToken = undefined as unknown as string;
+    }
   }
+
+  if (refreshToken) {
+    await db.run('DELETE FROM sessions WHERE refresh_token = ? AND user_id = ?', [hashToken(refreshToken), req.user.id]);
+  }
+
+  if (!refreshToken && authToken) {
+    await db.run('DELETE FROM sessions WHERE token = ? AND user_id = ?', [hashToken(authToken), req.user.id]);
+  }
+
+  res.clearCookie('refreshToken');
+  res.clearCookie('accessToken');
 
   return res.status(200).json({ message: 'Logged out successfully.' });
 }
 
-/**
- * GET /api/auth/me
- * Returns current authenticated user info.
- */
 export async function getCurrentUser(req: AuthRequest, res: Response): Promise<Response> {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required.' });
@@ -264,26 +263,25 @@ export async function getCurrentUser(req: AuthRequest, res: Response): Promise<R
   return res.status(200).json(user);
 }
 
-/**
- * POST /api/auth/refresh
- * Rotates the refresh token and issues a new access token.
- */
 export async function refreshTokenEndpoint(req: Request, res: Response): Promise<Response> {
-  const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+  // Extract refresh token from body or cookie; decrypt cookie if necessary
+  let refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+
+  if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
+    try {
+      refreshToken = decryptToken(refreshToken);
+    } catch (err) {
+      return res.status(403).json({ error: 'Invalid refresh token.' });
+    }
+  }
 
   if (!refreshToken) {
     return res.status(401).json({ error: 'Refresh token is required.' });
   }
 
-  const payload = verifyToken(refreshToken);
-  if (!payload) {
-    return res.status(403).json({ error: 'Invalid or expired refresh token.' });
-  }
-
   const db = getDatabase();
 
-  // Verify refresh token is in the sessions table
-  // Stored refresh tokens are hashed — compare hashes
+  // Verify refresh token is in the sessions table (stored hashed)
   const session = await db.get<{ id: number; user_id: number }>(
     'SELECT id, user_id FROM sessions WHERE refresh_token = ?',
     [hashToken(refreshToken)],
@@ -305,53 +303,67 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
     return res.status(403).json({ error: 'User account no longer exists.' });
   }
 
-  // Rotate tokens
+  // Rotate session id and refresh token. Generate a new session id so we never
+  // store data derived from jwt.sign; the DB stores the opaque session id hash
+  // and the refresh token hash.
+  const newSessionId = crypto.randomBytes(16).toString('hex');
   const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateTokens(
     user.id,
     user.email,
     user.role_id,
+    newSessionId,
   );
 
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Store hashed tokens
   await db.run(
     'UPDATE sessions SET token = ?, refresh_token = ?, expires_at = ?, last_activity = ? WHERE id = ?',
-    [hashToken(newAccessToken), hashToken(newRefreshToken), expiresAt, new Date().toISOString(), session.id],
+    [hashToken(newSessionId), hashToken(newRefreshToken), expiresAt, new Date().toISOString(), session.id],
   );
 
-  // Set httpOnly cookie for the new refresh token
-  res.cookie('refreshToken', newRefreshToken, {
+  // Set httpOnly cookie for the new refresh token (encrypt before sending)
+  const newEncrypted = encryptToken(newRefreshToken);
+  res.cookie('refreshToken', newEncrypted, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
+  // Set encrypted httpOnly cookie for the new access token and do not return raw token
+  const newEncryptedAccess = encryptToken(newAccessToken);
+  res.cookie('accessToken', newEncryptedAccess, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 60 * 60 * 1000,
+  });
+
   return res.status(200).json({
     message: 'Token refreshed successfully.',
-    accessToken: newAccessToken,
   });
 }
 
-/**
- * POST /api/auth/session/heartbeat
- * Updates session last_activity and returns session timeout configuration.
- */
 export async function sessionHeartbeat(req: AuthRequest, res: Response): Promise<Response> {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required.' });
   }
 
   const db = getDatabase();
-  const authHeader = req.headers?.['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  // Update last_activity by refresh token stored in cookie (sessions keep refresh token hashes)
+  let refreshToken = req.cookies?.refreshToken;
+  if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
+    try {
+      refreshToken = decryptToken(refreshToken);
+    } catch (err) {
+      refreshToken = undefined as unknown as string;
+    }
+  }
 
-  if (token) {
-    // Token stored hashed in DB
+  if (refreshToken) {
     await db.run(
-      'UPDATE sessions SET last_activity = ? WHERE token = ? AND user_id = ?',
-      [new Date().toISOString(), hashToken(token), req.user.id],
+      'UPDATE sessions SET last_activity = ? WHERE refresh_token = ? AND user_id = ?',
+      [new Date().toISOString(), hashToken(refreshToken), req.user.id],
     );
   }
 

@@ -13,7 +13,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import jwt from 'jsonwebtoken';
-import { hashPassword } from '../src/utils/auth-helpers.js';
+import { hashPassword, hashToken } from '../src/utils/auth-helpers.js';
 
 // ---------------------------------------------------------------------------
 // Minimal Express req / res / next mocks
@@ -98,8 +98,8 @@ async function insertSession(
   const activity = lastActivity ?? new Date().toISOString();
   const result = await testDb.run(
     `INSERT INTO sessions (user_id, token, refresh_token, expires_at, last_activity)
-     VALUES (?, ?, 'refresh-tok', ?, ?)`,
-    [userId, accessToken, expiresAt, activity],
+     VALUES (?, ?, ?, ?, ?)`,
+    [userId, hashToken(accessToken), hashToken('refresh-tok'), expiresAt, activity],
   );
   return result.lastID!;
 }
