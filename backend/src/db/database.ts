@@ -88,6 +88,7 @@ async function runMigrations(): Promise<void> {
       token TEXT NOT NULL UNIQUE,
       refresh_token TEXT NOT NULL UNIQUE,
       expires_at DATETIME NOT NULL,
+      last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )

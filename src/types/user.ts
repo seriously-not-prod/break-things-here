@@ -16,6 +16,7 @@ export interface User {
 
 /**
  * Extended user profile including festival and notification preferences.
+ * Kept standalone (does not extend User) to allow flexible role/date types for API responses.
  */
 export interface UserProfile {
   id: string;
@@ -31,10 +32,15 @@ export interface UserProfile {
   festivalPreferences: {
     genres: string[];
     campingPreferred: boolean;
+    locations?: string[];
+    [key: string]: unknown;
   };
   notificationPreferences: {
     emailNotifications: boolean;
     pushNotifications: boolean;
+    email?: boolean;
+    sms?: boolean;
+    [key: string]: unknown;
   };
 }
 
@@ -43,13 +49,20 @@ export interface UserProfile {
  */
 export interface UpdateProfileRequest {
   displayName?: string;
+  profilePhotoUrl?: string;
   email?: string;
   festivalPreferences?: {
-    campingPreferred: boolean;
+    campingPreferred?: boolean;
+    genres?: string[];
+    locations?: string[];
+    [key: string]: unknown;
   };
   notificationPreferences?: {
-    emailNotifications: boolean;
-    pushNotifications: boolean;
+    emailNotifications?: boolean;
+    pushNotifications?: boolean;
+    email?: boolean;
+    sms?: boolean;
+    [key: string]: unknown;
   };
 }
 

@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { getDatabase } from '../db/database.js';
 import { validateEmailFormat, generatePasswordResetToken, sendPasswordResetEmail } from '../utils/auth-helpers.js';
 
@@ -33,14 +35,14 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
   const { email } = req.body as { email?: string };
 
   // Input validation
-  if (!email) {
-    return res.status(400).json({ error: 'Email address is required.' });
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ message: 'Email is required.' });
   }
 
   const normalizedEmail = email.trim().toLowerCase();
 
   if (!validateEmailFormat(normalizedEmail)) {
-    return res.status(400).json({ error: 'Invalid email format.' });
+    return res.status(400).json({ message: 'Invalid email format. Please provide a valid email address.' });
   }
 
   const db = getDatabase();
@@ -174,4 +176,68 @@ async function logAudit(
   } catch (err) {
     console.error('Failed to log audit entry:', err);
   }
+}
+
+/**
+ * Generates a cryptographically secure password reset token (64-char hex).
+ * Re-exported here for testability.
+ */
+export function generateResetToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+/**
+ * POST /api/auth/reset-password
+ * Validates token, checks expiry, hashes new password, updates DB.
+ */
+export async function resetPassword(req: Request, res: Response): Promise<void> {
+  const { token, newPassword } = req.body as { token?: string; newPassword?: string };
+
+  if (!token) {
+    res.status(400).json({ message: 'Token is required.' });
+    return;
+  }
+  if (!newPassword) {
+    res.status(400).json({ message: 'Password is required.' });
+    return;
+  }
+  // Password strength: min 8 chars, uppercase, digit, special char
+  if (!/^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$/.test(newPassword)) {
+    res.status(400).json({ message: 'Password must be at least 8 characters, contain an uppercase letter, a digit, and a special character.' });
+    return;
+  }
+
+  const db = getDatabase();
+
+  const record = await db.get<{
+    id: number;
+    user_id: number;
+    email: string;
+    expires_at: string;
+    used: number;
+  }>(
+    `SELECT id, user_id, email, expires_at, used FROM password_reset_tokens WHERE token = ?`,
+    [token],
+  );
+
+  if (!record) {
+    res.status(400).json({ message: 'Invalid or expired token.' });
+    return;
+  }
+  if (record.used) {
+    res.status(400).json({ message: 'Token has already been used.' });
+    return;
+  }
+  if (new Date(record.expires_at) < new Date()) {
+    res.status(400).json({ message: 'Token has expired.' });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+
+  await db.run(`UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [passwordHash, record.user_id]);
+  await db.run(`UPDATE password_reset_tokens SET used = 1 WHERE id = ?`, [record.id]);
+  await db.run(`DELETE FROM sessions WHERE user_id = ?`, [record.user_id]);
+
+  res.status(200).json({ message: 'Password has been reset successfully. Please log in with your new password.' });
 }
