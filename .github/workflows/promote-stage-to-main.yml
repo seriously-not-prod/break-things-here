@@ -1,0 +1,53 @@
+name: Promote stage → main
+
+on:
+  push:
+    branches: [stage]
+
+env:
+  AUTO_MERGE: "true"
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - id: create_pr
+        name: Create PR to `main`
+        uses: peter-evans/create-pull-request@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: chore(release): promote stage → main
+          title: chore(release): promote stage → main (automated)
+          body: |-
+            Automated promotion: merging `stage` into `main` for production release.
+            This PR requires manual approval and review before merging.
+          base: main
+          head: stage
+          labels: chore, automated
+
+  merge-pr:
+    needs: create-pr
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      pull-requests: write
+      contents: write
+      checks: read
+    steps:
+      - name: Wait for PR creation output
+        run: echo "PR #${{ needs.create-pr.outputs.pull-request-number }} created"
+
+      - name: Optionally enable auto-merge (requires environment approval)
+        if: env.AUTO_MERGE == 'true'
+        uses: peter-evans/enable-pull-request-automerge@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          merge-method: merge
+          pull-request-number: ${{ needs.create-pr.outputs.pull-request-number }}
