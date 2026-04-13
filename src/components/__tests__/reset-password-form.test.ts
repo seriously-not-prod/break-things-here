@@ -59,7 +59,7 @@ describe('reset-password-form', () => {
 
   describe('checkPasswordStrength', () => {
     it('should return isValid true for a strong password', () => {
-      const result = checkPasswordStrength('StrongPass1');
+      const result = checkPasswordStrength('StrongPass1@');
       expect(result.isValid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
@@ -97,25 +97,25 @@ describe('reset-password-form', () => {
     });
 
     it('should return a success result on valid input', async () => {
-      const result = await submitPasswordReset('valid-token', 'NewPass123', 'NewPass123', mockReset);
+      const result = await submitPasswordReset('valid-token', 'NewPass123@', 'NewPass123@', mockReset);
       expect(result.success).toBe(true);
       expect(result.message).toContain('successfully');
     });
 
     it('should call onReset with trimmed token and new password', async () => {
-      await submitPasswordReset('  token123  ', 'NewPass123', 'NewPass123', mockReset);
-      expect(mockReset).toHaveBeenCalledWith('token123', 'NewPass123');
+      await submitPasswordReset('  token123  ', 'NewPass123@', 'NewPass123@', mockReset);
+      expect(mockReset).toHaveBeenCalledWith('token123', 'NewPass123@');
     });
 
     it('should return an error when the token is missing', async () => {
-      const result = await submitPasswordReset('', 'NewPass123', 'NewPass123', mockReset);
+      const result = await submitPasswordReset('', 'NewPass123@', 'NewPass123@', mockReset);
       expect(result.success).toBe(false);
       expect(result.message).toContain('token');
       expect(mockReset).not.toHaveBeenCalled();
     });
 
     it('should return an error when passwords do not match', async () => {
-      const result = await submitPasswordReset('token', 'NewPass123', 'Different4', mockReset);
+      const result = await submitPasswordReset('token', 'NewPass123@', 'Different4', mockReset);
       expect(result.success).toBe(false);
       expect(result.message).toBe('Passwords do not match');
       expect(mockReset).not.toHaveBeenCalled();
@@ -129,14 +129,14 @@ describe('reset-password-form', () => {
 
     it('should return the error message when onReset throws', async () => {
       const failingReset = vi.fn().mockRejectedValue(new Error('Token expired'));
-      const result = await submitPasswordReset('token', 'NewPass123', 'NewPass123', failingReset);
+      const result = await submitPasswordReset('token', 'NewPass123@', 'NewPass123@', failingReset);
       expect(result.success).toBe(false);
       expect(result.message).toBe('Token expired');
     });
 
     it('should handle a non-Error throw from onReset gracefully', async () => {
       const failingReset = vi.fn().mockRejectedValue('unexpected');
-      const result = await submitPasswordReset('token', 'NewPass123', 'NewPass123', failingReset);
+      const result = await submitPasswordReset('token', 'NewPass123@', 'NewPass123@', failingReset);
       expect(result.success).toBe(false);
       expect(result.message).toBeDefined();
     });
