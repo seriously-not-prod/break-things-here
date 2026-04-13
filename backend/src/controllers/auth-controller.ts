@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
-import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken } from '../utils/auth-helpers.js';
+import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken, hashToken } from '../utils/auth-helpers.js';
 import { generateTokens } from '../middleware/auth.js';
 
 interface AuthRequest extends Request {
@@ -117,12 +117,14 @@ export async function login(req: Request, res: Response): Promise<Response> {
 
   const { accessToken, refreshToken } = generateTokens(user.id, user.email, user.role_id);
 
-  // Store refresh token in the sessions table
+  // Store SHA-256 hashes of tokens — never store raw JWTs (CWE-312 / CodeQL: clear-text storage)
+  const tokenHash = hashToken(accessToken);
+  const refreshTokenHash = hashToken(refreshToken);
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   await db.run(
     `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
      VALUES (?, ?, ?, ?)`,
-    [user.id, accessToken, refreshToken, expiresAt],
+    [user.id, tokenHash, refreshTokenHash, expiresAt],
   );
 
   return res.status(200).json({
@@ -225,7 +227,8 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
   const token = authHeader && authHeader.split(' ')[1];
 
   if (token) {
-    await db.run('DELETE FROM sessions WHERE token = ? AND user_id = ?', [token, req.user.id]);
+    // Look up the stored hash — raw token is never in the DB
+    await db.run('DELETE FROM sessions WHERE token = ? AND user_id = ?', [hashToken(token), req.user.id]);
   }
 
   return res.status(200).json({ message: 'Logged out successfully.' });
