@@ -32,14 +32,12 @@ export function generateTokens(userId: number, email: string, roleId: number, jt
     { expiresIn: '1h' } as jwt.SignOptions,
   );
 
-  const refreshJti = crypto.randomBytes(16).toString('hex');
-  const refreshToken = jwt.sign(
-    { id: userId, email, role_id: roleId, type: 'refresh', jti: refreshJti },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions,
-  );
+  // Use an opaque random refresh token rather than a signed JWT to avoid
+  // persisting jwt.sign outputs in server storage. Refresh tokens are
+  // stored hashed in the DB and rotated.
+  const refreshToken = crypto.randomBytes(32).toString('hex');
 
-  return { accessToken, refreshToken, accessJti, refreshJti };
+  return { accessToken, refreshToken, accessJti };
 }
 
 export function verifyToken(token: string): TokenPayload | null {
