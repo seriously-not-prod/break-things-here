@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
-import { validateEmailFormat, generatePasswordResetToken, sendPasswordResetEmail, hashPassword, hashToken } from '../utils/auth-helpers.js';
+import { validateEmailFormat, generatePasswordResetTokenPair, sendPasswordResetEmail, hashPassword, hashResetVerifier, verifyResetToken } from '../utils/auth-helpers.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -101,17 +101,18 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
       [normalizedEmail],
     );
 
-    // AC: Generate cryptographically secure token
-    const resetToken = generatePasswordResetToken();
-    // Store only the SHA-256 hash — sending the plain token in the email URL is intentional;
-    // the DB never holds the raw token (CWE-312 / CodeQL: clear-text sensitive storage)
-    const resetTokenHash = hashToken(resetToken);
+    // AC: Generate cryptographically secure token (selector/verifier pattern)
+    // selector: 32-char hex stored in plaintext for fast DB lookup
+    // verifier: 64-char hex bcrypt-hashed for storage (CWE-916 compliance)
+    // fullToken: 96-char hex sent to the user in the email link
+    const { selector, verifier, fullToken } = generatePasswordResetTokenPair();
+    const verifierHash = await hashResetVerifier(verifier);
     const expiresAt = new Date(Date.now() + TOKEN_EXPIRATION_MS).toISOString();
 
-    // AC: Store token hash in database with expiration
+    // AC: Store token in database with expiration
     await db.run(
-      `INSERT INTO password_reset_tokens (user_id, email, token, expires_at) VALUES (?, ?, ?, ?)`,
-      [user?.id || null, normalizedEmail, resetTokenHash, expiresAt],
+      `INSERT INTO password_reset_tokens (user_id, email, token_selector, token, expires_at) VALUES (?, ?, ?, ?, ?)`,
+      [user?.id || null, normalizedEmail, selector, verifierHash, expiresAt],
     );
 
     // AC: Send reset email if user exists
@@ -127,7 +128,7 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
       );
 
       try {
-        await sendPasswordResetEmail(normalizedEmail, resetToken, baseUrl);  // plain token in email link
+        await sendPasswordResetEmail(normalizedEmail, fullToken, baseUrl);  // full token (selector+verifier) in email link
       } catch (emailError) {
         console.error('Failed to send password reset email:', emailError);
         // Continue despite email failure - token is stored and audit log is written
@@ -197,13 +198,26 @@ export async function resetPassword(req: AuthRequest, res: Response): Promise<Re
   const db = getDatabase();
 
   try {
-    // Look up token by hash — raw token is never stored in the DB
+    // Split the full token (96 hex chars) into selector (32) + verifier (64)
+    // selector is used for fast DB lookup; verifier is compared against the stored bcrypt hash
+    if (token.length < 33) {
+      return res.status(400).json({ error: 'Invalid or expired reset token.' });
+    }
+    const selector = token.slice(0, 32);
+    const verifier = token.slice(32);
+
     const tokenRow = await db.get(
-      `SELECT id, user_id, email, expires_at, used_at FROM password_reset_tokens WHERE token = ?`,
-      [hashToken(token)],
+      `SELECT id, user_id, email, token, expires_at, used_at FROM password_reset_tokens WHERE token_selector = ?`,
+      [selector],
     );
 
     if (!tokenRow) {
+      return res.status(400).json({ error: 'Invalid or expired reset token.' });
+    }
+
+    // Constant-time bcrypt comparison of the verifier against the stored hash
+    const isValidVerifier = await verifyResetToken(verifier, tokenRow.token as string);
+    if (!isValidVerifier) {
       return res.status(400).json({ error: 'Invalid or expired reset token.' });
     }
 

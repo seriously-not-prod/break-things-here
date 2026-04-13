@@ -103,6 +103,7 @@ async function runMigrations(): Promise<void> {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
       email TEXT NOT NULL,
+      token_selector TEXT NOT NULL DEFAULT '',
       token TEXT NOT NULL UNIQUE,
       expires_at DATETIME NOT NULL,
       used INTEGER DEFAULT 0,
