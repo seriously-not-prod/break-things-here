@@ -70,6 +70,9 @@ async function runMigrations(): Promise<void> {
       email_verified INTEGER DEFAULT 0,
       email_verified_at DATETIME,
       email_verification_token TEXT,
+      pending_email TEXT,
+      pending_email_token TEXT,
+      pending_email_token_expiry DATETIME,
       role_id INTEGER DEFAULT 1,
       account_locked INTEGER DEFAULT 0,
       locked_until DATETIME,
@@ -88,6 +91,7 @@ async function runMigrations(): Promise<void> {
       token TEXT NOT NULL UNIQUE,
       refresh_token TEXT NOT NULL UNIQUE,
       expires_at DATETIME NOT NULL,
+      last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
@@ -149,5 +153,59 @@ async function runMigrations(): Promise<void> {
     (1, 'Attendee', 'Default role for new users'),
     (2, 'Organizer', 'Can create and manage events'),
     (3, 'Admin', 'Full system access')
+  `);
+
+  // Create permissions table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS permissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Create role_permissions junction table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS role_permissions (
+      role_id INTEGER NOT NULL,
+      permission_id INTEGER NOT NULL,
+      PRIMARY KEY (role_id, permission_id),
+      FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+      FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create user_profiles table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS user_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER UNIQUE NOT NULL,
+      bio TEXT,
+      phone_number TEXT,
+      profile_photo_url TEXT,
+      address TEXT,
+      city TEXT,
+      state TEXT,
+      zip_code TEXT,
+      country TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Insert default permissions
+  await db.exec(`
+    INSERT OR IGNORE INTO permissions (name, description) VALUES
+    ('users.view', 'View user profiles'),
+    ('users.edit', 'Edit user profiles'),
+    ('users.delete', 'Delete users'),
+    ('events.view', 'View events'),
+    ('events.create', 'Create events'),
+    ('events.edit', 'Edit events'),
+    ('events.delete', 'Delete events'),
+    ('roles.view', 'View roles'),
+    ('roles.manage', 'Manage roles and permissions')
   `);
 }

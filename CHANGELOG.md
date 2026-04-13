@@ -12,6 +12,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Forgot password form component with ARIA accessibility (#79)
+- Reset password form component with token-based flow (#79)
+- JWT token refresh endpoint with token rotation and httpOnly cookies (#81)
+- Session timeout server-side validation with configurable `SESSION_TIMEOUT_MS` (#82)
+- Session heartbeat endpoint at `/auth/session/heartbeat` (#82)
+- Session timeout provider React component (#82)
+- Remember-me persistent session support with cookie management (#83)
+- Admin user management UI: user table, role change dialog (#84)
+- Admin users API client (#84)
+- API client with automatic token refresh (#81)
+- Backend SQLite database migrations for `user_profiles`, `permissions`, `role_permissions` tables
+- Backend routes for password reset, email change confirmation, account deletion, token refresh, session heartbeat
+- `last_activity` column on sessions table for timeout tracking
+- `pending_email`, `pending_email_token`, `pending_email_expires` columns on users table
+- Unique `jti` claims on JWT tokens via `crypto.randomBytes` for token uniqueness
+- Backend dependencies: `cors`, `express-rate-limit`, `multer`, `jsonwebtoken` with type definitions
+- Tests for JWT token refresh, session timeout, remember-me sessions, forgot/reset password, admin user management
+
+### Fixed
+- Backend entry point (`index.ts`) rewritten from PostgreSQL to SQLite for consistency with rest of codebase
+- `AuthRequest` interface in profile-controller.ts no longer conflicts with multer file types (#102)
+- `authenticateToken` middleware converted to async with database session validation and timeout checking
+- `generateTokens` now produces unique tokens even within the same second (jti claim)
+- `server.js` converted from CommonJS to ESM to match `"type": "module"` in package.json
+- Remember-me test converted from `node:test` CJS to vitest ESM format
+- Reset password test label matching fixed to avoid ambiguous `getByLabelText` queries
+- All PascalCase component directories renamed to kebab-case (`AccountDeletion` → `account-deletion`, `ProfileEdit` → `profile-edit`, `ProfileView` → `profile-view`, `LoginForm` → `login-form`)
+- All test imports updated to use kebab-case component paths
+- `vite/client` types added to root tsconfig.json
+- Frontend `App.tsx` import updated from PascalCase `LoginForm` to kebab-case `login-form`
+
+### Changed
 - User registration endpoint with bcrypt password hashing, email normalization, and validation (#16, #20)
 - Email confirmation flow with token generation and single-use enforcement (#16, #74)
 - Password reset and recovery with secure token generation and audit logging (#74)
@@ -23,15 +55,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Branch naming convention enforced via repository ruleset (#48)
 - GitHub CLI usage documented and enforced as the standard for all GitHub interactions (#53)
 - `validate-issue-hierarchy.js` migrated to GraphQL API for reliable sub-issue parent detection (#72)
-
-### Fixed
-- TypeScript error: `AuthRequest` interface now includes `multer` `file` property in profile-controller.ts (#102)
 - Password reset audit log now always written regardless of email delivery success (#74)
 - All test files migrated from `jest.*` API calls to `vi.*` equivalents for vitest compatibility (#26)
 - ESM module mocking patterns corrected using `vi.mock` with `vi.fn()` factory functions (#26)
 - Missing runtime dependencies installed: `@testing-library/dom`, `bcryptjs`, `jsonwebtoken`, `nodemailer`, `supertest`, `express` (#26)
-
-### Next.js App Router project scaffold with TypeScript (#50)
+- Next.js App Router project scaffold with TypeScript (#50)
 - MUI (Material UI) integration with theme provider and CssBaseline (#50)
 - Frontend folder structure: components, hooks, utils, types (#50)
 - Backend API routes scaffold under `src/app/api/` (#50)
@@ -43,8 +71,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Workflow status fields: Backlog → Ready → In Progress → Code Review → Testing → Ready for Release → Released
 - Project Board link in README and release process documentation
 - Instructions for adding issues to Project 1
-
-### Changed
 - Updated README.md with GitHub Projects workflow integration
 - Updated docs/processes/release-process.md with Project 1 details and workflow states
 - Enhanced Making Changes section with project board workflow steps

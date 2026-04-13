@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ProfileEdit } from '../components/ProfileEdit/ProfileEdit';
+import { ProfileEdit } from '../components/profile-edit/profile-edit';
 import { UserProfile } from '../types/user';
 import * as fileValidation from '../utils/file-validation';
 
