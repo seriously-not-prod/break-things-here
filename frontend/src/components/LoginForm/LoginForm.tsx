@@ -29,7 +29,11 @@ function toRemainingSeconds(lockedUntil?: number): number {
   return Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
 }
 
-export function LoginForm(): JSX.Element {
+interface LoginFormProps {
+  onForgotPassword?: () => void;
+}
+
+export function LoginForm({ onForgotPassword }: LoginFormProps): JSX.Element {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -139,7 +143,7 @@ export function LoginForm(): JSX.Element {
           label="Email"
           value={email}
           onChange={handleEmailChange}
-          inputProps={{ 'aria-label': 'Email address' }}
+          slotProps={{ htmlInput: { 'aria-label': 'Email address' } }}
           autoComplete="email"
           fullWidth
         />
@@ -152,7 +156,7 @@ export function LoginForm(): JSX.Element {
           label="Password"
           value={password}
           onChange={handlePasswordChange}
-          inputProps={{ 'aria-label': 'Password' }}
+          slotProps={{ htmlInput: { 'aria-label': 'Password' } }}
           autoComplete="current-password"
           fullWidth
         />
@@ -162,7 +166,7 @@ export function LoginForm(): JSX.Element {
             <Checkbox
               checked={rememberMe}
               onChange={handleRememberMeChange}
-              inputProps={{ 'aria-label': 'Remember me' }}
+              slotProps={{ input: { 'aria-label': 'Remember me' } }}
             />
           }
           label="Remember me"
@@ -180,6 +184,16 @@ export function LoginForm(): JSX.Element {
         <Typography aria-live="polite" variant="body2" color="text.secondary">
           {isSubmitting ? 'Submitting your login request.' : 'Use your email and password to sign in.'}
         </Typography>
+
+        <Button
+          variant="text"
+          onClick={onForgotPassword}
+          aria-label="Forgot password"
+          fullWidth
+          size="small"
+        >
+          Forgot password?
+        </Button>
       </Stack>
     </Box>
   );
