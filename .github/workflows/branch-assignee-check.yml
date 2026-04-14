@@ -53,10 +53,9 @@ jobs:
         run: |
           echo "Checking if '$PUSHER' is assigned to issue #$ISSUE_NUMBER"
 
-          # Call GitHub API to get issue assignees and capture any errors.
+          # Call GitHub API to get full issue data
           API_ERR_FILE="$(mktemp)"
-          if ! ASSIGNEES=$(gh api "repos/${{ github.repository }}/issues/$ISSUE_NUMBER" \
-            --jq '[.assignees[].login] | join(",")' 2>"$API_ERR_FILE"); then
+          if ! ISSUE_JSON=$(gh api "repos/${{ github.repository }}/issues/$ISSUE_NUMBER" 2>"$API_ERR_FILE"); then
             API_ERROR_MSG="$(cat "$API_ERR_FILE")"
             rm -f "$API_ERR_FILE"
 
@@ -68,6 +67,16 @@ jobs:
             exit 1
           fi
           rm -f "$API_ERR_FILE"
+
+          # If the issue/PR is already closed or merged, the work is done — skip the check.
+          ISSUE_STATE=$(echo "$ISSUE_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('state',''))")
+          PR_MERGED=$(echo "$ISSUE_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('pull_request',{}).get('merged_at') or '')" 2>/dev/null || echo "")
+          if [[ "$ISSUE_STATE" == "closed" || -n "$PR_MERGED" ]]; then
+            echo "✅ Issue/PR #$ISSUE_NUMBER is already closed/merged. Assignee check skipped."
+            exit 0
+          fi
+
+          ASSIGNEES=$(echo "$ISSUE_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(','.join(a['login'] for a in d.get('assignees',[])))")
 
           if [[ -z "$ASSIGNEES" ]]; then
             echo "::error::Issue #$ISSUE_NUMBER has no assignees. Assign yourself to the issue before pushing."

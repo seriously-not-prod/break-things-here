@@ -3,6 +3,7 @@ import * as authController from '../controllers/auth-controller.js';
 import * as profileController from '../controllers/profile-controller.js';
 import * as usersController from '../controllers/users-controller.js';
 import * as rbacController from '../controllers/rbac-controller.js';
+import * as passwordResetController from '../controllers/password-reset-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
@@ -50,6 +51,18 @@ router.post('/auth/verify-email', authController.verifyEmail);
 router.post('/auth/login', authController.login);
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
+
+// Token refresh and heartbeat
+router.post('/auth/refresh', authController.refreshTokenEndpoint);
+router.post('/auth/session/heartbeat', authenticateToken, authController.sessionHeartbeat);
+
+// Password reset routes
+router.post('/auth/forgot-password', passwordResetController.forgotPassword);
+router.post('/auth/reset-password', passwordResetController.resetPassword);
+
+// Profile email-change confirmation and account deletion
+router.post('/profile/confirm-email-change', profileController.confirmEmailChange);
+router.delete('/profile/account', authenticateToken, profileController.deleteAccount);
 
 // ============ USER (self-service) ROUTES — issues #36, #39 ============
 router.get('/users/me', authenticateToken, usersController.getMe);
