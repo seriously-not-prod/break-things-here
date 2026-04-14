@@ -35,13 +35,19 @@ jobs:
           GH_TOKEN: ${{ secrets.AUTO_APPROVE_TOKEN || secrets.GITHUB_TOKEN }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           ACTOR: ${{ github.actor }}
+          # Pass pull_request_target context values via env vars to prevent code injection.
+          # Never interpolate github context values directly in shell with pull_request_target.
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          REPO: ${{ github.repository }}
         run: |
           # GitHub blocks self-approval. Attempt the review and handle the error gracefully.
           # gh api user fails for bot tokens (returns non-JSON), so we capture review output instead.
-          REVIEW_OUTPUT=$(gh pr review ${{ github.event.pull_request.number }} \
-            --repo "${{ github.repository }}" \
+          REVIEW_OUTPUT=$(gh pr review "${PR_NUMBER}" \
+            --repo "${REPO}" \
             --approve \
-            --body "Auto-approved: environment promotion from \`${{ github.head_ref }}\` to \`${{ github.base_ref }}\`." 2>&1) && {
+            --body "Auto-approved: environment promotion from \`${HEAD_REF}\` to \`${BASE_REF}\`." 2>&1) && {
             echo "✅ PR auto-approved."
           } || {
             if echo "$REVIEW_OUTPUT" | grep -q "Can not approve your own pull request"; then
