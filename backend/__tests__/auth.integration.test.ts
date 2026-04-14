@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { hashPassword } from '../src/utils/auth-helpers.js';
+import { hashPassword, hashToken } from '../src/utils/auth-helpers.js';
 
 // ---------------------------------------------------------------------------
 // Minimal mock of Express req / res
@@ -121,7 +121,8 @@ beforeEach(async () => {
       user_id INTEGER NOT NULL,
       token TEXT UNIQUE NOT NULL,
       refresh_token TEXT,
-      expires_at DATETIME NOT NULL
+      expires_at DATETIME NOT NULL,
+      last_activity DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     INSERT INTO roles (name) VALUES ('Attendee'), ('Organizer'), ('Admin');
   `);
@@ -221,8 +222,8 @@ describe('Auth Integration — Logout', () => {
     // Insert a session so logout has something to invalidate
     await testDb.run(
       `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
-       VALUES (?, 'access-tok', 'refresh-tok', datetime('now', '+1 hour'))`,
-      [user!.id],
+       VALUES (?, ?, ?, datetime('now', '+1 hour'))`,
+      [user!.id, hashToken('access-tok'), hashToken('refresh-tok')],
     );
 
     const req = makeReq({}, { id: user!.id, email: 'frank@example.com', role_id: 1 });
@@ -239,8 +240,8 @@ describe('Auth Integration — Logout', () => {
 
     await testDb.run(
       `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
-       VALUES (?, 'my-access', 'my-refresh', datetime('now', '+1 hour'))`,
-      [user!.id],
+       VALUES (?, ?, ?, datetime('now', '+1 hour'))`,
+      [user!.id, hashToken('my-access'), hashToken('my-refresh')],
     );
 
     const req = makeReq({}, { id: user!.id, email: 'grace@example.com', role_id: 1 });
