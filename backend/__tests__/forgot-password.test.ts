@@ -13,6 +13,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// Stub nodemailer so tests don't attempt real SMTP
+vi.mock('nodemailer', () => ({
+  default: {
+    createTransport: () => ({ sendMail: vi.fn().mockResolvedValue({}) }),
+  },
+}));
 import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
 import { forgotPassword } from '../src/controllers/password-reset-controller.js';
 

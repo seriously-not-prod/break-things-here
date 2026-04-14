@@ -4,7 +4,7 @@ import { sendConfirmationEmail, setTransporter, EmailError } from '../../service
 vi.mock('nodemailer');
 
 const mockSendMail = vi.fn();
-const mockCreateTransport = nodemailer.createTransport as jest.Mock;
+const mockCreateTransport = nodemailer.createTransport as unknown as ReturnType<typeof vi.fn>;
 
 describe('Email Service', () => {
   beforeEach(() => {
