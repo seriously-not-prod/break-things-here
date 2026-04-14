@@ -6,12 +6,20 @@ import apiRoutes from './routes/api-routes.js';
 const app = express();
 const port = parseInt(process.env.PORT || '3001', 10);
 
-const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:5173')
-  .split(',')
-  .map((o) => o.trim());
+// CORS: in development reflect the request origin to simplify local preview ports.
+const isDev = process.env.NODE_ENV !== 'production';
+let corsOptions: any;
+if (isDev) {
+  corsOptions = { origin: true, credentials: true };
+} else {
+  const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:4173')
+    .split(',')
+    .map((o) => o.trim());
+  corsOptions = { origin: allowedOrigins, credentials: true };
+}
 
 // Middleware
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Health check endpoint

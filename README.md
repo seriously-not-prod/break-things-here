@@ -22,10 +22,11 @@ This repository is designed to teach:
 
 ### Tech Stack
 
-- **Frontend**: [Next.js](https://nextjs.org/) (App Router) with [TypeScript](https://www.typescriptlang.org/)
-- **UI Library**: [MUI (Material UI)](https://mui.com/)
-- **Backend**: Next.js API Routes
-- **Data Tier**: TBD (database config in `src/data/`)
+- **Frontend**: [React](https://react.dev/) + [Vite](https://vitejs.dev/) + [TypeScript](https://www.typescriptlang.org/)
+- **Routing**: [React Router](https://reactrouter.com/)
+- **UI Layer**: Custom responsive workspace shell with existing MUI dependencies available in the repo
+- **Backend**: Express and additional training API surfaces under `backend/` and `src/api/`
+- **Data Tier**: Sample seeded planner data with local persistence in the active root app
 - **Package Manager**: npm
 
 ### Prerequisites
@@ -51,6 +52,11 @@ This repository is designed to teach:
 
 3. **Install dependencies**
    ```bash
+   npm install
+   ```
+
+   Optional training surfaces can also be installed independently when needed:
+   ```bash
    cd backend && npm install
    cd ../frontend && npm install
    ```
@@ -63,29 +69,33 @@ This repository is designed to teach:
 
 ### Running the Application
 
-Run backend API:
+Run the active root application:
+
+```bash
+npm run dev
+```
+
+Optional: run backend API in another terminal when working on backend training tasks:
 
 ```bash
 cd backend && npm run dev
 ```
 
-Run frontend app in another terminal:
+Optional: run the separate `frontend/` training app surface if you specifically need it:
 
 ```bash
 cd frontend && npm run dev
 ```
 
-Frontend runs on `http://localhost:5173` and backend runs on `http://localhost:3001`.
+The active root planner app runs on `http://localhost:5173` and the backend runs on `http://localhost:3001`.
 
-Demo login credentials (configurable by environment variables):
-- Email: `user@example.com`
-- Password: `Password123!`
-
-Current implementation includes a login flow with:
-- React + Material UI login form
-- Loading and error states
-- 3 failed login attempt limit
-- 10 minute temporary lockout after max failures
+Current implementation includes:
+- Dashboard with event, RSVP, and task summaries
+- Sidebar and top navigation with responsive mobile behavior
+- Event list, create, detail, and edit flows
+- Task tracking linked to events
+- RSVP management plus a public RSVP route (`/rsvp/:eventId`)
+- Minimal admin overview with sample users and activity logs
 
 ### Backend Environment Variables
 
@@ -105,7 +115,7 @@ For local development, the backend allows requests from `http://localhost:5173` 
 ### Building for Production
 
 ```bash
-cd frontend && npm run build
+npm run build
 ```
 
 ## Repository Structure

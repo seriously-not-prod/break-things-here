@@ -9,6 +9,8 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { hashPassword } from '../utils/auth-helpers.js';
+import { getDatabase } from '../db/database.js';
 
 const apiLimiter = rateLimit({ windowMs: 60_000, max: 100 });
 
@@ -112,3 +114,24 @@ router.get(
 router.get('/user/role-permissions', authenticateToken, rbacController.getUserRoleAndPermissions);
 
 export default router;
+
+// Development-only: seed a verified demo user for local testing
+if (process.env.NODE_ENV !== 'production') {
+  router.post('/__dev/seed-user', async (req, res) => {
+    try {
+      const { email, password, displayName } = req.body ?? {};
+      if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+      const db = getDatabase();
+      const passwordHash = await hashPassword(password);
+      await db.run(
+        `INSERT OR REPLACE INTO users (email, password_hash, display_name, email_verified, role_id, created_at, updated_at)
+         VALUES (?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [email.trim().toLowerCase(), passwordHash, displayName || email.split('@')[0]],
+      );
+      return res.status(201).json({ message: 'Demo user seeded' });
+    } catch (err) {
+      console.error('Dev seed user failed', err);
+      return res.status(500).json({ error: 'seed failed' });
+    }
+  });
+}
