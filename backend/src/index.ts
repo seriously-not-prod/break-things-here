@@ -6,11 +6,17 @@ import apiRoutes from './routes/api-routes.js';
 const app = express();
 const port = parseInt(process.env.PORT || '3001', 10);
 
-// CORS: in development reflect the request origin to simplify local preview ports.
+// CORS: use an explicit allowlist even in development to avoid permissive-origin issues.
 const isDev = process.env.NODE_ENV !== 'production';
-let corsOptions: any;
+const DEV_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:4173',
+  'http://localhost:5173',
+  'http://localhost:5174',
+];
+let corsOptions: { origin: string[]; credentials: boolean };
 if (isDev) {
-  corsOptions = { origin: true, credentials: true };
+  corsOptions = { origin: DEV_ORIGINS, credentials: true };
 } else {
   const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:4173')
     .split(',')
