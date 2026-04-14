@@ -1,0 +1,126 @@
+name: Auto-approve safe sync PRs
+
+env:
+  AUTO_MERGE: 'true' # set to 'true' to enable safe auto-merge when checks pass
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  pull-requests: write
+  checks: read
+  contents: read
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-approve safe sync PRs
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const pr = context.payload.pull_request;
+
+            const protectedTargets = ['main', 'production'];
+            const headRef = pr.head.ref;
+            const baseRef = pr.base.ref;
+            const actor = context.actor;
+            const author = pr.user && pr.user.login;
+            const reasons = [];
+
+            // Step 1: Title must start with chore(sync):
+            if (!pr.title || !pr.title.startsWith('chore(sync):')) {
+              reasons.push('PR title does not start with "chore(sync):"');
+            }
+
+            // Step 1: Source must be main
+            if (headRef !== 'main') {
+              reasons.push(`Source branch is not main (found: ${headRef})`);
+            }
+
+            // Step 5: Never auto-approve PRs into protected production branches
+            if (protectedTargets.includes(baseRef) || baseRef.startsWith('release')) {
+              reasons.push(`Target branch ${baseRef} is protected (no auto-approval)`);
+            }
+
+            // Optionally restrict to develop or non-prod branches only
+            if (!(baseRef === 'develop' || (!protectedTargets.includes(baseRef) && !baseRef.startsWith('release')))) {
+              reasons.push(`Target branch ${baseRef} is not a non-production branch`);
+            }
+
+            // Step 2: Prevent self-approval
+            if (author && actor && author === actor) {
+              reasons.push('PR author is the workflow actor (self-approval not allowed)');
+            }
+
+            // Step 1 extra: ensure commits do not contain feature/bug/security keywords
+            const commits = await github.paginate('GET /repos/{owner}/{repo}/pulls/{pull_number}/commits', {owner, repo, pull_number: pr.number});
+            const badCommit = commits.find(c => /(^feat|^fix|\bsecurity\b|\bfeat\(|\bfix\()/i.test(c.commit.message));
+            if (badCommit) {
+              reasons.push(`Commit messages include feature/bug/security changes (commit ${badCommit.sha})`);
+            }
+
+            // If any pre-check failed, comment and exit without approving
+            if (reasons.length > 0) {
+              const body = `Auto-approve skipped: ${reasons.join('; ')}`;
+              await github.rest.issues.createComment({owner, repo, issue_number: pr.number, body});
+              return {approved: false, reasons};
+            }
+
+            // Step 4: Ensure all checks are complete and successful
+            const headSha = pr.head.sha;
+            const checkRunsResp = await github.rest.checks.listForRef({owner, repo, ref: headSha});
+            const checkRuns = checkRunsResp.data.check_runs || [];
+
+            const inProgress = checkRuns.find(c => c.status !== 'completed');
+            if (inProgress) {
+              await github.rest.issues.createComment({owner, repo, issue_number: pr.number, body: `Auto-approve pending: checks still in progress (example: ${inProgress.name})`});
+              return {approved: false, reasons: ['checks in progress']};
+            }
+
+            const failing = checkRuns.find(c => c.conclusion !== 'success');
+            if (failing) {
+              await github.rest.issues.createComment({owner, repo, issue_number: pr.number, body: `Auto-approve skipped: failing check ${failing.name}`});
+              return {approved: false, reasons: ['checks failing']};
+            }
+
+            // Step 4: Ensure CodeQL/code-scanning shows no open alerts for this ref
+            // If the API returns alerts for this ref, treat as unsafe.
+            try {
+              const alerts = await github.request('GET /repos/{owner}/{repo}/code-scanning/alerts', {owner, repo, ref: headSha});
+              if (alerts && Array.isArray(alerts.data) && alerts.data.length > 0) {
+                await github.rest.issues.createComment({owner, repo, issue_number: pr.number, body: `Auto-approve skipped: code-scanning alerts detected (${alerts.data.length})`});
+                return {approved: false, reasons: ['code-scanning alerts present']};
+              }
+            } catch (err) {
+              // If code-scanning API is unavailable, do not auto-approve (fail-safe)
+              await github.rest.issues.createComment({owner, repo, issue_number: pr.number, body: `Auto-approve skipped: unable to verify code-scanning status (safe-mode)`});
+              return {approved: false, reasons: ['code-scanning unknown']};
+            }
+
+            // Step 3: Approve the PR
+            await github.rest.pulls.createReview({owner, repo, pull_number: pr.number, event: 'APPROVE', body: 'Auto-approved: Sync PR'});
+            await github.rest.issues.createComment({owner, repo, issue_number: pr.number, body: 'Auto-approved: Sync PR'});
+
+            // Step 4 (optional): Auto-merge if enabled and safe
+            const autoMerge = process.env.AUTO_MERGE === 'true' || process.env.INPUT_AUTO_MERGE === 'true';
+            if (autoMerge) {
+              // Re-fetch PR to check mergeable state
+              const prResp = await github.rest.pulls.get({owner, repo, pull_number: pr.number});
+              if (prResp.data.mergeable && prResp.data.mergeable_state === 'clean') {
+                try {
+                  await github.rest.pulls.merge({owner, repo, pull_number: pr.number, merge_method: 'merge'});
+                  await github.rest.issues.createComment({owner, repo, issue_number: pr.number, body: 'Auto-merged: Sync PR (safe mode)'});
+                } catch (mergeErr) {
+                  await github.rest.issues.createComment({owner, repo, issue_number: pr.number, body: `Auto-merge attempted but failed: ${mergeErr.message}`});
+                }
+              } else {
+                await github.rest.issues.createComment({owner, repo, issue_number: pr.number, body: `Auto-merge skipped: PR not mergeable/clean (state=${prResp.data.mergeable_state})`});
+              }
+            }
+
+            return {approved: true};
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
