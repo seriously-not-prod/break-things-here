@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { getDatabase } from '../db/database.js';
+import { hashToken } from '../utils/auth-helpers.js';
 
 interface AuthRequest extends Request {
   user?: {
@@ -20,21 +22,22 @@ interface TokenPayload {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+export const SESSION_TIMEOUT_MS = parseInt(process.env.SESSION_TIMEOUT_MS || String(30 * 60 * 1000), 10);
 
-export function generateTokens(userId: number, email: string, roleId: number) {
+export function generateTokens(userId: number, email: string, roleId: number, jti?: string) {
+  const accessJti = jti || crypto.randomBytes(16).toString('hex');
   const accessToken = jwt.sign(
-    { id: userId, email, role_id: roleId },
+    { id: userId, email, role_id: roleId, jti: accessJti },
     JWT_SECRET,
     { expiresIn: '1h' } as jwt.SignOptions,
   );
 
-  const refreshToken = jwt.sign(
-    { id: userId, email, role_id: roleId, type: 'refresh' },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions,
-  );
+  // Use an opaque random refresh token rather than a signed JWT to avoid
+  // persisting jwt.sign outputs in server storage. Refresh tokens are
+  // stored hashed in the DB and rotated.
+  const refreshToken = crypto.randomBytes(32).toString('hex');
 
-  return { accessToken, refreshToken };
+  return { accessToken, refreshToken, accessJti };
 }
 
 export function verifyToken(token: string): TokenPayload | null {
@@ -46,7 +49,7 @@ export function verifyToken(token: string): TokenPayload | null {
   }
 }
 
-export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): void {
+export async function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -60,6 +63,35 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
     res.status(403).json({ error: 'Invalid or expired token' });
     return;
   }
+  const db = getDatabase();
+
+  // Use the access token `jti` (which is a random server-generated session id)
+  // to validate the session and enforce inactivity timeout.
+  // Sessions are stored keyed by hashToken(sessionId) — use the same KDF for lookup.
+  const sessionJti = (payload as any).jti as string | undefined;
+  const tokenHash = sessionJti ? hashToken(sessionJti) : hashToken(token);
+
+  const session = await db.get<{ id: number; last_activity: string; user_id: number }>(
+    'SELECT id, last_activity, user_id FROM sessions WHERE token = ?',
+    [tokenHash],
+  );
+
+  if (!session) {
+    res.status(401).json({ error: 'Session not found' });
+    return;
+  }
+
+  if (session.last_activity) {
+    const lastActivity = new Date(session.last_activity).getTime();
+    if (Date.now() - lastActivity > SESSION_TIMEOUT_MS) {
+      await db.run('DELETE FROM sessions WHERE id = ?', [session.id]);
+      res.status(401).json({ error: 'Session expired due to inactivity', code: 'SESSION_TIMEOUT' });
+      return;
+    }
+  }
+
+  // Update last_activity
+  await db.run('UPDATE sessions SET last_activity = ? WHERE id = ?', [new Date().toISOString(), session.id]);
 
   req.user = {
     id: payload.id,

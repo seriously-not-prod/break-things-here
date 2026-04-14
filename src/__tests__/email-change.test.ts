@@ -14,7 +14,7 @@ describe('confirmEmailChange', () => {
   });
 
   it('returns email on successful confirmation', async () => {
-    (fetch as jest.Mock).mockResolvedValue({
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => ({ email: 'new@example.com' }),
@@ -24,7 +24,7 @@ describe('confirmEmailChange', () => {
   });
 
   it('throws on 400 response', async () => {
-    (fetch as jest.Mock).mockResolvedValue({
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
       status: 400,
       json: async () => ({ message: 'Token expired.' }),
@@ -33,7 +33,7 @@ describe('confirmEmailChange', () => {
   });
 
   it('throws generic error on other failure', async () => {
-    (fetch as jest.Mock).mockResolvedValue({
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
       status: 500,
       json: async () => ({}),
