@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
-import { validateEmailFormat, generatePasswordResetToken, sendPasswordResetEmail } from '../utils/auth-helpers.js';
+import { validateEmailFormat, generatePasswordResetToken, sendPasswordResetEmail, hashPassword, hashToken } from '../utils/auth-helpers.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -103,12 +103,15 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
 
     // AC: Generate cryptographically secure token
     const resetToken = generatePasswordResetToken();
+    // Store only the SHA-256 hash — sending the plain token in the email URL is intentional;
+    // the DB never holds the raw token (CWE-312 / CodeQL: clear-text sensitive storage)
+    const resetTokenHash = hashToken(resetToken);
     const expiresAt = new Date(Date.now() + TOKEN_EXPIRATION_MS).toISOString();
 
-    // AC: Store token in database with expiration
+    // AC: Store token hash in database with expiration
     await db.run(
       `INSERT INTO password_reset_tokens (user_id, email, token, expires_at) VALUES (?, ?, ?, ?)`,
-      [user?.id || null, normalizedEmail, resetToken, expiresAt],
+      [user?.id || null, normalizedEmail, resetTokenHash, expiresAt],
     );
 
     // AC: Send reset email if user exists
@@ -124,7 +127,7 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
       );
 
       try {
-        await sendPasswordResetEmail(normalizedEmail, resetToken, baseUrl);
+        await sendPasswordResetEmail(normalizedEmail, resetToken, baseUrl);  // plain token in email link
       } catch (emailError) {
         console.error('Failed to send password reset email:', emailError);
         // Continue despite email failure - token is stored and audit log is written
@@ -152,6 +155,95 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
     return res.status(200).json({
       message: 'If an account exists with this email, a password reset link has been sent.',
     });
+  }
+}
+
+/**
+ * POST /api/auth/reset-password
+ *
+ * Verifies the password reset token and updates the user's password.
+ *
+ * AC Requirements Met:
+ * - ✓ POST endpoint accepts reset token and new password
+ * - ✓ Token validated for existence, expiration, and single-use
+ * - ✓ Expired or invalid tokens return appropriate error
+ * - ✓ New password validated against strength requirements (min 8 chars)
+ * - ✓ Password hashed with bcrypt before storage
+ * - ✓ All existing user sessions invalidated after reset
+ * - ✓ Token marked as used after successful reset
+ * - ✓ Password change logged for security audit
+ * - ✓ Input validation and sanitization on all fields
+ */
+export async function resetPassword(req: AuthRequest, res: Response): Promise<Response> {
+  const { token, newPassword } = req.body as { token?: string; newPassword?: string };
+
+  if (!token || typeof token !== 'string') {
+    return res.status(400).json({ error: 'Reset token is required.' });
+  }
+
+  if (!newPassword || typeof newPassword !== 'string') {
+    return res.status(400).json({ error: 'New password is required.' });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+  }
+
+  // Basic complexity check: require at least one letter and one digit
+  if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+    return res.status(400).json({ error: 'Password must contain at least one letter and one number.' });
+  }
+
+  const db = getDatabase();
+
+  try {
+    // Look up token by hash — raw token is never stored in the DB
+    const tokenRow = await db.get(
+      `SELECT id, user_id, email, expires_at, used_at FROM password_reset_tokens WHERE token = ?`,
+      [hashToken(token)],
+    );
+
+    if (!tokenRow) {
+      return res.status(400).json({ error: 'Invalid or expired reset token.' });
+    }
+
+    if (tokenRow.used_at) {
+      return res.status(400).json({ error: 'This reset link has already been used.' });
+    }
+
+    const expiresAt = new Date(tokenRow.expires_at as string).getTime();
+    if (Date.now() > expiresAt) {
+      return res.status(400).json({ error: 'This reset link has expired. Please request a new one.' });
+    }
+
+    const userId = tokenRow.user_id as number;
+    const email = tokenRow.email as string;
+
+    // Hash new password
+    const passwordHash = await hashPassword(newPassword);
+
+    // Update user password
+    await db.run(`UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [
+      passwordHash,
+      userId,
+    ]);
+
+    // Invalidate all existing sessions
+    await db.run(`DELETE FROM sessions WHERE user_id = ?`, [userId]);
+
+    // Mark token as used
+    await db.run(
+      `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [tokenRow.id],
+    );
+
+    // Log audit entry
+    await logAudit(db, userId, email, 'PASSWORD_RESET_COMPLETED', 'Password successfully reset', req.ip);
+
+    return res.status(200).json({ message: 'Your password has been reset. You can now log in with your new password.' });
+  } catch (error) {
+    console.error('Error in reset password endpoint:', error);
+    return res.status(500).json({ error: 'An unexpected error occurred. Please try again.' });
   }
 }
 
