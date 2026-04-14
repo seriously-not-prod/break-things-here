@@ -1,13 +1,22 @@
 name: Auto Approve Promotion PRs
 
 on:
-  # Use pull_request_target so GITHUB_TOKEN runs in the context of the base
-  # branch (repository context), which allows it to approve PRs. The standard
-  # pull_request event restricts GITHUB_TOKEN from approving pull requests.
+  # pull_request_target runs in the base-branch context so GITHUB_TOKEN can
+  # approve PRs (used for feature/bugfix/hotfix → develop promotions and the
+  # standard environment pipeline: develop→test, test→stage, stage→main).
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
     branches:
       - develop
+      - test
+      - stage
+      - main
+  # pull_request is also included so that conflict-resolution branches
+  # (e.g. bugfix/* → test) trigger auto-approval using the HEAD branch's
+  # version of this workflow file.
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches:
       - test
       - stage
       - main
@@ -22,9 +31,9 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.base_ref == 'develop' && (startsWith(github.head_ref, 'feature/') || startsWith(github.head_ref, 'bugfix/') || startsWith(github.head_ref, 'hotfix/'))) ||
-      (github.base_ref == 'test' && github.head_ref == 'develop') ||
-      (github.base_ref == 'stage' && github.head_ref == 'test') ||
-      (github.base_ref == 'main' && github.head_ref == 'stage')
+      (github.base_ref == 'test' && (github.head_ref == 'develop' || startsWith(github.head_ref, 'bugfix/') || startsWith(github.head_ref, 'hotfix/'))) ||
+      (github.base_ref == 'stage' && (github.head_ref == 'test' || startsWith(github.head_ref, 'bugfix/') || startsWith(github.head_ref, 'hotfix/'))) ||
+      (github.base_ref == 'main' && (github.head_ref == 'stage' || startsWith(github.head_ref, 'bugfix/') || startsWith(github.head_ref, 'hotfix/')))
     steps:
       - name: Auto approve promotion PR
         env:
