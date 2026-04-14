@@ -1,0 +1,12 @@
+.registration-form{max-width:520px;margin:18px auto;padding:18px;background:#fff;border-radius:10px;box-shadow:0 8px 30px rgba(2,6,23,0.08);font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
+.registration-form *{box-sizing:border-box}
+.registration-form div{margin-bottom:14px}
+.registration-form label{display:block;font-size:13px;color:#0f1724;margin-bottom:6px;font-weight:700}
+.registration-form input{width:100%;padding:10px 12px;border:1px solid #e6e9ef;border-radius:8px;font-size:14px;color:#071133;background:#fff}
+.registration-form input:focus{outline:none;border-color:#6366f1;box-shadow:0 6px 18px rgba(99,102,241,0.12)}
+.registration-form span[role="alert"]{display:block;margin-top:6px;color:#b91c1c;font-size:13px}
+.registration-form button[type="submit"]{display:inline-block;padding:10px 16px;border-radius:8px;border:none;background:#0ea5a4;color:#fff;font-weight:700;cursor:pointer}
+.registration-form button[disabled]{opacity:0.55;cursor:not-allowed}
+.registration-form p{font-size:13px;color:#334155}
+.registration-form a{color:#2563eb}
+@media (max-width:600px){.registration-form{margin:12px;padding:14px;border-radius:8px}}
