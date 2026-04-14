@@ -1,0 +1,41 @@
+name: Promote test → stage
+
+on:
+  push:
+    branches: [test]
+
+env:
+  AUTO_MERGE: "true"
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - id: create_pr
+        name: Create PR to `stage`
+        uses: peter-evans/create-pull-request@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: chore(release): promote test → stage
+          title: chore(release): promote test → stage (automated)
+          body: |-
+            Automated promotion: merging `test` into `stage` for staging verification.
+            This PR was created by the promotion workflow.
+          base: stage
+          head: test
+          labels: chore, automated
+
+      - name: Optionally enable auto-merge
+        if: env.AUTO_MERGE == 'true'
+        uses: peter-evans/enable-pull-request-automerge@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          merge-method: squash
+          pull-request-number: ${{ steps.create_pr.outputs.pull-request-number }}

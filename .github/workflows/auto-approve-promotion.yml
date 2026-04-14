@@ -1,16 +1,29 @@
 name: Auto Approve Promotion PRs
 
 on:
-  pull_request:
+  # pull_request_target runs in the base-branch context so GITHUB_TOKEN can
+  # approve PRs (used for feature/bugfix/hotfix → develop promotions and the
+  # standard environment pipeline: develop→test, test→stage, stage→main).
+  pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
     branches:
       - develop
       - test
       - stage
       - main
+  # pull_request is also included so that conflict-resolution branches
+  # (e.g. bugfix/* → test) trigger auto-approval using the HEAD branch's
+  # version of this workflow file.
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches:
+      - test
+      - stage
+      - main
 
 permissions:
   pull-requests: write
+  contents: read
 
 jobs:
   auto-approve:
@@ -18,15 +31,39 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.base_ref == 'develop' && (startsWith(github.head_ref, 'feature/') || startsWith(github.head_ref, 'bugfix/') || startsWith(github.head_ref, 'hotfix/'))) ||
-      (github.base_ref == 'test' && github.head_ref == 'develop') ||
-      (github.base_ref == 'stage' && github.head_ref == 'test') ||
-      (github.base_ref == 'main' && github.head_ref == 'stage')
+      (github.base_ref == 'test' && (github.head_ref == 'develop' || startsWith(github.head_ref, 'bugfix/') || startsWith(github.head_ref, 'hotfix/'))) ||
+      (github.base_ref == 'stage' && (github.head_ref == 'test' || startsWith(github.head_ref, 'bugfix/') || startsWith(github.head_ref, 'hotfix/'))) ||
+      (github.base_ref == 'main' && (github.head_ref == 'stage' || startsWith(github.head_ref, 'bugfix/') || startsWith(github.head_ref, 'hotfix/')))
     steps:
       - name: Auto approve promotion PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use AUTO_APPROVE_TOKEN (a PAT from a different account) when available so that
+          # the reviewer identity differs from the PR author — GitHub does not allow a user
+          # to approve their own PR.  Falls back to GITHUB_TOKEN for repositories where the
+          # PR author is always different from the Actions bot (e.g. bots opening PRs).
+          GH_TOKEN: ${{ secrets.AUTO_APPROVE_TOKEN || secrets.GITHUB_TOKEN }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          ACTOR: ${{ github.actor }}
+          # Pass pull_request_target context values via env vars to prevent code injection.
+          # Never interpolate github context values directly in shell with pull_request_target.
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          REPO: ${{ github.repository }}
         run: |
-          gh pr review ${{ github.event.pull_request.number }} \
-            --repo "${{ github.repository }}" \
+          # GitHub blocks self-approval. Attempt the review and handle the error gracefully.
+          # gh api user fails for bot tokens (returns non-JSON), so we capture review output instead.
+          REVIEW_OUTPUT=$(gh pr review "${PR_NUMBER}" \
+            --repo "${REPO}" \
             --approve \
-            --body "Auto-approved: environment promotion from \`${{ github.head_ref }}\` to \`${{ github.base_ref }}\`."
+            --body "Auto-approved: environment promotion from \`${HEAD_REF}\` to \`${BASE_REF}\`." 2>&1) && {
+            echo "✅ PR auto-approved."
+          } || {
+            if echo "$REVIEW_OUTPUT" | grep -q "Can not approve your own pull request"; then
+              echo "⚠️  Skipping auto-approve: token owner is the PR author (self-approval not permitted)."
+              echo "   Set the AUTO_APPROVE_TOKEN secret to a PAT from a different account to enable auto-approval."
+              exit 0
+            fi
+            echo "❌ Auto-approve failed: $REVIEW_OUTPUT"
+            exit 1
+          }

@@ -114,8 +114,13 @@ cd frontend && npm run build
 .
 ├── .github/
 │   ├── ISSUE_TEMPLATE/       # Issue templates (Theme, Story, Task, etc.)
+│   ├── rulesets/             # Repository ruleset definitions
 │   ├── workflows/
-│   │   └── pr-validation.yml # CI validation workflow
+│   │   ├── ci-pr-validation.yml   # PR issue/commit validation
+│   │   ├── branch-assignee-check.yml # Branch ownership checks
+│   │   ├── auto-draft-pr.yml      # Auto-create draft PRs
+│   │   ├── code-quality.yml       # Build and test checks
+│   │   └── codeql.yml             # Security scanning
 │   ├── copilot-instructions.md
 │   ├── universal-agent-guide.md
 │   ├── pull_request_template.md

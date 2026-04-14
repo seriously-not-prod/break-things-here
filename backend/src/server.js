@@ -1,10 +1,12 @@
-const express = require('express');
-const cors = require('cors');
+import express from 'express';
+import cors from 'cors';
+import crypto from 'crypto';
 
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
 const MAX_FAILED_ATTEMPTS = 3;
 const LOCKOUT_MS = 10 * 60 * 1000;
+const PERSISTENT_SESSION_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 function getPositiveIntegerEnv(name, fallbackValue) {
   const rawValue = process.env[name];
@@ -87,8 +89,21 @@ app.get('/api/health', (_, res) => {
   res.json({ status: 'ok' });
 });
 
+// In-memory session store for demo
+const sessions = new Map();
+
+function parseCookies(cookieHeader) {
+  const cookies = {};
+  if (!cookieHeader) return cookies;
+  cookieHeader.split(';').forEach((pair) => {
+    const [key, ...rest] = pair.trim().split('=');
+    if (key) cookies[key.trim()] = rest.join('=').trim();
+  });
+  return cookies;
+}
+
 app.post('/api/login', (req, res) => {
-  const { email, password } = req.body || {};
+  const { email, password, rememberMe } = req.body || {};
 
   if (!email || !password) {
     return res.status(400).json({
@@ -112,6 +127,22 @@ app.post('/api/login', (req, res) => {
 
   if (emailMatches && passwordMatches) {
     attemptsByEmail.delete(emailKey);
+
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    sessions.set(sessionToken, { email: emailKey, rememberMe: !!rememberMe, createdAt: Date.now() });
+
+    const cookieOptions = [
+      `refreshToken=${sessionToken}`,
+      'Path=/',
+      'HttpOnly',
+      'SameSite=Strict',
+    ];
+
+    if (rememberMe) {
+      cookieOptions.push(`Max-Age=${Math.floor(PERSISTENT_SESSION_MAX_AGE / 1000)}`);
+    }
+
+    res.setHeader('Set-Cookie', cookieOptions.join('; '));
 
     return res.status(200).json({
       message: 'Login successful.'
@@ -140,6 +171,31 @@ app.post('/api/login', (req, res) => {
   });
 });
 
+app.post('/api/session/validate', (req, res) => {
+  const cookies = parseCookies(req.headers.cookie);
+  const token = cookies.refreshToken;
+
+  if (!token || !sessions.has(token)) {
+    return res.status(401).json({ message: 'Invalid or expired session.' });
+  }
+
+  const session = sessions.get(token);
+  return res.status(200).json({ session });
+});
+
+app.post('/api/session/revoke', (req, res) => {
+  const cookies = parseCookies(req.headers.cookie);
+  const token = cookies.refreshToken;
+
+  if (token) {
+    sessions.delete(token);
+  }
+
+  return res.status(200).json({ message: 'Session revoked.' });
+});
+
 app.listen(PORT, () => {
   console.log(`Auth API listening on http://localhost:${PORT}`);
 });
+
+export { app };
