@@ -33,7 +33,8 @@ jobs:
           labels: chore, automated
 
       - name: Optionally enable auto-merge
-        if: env.AUTO_MERGE == 'true'
+        if: env.AUTO_MERGE == 'true' && steps.create_pr.outputs.pull-request-number != ''
+        continue-on-error: true
         uses: peter-evans/enable-pull-request-automerge@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

@@ -45,7 +45,8 @@ jobs:
         run: echo "PR #${{ needs.create-pr.outputs.pull-request-number }} created"
 
       - name: Optionally enable auto-merge (requires environment approval)
-        if: env.AUTO_MERGE == 'true'
+        if: env.AUTO_MERGE == 'true' && needs.create-pr.outputs.pull-request-number != ''
+        continue-on-error: true
         uses: peter-evans/enable-pull-request-automerge@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
