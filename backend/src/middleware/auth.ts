@@ -67,13 +67,13 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
 
   // Use the access token `jti` (which is a random server-generated session id)
   // to validate the session and enforce inactivity timeout.
+  // Sessions are stored keyed by hashToken(sessionId) — use the same KDF for lookup.
   const sessionJti = (payload as any).jti as string | undefined;
-  const sessionJtiHash = sessionJti ? crypto.createHash('sha256').update(sessionJti).digest('hex') : null;
-  const tokenHash = hashToken(token);
+  const tokenHash = sessionJti ? hashToken(sessionJti) : hashToken(token);
 
   const session = await db.get<{ id: number; last_activity: string; user_id: number }>(
-    'SELECT id, last_activity, user_id FROM sessions WHERE token = ? OR token = ?',
-    [sessionJtiHash ?? tokenHash, tokenHash],
+    'SELECT id, last_activity, user_id FROM sessions WHERE token = ?',
+    [tokenHash],
   );
 
   if (!session) {

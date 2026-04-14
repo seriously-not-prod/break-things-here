@@ -62,14 +62,18 @@ export function generatePasswordResetToken(): string {
 }
 
 /**
- * Computes a SHA-256 hash of a token for safe storage.
- * Raw JWTs must never be stored in the database as clear text.
- * Store the hash; compare by hashing the incoming token before lookup.
- * @param token - The JWT or other token string
- * @returns Hex-encoded SHA-256 digest
+ * Computes a secure derived key for a token for safe storage.
+ * Uses the scrypt KDF (computationally expensive) with a server-side
+ * secret/salt to make offline brute-force attacks impractical.
+ * Provide a secret via `TOKEN_HASH_SECRET` or `PASSWORD_RESET_SALT` env var.
+ * @param token - The token string to derive a key from
+ * @returns Hex-encoded derived key
  */
 export function hashToken(token: string): string {
-  return crypto.createHash('sha256').update(token).digest('hex');
+  const secret = process.env.TOKEN_HASH_SECRET || process.env.PASSWORD_RESET_SALT || 'dev-token-secret';
+  const salt = Buffer.from(secret, 'utf8');
+  const derived = crypto.scryptSync(token, salt, 32);
+  return derived.toString('hex');
 }
 
 /**
