@@ -1,7 +1,10 @@
 name: Auto Approve Promotion PRs
 
 on:
-  pull_request:
+  # Use pull_request_target so GITHUB_TOKEN runs in the context of the base
+  # branch (repository context), which allows it to approve PRs. The standard
+  # pull_request event restricts GITHUB_TOKEN from approving pull requests.
+  pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
     branches:
       - develop
@@ -11,6 +14,7 @@ on:
 
 permissions:
   pull-requests: write
+  contents: read
 
 jobs:
   auto-approve:
