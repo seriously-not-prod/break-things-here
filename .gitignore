@@ -83,3 +83,16 @@ out/
 *.local
 frontend/vite.config.js
 frontend/vite.config.d.ts
+
+# Backend build output and runtime data
+backend/dist/
+backend/database/
+
+# Temp / backup files
+*.bak
+temp-*.cjs
+temp-*.js
+temp-*.mjs
+
+# Windows metadata (Zone.Identifier NTFS alternate data streams)
+*:Zone.Identifier
