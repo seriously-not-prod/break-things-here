@@ -1,14 +1,18 @@
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { FlatCompat } from '@eslint/eslintrc';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
-const eslintConfig = [...compat.extends('next/core-web-vitals')];
-
-export default eslintConfig;
+export default [
+  { ignores: ['node_modules/**', 'dist/**'] },
+  {
+    files: ['**/*.{js,jsx,ts,tsx,mjs,cjs}'],
+    languageOptions: {
+      parserOptions: {
+        ecmaVersion: 2024,
+        sourceType: 'module',
+        ecmaFeatures: { jsx: true },
+      },
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-console': 'off',
+      'react/react-in-jsx-scope': 'off',
+    },
+  },
+];

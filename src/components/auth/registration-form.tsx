@@ -1,4 +1,5 @@
 import { useState, ChangeEvent, FocusEvent, FormEvent } from 'react';
+import '../../styles/registration.css';
 import { validateEmail, validatePassword, validateConfirmPassword } from '../../utils/validation';
 
 interface FormFields {
@@ -100,7 +101,7 @@ export function RegistrationForm() {
   const hasValidationErrors = errorEntries.some((e) => e !== null);
 
   return (
-    <form onSubmit={handleSubmit} noValidate aria-label="User registration form">
+    <form className="registration-form" onSubmit={handleSubmit} noValidate aria-label="User registration form">
       <div>
         <label htmlFor="displayName">Display name</label>
         <input

@@ -1,4 +1,5 @@
 import { useState, ChangeEvent, FormEvent, ReactElement } from 'react';
+import '../../styles/registration.css';
 
 interface FormFields {
   displayName: string;
@@ -61,7 +62,7 @@ export function RegistrationForm(): ReactElement {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate aria-label="User registration form">
+    <form className="registration-form" onSubmit={handleSubmit} noValidate aria-label="User registration form">
       <div>
         <label htmlFor="displayName">Display name</label>
         <input
