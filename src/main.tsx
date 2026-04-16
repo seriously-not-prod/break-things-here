@@ -1,9 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { RegistrationForm } from './components/registration-form';
+import { EventPlannerApp } from './components/event-planner/event-planner-app';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <RegistrationForm />
+    <EventPlannerApp />
   </StrictMode>
 );

@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix session lookup in auth middleware to use `hashToken` (scrypt) instead of raw SHA-256, ensuring consistency with stored session hashes
 
 ### Added
+- Responsive event planner workspace with dashboard, sidebar navigation, event CRUD screens, task tracking, RSVP management, calendar view, and admin overview
+- Public RSVP route at `/rsvp/:eventId` backed by seeded local planner data
+- Root app planner store, validation helpers, and regression tests for dashboard rendering and public RSVP submission
 - Forgot password form component with ARIA accessibility (#79)
 - Reset password form component with token-based flow (#79)
 - JWT token refresh endpoint with token rotation and httpOnly cookies (#81)
@@ -75,7 +78,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Workflow status fields: Backlog → Ready → In Progress → Code Review → Testing → Ready for Release → Released
 - Project Board link in README and release process documentation
 - Instructions for adding issues to Project 1
-<<<<<<< HEAD
 - Branch assignee validation workflow for feature/bugfix/hotfix/release pushes (#48)
 - Auto draft PR workflow for first push to feature/bugfix branches (#48)
 - Code quality and CodeQL workflows for PR quality gates (#48)
