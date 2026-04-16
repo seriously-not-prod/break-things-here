@@ -23,9 +23,11 @@
     "nodemailer": "^8.0.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.3",
     "supertest": "^7.2.2"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.2",
@@ -38,6 +40,9 @@
     "@types/react-dom": "^18.3.1",
     "@types/supertest": "^7.2.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.3",
+    "eslint-plugin-react": "^7.37.5",
     "jsdom": "^24.1.1",
     "typescript": "^5.5.3",
     "vite": "^5.4.1",
