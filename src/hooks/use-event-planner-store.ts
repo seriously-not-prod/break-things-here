@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import * as api from '../api/event-planner-api';
 import {
   EventDraft,
+  EventPlannerStore,
   PlannerActivity,
   PlannerEvent,
   PlannerRsvp,
-  PlannerState,
   PlannerTask,
   RsvpDraft,
   RsvpStatus,
@@ -149,18 +149,11 @@ export function useEventPlannerStore(): EventPlannerStore {
     return newEvent;
   }, []);
 
-  const updateEvent = useCallback(async (eventId: string, draft: EventDraft): Promise<PlannerEvent | undefined> => {
+  const updateEvent = useCallback(async (eventId: string, updates: Partial<EventDraft>): Promise<void> => {
     const numericId = parseInt(eventId.replace('event-', ''));
     console.log('[EventPlanner] 💾 Updating event in database:', numericId);
     
-    const apiEvent = await api.updateEvent(numericId, {
-      title: draft.title,
-      date: draft.date,
-      location: draft.location,
-      description: draft.description,
-      status: draft.status,
-    });
-    
+    const apiEvent = await api.updateEvent(numericId, updates);
     const updatedEvent = mapApiEventToPlanner(apiEvent);
     
     setState((current) => ({
@@ -175,7 +168,6 @@ export function useEventPlannerStore(): EventPlannerStore {
     }));
     
     console.log('[EventPlanner] ✅ Event updated in database');
-    return updatedEvent;
   }, []);
 
   const createTask = useCallback(async (draft: TaskDraft): Promise<PlannerTask> => {

@@ -17,31 +17,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users for demo/testing
-const MOCK_USERS = [
-  {
-    id: 'user-001',
-    name: 'Alex Carter',
-    email: 'alex.carter@festival.local',
-    role: 'Admin',
-    password: 'admin123',
-  },
-  {
-    id: 'user-002',
-    name: 'Morgan Lee',
-    email: 'morgan.lee@festival.local',
-    role: 'Organizer',
-    password: 'organizer123',
-  },
-  {
-    id: 'user-003',
-    name: 'Jordan Kim',
-    email: 'jordan.kim@festival.local',
-    role: 'Coordinator',
-    password: 'coordinator123',
-  },
-];
-
 const AUTH_STORAGE_KEY = 'festival-planner-auth';
 
 const API_BASE_URL = 'http://localhost:3001/api';
