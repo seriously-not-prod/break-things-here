@@ -49,9 +49,24 @@ export function verifyToken(token: string): TokenPayload | null {
   }
 }
 
+import { decryptToken } from '../utils/auth-helpers.js';
+
 export async function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  // Try to get token from Authorization header first
+  let token: string | undefined;
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  if (authHeader) {
+    token = authHeader.split(' ')[1];
+  }
+  
+  // If no Authorization header, try to get from cookie
+  if (!token && req.cookies?.accessToken) {
+    try {
+      token = decryptToken(req.cookies.accessToken);
+    } catch (error) {
+      console.error('Failed to decrypt access token from cookie:', error);
+    }
+  }
 
   if (!token) {
     res.status(401).json({ error: 'Access token required' });
