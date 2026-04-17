@@ -984,6 +984,12 @@ function PublicRsvpPage(): React.JSX.Element {
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [submitted, setSubmitted] = useState<boolean>(false);
 
+  // Show loading while data is being fetched
+  if (context.loading) {
+    return <div>Loading...</div>;
+  }
+
+  // After loading, if event not found, redirect
   if (!event) {
     return <Navigate replace to="/dashboard" />;
   }
