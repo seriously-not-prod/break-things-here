@@ -3,10 +3,18 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EventPlannerApp } from '../components/event-planner/event-planner-app';
 
+const AUTH_STORAGE_KEY = 'festival-planner-auth';
+
+const TEST_USER = {
+  id: 'user-001',
+  name: 'Alex Carter',
+  email: 'alex.carter@festival.local',
+  role: 'Admin',
+};
+
 describe('EventPlannerApp', () => {
   beforeEach(() => {
     window.localStorage.clear();
-    window.history.pushState({}, '', '/dashboard');
   });
 
   afterEach(() => {
@@ -14,12 +22,22 @@ describe('EventPlannerApp', () => {
   });
 
   it('renders the dashboard with primary navigation and summary cards', () => {
+    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(TEST_USER));
+    window.history.pushState({}, '', '/dashboard');
     render(<EventPlannerApp />);
 
     expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /events/i })).toBeInTheDocument();
     expect(screen.getByText('Total Events')).toBeInTheDocument();
     expect(screen.getByText('Pending Tasks')).toBeInTheDocument();
+  });
+
+  it('redirects unauthenticated users to login', () => {
+    window.history.pushState({}, '', '/dashboard');
+    render(<EventPlannerApp />);
+
+    expect(screen.getByRole('heading', { name: 'Festival Planner' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign In' })).toBeInTheDocument();
   });
 
   it('submits a public rsvp without requiring login', async () => {

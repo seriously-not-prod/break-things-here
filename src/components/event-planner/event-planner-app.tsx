@@ -9,6 +9,7 @@ import {
   EventRounded,
   HowToRegRounded,
   KeyboardBackspaceRounded,
+  LogoutRounded,
   MenuRounded,
   ScheduleRounded,
 } from '@mui/icons-material';
@@ -26,8 +27,11 @@ import {
   useOutletContext,
   useParams,
 } from 'react-router-dom';
+import { AuthProvider, useAuth } from '../../contexts/auth-context';
 import { seededUsers } from '../../data/event-planner-seed';
 import { useEventPlannerStore } from '../../hooks/use-event-planner-store';
+import { LoginPage } from '../login-page/login-page';
+import { ProtectedRoute } from '../protected-route/protected-route';
 import {
   EventDraft,
   PlannerActivity,
@@ -146,6 +150,8 @@ function StatusBadge(props: { status: string }): React.JSX.Element {
 function PlannerLayout(props: { notify: (message: string) => void; users: PlannerUser[] }): React.JSX.Element {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -157,6 +163,11 @@ function PlannerLayout(props: { notify: (message: string) => void; users: Planne
     });
     return matchingItem?.label ?? 'Festival Planner';
   }, [location.pathname]);
+
+  const handleLogout = (): void => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <div className={`planner-shell${sidebarOpen ? ' planner-shell--sidebar-open' : ''}`}>
@@ -195,15 +206,34 @@ function PlannerLayout(props: { notify: (message: string) => void; users: Planne
         <div className="planner-sidebar__team">
           <h2>Sample Users</h2>
           <ul>
-            {props.users.map((user: PlannerUser) => {
+            {props.users.map((plannerUser: PlannerUser) => {
               return (
-                <li key={user.id}>
-                  <strong>{user.name}</strong>
-                  <span>{user.role}</span>
+                <li key={plannerUser.id}>
+                  <strong>{plannerUser.name}</strong>
+                  <span>{plannerUser.role}</span>
                 </li>
               );
             })}
           </ul>
+        </div>
+        <div className="planner-sidebar__user">
+          <div className="planner-sidebar__user-info">
+            <div className="planner-sidebar__user-avatar">
+              {user?.name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <strong>{user?.name}</strong>
+              <span>{user?.role}</span>
+            </div>
+          </div>
+          <button
+            className="planner-sidebar__logout"
+            onClick={handleLogout}
+            type="button"
+            title="Logout"
+          >
+            <LogoutRounded fontSize="small" />
+          </button>
         </div>
       </aside>
       <div className="planner-shell__overlay" onClick={(): void => setSidebarOpen(false)} />
@@ -1023,7 +1053,17 @@ function PlannerRoutes(props: { notify: (message: string) => void }): React.JSX.
 
   return (
     <Routes>
-      <Route element={<PlannerLayout notify={props.notify} users={seededUsers} />}>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<Outlet context={outletContext} />}>
+        <Route path="/rsvp/:eventId" element={<PublicRsvpPage />} />
+      </Route>
+      <Route
+        element={
+          <ProtectedRoute>
+            <PlannerLayout notify={props.notify} users={seededUsers} />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate replace to="/dashboard" />} />
         <Route element={<Outlet context={outletContext} />}>
           <Route path="/dashboard" element={<DashboardPage />} />
@@ -1035,10 +1075,9 @@ function PlannerRoutes(props: { notify: (message: string) => void }): React.JSX.
           <Route path="/rsvps" element={<RsvpsPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/admin" element={<AdminPage />} />
-          <Route path="/rsvp/:eventId" element={<PublicRsvpPage />} />
         </Route>
       </Route>
-      <Route path="*" element={<Navigate replace to="/dashboard" />} />
+      <Route path="*" element={<Navigate replace to="/login" />} />
     </Routes>
   );
 }
@@ -1056,9 +1095,11 @@ export function EventPlannerApp(): React.JSX.Element {
   }, [toastMessage]);
 
   return (
-    <BrowserRouter>
-      <PlannerRoutes notify={(message: string): void => setToastMessage(message)} />
-      <Toast message={toastMessage} />
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <PlannerRoutes notify={(message: string): void => setToastMessage(message)} />
+        <Toast message={toastMessage} />
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
