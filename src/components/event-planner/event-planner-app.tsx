@@ -403,7 +403,7 @@ function EventEditorPage(): React.JSX.Element {
     setDraft((current: EventDraft) => ({ ...current, [key]: value }));
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>): void {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const validationErrors = validateEventDraft(draft);
     setErrors(validationErrors);
@@ -411,16 +411,22 @@ function EventEditorPage(): React.JSX.Element {
       return;
     }
 
-    if (existingEvent) {
-      context.updateEvent(existingEvent.id, draft);
-      context.notify('Event updated successfully.');
-      navigate(`/events/${existingEvent.id}`);
-      return;
-    }
+    try {
+      if (existingEvent) {
+        await context.updateEvent(existingEvent.id, draft);
+        context.notify('Event updated successfully.');
+        navigate(`/events/${existingEvent.id}`);
+        return;
+      }
 
-    const createdEvent = context.createEvent(draft);
-    context.notify('Event created successfully.');
-    navigate(`/events/${createdEvent.id}`);
+      const createdEvent = await context.createEvent(draft);
+      context.notify('Event created successfully.');
+      navigate(`/events/${createdEvent.id}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Operation failed';
+      context.notify(`Error: ${message}`);
+      console.error('Error saving event:', error);
+    }
   }
 
   return (
@@ -493,7 +499,7 @@ function EventDetailsPage(): React.JSX.Element {
     return <Navigate replace to="/events" />;
   }
 
-  function handleTaskSubmit(eventForm: React.FormEvent<HTMLFormElement>): void {
+  async function handleTaskSubmit(eventForm: React.FormEvent<HTMLFormElement>): Promise<void> {
     eventForm.preventDefault();
     const validationErrors = validateTaskDraft(taskDraft);
     setTaskErrors(validationErrors);
@@ -501,9 +507,14 @@ function EventDetailsPage(): React.JSX.Element {
       return;
     }
 
-    context.createTask(taskDraft);
-    context.notify('Task created for this event.');
-    setTaskDraft({ eventId: params.eventId ?? '', title: '', assignee: '', dueDate: '', notes: '' });
+    try {
+      await context.createTask(taskDraft);
+      context.notify('Task created for this event.');
+      setTaskDraft({ eventId: params.eventId ?? '', title: '', assignee: '', dueDate: '', notes: '' });
+    } catch (error) {
+      context.notify('Error creating task');
+      console.error('Error creating task:', error);
+    }
   }
 
   return (
@@ -625,7 +636,7 @@ function TasksPage(): React.JSX.Element {
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>): void {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const validationErrors = validateTaskDraft(draft);
     setErrors(validationErrors);
@@ -633,9 +644,14 @@ function TasksPage(): React.JSX.Element {
       return;
     }
 
-    context.createTask(draft);
-    context.notify('Task created successfully.');
-    setDraft({ eventId: draft.eventId, title: '', assignee: '', dueDate: '', notes: '' });
+    try {
+      await context.createTask(draft);
+      context.notify('Task created successfully.');
+      setDraft({ eventId: draft.eventId, title: '', assignee: '', dueDate: '', notes: '' });
+    } catch (error) {
+      context.notify('Error creating task');
+      console.error('Error creating task:', error);
+    }
   }
 
   return (
