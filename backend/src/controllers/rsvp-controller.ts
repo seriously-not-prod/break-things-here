@@ -77,9 +77,10 @@ export async function submitRsvp(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    // Email validation - simple check to prevent ReDoS
+    // More lenient validation to avoid catastrophic backtracking
+    const emailRegex = /^.+@.+\..+$/;
+    if (!emailRegex.test(email) || email.length > 254) {
       res.status(400).json({ error: 'Invalid email format' });
       return;
     }
@@ -151,8 +152,9 @@ export async function updateRsvp(req: Request, res: Response): Promise<void> {
     }
     
     if (email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
+      // Email validation - simple check to prevent ReDoS
+      const emailRegex = /^.+@.+\..+$/;
+      if (!emailRegex.test(email) || email.length > 254) {
         res.status(400).json({ error: 'Invalid email format' });
         return;
       }

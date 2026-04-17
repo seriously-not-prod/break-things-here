@@ -5,18 +5,34 @@
 
 const API_BASE_URL = 'http://localhost:3001/api';
 
+// Helper to get CSRF token from cookie
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+  return match ? match[1] : null;
+}
+
 // Generic API call helper
 async function apiCall<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options.headers as Record<string, string>,
+  };
+  
+  // Add CSRF token for state-changing methods
+  if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method)) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      headers['X-XSRF-TOKEN'] = csrfToken;
+    }
+  }
+  
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     credentials: 'include', // Important: send cookies with each request
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers as Record<string, string>,
-    },
+    headers,
   });
   
   if (!response.ok) {
