@@ -1054,6 +1054,9 @@ function PlannerRoutes(props: { notify: (message: string) => void }): React.JSX.
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route element={<Outlet context={outletContext} />}>
+        <Route path="/rsvp/:eventId" element={<PublicRsvpPage />} />
+      </Route>
       <Route
         element={
           <ProtectedRoute>
@@ -1072,7 +1075,6 @@ function PlannerRoutes(props: { notify: (message: string) => void }): React.JSX.
           <Route path="/rsvps" element={<RsvpsPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/admin" element={<AdminPage />} />
-          <Route path="/rsvp/:eventId" element={<PublicRsvpPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate replace to="/login" />} />
