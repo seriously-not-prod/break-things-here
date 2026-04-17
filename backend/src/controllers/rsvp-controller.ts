@@ -77,10 +77,17 @@ export async function submitRsvp(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    // Email validation - simple check to prevent ReDoS
-    // More lenient validation to avoid catastrophic backtracking
-    const emailRegex = /^.+@.+\..+$/;
-    if (!emailRegex.test(email) || email.length > 254) {
+    // Email validation without regex to prevent ReDoS
+    const atIndex = email.indexOf('@');
+    const lastAtIndex = email.lastIndexOf('@');
+    const lastDotIndex = email.lastIndexOf('.');
+    
+    if (email.length > 254 || 
+        atIndex === -1 || 
+        atIndex !== lastAtIndex || 
+        atIndex === 0 || 
+        lastDotIndex <= atIndex || 
+        lastDotIndex === email.length - 1) {
       res.status(400).json({ error: 'Invalid email format' });
       return;
     }
@@ -152,9 +159,17 @@ export async function updateRsvp(req: Request, res: Response): Promise<void> {
     }
     
     if (email) {
-      // Email validation - simple check to prevent ReDoS
-      const emailRegex = /^.+@.+\..+$/;
-      if (!emailRegex.test(email) || email.length > 254) {
+      // Email validation without regex to prevent ReDoS
+      const atIndex = email.indexOf('@');
+      const lastAtIndex = email.lastIndexOf('@');
+      const lastDotIndex = email.lastIndexOf('.');
+      
+      if (email.length > 254 || 
+          atIndex === -1 || 
+          atIndex !== lastAtIndex || 
+          atIndex === 0 || 
+          lastDotIndex <= atIndex || 
+          lastDotIndex === email.length - 1) {
         res.status(400).json({ error: 'Invalid email format' });
         return;
       }
