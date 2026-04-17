@@ -44,6 +44,8 @@ const MOCK_USERS = [
 
 const AUTH_STORAGE_KEY = 'festival-planner-auth';
 
+const API_BASE_URL = 'http://localhost:3001/api';
+
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,7 +55,23 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser));
+        const parsed = JSON.parse(storedUser);
+        // Verify session is still valid by calling /api/auth/me
+        fetch(`${API_BASE_URL}/auth/me`, {
+          credentials: 'include',
+        })
+          .then((res) => {
+            if (res.ok) {
+              setUser(parsed.user);
+            } else {
+              localStorage.removeItem(AUTH_STORAGE_KEY);
+            }
+          })
+          .catch(() => {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+          })
+          .finally(() => setIsLoading(false));
+        return;
       } catch (error) {
         console.error('Failed to parse stored user:', error);
         localStorage.removeItem(AUTH_STORAGE_KEY);
@@ -63,30 +81,50 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Important: send/receive cookies
+        body: JSON.stringify({ email, password }),
+      });
 
-    // Find matching user
-    const matchedUser = MOCK_USERS.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Login failed' }));
+        console.error('Login failed:', error);
+        return false;
+      }
 
-    if (matchedUser) {
+      const data = await response.json();
+      
+      // Backend returns: { message, user: { id, email, displayName, roleId } }
       const authUser: AuthUser = {
-        id: matchedUser.id,
-        name: matchedUser.name,
-        email: matchedUser.email,
-        role: matchedUser.role,
+        id: String(data.user.id),
+        name: data.user.displayName,
+        email: data.user.email,
+        role: data.user.roleId === 3 ? 'Admin' : data.user.roleId === 2 ? 'Organizer' : 'Attendee',
       };
+      
       setUser(authUser);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authUser));
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: authUser }));
       return true;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-
-    return false;
   };
 
   const logout = (): void => {
+    // Call backend logout to clear session
+    fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => {
+      // Ignore errors, just clear local state
+    });
+    
     setUser(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
   };

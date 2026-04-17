@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { initializeDatabase } from './db/database.js';
 import apiRoutes from './routes/api-routes.js';
 
@@ -26,6 +27,7 @@ if (isDev) {
 
 // Middleware
 app.use(cors(corsOptions));
+app.use(cookieParser()); // Add cookie parser to read req.cookies
 app.use(express.json());
 
 // Health check endpoint
