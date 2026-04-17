@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import crypto from 'crypto';
 import { initializeDatabase } from './db/database.js';
 import apiRoutes from './routes/api-routes.js';
 
@@ -26,7 +28,41 @@ if (isDev) {
 
 // Middleware
 app.use(cors(corsOptions));
+app.use(cookieParser()); // Add cookie parser to read req.cookies
 app.use(express.json());
+
+// CSRF Protection Middleware (Double Submit Cookie pattern)
+// This is applied via middleware in routes to prevent CSRF attacks
+const csrfProtection = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+  // Skip CSRF check for GET, HEAD, OPTIONS requests (safe methods)
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    next();
+    return;
+  }
+  
+  const cookieToken = req.cookies['XSRF-TOKEN'];
+  const headerToken = req.headers['x-xsrf-token'] as string;
+  
+  if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+    res.status(403).json({ error: 'Invalid CSRF token' });
+    return;
+  }
+  
+  next();
+};
+
+// Generate and set CSRF token for all requests
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!req.cookies['XSRF-TOKEN']) {
+    const token = crypto.randomBytes(32).toString('hex');
+    res.cookie('XSRF-TOKEN', token, {
+      httpOnly: false, // Must be readable by JavaScript for header inclusion
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
+    });
+  }
+  next();
+});
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -36,8 +72,8 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// Mount API routes
-app.use('/api', apiRoutes);
+// Mount API routes with CSRF protection for state-changing methods
+app.use('/api', csrfProtection, apiRoutes);
 
 // Start server after initializing the database
 async function start(): Promise<void> {
