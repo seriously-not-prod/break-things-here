@@ -21,12 +21,25 @@ const AUTH_STORAGE_KEY = 'festival-planner-auth';
 
 const API_BASE_URL = 'http://localhost:3001/api';
 
+// Helper to get CSRF token from cookie
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+  return match ? match[1] : null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Check for existing session on mount
   useEffect(() => {
+    // First, ensure we have a CSRF token by making a GET request
+    fetch(`${API_BASE_URL}/events`, {
+      credentials: 'include',
+    }).catch(() => {
+      // Ignore errors, just continue
+    });
+    
     const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
     if (storedUser) {
       try {
@@ -57,11 +70,21 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
+      // Get CSRF token from cookie
+      const csrfToken = getCsrfToken();
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add CSRF token if available
+      if (csrfToken) {
+        headers['X-XSRF-TOKEN'] = csrfToken;
+      }
+      
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include', // Important: send/receive cookies
         body: JSON.stringify({ email, password }),
       });
@@ -93,8 +116,16 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
 
   const logout = (): void => {
     // Call backend logout to clear session
+    const csrfToken = getCsrfToken();
+    const headers: Record<string, string> = {};
+    
+    if (csrfToken) {
+      headers['X-XSRF-TOKEN'] = csrfToken;
+    }
+    
     fetch(`${API_BASE_URL}/auth/logout`, {
       method: 'POST',
+      headers,
       credentials: 'include',
     }).catch(() => {
       // Ignore errors, just clear local state

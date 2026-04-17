@@ -96,13 +96,10 @@ export function LoginPage(): JSX.Element {
           <h3>Demo Credentials</h3>
           <ul>
             <li>
-              <strong>Admin:</strong> alex.carter@festival.local / admin123
+              <strong>Admin:</strong> admin@festival.local / festivalAdmin2025
             </li>
             <li>
-              <strong>Organizer:</strong> morgan.lee@festival.local / organizer123
-            </li>
-            <li>
-              <strong>Coordinator:</strong> jordan.kim@festival.local / coordinator123
+              <strong>User:</strong> user@festival.local / userPass2025
             </li>
           </ul>
         </div>
