@@ -20,6 +20,8 @@ This repository is designed to teach:
 
 ## Getting Started
 
+> **📖 New Developer?** Follow our step-by-step [Developer Setup Guide](DEVELOPER_SETUP.md) for a quick start with copy-paste commands!
+
 ### Tech Stack
 
 - **Frontend**: [React](https://react.dev/) + [Vite](https://vitejs.dev/) + [TypeScript](https://www.typescriptlang.org/)
