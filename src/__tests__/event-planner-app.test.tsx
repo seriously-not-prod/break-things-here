@@ -28,8 +28,8 @@ const MOCK_EVENTS = [
   }
 ];
 
-const MOCK_TASKS = [];
-const MOCK_RSVPS = [];
+const MOCK_TASKS: any[] = [];
+const MOCK_RSVPS: any[] = [];
 
 // Mock fetch globally
 global.fetch = vi.fn();
