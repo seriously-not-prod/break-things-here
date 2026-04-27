@@ -20,7 +20,23 @@ interface TokenPayload {
   exp: number;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
+// Resolve JWT_SECRET at module load time.
+// In production this throws if unset; in dev/test an ephemeral random value is used
+// so no literal credential is embedded in source (satisfies CodeQL js/hardcoded-credentials).
+function _resolveJwtSecret(): string {
+  const value = process.env.JWT_SECRET;
+  if (value) return value;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET environment variable must be set in production');
+  }
+  const ephemeral = crypto.randomBytes(32).toString('hex');
+  console.warn(
+    '[SECURITY] JWT_SECRET is not set. Using an ephemeral per-startup secret — ' +
+    'sessions will not survive restarts. Set JWT_SECRET for persistent sessions.',
+  );
+  return ephemeral;
+}
+const JWT_SECRET = _resolveJwtSecret();
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 export const SESSION_TIMEOUT_MS = parseInt(process.env.SESSION_TIMEOUT_MS || String(30 * 60 * 1000), 10);
 
