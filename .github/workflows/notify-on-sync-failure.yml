@@ -1,0 +1,93 @@
+name: Notify on Sync Failure
+
+on:
+  workflow_run:
+    workflows:
+      - "Promote develop → test"
+      - "Promote test → stage"
+      - "Promote stage → main"
+    types:
+      - completed
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  notify:
+    name: Create failure issue
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - name: Get triggering actor login
+        id: actor
+        run: |
+          LOGIN="${{ github.event.workflow_run.triggering_actor.login }}"
+          echo "login=${LOGIN}" >> "$GITHUB_OUTPUT"
+
+      - name: Get workflow run details
+        id: run_info
+        run: |
+          WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+          HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+          RUN_URL="${{ github.event.workflow_run.html_url }}"
+          echo "workflow_name=${WORKFLOW_NAME}" >> "$GITHUB_OUTPUT"
+          echo "head_branch=${HEAD_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "head_sha=${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
+          echo "run_url=${RUN_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Create sync failure issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const workflowName = "${{ steps.run_info.outputs.workflow_name }}";
+            const branch = "${{ steps.run_info.outputs.head_branch }}";
+            const sha = "${{ steps.run_info.outputs.head_sha }}";
+            const runUrl = "${{ steps.run_info.outputs.run_url }}";
+            const actor = "${{ steps.actor.outputs.login }}";
+            const assignee = process.env.SYNC_FAILURE_ASSIGNEE || actor;
+            const now = new Date().toISOString();
+
+            const title = `⚠️ Sync failure: ${workflowName}`;
+
+            const body = [
+              `## Branch Sync Failure Detected`,
+              ``,
+              `| Field | Value |`,
+              `|---|---|`,
+              `| **Workflow** | ${workflowName} |`,
+              `| **Branch** | \`${branch}\` |`,
+              `| **Commit** | \`${sha}\` |`,
+              `| **Triggered by** | @${actor} |`,
+              `| **Time** | ${now} |`,
+              `| **Run URL** | [View failed run](${runUrl}) |`,
+              ``,
+              `## What to do`,
+              ``,
+              `1. Click the **Run URL** above to see what failed`,
+              `2. Fix the failing check in a new \`bugfix/\` branch from \`develop\``,
+              `3. Merge the fix to \`develop\` — the promotion workflow will re-trigger`,
+              `4. Verify the sync completes successfully`,
+              `5. Close this issue with \`Closes #<this-issue>\` in your commit`,
+              ``,
+              `> This issue was created automatically by the \`notify-on-sync-failure\` workflow.`,
+            ].join("\n");
+
+            // Create the issue
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ["sync-failure", "automated", "bug"],
+              assignees: [assignee].filter(Boolean),
+            });
+
+            core.info(`Created issue #${issue.data.number}: ${issue.data.html_url}`);
+        env:
+          SYNC_FAILURE_ASSIGNEE: ${{ secrets.SYNC_FAILURE_ASSIGNEE }}

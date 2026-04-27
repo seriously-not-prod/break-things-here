@@ -12,13 +12,10 @@ import {
   CircularProgress,
   InputAdornment,
 } from '@mui/material';
-
-interface LoginResponse {
-  message: string;
-}
+import { useAuth } from '../../contexts/auth-context';
+import { ApiError } from '../../lib/api-client';
 
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 function toRemainingSeconds(lockedUntil?: number): number {
   if (!lockedUntil) {
@@ -30,9 +27,10 @@ function toRemainingSeconds(lockedUntil?: number): number {
 interface LoginFormProps {
   onForgotPassword?: () => void;
   onLogin?: (user?: { id: number; email: string; displayName?: string }) => void;
+  onRegister?: () => void;
 }
 
-export function LoginForm({ onForgotPassword, onLogin }: LoginFormProps): JSX.Element {
+export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormProps): JSX.Element {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -70,6 +68,7 @@ export function LoginForm({ onForgotPassword, onLogin }: LoginFormProps): JSX.El
   }, [remainingSeconds]);
 
   const isLocked = Boolean(lockoutText);
+  const { login } = useAuth();
 
   function handleEmailChange(event: ChangeEvent<HTMLInputElement>) {
     setEmail(event.target.value);
@@ -88,54 +87,17 @@ export function LoginForm({ onForgotPassword, onLogin }: LoginFormProps): JSX.El
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (isLocked) {
-      return;
-    }
+    if (isLocked) return;
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify({ email, password, rememberMe })
-      });
-
-      if (!response.ok) {
-        const apiError = (await response.json()) as unknown as Record<string, unknown>;
-
-        // Support different backend error shapes: { message } or { error }
-        const message = (apiError.message as string) || (apiError.error as string) || 'An error occurred.';
-
-        // Backend may return `retryAfter` (seconds) for lockouts — convert to future timestamp
-        if (typeof apiError.retryAfter === 'number') {
-          setLockedUntil(Date.now() + (apiError.retryAfter as number) * 1000);
-        } else if (typeof apiError.lockedUntil === 'number') {
-          setLockedUntil(apiError.lockedUntil as number);
-        }
-
-        const remaining = typeof apiError.attemptsRemaining === 'number' ? ` Attempts left: ${apiError.attemptsRemaining}.` : '';
-
-        setErrorMessage(`${message}${remaining}`);
-        return;
-      }
-
-      const data = (await response.json()) as LoginResponse;
-      setSuccessMessage(data.message);
-      // Notify parent that login succeeded so it can show the dashboard
-      if (typeof onLogin === 'function') {
-        try {
-          const user = (data as any).user;
-          onLogin(user);
-        } catch {
-          onLogin();
-        }
-      }
+      await login(email, password, rememberMe);
+      setSuccessMessage('Login successful. Redirecting...');
+      if (typeof onLogin === 'function') onLogin();
       setPassword('');
-    } catch {
-      setErrorMessage('Unable to reach the server. Please try again.');
+    } catch (err) {
+      const e = err as ApiError | Error;
+      setErrorMessage(e instanceof ApiError ? e.message : e.message || 'Unable to reach the server.');
     } finally {
       setIsSubmitting(false);
     }
@@ -226,6 +188,15 @@ export function LoginForm({ onForgotPassword, onLogin }: LoginFormProps): JSX.El
         >
           Forgot password?
         </Button>
+
+        {onRegister && (
+          <Typography variant="body2" align="center">
+            Don't have an account?{' '}
+            <Button variant="text" size="small" onClick={onRegister}>
+              Create account
+            </Button>
+          </Typography>
+        )}
       </Stack>
     </Box>
   );
