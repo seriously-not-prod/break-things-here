@@ -19,7 +19,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const AUTH_STORAGE_KEY = 'festival-planner-auth';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+// Use relative API base so dev server proxy keeps requests same-origin
+const API_BASE_URL = '/api';
 
 // Helper to get CSRF token from cookie
 function getCsrfToken(): string | null {

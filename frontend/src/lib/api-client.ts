@@ -21,6 +21,22 @@ function getToken(): string | null {
   return localStorage.getItem('accessToken');
 }
 
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+  return match ? match[1] : null;
+}
+
+async function ensureCsrfCookie(): Promise<void> {
+  if (getCsrfToken()) return;
+
+  // Any GET response from the backend can set the CSRF cookie. This makes
+  // the first mutating request resilient if the page has not hit the API yet.
+  await fetch(`${API_BASE}/api/auth/me`, {
+    method: 'GET',
+    credentials: 'include',
+  }).catch(() => undefined);
+}
+
 export function setToken(token: string | null): void {
   if (token) {
     localStorage.setItem('accessToken', token);
@@ -48,6 +64,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...(init.headers as Record<string, string>),
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const method = (init.method ?? 'GET').toUpperCase();
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    await ensureCsrfCookie();
+    const csrfToken = getCsrfToken();
+    if (csrfToken) headers['X-XSRF-TOKEN'] = csrfToken;
+  }
 
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers, credentials: 'include' });
 

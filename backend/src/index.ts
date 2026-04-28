@@ -44,6 +44,16 @@ const csrfProtection = (req: express.Request, res: express.Response, next: expre
   const headerToken = req.headers['x-xsrf-token'] as string;
   
   if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+    // Log details to help debug CSRF failures during development
+    console.warn('CSRF validation failed', {
+      method: req.method,
+      path: req.path,
+      origin: req.headers.origin || req.headers.referer || null,
+      cookieToken: !!cookieToken,
+      headerToken: !!headerToken,
+      cookieTokenValue: cookieToken ? cookieToken.slice(0, 8) + '...' : null,
+      headerTokenValue: headerToken ? headerToken.slice(0, 8) + '...' : null,
+    });
     res.status(403).json({ error: 'Invalid CSRF token' });
     return;
   }

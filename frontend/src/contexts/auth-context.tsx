@@ -32,13 +32,13 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
 
   const loadCurrentUser = useCallback(async () => {
     try {
-      const data = await api.get<{ user: { id: number; email: string; display_name: string; role_id: number; role_name: string } }>('/api/auth/me');
+      const data = await api.get<{ id: number; email: string; display_name: string; role_id: number; role_name: string }>('/api/auth/me');
       setUser({
-        id: data.user.id,
-        email: data.user.email,
-        displayName: data.user.display_name,
-        roleId: data.user.role_id,
-        roleName: data.user.role_name ?? '',
+        id: data.id,
+        email: data.email,
+        displayName: data.display_name,
+        roleId: data.role_id,
+        roleName: data.role_name ?? '',
       });
     } catch {
       setUser(null);

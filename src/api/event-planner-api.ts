@@ -3,7 +3,9 @@
  * Handles all API requests with authentication
  */
 
-const API_BASE_URL = 'http://localhost:3001/api';
+// Use a relative API base so the dev server proxy (Vite) keeps requests same-origin
+// This avoids cross-origin cookie/SameSite issues during development.
+const API_BASE_URL = '/api';
 
 // Helper to get CSRF token from cookie
 function getCsrfToken(): string | null {

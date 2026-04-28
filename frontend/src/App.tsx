@@ -1,12 +1,12 @@
 import { Box, CircularProgress, CssBaseline, Paper, Typography } from '@mui/material';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/auth-context';
 import { LoginForm } from './components/login-form/login-form';
 import { RegisterForm } from './components/register-form/register-form';
 import { ForgotPasswordForm } from './components/forgot-password-form/forgot-password-form';
 import { ResetPasswordForm } from './components/reset-password-form/reset-password-form';
 import { AppNav } from './components/nav/app-nav';
-import Dashboard from './components/dashboard/dashboard';
+import Dashboard from './components/dashboard/Dashboard';
 import EventsPage from './components/events/events-page';
 import EventDetailPage from './components/events/event-detail-page';
 import ProfilePage from './components/profile/profile-page';
@@ -19,6 +19,7 @@ type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password';
 /** Centred auth card used for login / register / password flows */
 function AuthShell(): JSX.Element {
   const [view, setView] = useState<AuthView>('login');
+  const navigate = useNavigate();
 
   const TITLES: Record<AuthView, string> = {
     login: 'Sign in',
@@ -48,7 +49,7 @@ function AuthShell(): JSX.Element {
         {view === 'login' && (
           <LoginForm
             onForgotPassword={() => setView('forgot-password')}
-            onLogin={() => window.location.replace('/dashboard')}
+            onLogin={() => navigate('/dashboard', { replace: true })}
             onRegister={() => setView('register')}
           />
         )}
