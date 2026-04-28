@@ -31,33 +31,29 @@ interface AuthRequest extends Request {
 export async function getUserProfile(req: AuthRequest, res: Response) {
   try {
     if (!req.user) {
-      return res.status(401).json({
-        error: 'Authentication required',
-      });
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
     const db = getDatabase();
 
-    const profile = await db.get(
-      `
-      SELECT up.*, u.email, u.display_name, u.email_verified
-      FROM user_profiles up
-      JOIN users u ON up.user_id = u.id
-      WHERE up.user_id = ?
-      `,
+    // Ensure a profile row exists for this user (auto-create on first access)
+    await db.run(
+      'INSERT OR IGNORE INTO user_profiles (user_id) VALUES (?)',
       [req.user.id],
     );
 
-    if (!profile) {
-      return res.status(404).json({
-        error: 'Profile not found',
-      });
-    }
+    const profile = await db.get(
+      `SELECT up.*, u.email, u.display_name, u.email_verified
+       FROM user_profiles up
+       JOIN users u ON up.user_id = u.id
+       WHERE up.user_id = ?`,
+      [req.user.id],
+    );
 
-    res.json(profile);
+    return res.json(profile);
   } catch (error) {
     console.error('Get profile error:', error);
-    res.status(500).json({ error: 'Failed to fetch profile' });
+    return res.status(500).json({ error: 'Failed to fetch profile' });
   }
 }
 
@@ -69,38 +65,34 @@ export async function updateUserProfile(req: AuthRequest, res: Response) {
       });
     }
 
-    const { bio, phoneNumber, dateOfBirth, address, city, state, zipCode, country } = req.body;
+    const { bio, phoneNumber, phone_number, address, city, state, zipCode, zip_code, country } = req.body;
 
     const db = getDatabase();
 
-    // Check if profile exists
-    const existingProfile = await db.get('SELECT id FROM user_profiles WHERE user_id = ?', [
-      req.user.id,
-    ]);
+    // Upsert — create profile row if it doesn't exist yet
+    await db.run('INSERT OR IGNORE INTO user_profiles (user_id) VALUES (?)', [req.user.id]);
 
-    if (!existingProfile) {
-      return res.status(404).json({
-        error: 'Profile not found',
-      });
-    }
-
-    // Update profile
     await db.run(
-      `
-      UPDATE user_profiles
-      SET bio = ?, phone_number = ?, date_of_birth = ?,
-          address = ?, city = ?, state = ?, zip_code = ?, country = ?
-      WHERE user_id = ?
-      `,
-      [bio, phoneNumber, dateOfBirth, address, city, state, zipCode, country, req.user.id],
+      `UPDATE user_profiles
+       SET bio = ?, phone_number = ?, address = ?, city = ?, state = ?, zip_code = ?, country = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = ?`,
+      [
+        bio ?? null,
+        phone_number ?? phoneNumber ?? null,
+        address ?? null,
+        city ?? null,
+        state ?? null,
+        zip_code ?? zipCode ?? null,
+        country ?? null,
+        req.user.id,
+      ],
     );
 
-    res.json({
-      message: 'Profile updated successfully',
-    });
+    return res.json({ message: 'Profile updated successfully' });
   } catch (error) {
     console.error('Update profile error:', error);
-    res.status(500).json({ error: 'Failed to update profile' });
+    return res.status(500).json({ error: 'Failed to update profile' });
   }
 }
 

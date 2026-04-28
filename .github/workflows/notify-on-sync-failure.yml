@@ -1,0 +1,101 @@
+name: Notify on Sync Failure
+
+on:
+  workflow_run:
+    workflows:
+      - "Promote develop → test"
+      - "Promote test → stage"
+      - "Promote stage → main"
+    types:
+      - completed
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  notify:
+    name: Create failure issue
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      # Capture all untrusted github.event values into env vars first.
+      # NEVER interpolate github.event expressions directly into run: scripts
+      # or github-script code — doing so allows code injection if a branch
+      # name or actor login contains shell metacharacters or JS syntax.
+      - name: Extract run metadata into step outputs
+        id: run_info
+        env:
+          _WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          _HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          _HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          _RUN_URL: ${{ github.event.workflow_run.html_url }}
+          _ACTOR: ${{ github.event.workflow_run.triggering_actor.login }}
+        run: |
+          # Values come from env vars — safe to write to GITHUB_OUTPUT
+          printf 'workflow_name=%s\n' "${_WORKFLOW_NAME}"   >> "$GITHUB_OUTPUT"
+          printf 'head_branch=%s\n'  "${_HEAD_BRANCH}"      >> "$GITHUB_OUTPUT"
+          printf 'head_sha=%s\n'     "${_HEAD_SHA:0:7}"      >> "$GITHUB_OUTPUT"
+          printf 'run_url=%s\n'      "${_RUN_URL}"           >> "$GITHUB_OUTPUT"
+          printf 'actor=%s\n'        "${_ACTOR}"             >> "$GITHUB_OUTPUT"
+
+      - name: Create sync failure issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # All dynamic values are read from process.env — never interpolated
+          # into the script body as string literals, preventing JS injection.
+          script: |
+            const workflowName = process.env.WORKFLOW_NAME;
+            const branch       = process.env.HEAD_BRANCH;
+            const sha          = process.env.HEAD_SHA;
+            const runUrl       = process.env.RUN_URL;
+            const actor        = process.env.ACTOR;
+            const assignee     = process.env.SYNC_FAILURE_ASSIGNEE || actor;
+            const now          = new Date().toISOString();
+
+            const title = `\u26a0\ufe0f Sync failure: ${workflowName}`;
+
+            const body = [
+              `## Branch Sync Failure Detected`,
+              ``,
+              `| Field | Value |`,
+              `|---|---|`,
+              `| **Workflow** | ${workflowName} |`,
+              `| **Branch** | \`${branch}\` |`,
+              `| **Commit** | \`${sha}\` |`,
+              `| **Triggered by** | @${actor} |`,
+              `| **Time** | ${now} |`,
+              `| **Run URL** | [View failed run](${runUrl}) |`,
+              ``,
+              `## What to do`,
+              ``,
+              `1. Click the **Run URL** above to see what failed`,
+              `2. Fix the failing check in a new \`bugfix/\` branch from \`develop\``,
+              `3. Merge the fix to \`develop\` — the promotion workflow will re-trigger`,
+              `4. Verify the sync completes successfully`,
+              `5. Close this issue with \`Closes #<this-issue>\` in your commit`,
+              ``,
+              `> This issue was created automatically by the \`notify-on-sync-failure\` workflow.`,
+            ].join('\n');
+
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['sync-failure', 'automated', 'bug'],
+              assignees: [assignee].filter(Boolean),
+            });
+
+            core.info(`Created issue #${issue.data.number}: ${issue.data.html_url}`);
+        env:
+          WORKFLOW_NAME:          ${{ steps.run_info.outputs.workflow_name }}
+          HEAD_BRANCH:            ${{ steps.run_info.outputs.head_branch }}
+          HEAD_SHA:               ${{ steps.run_info.outputs.head_sha }}
+          RUN_URL:                ${{ steps.run_info.outputs.run_url }}
+          ACTOR:                  ${{ steps.run_info.outputs.actor }}
+          SYNC_FAILURE_ASSIGNEE:  ${{ secrets.SYNC_FAILURE_ASSIGNEE }}

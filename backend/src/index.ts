@@ -6,7 +6,7 @@ import { initializeDatabase } from './db/database.js';
 import apiRoutes from './routes/api-routes.js';
 
 const app = express();
-const port = parseInt(process.env.PORT || '3001', 10);
+const port = parseInt(process.env.PORT || '4000', 10);
 
 // CORS: use an explicit allowlist even in development to avoid permissive-origin issues.
 const isDev = process.env.NODE_ENV !== 'production';

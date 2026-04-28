@@ -1,44 +1,31 @@
-import { useState, useEffect } from 'react';
-import { Box, Paper, Typography } from '@mui/material';
-import { LoginForm } from './components/login-form/login-form.tsx';
-import Dashboard from './components/dashboard/Dashboard';
-import { ForgotPasswordForm } from './components/forgot-password-form/forgot-password-form.tsx';
-import { ResetPasswordForm } from './components/reset-password-form/reset-password-form.tsx';
+import { Box, CircularProgress, CssBaseline, Paper, Typography } from '@mui/material';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/auth-context';
+import { LoginForm } from './components/login-form/login-form';
+import { RegisterForm } from './components/register-form/register-form';
+import { ForgotPasswordForm } from './components/forgot-password-form/forgot-password-form';
+import { ResetPasswordForm } from './components/reset-password-form/reset-password-form';
+import { AppNav } from './components/nav/app-nav';
+import Dashboard from './components/dashboard/dashboard';
+import EventsPage from './components/events/events-page';
+import EventDetailPage from './components/events/event-detail-page';
+import ProfilePage from './components/profile/profile-page';
+import AdminPage from './components/admin/admin-page';
+import { AiAssistant } from './components/ai/ai-assistant';
+import { useState } from 'react';
 
-type View = 'login' | 'forgot-password' | 'reset-password' | 'dashboard';
+type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password';
 
-function getInitialView(): View {
-  const path = window.location.pathname;
-  if (path === '/reset-password') return 'reset-password';
-  if (path === '/forgot-password') return 'forgot-password';
-  return 'login';
-}
+/** Centred auth card used for login / register / password flows */
+function AuthShell(): JSX.Element {
+  const [view, setView] = useState<AuthView>('login');
 
-const VIEW_TITLES: Record<View, string> = {
-  login: 'Login',
-  'forgot-password': 'Forgot password',
-  'reset-password': 'Reset password',
-  dashboard: 'Dashboard',
-};
-
-function App(): JSX.Element {
-  const [view, setView] = useState<View>(getInitialView);
-  const [currentUser, setCurrentUser] = useState<{ id: number; email: string; displayName?: string } | undefined>();
-
-  useEffect(() => {
-    const nextPath = view === 'login' ? '/' : `/${view}`;
-    if (window.location.pathname !== nextPath) {
-      window.history.pushState(null, '', nextPath + window.location.search);
-    }
-  }, [view]);
-
-  function navigateTo(next: View): void {
-    // Clear any token param when going back to login or forgot-password
-    if (next !== 'reset-password') {
-      window.history.pushState(null, '', next === 'login' ? '/' : `/${next}`);
-    }
-    setView(next);
-  }
+  const TITLES: Record<AuthView, string> = {
+    login: 'Sign in',
+    register: 'Create account',
+    'forgot-password': 'Forgot password',
+    'reset-password': 'Reset password',
+  };
 
   return (
     <Box
@@ -47,41 +34,109 @@ function App(): JSX.Element {
         display: 'grid',
         placeItems: 'center',
         px: 2,
-        background: 'linear-gradient(180deg, #f5f9fc 0%, #e8f2f7 100%)',
+        background: 'linear-gradient(160deg, #e8f2ff 0%, #f5faf5 100%)',
       }}
     >
-      <Paper elevation={6} sx={{ width: '100%', maxWidth: 420, p: 4, borderRadius: 2 }}>
-        <Typography component="h1" variant="h5" sx={{ mb: 2 }}>
-          {VIEW_TITLES[view]}
+      <Paper elevation={6} sx={{ width: '100%', maxWidth: 420, p: 4, borderRadius: 3 }}>
+        <Typography component="h1" variant="h5" fontWeight={700} sx={{ mb: 2 }}>
+          🎪 Festival Planner
+        </Typography>
+        <Typography variant="h6" sx={{ mb: 3 }}>
+          {TITLES[view]}
         </Typography>
 
         {view === 'login' && (
           <LoginForm
-            onForgotPassword={() => navigateTo('forgot-password')}
-            onLogin={(user) => {
-              setCurrentUser(user);
-              setView('dashboard');
-            }}
+            onForgotPassword={() => setView('forgot-password')}
+            onLogin={() => window.location.replace('/dashboard')}
+            onRegister={() => setView('register')}
+          />
+        )}
+        {view === 'register' && (
+          <RegisterForm
+            onBackToLogin={() => setView('login')}
+            onRegistered={() => setView('login')}
           />
         )}
         {view === 'forgot-password' && (
-          <ForgotPasswordForm onBackToLogin={() => navigateTo('login')} />
+          <ForgotPasswordForm onBackToLogin={() => setView('login')} />
         )}
         {view === 'reset-password' && (
-          <ResetPasswordForm onBackToLogin={() => navigateTo('login')} />
-        )}
-        {view === 'dashboard' && (
-          <Dashboard
-            user={currentUser}
-            onLogout={() => {
-              setCurrentUser(undefined);
-              setView('login');
-            }}
-          />
+          <ResetPasswordForm onBackToLogin={() => setView('login')} />
         )}
       </Paper>
     </Box>
   );
 }
 
+const DRAWER_WIDTH = 220;
+
+/** App shell with sidebar nav — only shown when authenticated */
+function AppShell(): JSX.Element {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return (
+    <Box sx={{ display: 'flex' }}>
+      <AppNav />
+      <Box component="main" sx={{ flexGrow: 1, ml: `${DRAWER_WIDTH}px`, minHeight: '100vh', bgcolor: 'background.default' }}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/events" element={<EventsPage />} />
+          <Route path="/events/:id" element={<EventDetailPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Box>
+      <AiAssistant />
+    </Box>
+  );
+}
+
+function RootRouter(): JSX.Element {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <AuthShell />} />
+      <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <AuthShell />} />
+      <Route path="/forgot-password" element={<AuthShell />} />
+      <Route path="/reset-password" element={<AuthShell />} />
+      <Route path="/*" element={<AppShell />} />
+    </Routes>
+  );
+}
+
+function App(): JSX.Element {
+  return (
+    <BrowserRouter>
+      <CssBaseline />
+      <AuthProvider>
+        <RootRouter />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
+
 export default App;
+
