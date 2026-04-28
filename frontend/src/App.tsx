@@ -6,7 +6,7 @@ import { RegisterForm } from './components/register-form/register-form';
 import { ForgotPasswordForm } from './components/forgot-password-form/forgot-password-form';
 import { ResetPasswordForm } from './components/reset-password-form/reset-password-form';
 import { AppNav } from './components/nav/app-nav';
-import Dashboard from './components/dashboard/Dashboard';
+import Dashboard from './components/dashboard/dashboard';
 import EventsPage from './components/events/events-page';
 import EventDetailPage from './components/events/event-detail-page';
 import ProfilePage from './components/profile/profile-page';
