@@ -61,6 +61,31 @@ export function generatePasswordResetToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// ---------------------------------------------------------------------------
+// Module-level key resolution — no literal strings used as crypto keys.
+// In production these throw if the env var is unset; in dev/test an ephemeral
+// random value is used, satisfying CodeQL js/hardcoded-credentials.
+// ---------------------------------------------------------------------------
+const _tokenHashSecret: Buffer = (() => {
+  const env = process.env.TOKEN_HASH_SECRET ?? process.env.PASSWORD_RESET_SALT;
+  if (env) return Buffer.from(env, 'utf8');
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('TOKEN_HASH_SECRET environment variable must be set in production');
+  }
+  console.warn('[SECURITY] TOKEN_HASH_SECRET not set — using ephemeral per-startup salt.');
+  return crypto.randomBytes(32);
+})();
+
+const _encKey: Buffer = (() => {
+  const keyBase64 = process.env.REFRESH_TOKEN_ENC_KEY;
+  if (keyBase64) return Buffer.from(keyBase64, 'base64');
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('REFRESH_TOKEN_ENC_KEY environment variable must be set in production');
+  }
+  console.warn('[SECURITY] REFRESH_TOKEN_ENC_KEY not set — using ephemeral per-startup key.');
+  return crypto.randomBytes(32);
+})();
+
 /**
  * Computes a secure derived key for a token for safe storage.
  * Uses the scrypt KDF (computationally expensive) with a server-side
@@ -70,9 +95,7 @@ export function generatePasswordResetToken(): string {
  * @returns Hex-encoded derived key
  */
 export function hashToken(token: string): string {
-  const secret = process.env.TOKEN_HASH_SECRET || process.env.PASSWORD_RESET_SALT || 'dev-token-secret';
-  const salt = Buffer.from(secret, 'utf8');
-  const derived = crypto.scryptSync(token, salt, 32);
+  const derived = crypto.scryptSync(token, _tokenHashSecret, 32);
   return derived.toString('hex');
 }
 
@@ -82,10 +105,8 @@ export function hashToken(token: string): string {
  * Returns a URL-safe base64 string containing iv|ciphertext|authTag.
  */
 export function encryptToken(token: string): string {
-  const keyBase64 = process.env.REFRESH_TOKEN_ENC_KEY;
-  const key = keyBase64 ? Buffer.from(keyBase64, 'base64') : crypto.createHash('sha256').update('dev-refresh-key').digest();
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const cipher = crypto.createCipheriv('aes-256-gcm', _encKey, iv);
   const encrypted = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
   return Buffer.concat([iv, tag, encrypted]).toString('base64url');
@@ -95,13 +116,11 @@ export function encryptToken(token: string): string {
  * Decrypts a token produced by `encryptToken`.
  */
 export function decryptToken(payload: string): string {
-  const keyBase64 = process.env.REFRESH_TOKEN_ENC_KEY;
-  const key = keyBase64 ? Buffer.from(keyBase64, 'base64') : crypto.createHash('sha256').update('dev-refresh-key').digest();
   const data = Buffer.from(payload, 'base64url');
   const iv = data.slice(0, 12);
   const tag = data.slice(12, 28);
   const encrypted = data.slice(28);
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', _encKey, iv);
   decipher.setAuthTag(tag);
   const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
   return decrypted.toString('utf8');

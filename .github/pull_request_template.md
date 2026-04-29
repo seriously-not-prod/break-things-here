@@ -28,6 +28,15 @@ Closes #
 - 
 - 
 
+## Database Changes
+<!-- Complete this section if your PR includes database schema changes -->
+- [ ] No database changes in this PR
+- [ ] New migration file added to `database/migrations/` (timestamped `YYYYMMDDHHMMSS_description.sql`)
+- [ ] Migration includes `-- DOWN` rollback block
+- [ ] Migration tested locally against PostgreSQL
+- [ ] `DATABASE_URL` uses correct environment-specific connection string
+- [ ] Seed data updated in `database/seeds/` if applicable
+
 ## Testing Performed
 <!-- Describe the testing you've done -->
 - [ ] Unit tests added/updated
@@ -69,8 +78,8 @@ Closes #
 ## Deployment Notes
 <!-- Any special deployment considerations -->
 - [ ] No special deployment steps required
-- [ ] Requires database migration
-- [ ] Requires environment variable changes
+- [ ] Requires PostgreSQL database migration (migration file added to `database/migrations/`) — or `database/init.sql` updated if PostgreSQL migration is not yet complete
+- [ ] Requires environment variable changes (`DATABASE_URL` or other)
 - [ ] Requires configuration updates
 
 ---

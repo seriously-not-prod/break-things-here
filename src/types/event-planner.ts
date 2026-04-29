@@ -1,8 +1,8 @@
 export type EventStatus = 'Active' | 'Draft' | 'Completed';
 
-export type TaskStatus = 'Pending' | 'Completed';
+export type TaskStatus = 'Pending' | 'Complete';
 
-export type RsvpStatus = 'Going' | 'Maybe' | 'Not Going';
+export type RsvpStatus = 'Pending' | 'Confirmed' | 'Declined';
 
 export type AdminRole = 'Admin' | 'Organizer' | 'Coordinator';
 
@@ -23,10 +23,10 @@ export interface PlannerTask {
   id: string;
   eventId: string;
   title: string;
+  description: string;
   assignee: string;
-  dueDate: string;
+  dueDate?: string;
   status: TaskStatus;
-  notes: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,10 +36,9 @@ export interface PlannerRsvp {
   eventId: string;
   name: string;
   email: string;
+  guests: number;
   status: RsvpStatus;
-  notes: string;
-  source: 'internal' | 'public';
-  updatedAt: string;
+  createdAt: string;
 }
 
 export interface PlannerUser {
@@ -75,17 +74,17 @@ export interface EventDraft {
 export interface TaskDraft {
   eventId: string;
   title: string;
+  description: string;
   assignee: string;
-  dueDate: string;
-  notes: string;
+  dueDate?: string;
 }
 
 export interface RsvpDraft {
   eventId: string;
   name: string;
   email: string;
+  guests: number;
   status: RsvpStatus;
-  notes: string;
 }
 
 export interface DashboardStats {
@@ -94,4 +93,21 @@ export interface DashboardStats {
   upcomingEvents: PlannerEvent[];
   recentRsvps: PlannerRsvp[];
   pendingTasks: number;
+}
+
+export interface EventPlannerStore {
+  events: PlannerEvent[];
+  tasks: PlannerTask[];
+  rsvps: PlannerRsvp[];
+  activities: PlannerActivity[];
+  loading: boolean;
+  error: string | null;
+  createEvent: (draft: EventDraft) => Promise<PlannerEvent>;
+  updateEvent: (id: string, updates: Partial<EventDraft>) => Promise<void>;
+  createTask: (draft: TaskDraft) => Promise<PlannerTask>;
+  toggleTask: (taskId: string) => Promise<void>;
+  submitRsvp: (draft: RsvpDraft) => Promise<PlannerRsvp>;
+  updateRsvpStatus: (rsvpId: string, status: RsvpStatus) => Promise<void>;
+  notify: (message: string) => void;
+  refreshData: () => Promise<void>;
 }
