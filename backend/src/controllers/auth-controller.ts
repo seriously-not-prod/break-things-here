@@ -148,7 +148,10 @@ export async function login(req: Request, res: Response): Promise<Response> {
     maxAge: 60 * 60 * 1000, // access token lifespan (1h)
   });
 
-  return res.status(200).json({
+  // For development convenience, return raw tokens in the JSON response so
+  // browser clients or automated tests can use Authorization headers if cookie
+  // handling fails in certain environments. Do NOT enable this in production.
+  const resp: any = {
     message: 'Login successful.',
     user: {
       id: user.id,
@@ -156,7 +159,14 @@ export async function login(req: Request, res: Response): Promise<Response> {
       displayName: user.display_name,
       roleId: user.role_id,
     },
-  });
+  };
+
+  if (process.env.NODE_ENV !== 'production') {
+    resp.accessToken = accessToken;
+    resp.refreshToken = refreshToken;
+  }
+
+  return res.status(200).json(resp);
 }
 
 /**

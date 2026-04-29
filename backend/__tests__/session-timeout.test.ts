@@ -69,7 +69,8 @@ vi.mock('../src/db/database.js', () => ({
   initializeDatabase: async () => testDb,
 }));
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
+// JWT_SECRET is provided by vitest env config — never fall back to a hardcoded literal.
+const JWT_SECRET = process.env.JWT_SECRET as string;
 
 function makeAccessToken(userId: number, email: string, roleId: number): string {
   return jwt.sign(
