@@ -203,6 +203,104 @@ When assisting with code or documentation:
 5. Enforce the rules defined here
 6. Never deviate from established conventions
 
+### Rule #16: PostgreSQL Database Standards (MANDATORY)
+
+This project uses **PostgreSQL** as its primary database. All database-related work must follow these standards.
+
+#### Connection Configuration
+- ✅ **Always** use `DATABASE_URL` environment variable for connection strings
+- ✅ Use separate databases per environment (never share between `develop`, `test`, `stage`, `main`)
+- ✅ Store credentials in `.env` files — never commit them
+- ✅ Use connection pooling (e.g., `pg-pool` or Prisma connection pool)
+- ❌ **NEVER** hardcode connection strings in code
+
+**Environment variable pattern:**
+```bash
+# .env.development
+DATABASE_URL=postgresql://user:password@localhost:5432/festivalplanner_dev
+
+# .env.test
+DATABASE_URL=postgresql://user:password@localhost:5432/festivalplanner_test
+
+# .env.stage
+DATABASE_URL=postgresql://user:password@host:5432/festivalplanner_stage
+
+# .env.production
+DATABASE_URL=postgresql://user:password@host:5432/festivalplanner_prod
+```
+
+#### Migration Standards
+- ✅ Use numbered, timestamped migration files: `YYYYMMDDHHMMSS_description.sql`
+- ✅ Migrations must be **idempotent** — safe to re-run
+- ✅ Every migration must have a corresponding **rollback** (`down`) script
+- ✅ Migrations are committed **in the same PR** as the code that requires them
+- ✅ Migration files live in `database/migrations/`
+- ❌ **NEVER** modify existing migration files — always create a new one
+- ❌ **NEVER** run raw DDL (`ALTER TABLE`, `DROP TABLE`) directly in production without a migration file
+
+**Migration file naming:**
+```
+database/migrations/
+  20260101120000_create_events_table.sql
+  20260102090000_add_user_id_to_events.sql
+  20260103150000_create_rsvps_table.sql
+```
+
+**Migration file structure:**
+```sql
+-- Migration: 20260101120000_create_events_table.sql
+-- Description: Create initial events table
+-- Author: developer-name
+-- Date: 2026-01-01
+
+-- UP
+CREATE TABLE IF NOT EXISTS events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- DOWN (rollback)
+-- DROP TABLE IF EXISTS events;
+```
+
+#### Schema Version Management Across Branches
+- ✅ Migrations must be applied in order: `develop` → `test` → `stage` → `main`
+- ✅ CI/CD pipeline runs pending migrations automatically on branch promotion
+- ✅ A migration lock file (`database/migrations/.applied`) tracks applied migrations per environment
+- ✅ PR promotions (`develop→test`, `test→stage`, `stage→main`) **require** migration checks to pass
+- ❌ **NEVER** skip environments when promoting schema changes
+
+#### Rollback Procedure
+1. Identify the failed migration filename
+2. Execute the `-- DOWN` section manually against the target environment DB
+3. Fix the migration file (create a new corrective migration — do not edit old one)
+4. Re-run migrations from CI/CD pipeline
+5. Document the incident in `CHANGELOG.md` under `[Unreleased]`
+
+#### Seed Data
+- ✅ Seed data lives in `database/seeds/` — separate from migrations
+- ✅ Seeds are environment-specific (`seed.development.sql`, `seed.test.sql`)
+- ✅ Seeds are **never** run in `stage` or `main` environments
+- ❌ Never mix seed data with migration files
+
+#### Docker / Local Development
+```yaml
+# docker-compose.yml — PostgreSQL service
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: festivalplanner_dev
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+```
+
 ### Rule #15: Commit Message Requirements (MANDATORY)
 - ✅ **EVERY commit MUST reference an open (non-closed) GitHub issue**
 - ✅ Use issue numbers in commit messages: `#123` or `Closes #123`
@@ -288,4 +386,4 @@ Always prioritize following this guide over convenience or assumptions.
 
 This guide may be updated as the project evolves. Always check for the latest version before providing assistance.
 
-**Last Updated**: January 21, 2026
+**Last Updated**: April 29, 2026

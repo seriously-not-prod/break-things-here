@@ -260,10 +260,34 @@ All long-lived branches (`main`, `stage`, `test`, `develop`) have the following 
 
 ### PR Review Process
 1. Automated checks run (CI/CD)
-2. Code review by CODEOWNERS
-3. At least 1 approval required
-4. Address all comments
-5. Squash and merge (required)
+2. **Database migration gate** — all pending migrations must apply cleanly against the target environment before the PR can be approved (enforced by CI)
+3. Code review by CODEOWNERS
+4. At least 1 approval required
+5. Address all comments
+6. Squash and merge (required)
+
+### Database Migration Gate (MANDATORY for all branch promotions)
+
+Every PR that promotes code across environments (`feature→develop`, `develop→test`, `test→stage`, `stage→main`) must pass the following migration check:
+
+| Check | Requirement |
+|-------|-------------|
+| Migration files present | All new `.sql` files in `database/migrations/` are sequential and timestamped |
+| Migrations apply cleanly | CI runs `psql` against target environment DB — must exit 0 |
+| Rollback script present | Every `UP` migration has a `-- DOWN` rollback comment block |
+| No direct DDL in code | No raw `ALTER TABLE`/`DROP TABLE` in application source files |
+| Environment isolation | `DATABASE_URL` in CI references the correct per-environment DB |
+
+**CI step name**: `db-migration-gate` — PRs cannot be merged until this check passes green.
+
+```yaml
+# Example CI step (GitHub Actions)
+- name: db-migration-gate
+  run: |
+    for f in database/migrations/*.sql; do
+      psql "$DATABASE_URL" -f "$f"
+    done
+```
 
 ## Environment Mapping
 
