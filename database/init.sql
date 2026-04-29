@@ -1,43 +1,186 @@
--- Festival Event Planner - Database Initialization
--- This script runs automatically on first database startup
+-- Festival Event Planner - PostgreSQL Database Initialization
+-- This script is loaded automatically by the PostgreSQL container on first startup.
+-- The application also runs its own migrations via database.ts on each startup,
+-- so this file serves as an authoritative schema reference.
 
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- Create events table
-CREATE TABLE IF NOT EXISTS events (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    location VARCHAR(255),
-    start_date TIMESTAMP WITH TIME ZONE NOT NULL,
-    end_date TIMESTAMP WITH TIME ZONE NOT NULL,
-    capacity INTEGER,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create users table
+-- ============================================================
+-- Users
+-- ============================================================
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    display_name VARCHAR(100) NOT NULL,
-    role VARCHAR(50) DEFAULT 'attendee',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  id                        SERIAL PRIMARY KEY,
+  email                     TEXT UNIQUE NOT NULL,
+  password_hash             TEXT NOT NULL,
+  display_name              TEXT NOT NULL,
+  email_verified            INTEGER DEFAULT 0,
+  email_verified_at         TIMESTAMP,
+  email_verification_token  TEXT,
+  pending_email             TEXT,
+  pending_email_token       TEXT,
+  pending_email_token_expiry TIMESTAMP,
+  role_id                   INTEGER DEFAULT 1,
+  account_locked            INTEGER DEFAULT 0,
+  locked_until              TIMESTAMP,
+  login_attempts            INTEGER DEFAULT 0,
+  created_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  deleted_at                TIMESTAMP
 );
 
--- Create registrations table
-CREATE TABLE IF NOT EXISTS registrations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    status VARCHAR(50) DEFAULT 'registered',
-    registered_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(event_id, user_id)
+-- ============================================================
+-- Sessions
+-- ============================================================
+CREATE TABLE IF NOT EXISTS sessions (
+  id             SERIAL PRIMARY KEY,
+  user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token          TEXT NOT NULL UNIQUE,
+  refresh_token  TEXT NOT NULL UNIQUE,
+  expires_at     TIMESTAMP NOT NULL,
+  last_activity  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create indexes
-CREATE INDEX IF NOT EXISTS idx_events_start_date ON events(start_date);
-CREATE INDEX IF NOT EXISTS idx_registrations_event_id ON registrations(event_id);
-CREATE INDEX IF NOT EXISTS idx_registrations_user_id ON registrations(user_id);
+-- ============================================================
+-- Password reset
+-- ============================================================
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  email       TEXT NOT NULL,
+  token       TEXT NOT NULL UNIQUE,
+  expires_at  TIMESTAMP NOT NULL,
+  used        INTEGER DEFAULT 0,
+  used_at     TIMESTAMP,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_rate_limit (
+  id             SERIAL PRIMARY KEY,
+  email          TEXT NOT NULL UNIQUE,
+  request_count  INTEGER DEFAULT 1,
+  window_start   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- Audit log
+-- ============================================================
+CREATE TABLE IF NOT EXISTS audit_log (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  email       TEXT,
+  action      TEXT NOT NULL,
+  description TEXT,
+  ip_address  TEXT,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- Roles & permissions (RBAC)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS roles (
+  id          SERIAL PRIMARY KEY,
+  name        TEXT UNIQUE NOT NULL,
+  description TEXT,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO roles (id, name, description) VALUES
+  (1, 'Attendee',  'Default role for new users'),
+  (2, 'Organizer', 'Can create and manage events'),
+  (3, 'Admin',     'Full system access')
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval('roles_id_seq', GREATEST((SELECT MAX(id) FROM roles), 3));
+
+CREATE TABLE IF NOT EXISTS permissions (
+  id          SERIAL PRIMARY KEY,
+  name        TEXT UNIQUE NOT NULL,
+  description TEXT,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+  role_id       INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+  permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+  PRIMARY KEY (role_id, permission_id)
+);
+
+INSERT INTO permissions (name, description) VALUES
+  ('users.view',    'View user profiles'),
+  ('users.edit',    'Edit user profiles'),
+  ('users.delete',  'Delete users'),
+  ('events.view',   'View events'),
+  ('events.create', 'Create events'),
+  ('events.edit',   'Edit events'),
+  ('events.delete', 'Delete events'),
+  ('roles.view',    'View roles'),
+  ('roles.manage',  'Manage roles and permissions')
+ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================
+-- User profiles
+-- ============================================================
+CREATE TABLE IF NOT EXISTS user_profiles (
+  id                SERIAL PRIMARY KEY,
+  user_id           INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  bio               TEXT,
+  phone_number      TEXT,
+  profile_photo_url TEXT,
+  address           TEXT,
+  city              TEXT,
+  state             TEXT,
+  zip_code          TEXT,
+  country           TEXT,
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- Events
+-- ============================================================
+CREATE TABLE IF NOT EXISTS events (
+  id          SERIAL PRIMARY KEY,
+  title       TEXT NOT NULL,
+  date        TEXT NOT NULL,
+  location    TEXT NOT NULL,
+  description TEXT,
+  status      TEXT CHECK(status IN ('Draft', 'Active', 'Completed')) DEFAULT 'Draft',
+  created_by  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
+
+-- ============================================================
+-- Tasks
+-- ============================================================
+CREATE TABLE IF NOT EXISTS tasks (
+  id          SERIAL PRIMARY KEY,
+  event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL,
+  description TEXT,
+  assignee    TEXT,
+  due_date    TEXT,
+  status      TEXT CHECK(status IN ('Pending', 'Complete')) DEFAULT 'Pending',
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_event_id ON tasks(event_id);
+
+-- ============================================================
+-- RSVPs
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rsvps (
+  id         SERIAL PRIMARY KEY,
+  event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  email      TEXT NOT NULL,
+  guests     INTEGER DEFAULT 1,
+  status     TEXT CHECK(status IN ('Pending', 'Confirmed', 'Declined')) DEFAULT 'Pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(event_id, email)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rsvps_event_id ON rsvps(event_id);

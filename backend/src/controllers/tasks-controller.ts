@@ -33,7 +33,8 @@ export async function createTask(req: AuthRequest, res: Response): Promise<Respo
 
   const result = await db.run(
     `INSERT INTO tasks (event_id, title, notes, assignee_name, due_date, status, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     RETURNING id`,
     [
       eventId,
       title.trim(),

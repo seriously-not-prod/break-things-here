@@ -56,7 +56,7 @@ export async function createRole(req: AuthRequest, res: Response): Promise<Respo
   }
 
   const result = await db.run(
-    'INSERT INTO roles (name, description) VALUES (?, ?)',
+    'INSERT INTO roles (name, description) VALUES (?, ?) RETURNING id',
     [name, description || ''],
   );
 

@@ -201,7 +201,8 @@ export async function register(req: Request, res: Response): Promise<Response> {
 
   const result = await db.run(
     `INSERT INTO users (email, password_hash, display_name, email_verification_token)
-     VALUES (?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?)
+     RETURNING id`,
     [normalizedEmail, passwordHash, displayName.trim(), verificationToken],
   );
 
