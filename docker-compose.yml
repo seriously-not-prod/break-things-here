@@ -1,25 +1,4 @@
 services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: development
-    container_name: festival-frontend
-    ports:
-      - "${FRONTEND_PORT:-3000}:3000"
-    volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
-    environment:
-      - NODE_ENV=development
-      - VITE_API_BASE_URL=http://localhost:${BACKEND_PORT:-4000}
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - app-network
-    restart: unless-stopped
-
   backend:
     build:
       context: ./backend
@@ -30,54 +9,58 @@ services:
       - "${BACKEND_PORT:-4000}:4000"
     volumes:
       - ./backend/src:/app/src
+      - sqlite-data:/app/database
     environment:
       - NODE_ENV=development
       - PORT=4000
-      - DATABASE_HOST=database
-      - DATABASE_PORT=5432
-      - DATABASE_NAME=${POSTGRES_DB:-festival_planner}
-      - DATABASE_USER=${POSTGRES_USER:-festival_user}
-      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:-change_me_in_local_env}
-    depends_on:
-      database:
-        condition: service_healthy
+      - DATABASE_URL=/app/database/dev.sqlite
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - SESSION_TIMEOUT_MS=${SESSION_TIMEOUT_MS:-1800000}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-noreply@festivalplanner.local}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - CORS_ALLOWED_ORIGINS=http://localhost:${FRONTEND_PORT:-3000}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 15s
+      start_period: 20s
     networks:
       - app-network
     restart: unless-stopped
 
-  database:
-    image: postgres:16-alpine
-    container_name: festival-database
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: festival-frontend
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB:-festival_planner}
-      - POSTGRES_USER=${POSTGRES_USER:-festival_user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change_me_in_local_env}
+      - "${FRONTEND_PORT:-3000}:3000"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-festival_user} -d ${POSTGRES_DB:-festival_planner}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      - ./frontend/src:/app/src
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:${BACKEND_PORT:-4000}
+    depends_on:
+      backend:
+        condition: service_healthy
     networks:
       - app-network
     restart: unless-stopped
 
 volumes:
-  postgres-data:
-    name: festival-postgres-data
+  sqlite-data:
+    name: festival-sqlite-data
 
 networks:
+  app-network:
+    driver: bridge
   app-network:
     name: festival-network
     driver: bridge
