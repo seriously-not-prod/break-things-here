@@ -38,7 +38,7 @@ export async function getUserProfile(req: AuthRequest, res: Response) {
 
     // Ensure a profile row exists for this user (auto-create on first access)
     await db.run(
-      'INSERT OR IGNORE INTO user_profiles (user_id) VALUES (?)',
+      'INSERT INTO user_profiles (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING',
       [req.user.id],
     );
 
@@ -70,7 +70,7 @@ export async function updateUserProfile(req: AuthRequest, res: Response) {
     const db = getDatabase();
 
     // Upsert — create profile row if it doesn't exist yet
-    await db.run('INSERT OR IGNORE INTO user_profiles (user_id) VALUES (?)', [req.user.id]);
+    await db.run('INSERT INTO user_profiles (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING', [req.user.id]);
 
     await db.run(
       `UPDATE user_profiles

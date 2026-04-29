@@ -118,6 +118,7 @@ export async function submitRsvp(req: Request, res: Response): Promise<void> {
     const result = await db.run(`
       INSERT INTO rsvps (event_id, name, email, guests, status)
       VALUES (?, ?, ?, ?, ?)
+      RETURNING id
     `, [event_id, name, email, guests || 1, status || 'Pending']);
     
     const newRsvp = await db.get('SELECT * FROM rsvps WHERE id = ?', [result.lastID]);
