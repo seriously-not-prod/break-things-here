@@ -132,6 +132,83 @@ textarea {
   color: rgba(248, 244, 237, 0.68);
 }
 
+.planner-sidebar__user {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem;
+  margin-top: 1rem;
+  border: 1px solid rgba(248, 244, 237, 0.12);
+  border-radius: 1.2rem;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.planner-sidebar__user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.planner-sidebar__user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: white;
+  flex-shrink: 0;
+}
+
+.planner-sidebar__user-info > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.planner-sidebar__user-info strong,
+.planner-sidebar__user-info span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.planner-sidebar__user-info strong {
+  font-size: 0.9rem;
+  margin-bottom: 0.2rem;
+}
+
+.planner-sidebar__user-info span {
+  font-size: 0.8rem;
+  color: rgba(248, 244, 237, 0.68);
+}
+
+.planner-sidebar__logout {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(248, 244, 237, 0.12);
+  border-radius: 0.5rem;
+  color: rgba(248, 244, 237, 0.85);
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.planner-sidebar__logout:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(248, 244, 237, 0.2);
+  color: #fff;
+}
+
 .planner-main {
   min-width: 0;
 }
