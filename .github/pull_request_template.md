@@ -78,7 +78,7 @@ Closes #
 ## Deployment Notes
 <!-- Any special deployment considerations -->
 - [ ] No special deployment steps required
-- [ ] Requires PostgreSQL database migration (migration file added to `database/migrations/`)
+- [ ] Requires PostgreSQL database migration (migration file added to `database/migrations/`) — or `database/init.sql` updated if PostgreSQL migration is not yet complete
 - [ ] Requires environment variable changes (`DATABASE_URL` or other)
 - [ ] Requires configuration updates
 

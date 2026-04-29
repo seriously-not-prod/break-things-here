@@ -266,26 +266,28 @@ All long-lived branches (`main`, `stage`, `test`, `develop`) have the following 
 5. Address all comments
 6. Squash and merge (required)
 
-### Database Migration Gate (MANDATORY for all branch promotions)
+### Database Migration Gate (Planned — for all branch promotions)
 
-Every PR that promotes code across environments (`feature→develop`, `develop→test`, `test→stage`, `stage→main`) must pass the following migration check:
+> **⚠️ Note**: The migration CI gate below is the **target state** once PostgreSQL is fully adopted. Until then, PR reviewers manually verify that any `database/init.sql` or schema-related changes are safe before merging.
+
+Every PR that promotes code across environments (`feature→develop`, `develop→test`, `test→stage`, `stage→main`) should pass the following migration checks:
 
 | Check | Requirement |
 |-------|-------------|
 | Migration files present | All new `.sql` files in `database/migrations/` are sequential and timestamped |
-| Migrations apply cleanly | CI runs `psql` against target environment DB — must exit 0 |
+| Migrations apply cleanly | CI runs `psql -v ON_ERROR_STOP=1` against target environment DB — must exit 0 |
 | Rollback script present | Every `UP` migration has a `-- DOWN` rollback comment block |
-| No direct DDL in code | No raw `ALTER TABLE`/`DROP TABLE` in application source files |
+| No ad-hoc DDL in app code | No raw `ALTER TABLE`/`DROP TABLE` in application source files outside of migration files |
 | Environment isolation | `DATABASE_URL` in CI references the correct per-environment DB |
 
-**CI step name**: `db-migration-gate` — PRs cannot be merged until this check passes green.
+**Future CI step name**: `db-migration-gate` — PRs should not be merged until this check passes green.
 
 ```yaml
-# Example CI step (GitHub Actions)
+# Example CI step (GitHub Actions) — add once PostgreSQL migration is complete
 - name: db-migration-gate
   run: |
     for f in database/migrations/*.sql; do
-      psql "$DATABASE_URL" -f "$f"
+      psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f "$f"
     done
 ```
 
