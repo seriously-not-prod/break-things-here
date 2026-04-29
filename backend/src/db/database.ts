@@ -1,138 +1,190 @@
 /**
- * SQLite database initialization and management
- * Sets up the database connection and runs migrations
+ * PostgreSQL database initialization and management
+ * Sets up the connection pool and runs schema migrations
  */
 
-import sqlite3 from 'sqlite3';
-import { open, Database } from 'sqlite';
-import path from 'path';
+import pg from 'pg';
 
-let db: Database | null = null;
+const { Pool } = pg;
 
-/**
- * Initializes the SQLite database connection
- * @returns Promise resolving to the database instance
- */
-export async function initializeDatabase(): Promise<Database> {
-  if (db) return db;
-
-  // Use in-memory database for testing, file-based for production
-  const dbPath = process.env.DATABASE_URL || ':memory:';
-
-  db = await open({
-    filename: dbPath === ':memory:' ? ':memory:' : dbPath,
-    driver: sqlite3.Database,
-  });
-
-  // Enable foreign keys
-  await db.exec('PRAGMA foreign_keys = ON');
-
-  // Run migrations
-  await runMigrations();
-
-  return db;
+export interface RunResult {
+  lastID?: number;
+  changes: number;
 }
 
 /**
- * Gets the database connection
- * @returns Database instance or null if not initialized
+ * Converts SQLite-style ? positional placeholders to PostgreSQL $N style.
  */
-export function getDatabase(): Database {
-  if (!db) {
+function convertPlaceholders(sql: string): string {
+  let index = 0;
+  return sql.replace(/\?/g, () => `$${++index}`);
+}
+
+/**
+ * SQLite-compatible wrapper around a PostgreSQL Pool.
+ * Provides get / all / run / exec so existing controller code needs
+ * minimal changes beyond fixing SQLite-specific SQL syntax.
+ */
+export class DbWrapper {
+  private pool: pg.Pool;
+
+  constructor(pool: pg.Pool) {
+    this.pool = pool;
+  }
+
+  async get<T = any>(sql: string, params?: any[]): Promise<T | undefined> {
+    const converted = convertPlaceholders(sql);
+    const result = await this.pool.query(converted, params);
+    return result.rows[0] as T | undefined;
+  }
+
+  async all<T = any>(sql: string, params?: any[]): Promise<T[]> {
+    const converted = convertPlaceholders(sql);
+    const result = await this.pool.query(converted, params ?? []);
+    return result.rows as T[];
+  }
+
+  /**
+   * Executes a DML statement.
+   * If the SQL contains a RETURNING clause, rows[0].id is surfaced as lastID.
+   */
+  async run(sql: string, params?: any[]): Promise<RunResult> {
+    const trimmedUpper = sql.trim().toUpperCase();
+    const converted = convertPlaceholders(sql);
+    const result = await this.pool.query(converted, params);
+    const lastID = /\bRETURNING\b/.test(trimmedUpper) ? (result.rows[0]?.id as number | undefined) : undefined;
+    return { lastID, changes: result.rowCount ?? 0 };
+  }
+
+  async exec(sql: string): Promise<void> {
+    await this.pool.query(sql);
+  }
+}
+
+let dbWrapper: DbWrapper | null = null;
+let pool: pg.Pool | null = null;
+
+/**
+ * Initializes the PostgreSQL connection pool and runs schema migrations.
+ */
+export async function initializeDatabase(): Promise<DbWrapper> {
+  if (dbWrapper) return dbWrapper;
+
+  const connectionString =
+    process.env.DATABASE_URL ||
+    'postgresql://postgres:postgres@localhost:5432/festival_planner';
+
+  pool = new Pool({ connectionString });
+
+  // Verify connectivity
+  const client = await pool.connect();
+  client.release();
+
+  dbWrapper = new DbWrapper(pool);
+  await runMigrations(dbWrapper);
+
+  return dbWrapper;
+}
+
+/**
+ * Returns the initialised database wrapper.
+ */
+export function getDatabase(): DbWrapper {
+  if (!dbWrapper) {
     throw new Error('Database not initialized. Call initializeDatabase() first.');
   }
-  return db;
+  return dbWrapper;
 }
 
 /**
- * Closes the database connection
+ * Closes the database connection pool.
  */
 export async function closeDatabase(): Promise<void> {
-  if (db) {
-    await db.close();
-    db = null;
+  if (pool) {
+    await pool.end();
+    pool = null;
+    dbWrapper = null;
   }
 }
 
 /**
- * Runs all database migrations
+ * Creates all application tables if they do not already exist and seeds
+ * required reference data (roles, permissions).
  */
-async function runMigrations(): Promise<void> {
-  if (!db) return;
-
+async function runMigrations(db: DbWrapper): Promise<void> {
   // Create users table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       display_name TEXT NOT NULL,
       email_verified INTEGER DEFAULT 0,
-      email_verified_at DATETIME,
+      email_verified_at TIMESTAMP,
       email_verification_token TEXT,
       pending_email TEXT,
       pending_email_token TEXT,
-      pending_email_token_expiry DATETIME,
+      pending_email_token_expiry TIMESTAMP,
       role_id INTEGER DEFAULT 1,
       account_locked INTEGER DEFAULT 0,
-      locked_until DATETIME,
+      locked_until TIMESTAMP,
       login_attempts INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      deleted_at DATETIME
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TIMESTAMP
     )
   `);
 
   // Create sessions table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL,
       token TEXT NOT NULL UNIQUE,
       refresh_token TEXT NOT NULL UNIQUE,
-      expires_at DATETIME NOT NULL,
-      last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP NOT NULL,
+      last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
-  // Create password_reset_tokens table (for task #77)
+  // Create password_reset_tokens table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER,
       email TEXT NOT NULL,
       token TEXT NOT NULL UNIQUE,
-      expires_at DATETIME NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
       used INTEGER DEFAULT 0,
-      used_at DATETIME,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      used_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
 
-  // Create password_reset_rate_limit table for rate limiting
+  // Create password_reset_rate_limit table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS password_reset_rate_limit (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       email TEXT NOT NULL,
       request_count INTEGER DEFAULT 1,
-      window_start DATETIME DEFAULT CURRENT_TIMESTAMP,
+      window_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(email)
     )
   `);
 
-  // Create audit_log table for security logging
+  // Create audit_log table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS audit_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER,
       email TEXT,
       action TEXT NOT NULL,
       description TEXT,
       ip_address TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
@@ -140,28 +192,32 @@ async function runMigrations(): Promise<void> {
   // Create roles table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS roles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
       description TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  // Insert default roles
+  // Seed default roles (idempotent)
   await db.exec(`
-    INSERT OR IGNORE INTO roles (id, name, description) VALUES
+    INSERT INTO roles (id, name, description) VALUES
     (1, 'Attendee', 'Default role for new users'),
     (2, 'Organizer', 'Can create and manage events'),
     (3, 'Admin', 'Full system access')
+    ON CONFLICT (id) DO NOTHING
   `);
+
+  // Advance the sequence past the seeded ids to avoid PK conflicts on later inserts
+  await db.exec(`SELECT setval('roles_id_seq', GREATEST((SELECT MAX(id) FROM roles), 3))`);
 
   // Create permissions table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS permissions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
       description TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -179,7 +235,7 @@ async function runMigrations(): Promise<void> {
   // Create user_profiles table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS user_profiles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER UNIQUE NOT NULL,
       bio TEXT,
       phone_number TEXT,
@@ -189,38 +245,39 @@ async function runMigrations(): Promise<void> {
       state TEXT,
       zip_code TEXT,
       country TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
-  // Insert default permissions
+  // Seed default permissions (idempotent)
   await db.exec(`
-    INSERT OR IGNORE INTO permissions (name, description) VALUES
-    ('users.view', 'View user profiles'),
-    ('users.edit', 'Edit user profiles'),
+    INSERT INTO permissions (name, description) VALUES
+    ('users.view',   'View user profiles'),
+    ('users.edit',   'Edit user profiles'),
     ('users.delete', 'Delete users'),
-    ('events.view', 'View events'),
-    ('events.create', 'Create events'),
-    ('events.edit', 'Edit events'),
-    ('events.delete', 'Delete events'),
-    ('roles.view', 'View roles'),
+    ('events.view',  'View events'),
+    ('events.create','Create events'),
+    ('events.edit',  'Edit events'),
+    ('events.delete','Delete events'),
+    ('roles.view',   'View roles'),
     ('roles.manage', 'Manage roles and permissions')
+    ON CONFLICT (name) DO NOTHING
   `);
 
   // Create events table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,
       date TEXT NOT NULL,
       location TEXT NOT NULL,
       description TEXT,
       status TEXT CHECK(status IN ('Draft', 'Active', 'Completed')) DEFAULT 'Draft',
       created_by INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
@@ -228,15 +285,15 @@ async function runMigrations(): Promise<void> {
   // Create tasks table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       event_id INTEGER NOT NULL,
       title TEXT NOT NULL,
       description TEXT,
       assignee TEXT,
       due_date TEXT,
       status TEXT CHECK(status IN ('Pending', 'Complete')) DEFAULT 'Pending',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     )
   `);
@@ -244,14 +301,14 @@ async function runMigrations(): Promise<void> {
   // Create rsvps table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS rsvps (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       event_id INTEGER NOT NULL,
       name TEXT NOT NULL,
       email TEXT NOT NULL,
       guests INTEGER DEFAULT 1,
       status TEXT CHECK(status IN ('Pending', 'Confirmed', 'Declined')) DEFAULT 'Pending',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(event_id, email),
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     )
