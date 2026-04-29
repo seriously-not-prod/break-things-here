@@ -208,4 +208,52 @@ async function runMigrations(): Promise<void> {
     ('roles.view', 'View roles'),
     ('roles.manage', 'Manage roles and permissions')
   `);
+
+  // Create events table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      date TEXT NOT NULL,
+      location TEXT NOT NULL,
+      description TEXT,
+      status TEXT CHECK(status IN ('Draft', 'Active', 'Completed')) DEFAULT 'Draft',
+      created_by INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create tasks table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      assignee TEXT,
+      due_date TEXT,
+      status TEXT CHECK(status IN ('Pending', 'Complete')) DEFAULT 'Pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create rsvps table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS rsvps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      guests INTEGER DEFAULT 1,
+      status TEXT CHECK(status IN ('Pending', 'Confirmed', 'Declined')) DEFAULT 'Pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(event_id, email),
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    )
+  `);
 }
