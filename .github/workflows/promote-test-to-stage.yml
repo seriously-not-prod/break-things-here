@@ -1,41 +1,74 @@
 name: Promote test → stage
 
 on:
+  workflow_dispatch: {}
   push:
     branches: [test]
 
-env:
-  AUTO_MERGE: "true"
-
 jobs:
-  create-pr:
+  create-sync-pr:
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
-      checks: read
     steps:
-      - name: Checkout
+      - name: Checkout stage branch
         uses: actions/checkout@v4
-
-      - id: create_pr
-        name: Create PR to `stage`
-        uses: peter-evans/create-pull-request@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: chore(release): promote test → stage
-          title: chore(release): promote test → stage (automated)
-          body: |-
-            Automated promotion: merging `test` into `stage` for staging verification.
-            This PR was created by the promotion workflow.
-          base: stage
-          head: test
-          labels: chore, automated
+          ref: stage
+          fetch-depth: 0
 
-      - name: Optionally enable auto-merge
-        if: env.AUTO_MERGE == 'true'
-        uses: peter-evans/enable-pull-request-automerge@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          merge-method: squash
-          pull-request-number: ${{ steps.create_pr.outputs.pull-request-number }}
+      - name: Configure git
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+
+      - name: Create sync branch from stage and merge test
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          git fetch origin test stage
+
+          SYNC_BRANCH="bugfix/190-sync-test-to-stage"
+
+          # Delete existing sync branch remotely if present
+          git push origin --delete "${SYNC_BRANCH}" 2>/dev/null || true
+
+          # Create sync branch from stage
+          git checkout -b "${SYNC_BRANCH}" origin/stage
+
+          # Merge test, prefer test's version for conflicts
+          git merge origin/test -X theirs \
+            -m "fix: sync test into stage resolving conflicts #190" \
+            --allow-unrelated-histories || true
+
+          # Remove Next.js incompatible files if present
+          if [ -d "src/app" ]; then
+            git rm -r src/app/
+            git commit --amend --no-edit
+          fi
+
+          # Push sync branch
+          git push origin "${SYNC_BRANCH}"
+
+          # Close any existing open PR for this sync branch → stage
+          EXISTING=$(gh pr list \
+            --repo "${REPO}" \
+            --head "${SYNC_BRANCH}" \
+            --base stage \
+            --state open \
+            --json number \
+            --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$EXISTING" ]; then
+            gh pr close "$EXISTING" \
+              --comment "Superseded by new sync PR from workflow dispatch." 2>/dev/null || true
+          fi
+
+          # Create PR from sync branch → stage
+          gh pr create \
+            --repo "${REPO}" \
+            --head "${SYNC_BRANCH}" \
+            --base stage \
+            --title "fix: sync test into stage resolving conflicts #190" \
+            --body "Automated sync: merges test content into stage, resolving all conflicts with test winning. References #190"
