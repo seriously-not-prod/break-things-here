@@ -90,6 +90,7 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
     const result = await db.run(`
       INSERT INTO events (title, date, location, description, status, created_by)
       VALUES (?, ?, ?, ?, ?, ?)
+      RETURNING id
     `, [title, date, location, description || '', status || 'Draft', userId]);
     
     const newEvent = await db.get('SELECT * FROM events WHERE id = ?', [result.lastID]);
