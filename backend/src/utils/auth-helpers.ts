@@ -54,11 +54,39 @@ export function generateVerificationToken(): string {
 }
 
 /**
- * Generates a cryptographically secure password reset token
- * @returns Hex-encoded random token (64 characters)
+ * Password reset token pair using the selector/verifier pattern.
+ * - `selector` (32 hex chars): stored in plaintext in `token_selector` DB column for fast lookup.
+ * - `verifier` (64 hex chars): bcrypt-hashed before DB storage for computational security.
+ * - `fullToken` (96 hex chars): concatenation sent to the user in the reset email link.
+ *
+ * This pattern avoids using a fast hash (SHA-256) on password-like data, satisfying
+ * CWE-916 / CodeQL js/insufficient-password-hash requirements.
  */
-export function generatePasswordResetToken(): string {
-  return crypto.randomBytes(32).toString('hex');
+export interface PasswordResetTokenPair {
+  selector: string;
+  verifier: string;
+  fullToken: string;
+}
+
+export function generatePasswordResetTokenPair(): PasswordResetTokenPair {
+  const selector = crypto.randomBytes(16).toString('hex'); // 32 hex chars
+  const verifier = crypto.randomBytes(32).toString('hex'); // 64 hex chars
+  return { selector, verifier, fullToken: selector + verifier };
+}
+
+/**
+ * Bcrypt-hashes the verifier part of a password reset token for DB storage.
+ * Uses SALT_ROUNDS (12) for adequate computational effort (CWE-916).
+ */
+export async function hashResetVerifier(verifier: string): Promise<string> {
+  return bcrypt.hash(verifier, SALT_ROUNDS);
+}
+
+/**
+ * Verifies the user-submitted verifier against the stored bcrypt hash.
+ */
+export async function verifyResetToken(verifier: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(verifier, hash);
 }
 
 // ---------------------------------------------------------------------------

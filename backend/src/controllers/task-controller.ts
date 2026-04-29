@@ -100,6 +100,7 @@ export async function createTask(req: Request, res: Response): Promise<void> {
     const result = await db.run(`
       INSERT INTO tasks (event_id, title, description, assignee, due_date, status)
       VALUES (?, ?, ?, ?, ?, ?)
+      RETURNING id
     `, [event_id, title, description || '', assignee || '', due_date || null, status || 'Pending']);
     
     const newTask = await db.get('SELECT * FROM tasks WHERE id = ?', [result.lastID]);
