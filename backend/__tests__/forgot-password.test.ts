@@ -111,14 +111,15 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
       await forgotPassword(req, res);
 
       const record = await db.get(
-        'SELECT token FROM password_reset_tokens WHERE email = ?',
+        'SELECT token, token_selector FROM password_reset_tokens WHERE email = ?',
         ['user@example.com'],
       );
 
       expect(record).toBeDefined();
-      expect(record.token).toBeTruthy();
-      expect((record.token as string).length).toBe(64); // 32 bytes = 64 hex chars
-      expect(/^[a-f0-9]+$/.test(record.token as string)).toBe(true); // Valid hex
+      // token column stores bcrypt hash of the verifier
+      expect((record.token as string)).toMatch(/^\$2[aby]\$\d+\$/);
+      // token_selector is 32 hex chars (16 random bytes)
+      expect((record.token_selector as string)).toMatch(/^[a-f0-9]{32}$/);
     });
 
     it('should generate unique tokens for each request', async () => {
@@ -141,12 +142,12 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
       await forgotPassword(req2, res2);
 
       const tokens = await db.all(
-        'SELECT token FROM password_reset_tokens WHERE email = ? ORDER BY created_at DESC LIMIT 2',
+        'SELECT token_selector FROM password_reset_tokens WHERE email = ? ORDER BY created_at DESC LIMIT 2',
         ['user@example.com'],
       );
 
       if (tokens.length >= 2) {
-        expect(tokens[0].token).not.toBe(tokens[1].token);
+        expect(tokens[0].token_selector).not.toBe(tokens[1].token_selector);
       }
     });
   });

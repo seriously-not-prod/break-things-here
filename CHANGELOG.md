@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Migration
+- Migrated backend database from SQLite to PostgreSQL (`pg` v8)
+- Replaced `sqlite` / `sqlite3` npm packages with `pg` and `@types/pg`
+- Rewrote `backend/src/db/database.ts`: PostgreSQL connection pool with a SQLite-compatible wrapper (`get`, `all`, `run`, `exec`) that auto-converts `?` placeholders to `$N` positional parameters
+- Converted all DDL: `INTEGER PRIMARY KEY AUTOINCREMENT` → `SERIAL PRIMARY KEY`, `DATETIME` → `TIMESTAMP`, seeded reference data uses `ON CONFLICT … DO NOTHING`
+- Fixed SQLite-only `INSERT OR IGNORE` → `INSERT … ON CONFLICT (col) DO NOTHING` in `profile-controller.ts`
+- Fixed SQLite integer-string concatenation `|| id ||` → `|| id::text ||` in `users-controller.ts`
+- Fixed SQLite `INSERT OR REPLACE` → `INSERT … ON CONFLICT (email) DO UPDATE SET …` in dev-seed route
+- Added `RETURNING id` to INSERT statements whose results are used via `result.lastID` (auth, event, task, rsvp, rbac controllers)
+- Removed duplicate / conflicting `app-network` key from `docker-compose.yml`; added `db` (PostgreSQL 16-alpine) service with health-check dependency chain; removed `sqlite-data` volume; added `postgres-data` named volume
+- Replaced `DATABASE_URL` SQLite file path with `postgresql://…` connection string in both `docker-compose.yml` and `backend/package.json` dev script
+- Updated `database/init.sql` to full PostgreSQL application schema (all tables, indexes, reference data)
+
 ### Security
 - Replace SHA-256 token hashing with scrypt KDF in `hashToken` (auth-helpers.ts) to address CodeQL high-severity "insufficient computational effort" alert (#77)
 - Fix session lookup in auth middleware to use `hashToken` (scrypt) instead of raw SHA-256, ensuring consistency with stored session hashes
