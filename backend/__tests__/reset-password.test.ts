@@ -16,7 +16,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
 import { resetPassword } from '../src/controllers/password-reset-controller.js';
-import { hashPassword, hashToken } from '../src/utils/auth-helpers.js';
+import { hashPassword, hashResetVerifier } from '../src/utils/auth-helpers.js';
 
 function makeRes() {
   return {
@@ -47,19 +47,30 @@ async function seedUser(email: string, password: string): Promise<number> {
   return result.lastID as number;
 }
 
+/**
+ * Seeds a password reset token row into the DB.
+ * Pads `rawToken` to 96 chars to derive a consistent selector (first 32) and
+ * verifier (remaining 64) that match what the controller expects.
+ * Returns the padded full token string to use as the request body `token`.
+ */
 async function seedToken(
   userId: number,
   email: string,
-  token: string,
+  rawToken: string,
   expiresInMs = 3_600_000,
   usedAt: string | null = null,
-): Promise<void> {
+): Promise<string> {
   const db = getDatabase();
   const expiresAt = new Date(Date.now() + expiresInMs).toISOString();
+  const fullToken = rawToken.padEnd(96, '0').slice(0, 96);
+  const selector = fullToken.slice(0, 32);
+  const verifier = fullToken.slice(32);
+  const tokenHash = await hashResetVerifier(verifier);
   await db.run(
-    `INSERT INTO password_reset_tokens (user_id, email, token, expires_at, used_at) VALUES (?, ?, ?, ?, ?)`,
-    [userId, email, hashToken(token), expiresAt, usedAt],
+    `INSERT INTO password_reset_tokens (user_id, email, token_selector, token, expires_at, used_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    [userId, email, selector, tokenHash, expiresAt, usedAt],
   );
+  return fullToken;
 }
 
 describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
@@ -127,20 +138,20 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
 
     it('returns 400 for an already-used token', async () => {
       const userId = await seedUser('used@example.com', 'OldPass1');
-      await seedToken(userId, 'used@example.com', 'used-token-abc', 3_600_000, new Date().toISOString());
+      const tok = await seedToken(userId, 'used@example.com', 'used-token-abc', 3_600_000, new Date().toISOString());
 
       const res = makeRes();
-      await resetPassword(makeReq({ token: 'used-token-abc', newPassword: 'NewPass1' }), res);
+      await resetPassword(makeReq({ token: tok, newPassword: 'NewPass1' }), res);
       expect(res.statusCode).toBe(400);
       expect(res.body.error).toMatch(/already been used/i);
     });
 
     it('returns 400 for an expired token', async () => {
       const userId = await seedUser('expired@example.com', 'OldPass1');
-      await seedToken(userId, 'expired@example.com', 'expired-token-abc', -1000); // already expired
+      const tok = await seedToken(userId, 'expired@example.com', 'expired-token-abc', -1000); // already expired
 
       const res = makeRes();
-      await resetPassword(makeReq({ token: 'expired-token-abc', newPassword: 'NewPass1' }), res);
+      await resetPassword(makeReq({ token: tok, newPassword: 'NewPass1' }), res);
       expect(res.statusCode).toBe(400);
       expect(res.body.error).toMatch(/expired/i);
     });
@@ -151,24 +162,25 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
   describe('AC: Successful Password Reset', () => {
     it('returns 200 with success message on valid reset', async () => {
       const userId = await seedUser('user@example.com', 'OldPass1');
-      await seedToken(userId, 'user@example.com', 'valid-reset-token');
+      const tok = await seedToken(userId, 'user@example.com', 'valid-reset-token');
 
       const res = makeRes();
-      await resetPassword(makeReq({ token: 'valid-reset-token', newPassword: 'NewPass1' }), res);
+      await resetPassword(makeReq({ token: tok, newPassword: 'NewPass1' }), res);
       expect(res.statusCode).toBe(200);
       expect(res.body.message).toBeTruthy();
     });
 
     it('marks the token as used after successful reset', async () => {
       const userId = await seedUser('mark@example.com', 'OldPass1');
-      await seedToken(userId, 'mark@example.com', 'mark-used-token');
+      const tok = await seedToken(userId, 'mark@example.com', 'mark-used-token');
+      const selector = tok.slice(0, 32);
 
-      await resetPassword(makeReq({ token: 'mark-used-token', newPassword: 'NewPass1' }), makeRes());
+      await resetPassword(makeReq({ token: tok, newPassword: 'NewPass1' }), makeRes());
 
       const db = getDatabase();
       const row = await db.get(
-        `SELECT used_at FROM password_reset_tokens WHERE token = ?`,
-        [hashToken('mark-used-token')],
+        `SELECT used_at FROM password_reset_tokens WHERE token_selector = ?`,
+        [selector],
       );
       expect(row).toBeTruthy();
       expect((row as any).used_at).not.toBeNull();
@@ -176,9 +188,9 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
 
     it('stores a new hashed password (not plaintext)', async () => {
       const userId = await seedUser('hash@example.com', 'OldPass1');
-      await seedToken(userId, 'hash@example.com', 'hash-test-token');
+      const tok = await seedToken(userId, 'hash@example.com', 'hash-test-token');
 
-      await resetPassword(makeReq({ token: 'hash-test-token', newPassword: 'NewSecure9' }), makeRes());
+      await resetPassword(makeReq({ token: tok, newPassword: 'NewSecure9' }), makeRes());
 
       const db = getDatabase();
       const user = await db.get(`SELECT password_hash FROM users WHERE id = ?`, [userId]);
@@ -188,7 +200,7 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
 
     it('invalidates all existing sessions after reset', async () => {
       const userId = await seedUser('session@example.com', 'OldPass1');
-      await seedToken(userId, 'session@example.com', 'session-reset-token');
+      const tok = await seedToken(userId, 'session@example.com', 'session-reset-token');
 
       // Insert dummy session
       const db = getDatabase();
@@ -199,7 +211,7 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
       );
 
       await resetPassword(
-        makeReq({ token: 'session-reset-token', newPassword: 'NewPass1' }),
+        makeReq({ token: tok, newPassword: 'NewPass1' }),
         makeRes(),
       );
 
@@ -209,9 +221,9 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
 
     it('logs audit entry after successful reset', async () => {
       const userId = await seedUser('audit@example.com', 'OldPass1');
-      await seedToken(userId, 'audit@example.com', 'audit-reset-token');
+      const tok = await seedToken(userId, 'audit@example.com', 'audit-reset-token');
 
-      await resetPassword(makeReq({ token: 'audit-reset-token', newPassword: 'AuditPass1' }), makeRes());
+      await resetPassword(makeReq({ token: tok, newPassword: 'AuditPass1' }), makeRes());
 
       const db = getDatabase();
       const log = await db.get(
@@ -223,12 +235,12 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
 
     it('rejects same token a second time (single-use)', async () => {
       const userId = await seedUser('singleuse@example.com', 'OldPass1');
-      await seedToken(userId, 'singleuse@example.com', 'singleuse-token');
+      const tok = await seedToken(userId, 'singleuse@example.com', 'singleuse-token');
 
-      await resetPassword(makeReq({ token: 'singleuse-token', newPassword: 'First1Pass' }), makeRes());
+      await resetPassword(makeReq({ token: tok, newPassword: 'First1Pass' }), makeRes());
 
       const res2 = makeRes();
-      await resetPassword(makeReq({ token: 'singleuse-token', newPassword: 'Second2Pass' }), res2);
+      await resetPassword(makeReq({ token: tok, newPassword: 'Second2Pass' }), res2);
       expect(res2.statusCode).toBe(400);
       expect(res2.body.error).toMatch(/already been used/i);
     });
@@ -242,9 +254,9 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
       await resetPassword(makeReq({ token: 'completely-fake-token', newPassword: 'ValidPass9' }), res1);
 
       const userId = await seedUser('enum@example.com', 'OldPass1');
-      await seedToken(userId, 'enum@example.com', 'expired-enum-token', -1000);
+      const enumTok = await seedToken(userId, 'enum@example.com', 'expired-enum-token', -1000);
       const res2 = makeRes();
-      await resetPassword(makeReq({ token: 'expired-enum-token', newPassword: 'ValidPass9' }), res2);
+      await resetPassword(makeReq({ token: enumTok, newPassword: 'ValidPass9' }), res2);
 
       // Both should be 400 — content may differ (expired vs invalid) but no user data leaked
       expect(res1.statusCode).toBe(400);

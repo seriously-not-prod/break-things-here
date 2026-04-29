@@ -160,7 +160,7 @@ export async function deleteMe(req: AuthRequest, res: Response): Promise<Respons
   await db.run(
     `UPDATE users
      SET deleted_at = CURRENT_TIMESTAMP,
-         email = 'deleted-' || id || '@deleted.invalid',
+         email = 'deleted-' || id::text || '@deleted.invalid',
          display_name = 'Deleted User',
          password_hash = '',
          email_verification_token = NULL
