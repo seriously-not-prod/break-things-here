@@ -36,7 +36,8 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
 
   const result = await db.run(
     `INSERT INTO rsvps (event_id, name, email, status, notes, source)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?)
+     RETURNING id`,
     [
       eventId,
       name.trim(),

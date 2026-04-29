@@ -82,7 +82,8 @@ export async function createEvent(req: AuthRequest, res: Response): Promise<Resp
   const db = getDatabase();
   const result = await db.run(
     `INSERT INTO events (title, description, location, event_date, status, created_by)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?)
+     RETURNING id`,
     [
       title.trim(),
       description?.trim() || null,

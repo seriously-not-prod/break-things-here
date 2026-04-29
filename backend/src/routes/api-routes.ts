@@ -149,8 +149,12 @@ if (process.env.NODE_ENV !== 'production') {
       const db = getDatabase();
       const passwordHash = await hashPassword(password);
       await db.run(
-        `INSERT OR REPLACE INTO users (email, password_hash, display_name, email_verified, role_id, created_at, updated_at)
-         VALUES (?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        `INSERT INTO users (email, password_hash, display_name, email_verified, role_id, created_at, updated_at)
+         VALUES (?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT (email) DO UPDATE SET
+           password_hash = EXCLUDED.password_hash,
+           display_name = EXCLUDED.display_name,
+           updated_at = CURRENT_TIMESTAMP`,
         [email.trim().toLowerCase(), passwordHash, displayName || email.split('@')[0]],
       );
       return res.status(201).json({ message: 'Demo user seeded' });
