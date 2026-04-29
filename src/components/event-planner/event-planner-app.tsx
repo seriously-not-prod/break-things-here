@@ -9,6 +9,7 @@ import {
   EventRounded,
   HowToRegRounded,
   KeyboardBackspaceRounded,
+  LogoutRounded,
   MenuRounded,
   ScheduleRounded,
 } from '@mui/icons-material';
@@ -26,8 +27,11 @@ import {
   useOutletContext,
   useParams,
 } from 'react-router-dom';
+import { AuthProvider, useAuth } from '../../contexts/auth-context';
 import { seededUsers } from '../../data/event-planner-seed';
 import { useEventPlannerStore } from '../../hooks/use-event-planner-store';
+import { LoginPage } from '../login-page/login-page';
+import { ProtectedRoute } from '../protected-route/protected-route';
 import {
   EventDraft,
   PlannerActivity,
@@ -64,13 +68,16 @@ interface PlannerOutletContext {
   rsvps: PlannerRsvp[];
   tasks: PlannerTask[];
   users: PlannerUser[];
-  createEvent: (draft: EventDraft) => PlannerEvent;
-  createTask: (draft: TaskDraft) => PlannerTask;
+  loading: boolean;
+  error: string | null;
+  createEvent: (draft: EventDraft) => Promise<PlannerEvent>;
+  updateEvent: (id: string, updates: Partial<EventDraft>) => Promise<void>;
+  createTask: (draft: TaskDraft) => Promise<PlannerTask>;
+  toggleTask: (taskId: string) => Promise<void>;
+  submitRsvp: (draft: RsvpDraft) => Promise<PlannerRsvp>;
+  updateRsvpStatus: (rsvpId: string, status: RsvpStatus) => Promise<void>;
   notify: (message: string) => void;
-  submitRsvp: (draft: RsvpDraft, source: 'internal' | 'public') => PlannerRsvp;
-  toggleTask: (taskId: string) => void;
-  updateEvent: (eventId: string, draft: EventDraft) => PlannerEvent | undefined;
-  updateRsvpStatus: (rsvpId: string, status: RsvpStatus) => void;
+  refreshData: () => Promise<void>;
 }
 
 interface SummaryCardProps {
@@ -146,6 +153,8 @@ function StatusBadge(props: { status: string }): React.JSX.Element {
 function PlannerLayout(props: { notify: (message: string) => void; users: PlannerUser[] }): React.JSX.Element {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -157,6 +166,11 @@ function PlannerLayout(props: { notify: (message: string) => void; users: Planne
     });
     return matchingItem?.label ?? 'Festival Planner';
   }, [location.pathname]);
+
+  const handleLogout = (): void => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <div className={`planner-shell${sidebarOpen ? ' planner-shell--sidebar-open' : ''}`}>
@@ -195,15 +209,34 @@ function PlannerLayout(props: { notify: (message: string) => void; users: Planne
         <div className="planner-sidebar__team">
           <h2>Sample Users</h2>
           <ul>
-            {props.users.map((user: PlannerUser) => {
+            {props.users.map((plannerUser: PlannerUser) => {
               return (
-                <li key={user.id}>
-                  <strong>{user.name}</strong>
-                  <span>{user.role}</span>
+                <li key={plannerUser.id}>
+                  <strong>{plannerUser.name}</strong>
+                  <span>{plannerUser.role}</span>
                 </li>
               );
             })}
           </ul>
+        </div>
+        <div className="planner-sidebar__user">
+          <div className="planner-sidebar__user-info">
+            <div className="planner-sidebar__user-avatar">
+              {user?.name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <strong>{user?.name}</strong>
+              <span>{user?.role}</span>
+            </div>
+          </div>
+          <button
+            className="planner-sidebar__logout"
+            onClick={handleLogout}
+            type="button"
+            title="Logout"
+          >
+            <LogoutRounded fontSize="small" />
+          </button>
         </div>
       </aside>
       <div className="planner-shell__overlay" onClick={(): void => setSidebarOpen(false)} />
@@ -282,7 +315,7 @@ function DashboardPage(): React.JSX.Element {
                   <div>
                     <strong>{rsvp.name}</strong>
                     <p>
-                      {event?.title ?? 'Unknown event'} · {formatRelativeTimestamp(rsvp.updatedAt)}
+                      {event?.title ?? 'Unknown event'} · {formatRelativeTimestamp(rsvp.createdAt)}
                     </p>
                   </div>
                   <StatusBadge status={rsvp.status} />
@@ -373,7 +406,7 @@ function EventEditorPage(): React.JSX.Element {
     setDraft((current: EventDraft) => ({ ...current, [key]: value }));
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>): void {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const validationErrors = validateEventDraft(draft);
     setErrors(validationErrors);
@@ -381,16 +414,22 @@ function EventEditorPage(): React.JSX.Element {
       return;
     }
 
-    if (existingEvent) {
-      context.updateEvent(existingEvent.id, draft);
-      context.notify('Event updated successfully.');
-      navigate(`/events/${existingEvent.id}`);
-      return;
-    }
+    try {
+      if (existingEvent) {
+        await context.updateEvent(existingEvent.id, draft);
+        context.notify('Event updated successfully.');
+        navigate(`/events/${existingEvent.id}`);
+        return;
+      }
 
-    const createdEvent = context.createEvent(draft);
-    context.notify('Event created successfully.');
-    navigate(`/events/${createdEvent.id}`);
+      const createdEvent = await context.createEvent(draft);
+      context.notify('Event created successfully.');
+      navigate(`/events/${createdEvent.id}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Operation failed';
+      context.notify(`Error: ${message}`);
+      console.error('Error saving event:', error);
+    }
   }
 
   return (
@@ -453,9 +492,9 @@ function EventDetailsPage(): React.JSX.Element {
   const [taskDraft, setTaskDraft] = useState<TaskDraft>({
     eventId: params.eventId ?? '',
     title: '',
+    description: '',
     assignee: '',
     dueDate: '',
-    notes: '',
   });
   const [taskErrors, setTaskErrors] = useState<ValidationErrors>({});
 
@@ -463,7 +502,7 @@ function EventDetailsPage(): React.JSX.Element {
     return <Navigate replace to="/events" />;
   }
 
-  function handleTaskSubmit(eventForm: React.FormEvent<HTMLFormElement>): void {
+  async function handleTaskSubmit(eventForm: React.FormEvent<HTMLFormElement>): Promise<void> {
     eventForm.preventDefault();
     const validationErrors = validateTaskDraft(taskDraft);
     setTaskErrors(validationErrors);
@@ -471,9 +510,14 @@ function EventDetailsPage(): React.JSX.Element {
       return;
     }
 
-    context.createTask(taskDraft);
-    context.notify('Task created for this event.');
-    setTaskDraft({ eventId: params.eventId ?? '', title: '', assignee: '', dueDate: '', notes: '' });
+    try {
+      await context.createTask(taskDraft);
+      context.notify('Task created for this event.');
+      setTaskDraft({ eventId: params.eventId ?? '', title: '', description: '', assignee: '', dueDate: '' });
+    } catch (error) {
+      context.notify('Error creating task');
+      console.error('Error creating task:', error);
+    }
   }
 
   return (
@@ -550,8 +594,8 @@ function EventDetailsPage(): React.JSX.Element {
               </label>
             </div>
             <label>
-              <span>Notes</span>
-              <textarea rows={3} value={taskDraft.notes} onChange={(eventForm): void => setTaskDraft({ ...taskDraft, notes: eventForm.target.value })} />
+              <span>Description</span>
+              <textarea rows={3} value={taskDraft.description} onChange={(eventForm): void => setTaskDraft({ ...taskDraft, description: eventForm.target.value })} />
             </label>
             <div className="planner-form-actions">
               <button className="planner-button" type="submit">
@@ -568,11 +612,11 @@ function EventDetailsPage(): React.JSX.Element {
                   <div>
                     <strong>{task.title}</strong>
                     <p>
-                      {task.assignee} · due {formatDisplayDate(task.dueDate)}
+                      {task.assignee} · due {task.dueDate ? formatDisplayDate(task.dueDate) : 'No due date'}
                     </p>
                   </div>
-                  <button className="planner-button planner-button--ghost" onClick={(): void => context.toggleTask(task.id)} type="button">
-                    {task.status === 'Completed' ? 'Reopen' : 'Complete'}
+                  <button className="planner-button planner-button--ghost" onClick={(): void => void context.toggleTask(task.id)} type="button">
+                    {task.status === 'Complete' ? 'Reopen' : 'Complete'}
                   </button>
                 </li>
               );
@@ -589,13 +633,13 @@ function TasksPage(): React.JSX.Element {
   const [draft, setDraft] = useState<TaskDraft>({
     eventId: context.events[0]?.id ?? '',
     title: '',
+    description: '',
     assignee: '',
     dueDate: '',
-    notes: '',
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>): void {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const validationErrors = validateTaskDraft(draft);
     setErrors(validationErrors);
@@ -603,9 +647,14 @@ function TasksPage(): React.JSX.Element {
       return;
     }
 
-    context.createTask(draft);
-    context.notify('Task created successfully.');
-    setDraft({ eventId: draft.eventId, title: '', assignee: '', dueDate: '', notes: '' });
+    try {
+      await context.createTask(draft);
+      context.notify('Task created successfully.');
+      setDraft({ eventId: draft.eventId, title: '', description: '', assignee: '', dueDate: '' });
+    } catch (error) {
+      context.notify('Error creating task');
+      console.error('Error creating task:', error);
+    }
   }
 
   return (
@@ -644,8 +693,8 @@ function TasksPage(): React.JSX.Element {
               </label>
             </div>
             <label>
-              <span>Notes</span>
-              <textarea rows={4} value={draft.notes} onChange={(event): void => setDraft({ ...draft, notes: event.target.value })} />
+              <span>Description</span>
+              <textarea rows={4} value={draft.description} onChange={(event): void => setDraft({ ...draft, description: event.target.value })} />
             </label>
             <div className="planner-form-actions">
               <button className="planner-button" type="submit">
@@ -663,11 +712,11 @@ function TasksPage(): React.JSX.Element {
                   <div>
                     <strong>{task.title}</strong>
                     <p>
-                      {event?.title ?? 'Unknown event'} · {task.assignee} · due {formatDisplayDate(task.dueDate)}
+                      {event?.title ?? 'Unknown event'} · {task.assignee} · due {task.dueDate ? formatDisplayDate(task.dueDate) : 'No due date'}
                     </p>
                   </div>
-                  <button className="planner-button planner-button--ghost" onClick={(): void => context.toggleTask(task.id)} type="button">
-                    {task.status === 'Completed' ? 'Completed' : 'Mark Complete'}
+                  <button className="planner-button planner-button--ghost" onClick={(): void => void context.toggleTask(task.id)} type="button">
+                    {task.status === 'Complete' ? 'Completed' : 'Mark Complete'}
                   </button>
                 </li>
               );
@@ -685,12 +734,12 @@ function RsvpsPage(): React.JSX.Element {
     eventId: context.events[0]?.id ?? '',
     name: '',
     email: '',
-    status: 'Maybe',
-    notes: '',
+    guests: 1,
+    status: 'Pending',
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>): void {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const validationErrors = validateRsvpDraft(draft);
     setErrors(validationErrors);
@@ -698,9 +747,14 @@ function RsvpsPage(): React.JSX.Element {
       return;
     }
 
-    context.submitRsvp(draft, 'internal');
-    context.notify('RSVP saved successfully.');
-    setDraft({ eventId: draft.eventId, name: '', email: '', status: 'Maybe', notes: '' });
+    try {
+      await context.submitRsvp(draft);
+      context.notify('RSVP saved successfully.');
+      setDraft({ eventId: draft.eventId, name: '', email: '', guests: 1, status: 'Pending' });
+    } catch (error) {
+      context.notify('Error saving RSVP');
+      console.error('Error saving RSVP:', error);
+    }
   }
 
   return (
@@ -734,18 +788,20 @@ function RsvpsPage(): React.JSX.Element {
                 {errors.email ? <small>{errors.email}</small> : null}
               </label>
             </div>
-            <label>
-              <span>Status</span>
-              <select value={draft.status} onChange={(event): void => setDraft({ ...draft, status: event.target.value as RsvpStatus })}>
-                <option value="Going">Going</option>
-                <option value="Maybe">Maybe</option>
-                <option value="Not Going">Not Going</option>
-              </select>
-            </label>
-            <label>
-              <span>Notes</span>
-              <textarea rows={3} value={draft.notes} onChange={(event): void => setDraft({ ...draft, notes: event.target.value })} />
-            </label>
+            <div className="planner-form-grid">
+              <label>
+                <span>Guests</span>
+                <input type="number" min="1" value={draft.guests} onChange={(event): void => setDraft({ ...draft, guests: parseInt(event.target.value) || 1 })} />
+              </label>
+              <label>
+                <span>Status</span>
+                <select value={draft.status} onChange={(event): void => setDraft({ ...draft, status: event.target.value as RsvpStatus })}>
+                  <option value="Pending">Pending</option>
+                  <option value="Confirmed">Confirmed</option>
+                  <option value="Declined">Declined</option>
+                </select>
+              </label>
+            </div>
             <div className="planner-form-actions">
               <button className="planner-button" type="submit">
                 Save RSVP
@@ -777,11 +833,11 @@ function RsvpsPage(): React.JSX.Element {
                         <select
                           className="planner-status-select"
                           value={rsvp.status}
-                          onChange={(event): void => context.updateRsvpStatus(rsvp.id, event.target.value as RsvpStatus)}
+                          onChange={(event): void => void context.updateRsvpStatus(rsvp.id, event.target.value as RsvpStatus)}
                         >
-                          <option value="Going">Going</option>
-                          <option value="Maybe">Maybe</option>
-                          <option value="Not Going">Not Going</option>
+                          <option value="Pending">Pending</option>
+                          <option value="Confirmed">Confirmed</option>
+                          <option value="Declined">Declined</option>
                         </select>
                       </td>
                     </tr>
@@ -922,17 +978,23 @@ function PublicRsvpPage(): React.JSX.Element {
     eventId: params.eventId ?? '',
     name: '',
     email: '',
-    status: 'Going',
-    notes: '',
+    guests: 1,
+    status: 'Pending',
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [submitted, setSubmitted] = useState<boolean>(false);
 
+  // Show loading while data is being fetched
+  if (context.loading) {
+    return <div>Loading...</div>;
+  }
+
+  // After loading, if event not found, redirect
   if (!event) {
     return <Navigate replace to="/dashboard" />;
   }
 
-  function handleSubmit(eventForm: React.FormEvent<HTMLFormElement>): void {
+  async function handleSubmit(eventForm: React.FormEvent<HTMLFormElement>): Promise<void> {
     eventForm.preventDefault();
     const validationErrors = validateRsvpDraft(draft);
     setErrors(validationErrors);
@@ -940,8 +1002,12 @@ function PublicRsvpPage(): React.JSX.Element {
       return;
     }
 
-    context.submitRsvp(draft, 'public');
-    setSubmitted(true);
+    try {
+      await context.submitRsvp(draft);
+      setSubmitted(true);
+    } catch (error) {
+      console.error('Error submitting RSVP:', error);
+    }
   }
 
   return (
@@ -981,18 +1047,20 @@ function PublicRsvpPage(): React.JSX.Element {
               <input value={draft.email} onChange={(eventForm): void => setDraft({ ...draft, email: eventForm.target.value })} />
               {errors.email ? <small>{errors.email}</small> : null}
             </label>
-            <label>
-              <span>Status</span>
-              <select value={draft.status} onChange={(eventForm): void => setDraft({ ...draft, status: eventForm.target.value as RsvpStatus })}>
-                <option value="Going">Going</option>
-                <option value="Maybe">Maybe</option>
-                <option value="Not Going">Not Going</option>
-              </select>
-            </label>
-            <label>
-              <span>Notes</span>
-              <textarea rows={4} value={draft.notes} onChange={(eventForm): void => setDraft({ ...draft, notes: eventForm.target.value })} />
-            </label>
+            <div className="planner-form-grid">
+              <label>
+                <span>Guests</span>
+                <input type="number" min="1" value={draft.guests} onChange={(eventForm): void => setDraft({ ...draft, guests: parseInt(eventForm.target.value) || 1 })} />
+              </label>
+              <label>
+                <span>Status</span>
+                <select value={draft.status} onChange={(eventForm): void => setDraft({ ...draft, status: eventForm.target.value as RsvpStatus })}>
+                  <option value="Pending">Pending</option>
+                  <option value="Confirmed">Confirmed</option>
+                  <option value="Declined">Declined</option>
+                </select>
+              </label>
+            </div>
             <div className="planner-form-actions">
               <button className="planner-button" type="submit">
                 Submit RSVP
@@ -1023,7 +1091,17 @@ function PlannerRoutes(props: { notify: (message: string) => void }): React.JSX.
 
   return (
     <Routes>
-      <Route element={<PlannerLayout notify={props.notify} users={seededUsers} />}>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<Outlet context={outletContext} />}>
+        <Route path="/rsvp/:eventId" element={<PublicRsvpPage />} />
+      </Route>
+      <Route
+        element={
+          <ProtectedRoute>
+            <PlannerLayout notify={props.notify} users={seededUsers} />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate replace to="/dashboard" />} />
         <Route element={<Outlet context={outletContext} />}>
           <Route path="/dashboard" element={<DashboardPage />} />
@@ -1035,10 +1113,9 @@ function PlannerRoutes(props: { notify: (message: string) => void }): React.JSX.
           <Route path="/rsvps" element={<RsvpsPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/admin" element={<AdminPage />} />
-          <Route path="/rsvp/:eventId" element={<PublicRsvpPage />} />
         </Route>
       </Route>
-      <Route path="*" element={<Navigate replace to="/dashboard" />} />
+      <Route path="*" element={<Navigate replace to="/login" />} />
     </Routes>
   );
 }
@@ -1056,9 +1133,11 @@ export function EventPlannerApp(): React.JSX.Element {
   }, [toastMessage]);
 
   return (
-    <BrowserRouter>
-      <PlannerRoutes notify={(message: string): void => setToastMessage(message)} />
-      <Toast message={toastMessage} />
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <PlannerRoutes notify={(message: string): void => setToastMessage(message)} />
+        <Toast message={toastMessage} />
+      </BrowserRouter>
+    </AuthProvider>
   );
 }

@@ -23,8 +23,11 @@ jobs:
     if: |
       (github.base_ref == 'develop' && (startsWith(github.head_ref, 'feature/') || startsWith(github.head_ref, 'bugfix/') || startsWith(github.head_ref, 'hotfix/'))) ||
       (github.base_ref == 'test' && github.head_ref == 'develop') ||
+      (github.base_ref == 'test' && startsWith(github.head_ref, 'bugfix/')) ||
       (github.base_ref == 'stage' && github.head_ref == 'test') ||
-      (github.base_ref == 'main' && github.head_ref == 'stage')
+      (github.base_ref == 'stage' && startsWith(github.head_ref, 'bugfix/')) ||
+      (github.base_ref == 'main' && github.head_ref == 'stage') ||
+      (github.base_ref == 'main' && startsWith(github.head_ref, 'bugfix/'))
     steps:
       - name: Auto approve promotion PR
         env:

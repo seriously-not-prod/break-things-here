@@ -94,5 +94,19 @@ temp-*.cjs
 temp-*.js
 temp-*.mjs
 
+# Runtime logs and debug output
+*.log
+response.json
+*_output.txt
+*_output.log
+
+# SQLite databases (runtime data)
+*.sqlite
+*.sqlite3
+*.db
+
+# Uploaded files
+backend/uploads/
+
 # Windows metadata (Zone.Identifier NTFS alternate data streams)
 *:Zone.Identifier
