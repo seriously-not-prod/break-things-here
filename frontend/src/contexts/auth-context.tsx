@@ -47,17 +47,26 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     }
   }, []);
 
-  useEffect(() => {
-    void loadCurrentUser();
+  const restoreSession = useCallback(async () => {
+    try {
+      const data = await api.post<{ accessToken: string }>('/api/auth/refresh');
+      if (data && typeof data.accessToken === 'string') setToken(data.accessToken);
+    } catch {
+      setToken(null);
+    }
+
+    await loadCurrentUser();
   }, [loadCurrentUser]);
 
+  useEffect(() => {
+    void restoreSession();
+  }, [restoreSession]);
+
   const login = useCallback(async (email: string, password: string, _rememberMe = false) => {
-    // POST credentials. Backend sets httpOnly cookies and (in development)
-    // may also return raw tokens in the JSON response. If tokens are present
-    // store them so subsequent requests using Authorization headers work.
+    // POST credentials. Backend sets httpOnly cookies and returns accessToken
+    // in development so requests can attach it from in-memory state only.
     const data = await api.post<Record<string, unknown>>('/api/auth/login', { email, password });
     if (data && typeof data.accessToken === 'string') setToken(data.accessToken);
-    // refreshToken is now HttpOnly cookie-only — never stored in localStorage (#290)
     await loadCurrentUser();
   }, [loadCurrentUser]);
 
