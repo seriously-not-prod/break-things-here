@@ -26,7 +26,7 @@ import {
 } from '@mui/material';
 import { AddRounded, ArrowBackRounded, DeleteRounded, EditRounded } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, ApiError } from '../../lib/api-client';
+import { api, ApiError, getAuthHeaders } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
 
 interface PlannerEvent {
@@ -237,10 +237,10 @@ export default function EventDetailPage(): JSX.Element {
 
   async function exportRsvpsCsv(): Promise<void> {
     try {
-      const token = localStorage.getItem('accessToken');
       const response = await fetch(`${API_BASE}/api/events/${id}/rsvps/export?format=${RSVP_EXPORT_FORMAT}`, {
         method: 'GET',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: getAuthHeaders(),
+        credentials: 'include',
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({ error: response.statusText })) as { error?: string };

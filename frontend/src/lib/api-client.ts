@@ -1,12 +1,13 @@
 /**
  * Shared API client for Festival Event Planner frontend.
- * Reads the auth token from localStorage, attaches it to every request,
+ * Keeps the auth token in module memory, attaches it to every request,
  * and surfaces a typed error when the server responds with non-2xx.
  */
 
 // In dev the Vite proxy forwards /api/* to the backend, so we use a relative base.
 // In production set VITE_API_URL to the backend origin if the frontend is served separately.
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
+let accessToken: string | null = null;
 
 export class ApiError extends Error {
   status: number;
@@ -17,8 +18,8 @@ export class ApiError extends Error {
   }
 }
 
-function getToken(): string | null {
-  return localStorage.getItem('accessToken');
+export function getToken(): string | null {
+  return accessToken;
 }
 
 function getCsrfToken(): string | null {
@@ -38,11 +39,12 @@ async function ensureCsrfCookie(): Promise<void> {
 }
 
 export function setToken(token: string | null): void {
-  if (token) {
-    localStorage.setItem('accessToken', token);
-  } else {
-    localStorage.removeItem('accessToken');
-  }
+  accessToken = token;
+}
+
+export function getAuthHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 // refreshToken is stored exclusively in an HttpOnly cookie set by the backend.
