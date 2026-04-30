@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { UserRole } from '../../types/user-role';
 import { ApiRequest, ApiResponse } from '../../types/api';
 import { requireRole, requireAuth } from '../../middleware/rbac';
@@ -143,7 +144,7 @@ describe('Token version invalidation', () => {
   beforeEach(() => resetUserStore());
 
   it('should reject requests with stale tokenVersion after role change', () => {
-    const handler = jest.fn();
+    const handler = vi.fn();
     const user = createUser({
       email: 'admin@test.com',
       displayName: 'Admin',
@@ -166,7 +167,7 @@ describe('Token version invalidation', () => {
   });
 
   it('should allow requests with current tokenVersion', () => {
-    const handler = jest.fn();
+    const handler = vi.fn();
     const user = createUser({
       email: 'admin@test.com',
       displayName: 'Admin',
