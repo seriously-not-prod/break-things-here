@@ -1,4 +1,5 @@
 import express from 'express';
+import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
@@ -27,6 +28,13 @@ if (isDev) {
 }
 
 // Middleware
+// Security headers — must be first
+app.use(helmet({
+  // REST API consumed by a separate frontend origin; CSP is not applicable
+  contentSecurityPolicy: false,
+  // Allow cross-origin fetch from the configured frontend origins
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 app.use(cors(corsOptions));
 app.use(cookieParser()); // Add cookie parser to read req.cookies
 app.use(express.json());
