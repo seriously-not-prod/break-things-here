@@ -7,6 +7,8 @@ import * as passwordResetController from '../controllers/password-reset-controll
 import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
 import * as rsvpController from '../controllers/rsvp-controller.js';
+import * as venuesController from '../controllers/venues-controller.js';
+import * as vendorsController from '../controllers/vendors-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
@@ -137,6 +139,18 @@ router.get('/rsvps/:id', authenticateToken, rsvpController.getRsvpById);
 router.post('/rsvps', rsvpController.submitRsvp); // Public endpoint
 router.put('/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
 router.delete('/rsvps/:id', authenticateToken, rsvpController.deleteRsvp);
+
+// ============ VENUE ROUTES ============
+router.get('/events/:eventId/venues', authenticateToken, venuesController.listVenues);
+router.post('/events/:eventId/venues', authenticateToken, venuesController.createVenue);
+router.patch('/events/:eventId/venues/:id', authenticateToken, venuesController.updateVenue);
+router.delete('/events/:eventId/venues/:id', authenticateToken, venuesController.deleteVenue);
+
+// ============ VENDOR ROUTES ============
+router.get('/events/:eventId/vendors', authenticateToken, vendorsController.listVendors);
+router.post('/events/:eventId/vendors', authenticateToken, vendorsController.createVendor);
+router.patch('/events/:eventId/vendors/:id', authenticateToken, vendorsController.updateVendor);
+router.delete('/events/:eventId/vendors/:id', authenticateToken, vendorsController.deleteVendor);
 
 export default router;
 
