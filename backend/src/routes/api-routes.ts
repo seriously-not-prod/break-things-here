@@ -8,6 +8,7 @@ import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
+import * as adminController from '../controllers/admin-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
@@ -137,6 +138,14 @@ router.post('/events', authenticateToken, eventController.createEvent);
 router.put('/events/:id', authenticateToken, eventController.updateEvent);
 router.delete('/events/:id', authenticateToken, eventController.deleteEvent);
 router.post('/events/:id/restore', authenticateToken, eventController.restoreEvent);
+
+// ============ ADMIN ROUTES — issues #260 #279 ============
+// All admin routes require authentication + Admin role
+router.get('/admin/users', authenticateToken, authorizeRole(['Admin']), adminController.listUsers);
+router.patch('/admin/users/:id/role', authenticateToken, authorizeRole(['Admin']), adminController.changeUserRole);
+router.patch('/admin/users/:id/lock', authenticateToken, authorizeRole(['Admin']), adminController.toggleLock);
+router.delete('/admin/users/:id', authenticateToken, authorizeRole(['Admin']), adminController.deleteUser);
+router.get('/admin/roles', authenticateToken, authorizeRole(['Admin']), adminController.listRoles);
 
 // ============ TASK ROUTES ============
 router.get('/tasks', authenticateToken, taskController.getAllTasks);
