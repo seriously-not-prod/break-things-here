@@ -15,10 +15,13 @@ interface EventRow {
 }
 
 const UPLOADS_DIR = path.resolve('uploads/event-documents');
+// Ensure the boundary ends with a separator to prevent prefix-bypass attacks
+// e.g. /uploads/event-documents-evil would be blocked
+const UPLOADS_DIR_PREFIX = UPLOADS_DIR + path.sep;
 
 function assertSafePath(filePath: string): string {
   const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(UPLOADS_DIR)) {
+  if (resolved !== UPLOADS_DIR && !resolved.startsWith(UPLOADS_DIR_PREFIX)) {
     throw new Error('Path traversal attempt blocked');
   }
   return resolved;
@@ -27,7 +30,7 @@ function assertSafePath(filePath: string): string {
 async function cleanupUploadedFile(filePath?: string): Promise<void> {
   if (!filePath) return;
   try {
-    await fs.unlink(filePath);
+    await fs.unlink(assertSafePath(filePath));
   } catch (error) {
     console.error('Failed to cleanup uploaded document:', error);
   }
