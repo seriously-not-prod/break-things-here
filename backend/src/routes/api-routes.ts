@@ -122,6 +122,7 @@ router.get('/events/:id', authenticateToken, eventController.getEventById);
 router.post('/events', authenticateToken, eventController.createEvent);
 router.put('/events/:id', authenticateToken, eventController.updateEvent);
 router.delete('/events/:id', authenticateToken, eventController.deleteEvent);
+router.post('/events/:id/restore', authenticateToken, eventController.restoreEvent);
 
 // ============ TASK ROUTES ============
 router.get('/tasks', authenticateToken, taskController.getAllTasks);
