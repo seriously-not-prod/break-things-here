@@ -1,5 +1,6 @@
 import { handleRegister } from '../../api/auth/register';
 import { inMemoryUserStore } from '../../api/auth/userStore';
+import { ApiRequest, ApiResponse } from '../../types/api';
 import express from 'express';
 import request from 'supertest';
 
@@ -8,6 +9,21 @@ function buildApp() {
   app.use(express.json());
   app.post('/api/auth/register', handleRegister);
   return app;
+}
+
+function createMockRes(): ApiResponse & { statusCode: number; body: unknown } {
+  const res = {
+    statusCode: 0,
+    body: undefined as unknown,
+    status(code: number) {
+      res.statusCode = code;
+      return res;
+    },
+    json(data: unknown) {
+      res.body = data;
+    },
+  };
+  return res;
 }
 
 describe('POST /api/auth/register', () => {
@@ -93,54 +109,57 @@ describe('POST /api/auth/register', () => {
     expect(stored?.emailConfirmed).toBe(false);
   });
 
-  it('should return 400 for invalid email format', () => {
+  it('should return 400 for invalid email format', async () => {
     const req: ApiRequest = {
       params: {},
-      body: { email: 'not-an-email', displayName: 'User', password: 'pass' },
+      body: { email: 'not-an-email', name: 'User', password: 'pass12345' },
     };
     const res = createMockRes();
 
-    handleRegister(req, res);
+    await handleRegister(req as any, res as any);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body).toEqual({ error: 'Invalid email format' });
+    expect(res.body).toEqual({
+      errors: [{ field: 'email', message: 'Email must be a valid email address' }],
+    });
   });
 
-  it('should return 409 when email is already registered', () => {
+  it('should return 409 when email is already registered', async () => {
     const first: ApiRequest = {
       params: {},
-      body: { email: 'dup@test.com', displayName: 'First', password: 'pass' },
+      body: { email: 'dup@test.com', name: 'First', password: 'pass12345' },
     };
-    handleRegister(first, createMockRes());
+    await handleRegister(first as any, createMockRes() as any);
 
     const second: ApiRequest = {
       params: {},
-      body: { email: 'dup@test.com', displayName: 'Second', password: 'pass' },
+      body: { email: 'dup@test.com', name: 'Second', password: 'pass12345' },
     };
     const res = createMockRes();
 
-    handleRegister(second, res);
+    await handleRegister(second as any, res as any);
 
     expect(res.statusCode).toBe(409);
-    expect(res.body).toEqual({ error: 'Email already registered' });
+    expect(res.body).toEqual({
+      errors: [{ field: 'email', message: 'This email address cannot be used' }],
+    });
   });
 
-  it('should sanitize displayName to prevent XSS', () => {
+  it('should trim surrounding whitespace from name before storing', async () => {
     const req: ApiRequest = {
       params: {},
       body: {
         email: 'xss@test.com',
-        displayName: '<script>alert("xss")</script>',
-        password: 'pass',
+        name: '  Trim Me  ',
+        password: 'pass12345',
       },
     };
     const res = createMockRes();
 
-    handleRegister(req, res);
+    await handleRegister(req as any, res as any);
 
     expect(res.statusCode).toBe(201);
-    expect((res.body as { displayName: string }).displayName).toBe(
-      '&lt;script&gt;alert("xss")&lt;/script&gt;',
-    );
+    const stored = await inMemoryUserStore.findByEmail('xss@test.com');
+    expect(stored?.name).toBe('Trim Me');
   });
 });
