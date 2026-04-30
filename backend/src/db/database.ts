@@ -360,4 +360,67 @@ async function runMigrations(db: DbWrapper): Promise<void> {
   await db.exec(`
     CREATE INDEX IF NOT EXISTS idx_vendors_event_id ON vendors(event_id)
   `);
+
+  // Create event_budgets table (#274)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_budgets (
+      id           SERIAL PRIMARY KEY,
+      event_id     INTEGER NOT NULL UNIQUE,
+      total_budget REAL NOT NULL,
+      notes        TEXT,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create expense_categories table (#274)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS expense_categories (
+      id         SERIAL PRIMARY KEY,
+      name       TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Seed default expense categories (idempotent)
+  await db.exec(`
+    INSERT INTO expense_categories (name) VALUES
+    ('Catering'),
+    ('AV'),
+    ('Security'),
+    ('Venue'),
+    ('Marketing'),
+    ('Other')
+    ON CONFLICT (name) DO NOTHING
+  `);
+
+  // Create expenses table (#274)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS expenses (
+      id          SERIAL PRIMARY KEY,
+      event_id    INTEGER NOT NULL,
+      category_id INTEGER NOT NULL,
+      description TEXT NOT NULL,
+      amount      REAL NOT NULL,
+      vendor_id   INTEGER,
+      receipt_url TEXT,
+      status      TEXT CHECK(status IN ('Pending', 'Approved', 'Rejected')) DEFAULT 'Pending',
+      created_by  INTEGER NOT NULL,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id)    REFERENCES events(id)             ON DELETE CASCADE,
+      FOREIGN KEY (category_id) REFERENCES expense_categories(id),
+      FOREIGN KEY (vendor_id)   REFERENCES vendors(id)            ON DELETE SET NULL,
+      FOREIGN KEY (created_by)  REFERENCES users(id)              ON DELETE CASCADE
+    )
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_expenses_event_id ON expenses(event_id)
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_expenses_category_id ON expenses(category_id)
+  `);
 }

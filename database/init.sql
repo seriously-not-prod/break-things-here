@@ -224,3 +224,53 @@ CREATE TABLE IF NOT EXISTS vendors (
 );
 
 CREATE INDEX IF NOT EXISTS idx_vendors_event_id ON vendors(event_id);
+
+-- ============================================================
+-- Event Budgets (#274)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS event_budgets (
+  id           SERIAL PRIMARY KEY,
+  event_id     INTEGER NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
+  total_budget REAL NOT NULL,
+  notes        TEXT,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- Expense Categories (#274)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS expense_categories (
+  id         SERIAL PRIMARY KEY,
+  name       TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO expense_categories (name) VALUES
+  ('Catering'),
+  ('AV'),
+  ('Security'),
+  ('Venue'),
+  ('Marketing'),
+  ('Other')
+ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================
+-- Expenses (#274)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS expenses (
+  id           SERIAL PRIMARY KEY,
+  event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  category_id  INTEGER NOT NULL REFERENCES expense_categories(id),
+  description  TEXT NOT NULL,
+  amount       REAL NOT NULL,
+  vendor_id    INTEGER REFERENCES vendors(id) ON DELETE SET NULL,
+  receipt_url  TEXT,
+  status       TEXT CHECK(status IN ('Pending', 'Approved', 'Rejected')) DEFAULT 'Pending',
+  created_by   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_expenses_event_id    ON expenses(event_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_category_id ON expenses(category_id);
