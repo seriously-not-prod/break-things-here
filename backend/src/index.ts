@@ -1,4 +1,5 @@
 import express from 'express';
+import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
@@ -27,6 +28,27 @@ if (isDev) {
 }
 
 // Middleware
+// helmet must be first — sets X-Content-Type-Options, X-Frame-Options, etc. (#288)
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        connectSrc: isDev
+          ? ["'self'", ...DEV_ORIGINS]
+          : ["'self'", ...(process.env.CORS_ALLOWED_ORIGINS || '').split(',').map((o) => o.trim())],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    // Keep crossOriginResourcePolicy permissive in dev so the frontend can fetch assets
+    crossOriginResourcePolicy: { policy: isDev ? 'cross-origin' : 'same-origin' },
+  }),
+);
 app.use(cors(corsOptions));
 app.use(cookieParser()); // Add cookie parser to read req.cookies
 app.use(express.json());
