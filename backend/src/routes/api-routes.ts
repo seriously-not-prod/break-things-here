@@ -4,9 +4,16 @@ import * as profileController from '../controllers/profile-controller.js';
 import * as usersController from '../controllers/users-controller.js';
 import * as rbacController from '../controllers/rbac-controller.js';
 import * as passwordResetController from '../controllers/password-reset-controller.js';
-import * as eventController from '../controllers/event-controller.js';
+// #259/#278: replaced old event-controller with events-controller
+import * as eventsController from '../controllers/events-controller.js';
 import * as taskController from '../controllers/task-controller.js';
 import * as rsvpController from '../controllers/rsvp-controller.js';
+// #261/#281: ai-controller wired in
+import * as aiController from '../controllers/ai-controller.js';
+// #262/#283: nested tasks routes
+import * as tasksController from '../controllers/tasks-controller.js';
+// #263/#285: nested rsvps routes
+import * as rsvpsController from '../controllers/rsvps-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
@@ -116,14 +123,27 @@ router.get(
 
 router.get('/user/role-permissions', authenticateToken, rbacController.getUserRoleAndPermissions);
 
-// ============ EVENT ROUTES ============
-router.get('/events', authenticateToken, eventController.getAllEvents);
-router.get('/events/:id', authenticateToken, eventController.getEventById);
-router.post('/events', authenticateToken, eventController.createEvent);
-router.put('/events/:id', authenticateToken, eventController.updateEvent);
-router.delete('/events/:id', authenticateToken, eventController.deleteEvent);
+// ============ EVENT ROUTES — #259/#278: uses events-controller ============
+router.get('/events', authenticateToken, eventsController.listEvents);
+router.get('/events/stats', authenticateToken, eventsController.getEventStats);
+router.get('/events/:id', authenticateToken, eventsController.getEvent);
+router.post('/events', authenticateToken, eventsController.createEvent);
+router.patch('/events/:id', authenticateToken, eventsController.updateEvent);
+router.delete('/events/:id', authenticateToken, eventsController.deleteEvent);
 
-// ============ TASK ROUTES ============
+// ============ NESTED TASK ROUTES — #262/#283: events/:eventId/tasks ============
+router.get('/events/:eventId/tasks', authenticateToken, tasksController.listTasks);
+router.post('/events/:eventId/tasks', authenticateToken, tasksController.createTask);
+router.patch('/events/:eventId/tasks/:id', authenticateToken, tasksController.updateTask);
+router.delete('/events/:eventId/tasks/:id', authenticateToken, tasksController.deleteTask);
+
+// ============ NESTED RSVP ROUTES — #263/#285: events/:eventId/rsvps ============
+router.get('/events/:eventId/rsvps', authenticateToken, rsvpsController.listRsvps);
+router.post('/events/:eventId/rsvps', rsvpsController.createRsvp); // Public — no auth
+router.patch('/events/:eventId/rsvps/:id', authenticateToken, rsvpsController.updateRsvp);
+router.delete('/events/:eventId/rsvps/:id', authenticateToken, rsvpsController.deleteRsvp);
+
+// ============ LEGACY FLAT TASK ROUTES (kept for backwards compat) ============
 router.get('/tasks', authenticateToken, taskController.getAllTasks);
 router.get('/tasks/:id', authenticateToken, taskController.getTaskById);
 router.post('/tasks', authenticateToken, taskController.createTask);
@@ -131,12 +151,15 @@ router.put('/tasks/:id', authenticateToken, taskController.updateTask);
 router.delete('/tasks/:id', authenticateToken, taskController.deleteTask);
 router.post('/tasks/:id/toggle', authenticateToken, taskController.toggleTaskStatus);
 
-// ============ RSVP ROUTES ============
+// ============ LEGACY FLAT RSVP ROUTES (kept for backwards compat) ============
 router.get('/rsvps', authenticateToken, rsvpController.getAllRsvps);
 router.get('/rsvps/:id', authenticateToken, rsvpController.getRsvpById);
 router.post('/rsvps', rsvpController.submitRsvp); // Public endpoint
 router.put('/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
 router.delete('/rsvps/:id', authenticateToken, rsvpController.deleteRsvp);
+
+// ============ AI ROUTES — #261/#281: ai-controller ============
+router.post('/ai/suggest', authenticateToken, aiController.getSuggestion);
 
 export default router;
 

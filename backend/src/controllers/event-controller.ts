@@ -6,9 +6,10 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database';
 
+// #277: updated EventData to use event_date instead of date
 export interface EventData {
   title: string;
-  date: string;
+  event_date: string;
   location: string;
   description?: string;
   status: 'Draft' | 'Active' | 'Completed';
@@ -24,7 +25,7 @@ export async function getAllEvents(req: Request, res: Response): Promise<void> {
       SELECT e.*, u.display_name as created_by_name
       FROM events e
       LEFT JOIN users u ON e.created_by = u.id
-      ORDER BY e.date DESC
+      ORDER BY e.event_date DESC
     `);
     
     res.json(events);
@@ -74,11 +75,11 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    const { title, date, location, description, status }: EventData = req.body;
+    const { title, event_date, location, description, status }: EventData = req.body;
     
     // Validation
-    if (!title || !date || !location) {
-      res.status(400).json({ error: 'Title, date, and location are required' });
+    if (!title || !event_date || !location) {
+      res.status(400).json({ error: 'Title, event_date, and location are required' });
       return;
     }
     
@@ -88,10 +89,10 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
     }
     
     const result = await db.run(`
-      INSERT INTO events (title, date, location, description, status, created_by)
+      INSERT INTO events (title, event_date, location, description, status, created_by)
       VALUES (?, ?, ?, ?, ?, ?)
       RETURNING id
-    `, [title, date, location, description || '', status || 'Draft', userId]);
+    `, [title, event_date, location, description || '', status || 'Draft', userId]);
     
     const newEvent = await db.get('SELECT * FROM events WHERE id = ?', [result.lastID]);
     
@@ -116,7 +117,7 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    const { title, date, location, description, status }: EventData = req.body;
+    const { title, event_date, location, description, status }: EventData = req.body;
     
     // Check if event exists
     const existingEvent = await db.get('SELECT * FROM events WHERE id = ?', [id]);
@@ -133,11 +134,11 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
     
     await db.run(`
       UPDATE events 
-      SET title = ?, date = ?, location = ?, description = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+      SET title = ?, event_date = ?, location = ?, description = ?, status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [
       title || existingEvent.title,
-      date || existingEvent.date,
+      event_date || existingEvent.event_date,
       location || existingEvent.location,
       description !== undefined ? description : existingEvent.description,
       status || existingEvent.status,
