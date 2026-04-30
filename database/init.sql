@@ -193,6 +193,7 @@ CREATE TABLE IF NOT EXISTS rsvps (
 CREATE INDEX IF NOT EXISTS idx_rsvps_event_id ON rsvps(event_id);
 
 -- ============================================================
+-- ============================================================
 -- Event Members
 -- ============================================================
 CREATE TABLE IF NOT EXISTS event_members (
@@ -219,3 +220,44 @@ INSERT INTO permissions (name, description) VALUES
   ('roles.view',    'View roles'),
   ('roles.manage',  'Manage roles and permissions')
 ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================
+-- Phase 3: Budget & Expense Management
+-- ============================================================
+CREATE TABLE IF NOT EXISTS expense_categories (
+  id          SERIAL PRIMARY KEY,
+  name        TEXT NOT NULL UNIQUE,
+  description TEXT,
+  color       TEXT DEFAULT '#6366f1',
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS event_budgets (
+  id           SERIAL PRIMARY KEY,
+  event_id     INTEGER NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
+  total_budget NUMERIC(12,2) NOT NULL DEFAULT 0,
+  currency     TEXT NOT NULL DEFAULT 'USD',
+  notes        TEXT,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_budgets_event_id ON event_budgets(event_id);
+
+CREATE TABLE IF NOT EXISTS expenses (
+  id          SERIAL PRIMARY KEY,
+  event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  category_id INTEGER REFERENCES expense_categories(id) ON DELETE SET NULL,
+  title       TEXT NOT NULL,
+  amount      NUMERIC(12,2) NOT NULL DEFAULT 0,
+  paid_by     TEXT,
+  receipt_url TEXT,
+  status      TEXT CHECK(status IN ('Pending', 'Approved', 'Rejected')) DEFAULT 'Pending',
+  notes       TEXT,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_expenses_event_id ON expenses(event_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_category_id ON expenses(category_id);

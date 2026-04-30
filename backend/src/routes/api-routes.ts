@@ -9,6 +9,9 @@ import * as taskController from '../controllers/task-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
 import * as eventDocumentsController from '../controllers/event-documents-controller.js';
+import * as budgetsController from '../controllers/budgets-controller.js';
+import * as expensesController from '../controllers/expenses-controller.js';
+import * as expenseCategoriesController from '../controllers/expense-categories-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
 import multer from 'multer';
@@ -174,6 +177,22 @@ router.post('/tasks', authenticateToken, taskController.createTask);
 router.put('/tasks/:id', authenticateToken, taskController.updateTask);
 router.delete('/tasks/:id', authenticateToken, taskController.deleteTask);
 router.post('/tasks/:id/toggle', authenticateToken, taskController.toggleTaskStatus);
+
+// ============ BUDGET ROUTES ============
+router.get('/events/:eventId/budget', authenticateToken, budgetsController.getBudget);
+router.put('/events/:eventId/budget', authenticateToken, budgetsController.upsertBudget);
+
+// ============ EXPENSE ROUTES ============
+router.get('/events/:eventId/expenses', authenticateToken, expensesController.listExpenses);
+router.post('/events/:eventId/expenses', authenticateToken, expensesController.createExpense);
+router.patch('/events/:eventId/expenses/:id', authenticateToken, expensesController.updateExpense);
+router.delete('/events/:eventId/expenses/:id', authenticateToken, expensesController.deleteExpense);
+
+// ============ EXPENSE CATEGORY ROUTES ============
+router.get('/expense-categories', authenticateToken, expenseCategoriesController.listCategories);
+router.post('/expense-categories', authenticateToken, expenseCategoriesController.createCategory);
+router.patch('/expense-categories/:id', authenticateToken, expenseCategoriesController.updateCategory);
+router.delete('/expense-categories/:id', authenticateToken, expenseCategoriesController.deleteCategory);
 
 export default router;
 
