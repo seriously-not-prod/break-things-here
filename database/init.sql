@@ -184,3 +184,43 @@ CREATE TABLE IF NOT EXISTS rsvps (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rsvps_event_id ON rsvps(event_id);
+
+-- ============================================================
+-- Venues (#273)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS venues (
+  id            SERIAL PRIMARY KEY,
+  event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  address       TEXT,
+  city          TEXT,
+  capacity      INTEGER,
+  contact_name  TEXT,
+  contact_email TEXT,
+  contact_phone TEXT,
+  status        TEXT CHECK(status IN ('Confirmed', 'Tentative', 'Cancelled')) DEFAULT 'Tentative',
+  notes         TEXT,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_venues_event_id ON venues(event_id);
+
+-- ============================================================
+-- Vendors (#273)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS vendors (
+  id            SERIAL PRIMARY KEY,
+  event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  category      TEXT,
+  contact_name  TEXT,
+  contact_email TEXT,
+  contact_phone TEXT,
+  cost          REAL,
+  status        TEXT CHECK(status IN ('Confirmed', 'Pending', 'Cancelled')) DEFAULT 'Pending',
+  notes         TEXT,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_vendors_event_id ON vendors(event_id);

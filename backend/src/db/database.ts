@@ -314,4 +314,50 @@ async function runMigrations(db: DbWrapper): Promise<void> {
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     )
   `);
+
+  // Create venues table (#273)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS venues (
+      id            SERIAL PRIMARY KEY,
+      event_id      INTEGER NOT NULL,
+      name          TEXT NOT NULL,
+      address       TEXT,
+      city          TEXT,
+      capacity      INTEGER,
+      contact_name  TEXT,
+      contact_email TEXT,
+      contact_phone TEXT,
+      status        TEXT CHECK(status IN ('Confirmed', 'Tentative', 'Cancelled')) DEFAULT 'Tentative',
+      notes         TEXT,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    )
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_venues_event_id ON venues(event_id)
+  `);
+
+  // Create vendors table (#273)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS vendors (
+      id            SERIAL PRIMARY KEY,
+      event_id      INTEGER NOT NULL,
+      name          TEXT NOT NULL,
+      category      TEXT,
+      contact_name  TEXT,
+      contact_email TEXT,
+      contact_phone TEXT,
+      cost          REAL,
+      status        TEXT CHECK(status IN ('Confirmed', 'Pending', 'Cancelled')) DEFAULT 'Pending',
+      notes         TEXT,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    )
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_vendors_event_id ON vendors(event_id)
+  `);
 }
