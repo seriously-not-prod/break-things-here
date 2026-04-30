@@ -13,10 +13,35 @@
  * - Input validation and sanitization on all fields
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// ---------------------------------------------------------------------------
+// In-memory PostgreSQL via pg-mem (no SQLite, no external server)
+// ---------------------------------------------------------------------------
+import { createTestDb } from '../src/test-utils/create-test-db.js';
+import type { DbWrapper } from '../src/db/database.js';
+
+let testDb: DbWrapper;
+
+vi.mock('nodemailer', () => ({
+  default: {
+    createTransport: () => ({ sendMail: vi.fn().mockResolvedValue({}) }),
+  },
+}));
+
+vi.mock('../src/db/database.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/db/database.js')>();
+  return {
+    ...original,
+    getDatabase: () => testDb,
+    initializeDatabase: async () => testDb,
+    closeDatabase: async () => {},
+  };
+});
+
 import { resetPassword } from '../src/controllers/password-reset-controller.js';
 import { hashPassword, hashResetVerifier } from '../src/utils/auth-helpers.js';
+import { getDatabase } from '../src/db/database.js';
 
 function makeRes() {
   return {
@@ -41,7 +66,7 @@ async function seedUser(email: string, password: string): Promise<number> {
   const db = getDatabase();
   const hash = await hashPassword(password);
   const result = await db.run(
-    `INSERT INTO users (email, password_hash, display_name, email_verified) VALUES (?, ?, ?, 1)`,
+    `INSERT INTO users (email, password_hash, display_name, email_verified) VALUES (?, ?, ?, 1) RETURNING id`,
     [email, hash, 'Test User'],
   );
   return result.lastID as number;
@@ -75,16 +100,7 @@ async function seedToken(
 
 describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
   beforeEach(async () => {
-    await initializeDatabase();
-    const db = getDatabase();
-    await db.run('DELETE FROM password_reset_tokens');
-    await db.run('DELETE FROM sessions');
-    await db.run('DELETE FROM audit_log');
-    await db.run('DELETE FROM users');
-  });
-
-  afterEach(async () => {
-    await closeDatabase();
+    testDb = await createTestDb();
   });
 
   // ── Input Validation ───────────────────────────────────────────────────────
