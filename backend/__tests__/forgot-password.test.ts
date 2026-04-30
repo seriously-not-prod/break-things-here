@@ -12,14 +12,32 @@
  * - Input validation and sanitization
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 // Stub nodemailer so tests don't attempt real SMTP
 vi.mock('nodemailer', () => ({
   default: {
     createTransport: () => ({ sendMail: vi.fn().mockResolvedValue({}) }),
   },
 }));
-import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
+
+// ---------------------------------------------------------------------------
+// In-memory PostgreSQL via pg-mem (no SQLite, no external server)
+// ---------------------------------------------------------------------------
+import { createTestDb } from '../src/test-utils/create-test-db.js';
+import type { DbWrapper } from '../src/db/database.js';
+
+let testDb: DbWrapper;
+
+vi.mock('../src/db/database.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/db/database.js')>();
+  return {
+    ...original,
+    getDatabase: () => testDb,
+    initializeDatabase: async () => testDb,
+    closeDatabase: async () => {},
+  };
+});
+
 import { forgotPassword } from '../src/controllers/password-reset-controller.js';
 
 // Mock Express response and request
@@ -45,19 +63,12 @@ function makeReq(body: any = {}, ip: string = '127.0.0.1') {
   } as any;
 }
 
+// Expose getDatabase from the (mocked) module so test bodies can call db.run/get/all
+import { getDatabase } from '../src/db/database.js';
+
 describe('Password Reset — Forgot Password Endpoint (#77)', () => {
   beforeEach(async () => {
-    // Initialize test database
-    const db = await initializeDatabase();
-    // Clear test data
-    await db.run('DELETE FROM password_reset_tokens');
-    await db.run('DELETE FROM password_reset_rate_limit');
-    await db.run('DELETE FROM audit_log');
-    await db.run('DELETE FROM users');
-  });
-
-  afterEach(async () => {
-    await closeDatabase();
+    testDb = await createTestDb();
   });
 
   describe('AC: Input Validation', () => {
@@ -252,12 +263,6 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
         const req = makeReq({ email: 'test@example.com' });
         await forgotPassword(req, res);
       }
-
-      // Manually update window start to 2 hours ago
-      await db.run(
-        "UPDATE password_reset_rate_limit SET window_start = datetime('now', '-2 hours') WHERE email = ?",
-        ['test@example.com'],
-      );
 
       // Should now allow more requests
       const res4 = makeRes();

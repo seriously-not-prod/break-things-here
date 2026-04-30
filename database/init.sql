@@ -184,3 +184,21 @@ CREATE TABLE IF NOT EXISTS rsvps (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rsvps_event_id ON rsvps(event_id);
+
+-- ============================================================
+-- Schedule Items (issue #272 / story #230)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS schedule_items (
+  id         SERIAL PRIMARY KEY,
+  event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  title      TEXT NOT NULL,
+  start_time TEXT NOT NULL,
+  end_time   TEXT NOT NULL,
+  location   TEXT,
+  notes      TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chk_schedule_items_times CHECK (start_time < end_time)
+);
+
+CREATE INDEX IF NOT EXISTS idx_schedule_items_event_id ON schedule_items(event_id);

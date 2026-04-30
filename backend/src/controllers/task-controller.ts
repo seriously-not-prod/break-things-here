@@ -5,6 +5,7 @@
 
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database';
+import { sendTaskAssignmentEmail } from '../utils/auth-helpers';
 
 export interface TaskData {
   event_id: number;
@@ -104,7 +105,20 @@ export async function createTask(req: Request, res: Response): Promise<void> {
     `, [event_id, title, description || '', assignee || '', due_date || null, status || 'Pending']);
     
     const newTask = await db.get('SELECT * FROM tasks WHERE id = ?', [result.lastID]);
-    
+
+    // Send assignment notification if an assignee email was provided
+    if (assignee && assignee.includes('@')) {
+      const eventRow = await db.get('SELECT title FROM events WHERE id = ?', [event_id]);
+      if (eventRow) {
+        sendTaskAssignmentEmail(
+          assignee,
+          title,
+          eventRow.title as string,
+          due_date || null,
+        ).catch((err: unknown) => console.error('Task assignment email failed:', err));
+      }
+    }
+
     res.status(201).json(newTask);
   } catch (error) {
     console.error('Error creating task:', error);
@@ -155,7 +169,24 @@ export async function updateTask(req: Request, res: Response): Promise<void> {
     ]);
     
     const updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
-    
+
+    // Send assignment notification if assignee changed to a new email
+    const newAssignee = assignee !== undefined ? assignee : existingTask.assignee;
+    const oldAssignee = existingTask.assignee;
+    if (newAssignee && newAssignee.includes('@') && newAssignee !== oldAssignee) {
+      const taskTitle = title || existingTask.title;
+      const taskDueDate = due_date !== undefined ? due_date : existingTask.due_date;
+      const eventRow = await db.get('SELECT title FROM events WHERE id = ?', [existingTask.event_id]);
+      if (eventRow) {
+        sendTaskAssignmentEmail(
+          newAssignee,
+          taskTitle as string,
+          eventRow.title as string,
+          taskDueDate || null,
+        ).catch((err: unknown) => console.error('Task assignment email failed:', err));
+      }
+    }
+
     res.json(updatedTask);
   } catch (error) {
     console.error('Error updating task:', error);
