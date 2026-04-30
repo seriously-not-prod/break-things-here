@@ -9,6 +9,7 @@
  * - Admin can unlock a user account
  * - Admin cannot lock their own account (400)
  * - Admin can soft-delete a user
+ * - Admin can restore a soft-deleted user
  * - Admin cannot delete their own account (400)
  * - Admin can list all roles
  */
@@ -253,6 +254,55 @@ describe('Admin API — integration tests (#260 #279 #280)', () => {
       await adminController.deleteUser(req, res);
       expect(res.statusCode).toBe(400);
       expect(res.body.error).toMatch(/already deleted/i);
+    });
+  });
+
+  // ── AC: Restore User ───────────────────────────────────────────────────────
+
+  describe('POST /api/admin/users/:id/restore', () => {
+    it('returns 200 and restores a soft-deleted user', async () => {
+      const db = getDatabase();
+      await db.run('UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', [regularUserId]);
+
+      const res = makeRes();
+      const req = makeReq(
+        { id: String(regularUserId) },
+        {},
+        { id: adminUserId, email: 'admin@example.com', role_id: 3 },
+      );
+
+      await adminController.restoreUser(req, res);
+      expect(res.statusCode).toBe(200);
+      expect(res.body.message).toMatch(/user restored/i);
+
+      const restoredUser = await db.get('SELECT deleted_at FROM users WHERE id = ?', [regularUserId]);
+      expect(restoredUser.deleted_at).toBeNull();
+    });
+
+    it('returns 400 when restoring a user that is not deleted', async () => {
+      const res = makeRes();
+      const req = makeReq(
+        { id: String(regularUserId) },
+        {},
+        { id: adminUserId, email: 'admin@example.com', role_id: 3 },
+      );
+
+      await adminController.restoreUser(req, res);
+      expect(res.statusCode).toBe(400);
+      expect(res.body.error).toMatch(/not deleted/i);
+    });
+
+    it('returns 404 for a non-existent user', async () => {
+      const res = makeRes();
+      const req = makeReq(
+        { id: '99999' },
+        {},
+        { id: adminUserId, email: 'admin@example.com', role_id: 3 },
+      );
+
+      await adminController.restoreUser(req, res);
+      expect(res.statusCode).toBe(404);
+      expect(res.body.error).toMatch(/user not found/i);
     });
   });
 

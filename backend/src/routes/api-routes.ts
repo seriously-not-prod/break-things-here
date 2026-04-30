@@ -145,6 +145,7 @@ router.get('/admin/users', authenticateToken, authorizeRole(['Admin']), adminCon
 router.patch('/admin/users/:id/role', authenticateToken, authorizeRole(['Admin']), adminController.changeUserRole);
 router.patch('/admin/users/:id/lock', authenticateToken, authorizeRole(['Admin']), adminController.toggleLock);
 router.delete('/admin/users/:id', authenticateToken, authorizeRole(['Admin']), adminController.deleteUser);
+router.post('/admin/users/:id/restore', authenticateToken, authorizeRole(['Admin']), adminController.restoreUser);
 router.get('/admin/roles', authenticateToken, authorizeRole(['Admin']), adminController.listRoles);
 
 // ============ TASK ROUTES ============
