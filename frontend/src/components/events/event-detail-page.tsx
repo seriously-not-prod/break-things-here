@@ -76,12 +76,14 @@ export default function EventDetailPage(): JSX.Element {
   const [editTaskId, setEditTaskId] = useState<number | null>(null);
   const [taskForm, setTaskForm] = useState({ title: '', notes: '', assignee_name: '', due_date: '', status: 'Pending' });
   const [taskSaving, setTaskSaving] = useState(false);
+  const [taskError, setTaskError] = useState<string | null>(null);
 
   // RSVP dialog
   const [rsvpDialog, setRsvpDialog] = useState(false);
   const [editRsvpId, setEditRsvpId] = useState<number | null>(null);
   const [rsvpForm, setRsvpForm] = useState({ name: '', email: '', status: 'Pending', notes: '' });
   const [rsvpSaving, setRsvpSaving] = useState(false);
+  const [rsvpError, setRsvpError] = useState<string | null>(null);
 
   const canEdit = user && user.roleId >= 2;
 
@@ -105,17 +107,25 @@ export default function EventDetailPage(): JSX.Element {
   function openAddTask(): void {
     setEditTaskId(null);
     setTaskForm({ title: '', notes: '', assignee_name: '', due_date: '', status: 'Pending' });
+    setTaskError(null);
     setTaskDialog(true);
   }
 
   function openEditTask(t: Task): void {
     setEditTaskId(t.id);
     setTaskForm({ title: t.title, notes: t.notes ?? '', assignee_name: t.assignee_name ?? '', due_date: t.due_date ?? '', status: t.status });
+    setTaskError(null);
     setTaskDialog(true);
   }
 
   async function saveTask(e: FormEvent): Promise<void> {
     e.preventDefault();
+    setTaskError(null);
+    // #219: client-side validation
+    if (!taskForm.title.trim()) {
+      setTaskError('Task title is required.');
+      return;
+    }
     setTaskSaving(true);
     try {
       if (editTaskId) {
@@ -126,7 +136,7 @@ export default function EventDetailPage(): JSX.Element {
       setTaskDialog(false);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Save failed.');
+      setTaskError(err instanceof ApiError ? err.message : 'Save failed.');
     } finally {
       setTaskSaving(false);
     }
@@ -142,17 +152,29 @@ export default function EventDetailPage(): JSX.Element {
   function openAddRsvp(): void {
     setEditRsvpId(null);
     setRsvpForm({ name: '', email: '', status: 'Pending', notes: '' });
+    setRsvpError(null);
     setRsvpDialog(true);
   }
 
   function openEditRsvp(r: Rsvp): void {
     setEditRsvpId(r.id);
     setRsvpForm({ name: r.name, email: r.email, status: r.status, notes: r.notes ?? '' });
+    setRsvpError(null);
     setRsvpDialog(true);
   }
 
   async function saveRsvp(e: FormEvent): Promise<void> {
     e.preventDefault();
+    setRsvpError(null);
+    // #219: client-side validation
+    if (!rsvpForm.name.trim()) {
+      setRsvpError('Name is required.');
+      return;
+    }
+    if (!rsvpForm.email.trim()) {
+      setRsvpError('Email is required.');
+      return;
+    }
     setRsvpSaving(true);
     try {
       if (editRsvpId) {
@@ -163,7 +185,7 @@ export default function EventDetailPage(): JSX.Element {
       setRsvpDialog(false);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Save failed.');
+      setRsvpError(err instanceof ApiError ? err.message : 'Save failed.');
     } finally {
       setRsvpSaving(false);
     }
@@ -312,6 +334,7 @@ export default function EventDetailPage(): JSX.Element {
         <DialogContent>
           <Box component="form" id="task-form" onSubmit={saveTask} noValidate>
             <Stack spacing={2} sx={{ mt: 1 }}>
+              {taskError && <Alert severity="error">{taskError}</Alert>}
               <TextField label="Title" value={taskForm.title} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, title: e.target.value }))} required fullWidth />
               <TextField label="Assignee" value={taskForm.assignee_name} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, assignee_name: e.target.value }))} fullWidth />
               <TextField label="Due Date" type="date" value={taskForm.due_date} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, due_date: e.target.value }))} fullWidth InputLabelProps={{ shrink: true }} />
@@ -337,6 +360,7 @@ export default function EventDetailPage(): JSX.Element {
         <DialogContent>
           <Box component="form" id="rsvp-form" onSubmit={saveRsvp} noValidate>
             <Stack spacing={2} sx={{ mt: 1 }}>
+              {rsvpError && <Alert severity="error">{rsvpError}</Alert>}
               <TextField label="Name" value={rsvpForm.name} onChange={(e: ChangeEvent<HTMLInputElement>) => setRsvpForm((p) => ({ ...p, name: e.target.value }))} required fullWidth />
               <TextField label="Email" type="email" value={rsvpForm.email} onChange={(e: ChangeEvent<HTMLInputElement>) => setRsvpForm((p) => ({ ...p, email: e.target.value }))} required fullWidth />
               <TextField label="Status" select value={rsvpForm.status} onChange={(e: ChangeEvent<HTMLInputElement>) => setRsvpForm((p) => ({ ...p, status: e.target.value }))} fullWidth>
