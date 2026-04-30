@@ -42,7 +42,7 @@ function mockFetchError() {
   });
 }
 
-function mockRoleUpdate(user: User) {
+function mockRoleUpdate(_user: User) {
   mockFetch.mockResolvedValueOnce({
     ok: true,
     status: 200,
