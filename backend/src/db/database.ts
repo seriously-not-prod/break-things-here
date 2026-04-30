@@ -1,20 +1,7 @@
 /**
  * PostgreSQL database initialization and management
- * Sets up the connection pool and runs schema migrations
- */
-
-import pg from 'pg';
-
-const { Pool } = pg;
-
-export interface RunResult {
-  lastID?: number;
-  changes: number;
-}
-
-/*
- * Unified database initialization supporting SQLite (default for dev)
- * and PostgreSQL (when DATABASE_URL points to Postgres).
+ * Unified wrapper supporting SQLite (dev) and PostgreSQL (production).
+ * Sets up the connection pool and runs schema migrations.
  */
 
 import pg from 'pg';
