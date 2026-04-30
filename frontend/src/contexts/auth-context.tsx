@@ -6,7 +6,7 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { api, setToken, setRefreshToken, getRefreshToken } from '../lib/api-client';
+import { api, setToken } from '../lib/api-client';
 
 export interface AuthUser {
   id: number;
@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     // store them so subsequent requests using Authorization headers work.
     const data = await api.post<Record<string, unknown>>('/api/auth/login', { email, password });
     if (data && typeof data.accessToken === 'string') setToken(data.accessToken);
-    if (data && typeof data.refreshToken === 'string') setRefreshToken(data.refreshToken as string);
+    // refreshToken is now HttpOnly cookie-only — never stored in localStorage (#290)
     await loadCurrentUser();
   }, [loadCurrentUser]);
 
@@ -73,22 +73,18 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       // ignore errors on logout
     }
     setToken(null);
-    setRefreshToken(null);
     setUser(null);
   }, []);
 
-  // Periodic token refresh
+  // Periodic token refresh — cookie attaches automatically, send empty body (#290)
   useEffect(() => {
     const REFRESH_INTERVAL = 50 * 60 * 1000; // 50 minutes
     const interval = setInterval(async () => {
-      const refreshToken = getRefreshToken();
-      if (!refreshToken) return;
       try {
-        const data = await api.post<{ accessToken: string }>('/api/auth/refresh', { refreshToken });
+        const data = await api.post<{ accessToken: string }>('/api/auth/refresh');
         setToken(data.accessToken);
       } catch {
         setToken(null);
-        setRefreshToken(null);
         setUser(null);
       }
     }, REFRESH_INTERVAL);

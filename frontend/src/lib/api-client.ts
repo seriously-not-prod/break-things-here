@@ -45,17 +45,8 @@ export function setToken(token: string | null): void {
   }
 }
 
-export function setRefreshToken(token: string | null): void {
-  if (token) {
-    localStorage.setItem('refreshToken', token);
-  } else {
-    localStorage.removeItem('refreshToken');
-  }
-}
-
-export function getRefreshToken(): string | null {
-  return localStorage.getItem('refreshToken');
-}
+// refreshToken is stored exclusively in an HttpOnly cookie set by the backend.
+// It is never read from or written to localStorage. (#290)
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
