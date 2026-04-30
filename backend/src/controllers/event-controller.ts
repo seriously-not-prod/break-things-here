@@ -11,6 +11,7 @@ export interface EventData {
   date: string;
   location: string;
   description?: string;
+  capacity?: number | null;
   status: 'Draft' | 'Active' | 'Completed';
 }
 
@@ -71,7 +72,32 @@ export async function getEventById(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    res.json(event);
+    const tasks = await db.all(
+      `SELECT t.*, COALESCE(u.display_name, t.assignee_name) AS assignee_name
+       FROM tasks t
+       LEFT JOIN users u ON t.assigned_user_id = u.id
+       WHERE t.event_id = ?
+       ORDER BY t.due_date ASC, t.priority ASC`,
+      [id],
+    );
+    const rsvps = await db.all('SELECT * FROM rsvps WHERE event_id = ? ORDER BY created_at DESC', [id]);
+    const members = await db.all(
+      `SELECT em.user_id, em.role, em.joined_at, u.display_name, u.email
+       FROM event_members em
+       JOIN users u ON u.id = em.user_id
+       WHERE em.event_id = ? AND u.deleted_at IS NULL
+       ORDER BY em.joined_at DESC`,
+      [id],
+    );
+    const availableUsers = await db.all(
+      `SELECT u.id AS user_id, u.display_name, u.email, r.name AS role_name
+       FROM users u
+       LEFT JOIN roles r ON r.id = u.role_id
+       WHERE u.deleted_at IS NULL
+       ORDER BY u.display_name ASC`,
+    );
+
+    res.json({ event, tasks, rsvps, members, availableUsers });
   } catch (error) {
     console.error('Error fetching event:', error);
     res.status(500).json({ error: 'Failed to fetch event' });
@@ -93,7 +119,7 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    const { title, date, location, description, status }: EventData = req.body;
+    const { title, date, location, description, capacity, status }: EventData = req.body;
     
     // Validation
     if (!title || !date || !location) {
@@ -107,10 +133,10 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
     }
     
     const result = await db.run(`
-      INSERT INTO events (title, date, location, description, status, created_by)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO events (title, date, location, description, capacity, status, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       RETURNING id
-    `, [title, date, location, description || '', status || 'Draft', userId]);
+    `, [title, date, location, description || '', capacity ?? null, status || 'Draft', userId]);
     
     const newEvent = await db.get('SELECT * FROM events WHERE id = ?', [result.lastID]);
     await db.run(
@@ -140,7 +166,7 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    const { title, date, location, description, status }: EventData = req.body;
+    const { title, date, location, description, capacity, status }: EventData = req.body;
     
     // Check if event exists
     const existingEvent = await db.get('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL', [id]);
@@ -162,13 +188,14 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
     
     await db.run(`
       UPDATE events 
-      SET title = ?, date = ?, location = ?, description = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+      SET title = ?, date = ?, location = ?, description = ?, capacity = ?, status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [
       title || existingEvent.title,
       date || existingEvent.date,
       location || existingEvent.location,
       description !== undefined ? description : existingEvent.description,
+      capacity !== undefined ? capacity : existingEvent.capacity,
       status || existingEvent.status,
       id
     ]);

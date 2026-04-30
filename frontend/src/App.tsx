@@ -9,6 +9,7 @@ import { AppNav } from './components/nav/app-nav';
 import Dashboard from './components/dashboard/Dashboard';
 import EventsPage from './components/events/events-page';
 import EventDetailPage from './components/events/event-detail-page';
+import PublicRsvpPage from './components/events/public-rsvp-page';
 import ProfilePage from './components/profile/profile-page';
 import AdminPage from './components/admin/admin-page';
 import { AiAssistant } from './components/ai/ai-assistant';
@@ -123,6 +124,7 @@ function RootRouter(): JSX.Element {
       <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <AuthShell />} />
       <Route path="/forgot-password" element={<AuthShell />} />
       <Route path="/reset-password" element={<AuthShell />} />
+      <Route path="/rsvp/:eventId" element={<PublicRsvpPage />} />
       <Route path="/*" element={<AppShell />} />
     </Routes>
   );

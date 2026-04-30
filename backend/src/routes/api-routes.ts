@@ -6,7 +6,8 @@ import * as rbacController from '../controllers/rbac-controller.js';
 import * as passwordResetController from '../controllers/password-reset-controller.js';
 import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
-import * as rsvpController from '../controllers/rsvp-controller.js';
+import * as rsvpController from '../controllers/rsvps-controller.js';
+import * as eventMembersController from '../controllers/event-members-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
@@ -57,6 +58,9 @@ router.post('/auth/login', authController.login);
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
 
+
+// ============ PUBLIC RSVP ROUTES ==========
+router.get('/public/events/:eventId', rsvpController.getPublicRsvpContext);
 // Token refresh and heartbeat
 router.post('/auth/refresh', authController.refreshTokenEndpoint);
 router.post('/auth/session/heartbeat', authenticateToken, authController.sessionHeartbeat);
@@ -72,6 +76,16 @@ router.delete('/profile/account', authenticateToken, profileController.deleteAcc
 // ============ USER (self-service) ROUTES — issues #36, #39 ============
 router.get('/users/me', authenticateToken, usersController.getMe);
 router.patch('/users/me', authenticateToken, usersController.updateMe);
+router.get('/events/:eventId/rsvps', authenticateToken, rsvpController.listRsvps);
+router.post('/events/:eventId/rsvps', rsvpController.createRsvp);
+router.patch('/events/:eventId/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
+router.delete('/events/:eventId/rsvps/:id', authenticateToken, rsvpController.deleteRsvp);
+router.get('/events/:eventId/rsvps/export', authenticateToken, rsvpController.exportRsvpsCsv);
+
+// ============ EVENT MEMBERS ROUTES ==========
+router.get('/events/:eventId/members', authenticateToken, eventMembersController.listMembers);
+router.post('/events/:eventId/members', authenticateToken, eventMembersController.addMember);
+router.delete('/events/:eventId/members/:userId', authenticateToken, eventMembersController.removeMember);
 router.delete('/users/me', authenticateToken, usersController.deleteMe);
 
 // ============ PROFILE ROUTES (extended data) ============
