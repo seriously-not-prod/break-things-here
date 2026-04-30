@@ -5,8 +5,18 @@ import {
   useHasPermission,
   isVisibleForRole,
   setAuthState,
-} from '../../hooks/useUserRole';
-import { roleGate, RoleGateProps } from '../../components/RoleGate/RoleGate';
+} from '../../hooks/use-user-role';
+
+interface RoleGateProps {
+  allowedRoles: UserRole | UserRole[];
+  userRole: UserRole | null;
+  children: unknown;
+}
+
+function roleGate(props: RoleGateProps): unknown {
+  if (!isVisibleForRole(props.allowedRoles, props.userRole)) return null;
+  return props.children;
+}
 
 describe('useUserRole hook', () => {
   afterEach(() => setAuthState({ user: null }));
