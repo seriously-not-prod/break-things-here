@@ -335,4 +335,23 @@ async function runMigrations(db: DbWrapper): Promise<void> {
   await db.exec(`
     CREATE INDEX IF NOT EXISTS idx_schedule_items_event_id ON schedule_items(event_id)
   `);
+
+  // Create notifications table (story #240)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      read INTEGER DEFAULT 0,
+      link TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)
+  `);
 }

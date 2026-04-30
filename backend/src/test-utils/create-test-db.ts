@@ -177,5 +177,18 @@ export async function createTestDb(): Promise<DbWrapper> {
     )
   `);
 
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      read INTEGER DEFAULT 0,
+      link TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   return db;
 }

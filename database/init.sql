@@ -202,3 +202,17 @@ CREATE TABLE IF NOT EXISTS schedule_items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_schedule_items_event_id ON schedule_items(event_id);
+
+-- Notifications table (story #240)
+CREATE TABLE IF NOT EXISTS notifications (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type       TEXT NOT NULL,
+  title      TEXT NOT NULL,
+  body       TEXT NOT NULL DEFAULT '',
+  read       INTEGER DEFAULT 0,
+  link       TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);

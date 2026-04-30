@@ -8,6 +8,7 @@ import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
+import * as notificationsController from '../controllers/notifications-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
@@ -147,6 +148,12 @@ router.delete('/tasks/:id', authenticateToken, taskController.deleteTask);
 router.post('/tasks/:id/toggle', authenticateToken, taskController.toggleTaskStatus);
 
 // Legacy flat RSVP routes removed — use /events/:eventId/rsvps instead
+
+// ============ NOTIFICATION ROUTES (story #240) ============
+// read-all must be registered before /:id/read to avoid route shadowing
+router.get('/notifications', authenticateToken, notificationsController.getNotifications);
+router.patch('/notifications/read-all', authenticateToken, notificationsController.markAllRead);
+router.patch('/notifications/:id/read', authenticateToken, notificationsController.markOneRead);
 
 export default router;
 
