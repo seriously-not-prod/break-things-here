@@ -31,6 +31,7 @@ interface PlannerEvent {
   title: string;
   location: string | null;
   event_date: string;
+  capacity: number | null;
   status: string;
   creator_name: string | null;
 }
@@ -48,10 +49,11 @@ interface EventForm {
   description: string;
   location: string;
   event_date: string;
+  capacity: string;
   status: string;
 }
 
-const EMPTY_FORM: EventForm = { title: '', description: '', location: '', event_date: '', status: 'Draft' };
+const EMPTY_FORM: EventForm = { title: '', description: '', location: '', event_date: '', capacity: '', status: 'Draft' };
 
 export default function EventsPage(): JSX.Element {
   const { user } = useAuth();
@@ -95,6 +97,7 @@ export default function EventsPage(): JSX.Element {
       description: '',
       location: event.location ?? '',
       event_date: event.event_date,
+      capacity: event.capacity === null || event.capacity === undefined ? '' : String(event.capacity),
       status: event.status,
     });
     setSaveError(null);
@@ -107,9 +110,9 @@ export default function EventsPage(): JSX.Element {
     setSaving(true);
     try {
       if (editingId) {
-        await api.patch(`/api/events/${editingId}`, form);
+        await api.patch(`/api/events/${editingId}`, { ...form, capacity: form.capacity ? Number(form.capacity) : null });
       } else {
-        await api.post('/api/events', form);
+        await api.post('/api/events', { ...form, capacity: form.capacity ? Number(form.capacity) : null });
       }
       setDialogOpen(false);
       await loadEvents();
@@ -161,6 +164,7 @@ export default function EventsPage(): JSX.Element {
                 <TableCell><strong>Title</strong></TableCell>
                 <TableCell><strong>Date</strong></TableCell>
                 <TableCell><strong>Location</strong></TableCell>
+                <TableCell><strong>Capacity</strong></TableCell>
                 <TableCell><strong>Status</strong></TableCell>
                 <TableCell><strong>Created by</strong></TableCell>
                 <TableCell align="right"><strong>Actions</strong></TableCell>
@@ -172,6 +176,7 @@ export default function EventsPage(): JSX.Element {
                   <TableCell>{event.title}</TableCell>
                   <TableCell>{new Date(event.event_date).toLocaleDateString()}</TableCell>
                   <TableCell>{event.location ?? '—'}</TableCell>
+                  <TableCell>{event.capacity ?? '—'}</TableCell>
                   <TableCell>
                     <Chip
                       label={event.status}
@@ -213,6 +218,14 @@ export default function EventsPage(): JSX.Element {
               <TextField label="Title" value={form.title} onChange={handleField('title')} required fullWidth />
               <TextField label="Description" value={form.description} onChange={handleField('description')} multiline rows={3} fullWidth />
               <TextField label="Location" value={form.location} onChange={handleField('location')} fullWidth />
+              <TextField
+                label="Capacity"
+                type="number"
+                value={form.capacity}
+                onChange={handleField('capacity')}
+                fullWidth
+                inputProps={{ min: 1 }}
+              />
               <TextField
                 label="Event Date"
                 type="date"
