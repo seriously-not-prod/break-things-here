@@ -219,3 +219,48 @@ export async function sendPasswordResetEmail(
     throw err;
   }
 }
+
+/**
+ * Sends an RSVP confirmation email to the attendee
+ * @param email - Recipient email address
+ * @param name - Attendee name
+ * @param eventTitle - Title of the event
+ * @param eventDate - Date of the event
+ * @param rsvpStatus - RSVP status (Pending, Confirmed, Declined)
+ */
+export async function sendRsvpConfirmationEmail(
+  email: string,
+  name: string,
+  eventTitle: string,
+  eventDate: string,
+  rsvpStatus: string,
+): Promise<void> {
+  try {
+    const nodemailer = await import('nodemailer');
+    const transport = nodemailer.default.createTransport({
+      host: process.env.SMTP_HOST || 'localhost',
+      port: Number(process.env.SMTP_PORT) || 587,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    });
+
+    await transport.sendMail({
+      from: process.env.FROM_EMAIL || 'noreply@festival-planner.local',
+      to: email,
+      subject: `RSVP Confirmation – ${eventTitle}`,
+      text: [
+        `Hi ${name},`,
+        '',
+        `Your RSVP for "${eventTitle}" has been received.`,
+        '',
+        `Event: ${eventTitle}`,
+        `Date:  ${eventDate}`,
+        `Status: ${rsvpStatus}`,
+        '',
+        'Thank you for registering!',
+      ].join('\n'),
+    });
+  } catch (err) {
+    console.error('Failed to send RSVP confirmation email:', err);
+    throw err;
+  }
+}

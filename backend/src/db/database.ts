@@ -279,7 +279,6 @@ async function runMigrations(db: DbWrapper): Promise<void> {
       created_by INTEGER NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      deleted_at TIMESTAMP,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
@@ -314,5 +313,26 @@ async function runMigrations(db: DbWrapper): Promise<void> {
       UNIQUE(event_id, email),
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     )
+  `);
+
+  // Create schedule_items table (issue #272 / story #230)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS schedule_items (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      location TEXT,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT chk_schedule_items_times CHECK (start_time < end_time),
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    )
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_schedule_items_event_id ON schedule_items(event_id)
   `);
 }

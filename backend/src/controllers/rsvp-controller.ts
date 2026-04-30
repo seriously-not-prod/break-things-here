@@ -5,6 +5,7 @@
 
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database';
+import { sendRsvpConfirmationEmail } from '../utils/auth-helpers';
 
 export interface RsvpData {
   event_id: number;
@@ -122,7 +123,19 @@ export async function submitRsvp(req: Request, res: Response): Promise<void> {
     `, [event_id, name, email, guests || 1, status || 'Pending']);
     
     const newRsvp = await db.get('SELECT * FROM rsvps WHERE id = ?', [result.lastID]);
-    
+
+    // Fetch event details for the confirmation email
+    const eventRow = await db.get('SELECT title, date FROM events WHERE id = ?', [event_id]);
+    if (eventRow) {
+      sendRsvpConfirmationEmail(
+        email,
+        name,
+        eventRow.title as string,
+        eventRow.date as string,
+        newRsvp.status as string,
+      ).catch((err: unknown) => console.error('RSVP confirmation email failed:', err));
+    }
+
     res.status(201).json(newRsvp);
   } catch (error) {
     console.error('Error submitting RSVP:', error);
