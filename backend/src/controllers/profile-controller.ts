@@ -28,6 +28,12 @@ interface AuthRequest extends Request {
   };
 }
 
+function normalizeProfilePhotoUrl(photoUrl: string | null | undefined): string | null {
+  if (!photoUrl) return null;
+  if (photoUrl.startsWith('/api/')) return photoUrl;
+  return `/api/${photoUrl.replace(/^\//, '')}`;
+}
+
 export async function getUserProfile(req: AuthRequest, res: Response) {
   try {
     if (!req.user) {
@@ -50,10 +56,43 @@ export async function getUserProfile(req: AuthRequest, res: Response) {
       [req.user.id],
     );
 
-    return res.json(profile);
+    return res.json({
+      ...profile,
+      profile_photo_url: normalizeProfilePhotoUrl(profile?.profile_photo_url),
+    });
   } catch (error) {
     console.error('Get profile error:', error);
     return res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+}
+
+export async function getProfilePhoto(req: AuthRequest, res: Response) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { filename } = req.params;
+    if (!filename || filename.includes('..') || filename.includes('/')) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+
+    const db = getDatabase();
+    const profile = await db.get<{ profile_photo_url?: string }>(
+      'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
+      [req.user.id],
+    );
+
+    const currentFileName = profile?.profile_photo_url ? path.basename(profile.profile_photo_url) : null;
+    if (!currentFileName || currentFileName !== filename) {
+      return res.status(404).json({ error: 'Photo not found' });
+    }
+
+    const filePath = assertSafePath(path.join(UPLOADS_DIR, filename));
+    return res.sendFile(filePath);
+  } catch (error) {
+    console.error('Get profile photo error:', error);
+    return res.status(500).json({ error: 'Failed to fetch profile photo' });
   }
 }
 
@@ -159,7 +198,7 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
 
     res.json({
       message: 'Profile photo uploaded successfully',
-      photoUrl: relativePhotoUrl,
+      photoUrl: `/api/${relativePhotoUrl}`,
     });
   } catch (error) {
     console.error('Upload profile photo error:', error);

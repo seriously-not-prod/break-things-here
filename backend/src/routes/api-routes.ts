@@ -7,6 +7,7 @@ import * as passwordResetController from '../controllers/password-reset-controll
 import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
 import * as rsvpController from '../controllers/rsvp-controller.js';
+import * as eventDocumentsController from '../controllers/event-documents-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
@@ -25,6 +26,9 @@ router.use(apiLimiter);
 // Ensure uploads directory exists outside web root
 const UPLOADS_DIR = path.resolve('uploads/profile-photos');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const DOCUMENTS_DIR = path.resolve('uploads/event-documents');
+if (!fs.existsSync(DOCUMENTS_DIR)) fs.mkdirSync(DOCUMENTS_DIR, { recursive: true });
 
 // Configure multer for profile photo uploads
 const storage = multer.diskStorage({
@@ -46,6 +50,28 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only JPEG, PNG, and WebP images are accepted'));
+    }
+  },
+});
+
+const documentStorage = multer.diskStorage({
+  destination: DOCUMENTS_DIR,
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, 'document-' + uniqueSuffix + ext);
+  },
+});
+
+const documentUpload = multer({
+  storage: documentStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF, JPEG, PNG, and WebP files are accepted'));
     }
   },
 });
@@ -79,6 +105,7 @@ router.get('/profile', authenticateToken, profileController.getUserProfile);
 router.put('/profile', authenticateToken, profileController.updateUserProfile);
 router.post('/profile/photo', authenticateToken, upload.single('photo'), profileController.uploadProfilePhoto);
 router.delete('/profile/photo', authenticateToken, profileController.deleteProfilePhoto);
+router.get('/uploads/profile-photos/:filename', authenticateToken, profileController.getProfilePhoto);
 router.post('/profile/change-email', authenticateToken, profileController.changeEmail);
 
 // ============ RBAC ROUTES ============
@@ -122,6 +149,10 @@ router.get('/events/:id', authenticateToken, eventController.getEventById);
 router.post('/events', authenticateToken, eventController.createEvent);
 router.put('/events/:id', authenticateToken, eventController.updateEvent);
 router.delete('/events/:id', authenticateToken, eventController.deleteEvent);
+router.get('/events/:eventId/documents', authenticateToken, eventDocumentsController.listEventDocuments);
+router.post('/events/:eventId/documents', authenticateToken, documentUpload.single('document'), eventDocumentsController.uploadEventDocument);
+router.get('/events/:eventId/documents/:id', authenticateToken, eventDocumentsController.downloadEventDocument);
+router.delete('/events/:eventId/documents/:id', authenticateToken, eventDocumentsController.deleteEventDocument);
 
 // ============ TASK ROUTES ============
 router.get('/tasks', authenticateToken, taskController.getAllTasks);
