@@ -268,31 +268,37 @@ async function runMigrations(db: DbWrapper): Promise<void> {
   `);
 
   // Create events table
+  // #258/#276: renamed date -> event_date, added deleted_at, added 'Cancelled' status
   await db.exec(`
     CREATE TABLE IF NOT EXISTS events (
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,
-      date TEXT NOT NULL,
+      event_date TEXT NOT NULL,
       location TEXT NOT NULL,
       description TEXT,
-      status TEXT CHECK(status IN ('Draft', 'Active', 'Completed')) DEFAULT 'Draft',
+      status TEXT CHECK(status IN ('Draft', 'Active', 'Completed', 'Cancelled')) DEFAULT 'Draft',
       created_by INTEGER NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TIMESTAMP,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
   // Create tasks table
+  // #262/#282: added notes, assignee_name, created_by; expanded status CHECK
   await db.exec(`
     CREATE TABLE IF NOT EXISTS tasks (
       id SERIAL PRIMARY KEY,
       event_id INTEGER NOT NULL,
       title TEXT NOT NULL,
       description TEXT,
+      notes TEXT,
       assignee TEXT,
+      assignee_name TEXT,
       due_date TEXT,
-      status TEXT CHECK(status IN ('Pending', 'Complete')) DEFAULT 'Pending',
+      status TEXT CHECK(status IN ('Pending', 'In Progress', 'Blocked', 'Complete')) DEFAULT 'Pending',
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
@@ -300,6 +306,7 @@ async function runMigrations(db: DbWrapper): Promise<void> {
   `);
 
   // Create rsvps table
+  // #263/#284: added notes, source; expanded status CHECK to include Going/Maybe/Not Going
   await db.exec(`
     CREATE TABLE IF NOT EXISTS rsvps (
       id SERIAL PRIMARY KEY,
@@ -307,11 +314,51 @@ async function runMigrations(db: DbWrapper): Promise<void> {
       name TEXT NOT NULL,
       email TEXT NOT NULL,
       guests INTEGER DEFAULT 1,
-      status TEXT CHECK(status IN ('Pending', 'Confirmed', 'Declined')) DEFAULT 'Pending',
+      status TEXT CHECK(status IN ('Pending', 'Going', 'Maybe', 'Not Going', 'Confirmed', 'Declined')) DEFAULT 'Pending',
+      notes TEXT,
+      source TEXT DEFAULT 'public',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(event_id, email),
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     )
   `);
+
+  // Create event_documents table
+  // #275: stores file attachments linked to events
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_documents (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL,
+      uploaded_by INTEGER NOT NULL,
+      filename TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      url TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_documents_event_id ON event_documents(event_id)`);
+
+  // Create notifications table
+  // #275: in-app notifications for users
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      read INTEGER DEFAULT 0,
+      link TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)`);
 }
