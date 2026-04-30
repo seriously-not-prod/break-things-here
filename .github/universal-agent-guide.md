@@ -263,9 +263,9 @@ Closes #123
 - CI/CD checks verify issues are open
 - PRs without proper commit messages will be rejected
 
-### Rule #16: PostgreSQL Database Standards (PLANNED)
+### Rule #16: PostgreSQL Database Standards
 
-> **⚠️ Migration Note**: The current backend initializes its schema via `database/init.sql` (SQLite-compatible). PostgreSQL is the **planned target database** for this project. The guidelines below represent the target state and must be followed for all new database work. Existing SQLite-based code should be migrated incrementally.
+> **✅ Active Standard**: The project uses PostgreSQL exclusively. All new database work **must** follow these guidelines. The `database/migrations/` directory holds the authoritative versioned schema. `database/init.sql` is used for container bootstrap only. No SQLite code should be introduced.
 
 #### Connection Configuration
 - ✅ **Always** use `DATABASE_URL` environment variable for connection strings
@@ -296,10 +296,7 @@ DATABASE_URL=postgresql://user:password@host:5432/festivalplanner_prod
 - ✅ Migrations are committed **in the same PR** as the code that requires them
 - ✅ Migration files live in `database/migrations/`
 - ❌ **NEVER** modify existing migration files — always create a new one
-- ⚠️ Until PostgreSQL migration is complete, schema DDL changes must go through `database/init.sql` via PR — no ad-hoc DDL directly in application code
-
-**Migration file naming:**
-```
+  - ❌ **NEVER** use raw DDL (`ALTER TABLE`, `DROP TABLE`) directly in application code — all schema changes go through migration files
 database/migrations/
   20260101120000_create_events_table.sql
   20260102090000_add_user_id_to_events.sql
@@ -385,4 +382,4 @@ Always prioritize following this guide over convenience or assumptions.
 
 This guide may be updated as the project evolves. Always check for the latest version before providing assistance.
 
-**Last Updated**: April 29, 2026
+**Last Updated**: April 30, 2026

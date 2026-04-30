@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 5 — Documentation & Developer Experience (#336, #338, #339, #190)
+- Added `.github/PULL_REQUEST_TEMPLATE.md` with comprehensive checklists: code quality, testing, database migration gate, documentation, UI/frontend, and security (#338, closes #190)
+- Created `database/migrations/` directory with versioned, timestamped PostgreSQL migration files (#339)
+- Added `database/migrations/20260101000000_initial_schema.sql`: complete initial schema covering all tables (users, sessions, roles, permissions, events, tasks, rsvps, event_members, event_budgets, expenses, expense_categories, venues, vendors, event_vendors, event_documents, notifications, schema_migrations) with idempotent DDL, indexes, and `-- DOWN` rollback blocks (#339)
+- Created `database/seeds/` directory with `seed.development.sql` for development environment seed data (roles, dev users, sample events, expense categories) (#339)
+- Promoted Rule #16 (PostgreSQL Database Standards) from PLANNED to active in `.github/universal-agent-guide.md` — PostgreSQL is now the enforced standard (#338, #190)
+- Updated migration guideline in `universal-agent-guide.md`: removed SQLite fallback note, enforced migration-file-only DDL pattern (#338)
+
+### Phase 4 — Reports & Analytics (#242, #243)
+- Added `GET /api/analytics/overview` endpoint (Admin only): total events by status, RSVPs by status, active users last 30 days (PostgreSQL `INTERVAL '30 days'`), overdue tasks, budget utilisation across all events
+- Added `GET /api/events/:id/report` endpoint: per-event RSVP breakdown, task completion %, budget summary (total/spent/remaining/utilisation), expenses grouped by category with `generated_at` timestamp
+- Added Admin KPI Dashboard (`frontend/src/components/analytics/analytics-page.tsx`): stat cards, recharts BarChart (events by status), recharts PieChart (RSVPs by status), budget utilisation panel
+- Added `/analytics` route and Analytics sidebar nav link (Admin only) in `App.tsx` and `app-nav.tsx`
+- Added "Download Report" button to event detail page linking to per-event report endpoint
+- 26 backend Vitest tests for analytics controller, all passing (PostgreSQL mock)
+
 ### Migration
 - Migrated backend database from SQLite to PostgreSQL (`pg` v8)
 - Replaced `sqlite` / `sqlite3` npm packages with `pg` and `@types/pg`
