@@ -3,6 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 import { initializeDatabase } from './db/database.js';
+import { sanitizeRequestBody } from './middleware/sanitize-input.js';
 import apiRoutes from './routes/api-routes.js';
 
 const app = express();
@@ -82,8 +83,8 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// Mount API routes with CSRF protection for state-changing methods
-app.use('/api', csrfProtection, apiRoutes);
+// Mount API routes with CSRF protection and body sanitization for state-changing methods
+app.use('/api', csrfProtection, sanitizeRequestBody, apiRoutes);
 
 // Start server after initializing the database
 async function start(): Promise<void> {
