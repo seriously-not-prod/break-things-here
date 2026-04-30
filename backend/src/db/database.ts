@@ -316,6 +316,23 @@ async function runMigrations(db: any): Promise<void> {
     `);
 
     await db.exec(`
+      INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+      SELECT 3, id FROM permissions
+    `);
+
+    await db.exec(`
+      INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+      SELECT 2, id FROM permissions
+      WHERE name IN ('events.view', 'events.create', 'events.edit', 'events.delete', 'roles.view')
+    `);
+
+    await db.exec(`
+      INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+      SELECT 1, id FROM permissions
+      WHERE name IN ('events.view', 'users.view')
+    `);
+
+    await db.exec(`
       CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
@@ -506,6 +523,26 @@ async function runMigrations(db: any): Promise<void> {
     ('roles.view',   'View roles'),
     ('roles.manage', 'Manage roles and permissions')
     ON CONFLICT (name) DO NOTHING
+  `);
+
+  await db.exec(`
+    INSERT INTO role_permissions (role_id, permission_id)
+    SELECT 3, id FROM permissions
+    ON CONFLICT (role_id, permission_id) DO NOTHING
+  `);
+
+  await db.exec(`
+    INSERT INTO role_permissions (role_id, permission_id)
+    SELECT 2, id FROM permissions
+    WHERE name IN ('events.view', 'events.create', 'events.edit', 'events.delete', 'roles.view')
+    ON CONFLICT (role_id, permission_id) DO NOTHING
+  `);
+
+  await db.exec(`
+    INSERT INTO role_permissions (role_id, permission_id)
+    SELECT 1, id FROM permissions
+    WHERE name IN ('events.view', 'users.view')
+    ON CONFLICT (role_id, permission_id) DO NOTHING
   `);
 
   await db.exec(`
