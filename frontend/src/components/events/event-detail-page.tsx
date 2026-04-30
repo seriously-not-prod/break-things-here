@@ -58,7 +58,8 @@ interface Rsvp {
 }
 
 const TASK_STATUSES = ['Pending', 'In Progress', 'Completed'];
-const RSVP_STATUSES = ['Going', 'Maybe', 'Not Going', 'Pending'];
+// #264/#286: aligned with DB CHECK and backend rsvps-controller
+const RSVP_STATUSES = ['Pending', 'Going', 'Maybe', 'Not Going', 'Declined'];
 
 export default function EventDetailPage(): JSX.Element {
   const { id } = useParams<{ id: string }>();
