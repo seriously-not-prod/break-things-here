@@ -5,8 +5,8 @@ import {
   useHasPermission,
   isVisibleForRole,
   setAuthState,
-} from '../../hooks/useUserRole';
-import { roleGate, RoleGateProps } from '../../components/RoleGate/RoleGate';
+} from '../../hooks/use-user-role';
+import { roleGate, RoleGateProps } from '../../components/role-gate/role-gate';
 
 describe('useUserRole hook', () => {
   afterEach(() => setAuthState({ user: null }));
