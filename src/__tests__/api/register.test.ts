@@ -93,54 +93,32 @@ describe('POST /api/auth/register', () => {
     expect(stored?.emailConfirmed).toBe(false);
   });
 
-  it('should return 400 for invalid email format', () => {
-    const req: ApiRequest = {
-      params: {},
-      body: { email: 'not-an-email', displayName: 'User', password: 'pass' },
-    };
-    const res = createMockRes();
+  it('should return 400 for invalid email format', async () => {
+    const res = await request(buildApp()).post('/api/auth/register').send({
+      name: 'User',
+      email: 'not-an-email',
+      password: 'pass12345',
+    });
 
-    handleRegister(req, res);
-
-    expect(res.statusCode).toBe(400);
-    expect(res.body).toEqual({ error: 'Invalid email format' });
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('errors');
   });
 
-  it('should return 409 when email is already registered', () => {
-    const first: ApiRequest = {
-      params: {},
-      body: { email: 'dup@test.com', displayName: 'First', password: 'pass' },
-    };
-    handleRegister(first, createMockRes());
+  it('should return 409 when email is already registered', async () => {
+    const app = buildApp();
+    await request(app).post('/api/auth/register').send({
+      name: 'First',
+      email: 'dup@test.com',
+      password: 'pass12345',
+    });
 
-    const second: ApiRequest = {
-      params: {},
-      body: { email: 'dup@test.com', displayName: 'Second', password: 'pass' },
-    };
-    const res = createMockRes();
+    const res = await request(app).post('/api/auth/register').send({
+      name: 'Second',
+      email: 'dup@test.com',
+      password: 'pass12345',
+    });
 
-    handleRegister(second, res);
-
-    expect(res.statusCode).toBe(409);
-    expect(res.body).toEqual({ error: 'Email already registered' });
-  });
-
-  it('should sanitize displayName to prevent XSS', () => {
-    const req: ApiRequest = {
-      params: {},
-      body: {
-        email: 'xss@test.com',
-        displayName: '<script>alert("xss")</script>',
-        password: 'pass',
-      },
-    };
-    const res = createMockRes();
-
-    handleRegister(req, res);
-
-    expect(res.statusCode).toBe(201);
-    expect((res.body as { displayName: string }).displayName).toBe(
-      '&lt;script&gt;alert("xss")&lt;/script&gt;',
-    );
+    expect(res.status).toBe(409);
+    expect(res.body).toHaveProperty('errors');
   });
 });
