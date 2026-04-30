@@ -30,8 +30,12 @@ if (isDev) {
 // Middleware
 // Security headers — must be first
 app.use(helmet({
-  // REST API consumed by a separate frontend origin; CSP is not applicable
-  contentSecurityPolicy: false,
+  // REST API: lock down CSP to deny all resource loading (API returns JSON, not HTML)
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'none'"],
+    },
+  },
   // Allow cross-origin fetch from the configured frontend origins
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
