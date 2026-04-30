@@ -1,5 +1,6 @@
 import {
   AdminPanelSettingsRounded,
+  BarChartRounded,
   CalendarMonthRounded,
   DashboardRounded,
   LogoutRounded,
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/dashboard', icon: <DashboardRounded /> },
   { label: 'Events', to: '/events', icon: <CalendarMonthRounded /> },
   { label: 'Profile', to: '/profile', icon: <PersonRounded /> },
+  { label: 'Analytics', to: '/analytics', icon: <BarChartRounded />, adminOnly: true },
   { label: 'Admin', to: '/admin', icon: <AdminPanelSettingsRounded />, adminOnly: true },
 ];
 

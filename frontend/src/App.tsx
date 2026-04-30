@@ -12,6 +12,7 @@ import EventDetailPage from './components/events/event-detail-page';
 import PublicRsvpPage from './components/events/public-rsvp-page';
 import ProfilePage from './components/profile/profile-page';
 import AdminPage from './components/admin/admin-page';
+import AnalyticsPage from './components/analytics/analytics-page';
 import { AiAssistant } from './components/ai/ai-assistant';
 import { useState } from 'react';
 
@@ -99,6 +100,7 @@ function AppShell(): JSX.Element {
           <Route path="/events/:id" element={<EventDetailPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Box>

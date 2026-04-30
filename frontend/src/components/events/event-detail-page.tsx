@@ -24,7 +24,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { AddRounded, ArrowBackRounded, DeleteRounded, EditRounded } from '@mui/icons-material';
+import { AddRounded, ArrowBackRounded, DeleteRounded, DownloadRounded, EditRounded } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
@@ -293,9 +293,21 @@ export default function EventDetailPage(): JSX.Element {
 
   return (
     <Box sx={{ p: 4 }}>
-      <Button startIcon={<ArrowBackRounded />} onClick={() => navigate('/events')} sx={{ mb: 2 }}>
-        Back to Events
-      </Button>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+        <Button startIcon={<ArrowBackRounded />} onClick={() => navigate('/events')}>
+          Back to Events
+        </Button>
+        <Button
+          startIcon={<DownloadRounded />}
+          variant="outlined"
+          size="small"
+          href={`/api/events/${id}/report`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Download Report
+        </Button>
+      </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 

@@ -8,6 +8,7 @@ import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
+import * as analyticsController from '../controllers/analytics-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
@@ -152,6 +153,10 @@ router.get('/rsvps/:id', authenticateToken, rsvpController.getRsvpById);
 router.post('/rsvps', rsvpController.submitRsvp); // Public endpoint
 router.put('/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
 router.delete('/rsvps/:id', authenticateToken, rsvpController.deleteRsvp);
+
+// ============ ANALYTICS ROUTES ============
+router.get('/analytics/overview', authenticateToken, authorizeRole(['Admin']), analyticsController.getOverview);
+router.get('/events/:id/report', authenticateToken, analyticsController.getEventReport);
 
 export default router;
 
