@@ -81,6 +81,23 @@ export async function deleteUser(req: AuthRequest, res: Response): Promise<Respo
   return res.json({ message: 'User deleted.' });
 }
 
+/** POST /api/admin/users/:id/restore — restore a soft-deleted user */
+export async function restoreUser(req: AuthRequest, res: Response): Promise<Response> {
+  const db = getDatabase();
+  const { id } = req.params;
+
+  const user = await db.get('SELECT id, deleted_at FROM users WHERE id = ?', [id]);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+  if (!user.deleted_at) return res.status(400).json({ error: 'User is not deleted.' });
+
+  await db.run(
+    'UPDATE users SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    [id],
+  );
+
+  return res.json({ message: 'User restored.' });
+}
+
 /** GET /api/admin/roles — list all roles */
 export async function listRoles(_req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
