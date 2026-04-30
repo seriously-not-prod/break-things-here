@@ -400,6 +400,14 @@ async function runMigrations(db: any): Promise<void> {
       )
     `);
 
+    // Performance indexes for high-traffic query columns (#269)
+    await db.exec('CREATE INDEX IF NOT EXISTS idx_events_status ON events(status)');
+    await db.exec('CREATE INDEX IF NOT EXISTS idx_events_date ON events(date)');
+    await db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_event ON tasks(event_id)');
+    await db.exec('CREATE INDEX IF NOT EXISTS idx_rsvps_event ON rsvps(event_id)');
+    await db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)');
+    await db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)');
+
     return;
   }
 
@@ -614,4 +622,12 @@ async function runMigrations(db: any): Promise<void> {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // Performance indexes for high-traffic query columns (#269)
+  await db.exec('CREATE INDEX IF NOT EXISTS idx_events_status ON events(status)');
+  await db.exec('CREATE INDEX IF NOT EXISTS idx_events_date ON events(date)');
+  await db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_event ON tasks(event_id)');
+  await db.exec('CREATE INDEX IF NOT EXISTS idx_rsvps_event ON rsvps(event_id)');
+  await db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)');
+  await db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)');
 }
