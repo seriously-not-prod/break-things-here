@@ -144,13 +144,6 @@ router.put('/tasks/:id', authenticateToken, taskController.updateTask);
 router.delete('/tasks/:id', authenticateToken, taskController.deleteTask);
 router.post('/tasks/:id/toggle', authenticateToken, taskController.toggleTaskStatus);
 
-// ============ RSVP ROUTES ============
-router.get('/rsvps', authenticateToken, rsvpController.getAllRsvps);
-router.get('/rsvps/:id', authenticateToken, rsvpController.getRsvpById);
-router.post('/rsvps', rsvpController.submitRsvp); // Public endpoint
-router.put('/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
-router.delete('/rsvps/:id', authenticateToken, rsvpController.deleteRsvp);
-
 export default router;
 
 // Development-only: seed a verified demo user for local testing
