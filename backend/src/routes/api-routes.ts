@@ -9,14 +9,12 @@ import * as taskController from '../controllers/task-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
-import rateLimit from 'express-rate-limit';
+import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { hashPassword } from '../utils/auth-helpers.js';
 import { getDatabase } from '../db/database.js';
-
-const apiLimiter = rateLimit({ windowMs: 60_000, max: 100 });
 
 const router = Router();
 
@@ -52,9 +50,9 @@ const upload = multer({
 });
 
 // ============ AUTH ROUTES ============
-router.post('/auth/register', authController.register);
+router.post('/auth/register', createAuthLimiter(), authController.register);
 router.post('/auth/verify-email', authController.verifyEmail);
-router.post('/auth/login', authController.login);
+router.post('/auth/login', createAuthLimiter(), authController.login);
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
 
@@ -66,7 +64,7 @@ router.post('/auth/refresh', authController.refreshTokenEndpoint);
 router.post('/auth/session/heartbeat', authenticateToken, authController.sessionHeartbeat);
 
 // Password reset routes
-router.post('/auth/forgot-password', passwordResetController.forgotPassword);
+router.post('/auth/forgot-password', createAuthLimiter(), passwordResetController.forgotPassword);
 router.post('/auth/reset-password', passwordResetController.resetPassword);
 
 // Profile email-change confirmation and account deletion
