@@ -13,13 +13,29 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import sqlite3 from 'sqlite3';
+import { open, type Database } from 'sqlite';
+
+// ---------------------------------------------------------------------------
+// In-memory SQLite — replaces the real database module so the test runner does
+// not need a running PostgreSQL instance.
+// ---------------------------------------------------------------------------
+let testDb: Database;
+
+vi.mock('../src/db/database.js', () => ({
+  getDatabase: () => testDb,
+  initializeDatabase: async () => testDb,
+  closeDatabase: async () => testDb?.close(),
+}));
+
 // Stub nodemailer so tests don't attempt real SMTP
 vi.mock('nodemailer', () => ({
   default: {
     createTransport: () => ({ sendMail: vi.fn().mockResolvedValue({}) }),
   },
 }));
-import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
+
+import { getDatabase } from '../src/db/database.js';
 import { forgotPassword } from '../src/controllers/password-reset-controller.js';
 
 // Mock Express response and request
@@ -47,17 +63,44 @@ function makeReq(body: any = {}, ip: string = '127.0.0.1') {
 
 describe('Password Reset — Forgot Password Endpoint (#77)', () => {
   beforeEach(async () => {
-    // Initialize test database
-    const db = await initializeDatabase();
-    // Clear test data
-    await db.run('DELETE FROM password_reset_tokens');
-    await db.run('DELETE FROM password_reset_rate_limit');
-    await db.run('DELETE FROM audit_log');
-    await db.run('DELETE FROM users');
+    testDb = await open({ filename: ':memory:', driver: sqlite3.Database });
+    await testDb.exec(`
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        display_name TEXT,
+        deleted_at DATETIME
+      );
+      CREATE TABLE password_reset_rate_limit (
+        email TEXT PRIMARY KEY,
+        request_count INTEGER NOT NULL DEFAULT 1,
+        window_start DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE password_reset_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        email TEXT NOT NULL,
+        token_selector TEXT NOT NULL,
+        token TEXT NOT NULL,
+        expires_at DATETIME NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        used_at DATETIME
+      );
+      CREATE TABLE audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        email TEXT,
+        action TEXT NOT NULL,
+        description TEXT,
+        ip_address TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
   });
 
   afterEach(async () => {
-    await closeDatabase();
+    await testDb?.close();
   });
 
   describe('AC: Input Validation', () => {
