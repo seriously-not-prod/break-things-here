@@ -5,6 +5,8 @@
 
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database';
+import { parsePagination, buildPaginatedResponse } from '../utils/pagination';
+import { auditFromRequest } from '../utils/audit';
 
 export interface RsvpData {
   event_id: number;
@@ -15,26 +17,34 @@ export interface RsvpData {
 }
 
 /**
- * Get all RSVPs (optionally filtered by event)
+ * Get all RSVPs — supports pagination via ?page=&limit= and optional
+ * ?event_id= filter. Returns { data, total, page, limit } envelope.
  */
 export async function getAllRsvps(req: Request, res: Response): Promise<void> {
   try {
     const db = getDatabase();
     const { event_id } = req.query;
-    
-    let query = 'SELECT * FROM rsvps';
-    const params: any[] = [];
-    
-    if (event_id) {
-      query += ' WHERE event_id = ?';
-      params.push(event_id);
-    }
-    
-    query += ' ORDER BY created_at DESC';
-    
-    const rsvps = await db.all(query, params);
-    
-    res.json(rsvps);
+    const pagination = parsePagination(req.query as Record<string, unknown>);
+
+    const whereClause = event_id ? 'WHERE event_id = ?' : '';
+    const countParams = event_id ? [event_id] : [];
+
+    const countRow = await db.get(
+      `SELECT COUNT(*) AS count FROM rsvps ${whereClause}`,
+      countParams,
+    );
+    const total = (countRow?.count as number) ?? 0;
+
+    const dataParams: unknown[] = event_id
+      ? [event_id, pagination.limit, pagination.offset]
+      : [pagination.limit, pagination.offset];
+
+    const rsvps = await db.all(
+      `SELECT * FROM rsvps ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      dataParams,
+    );
+
+    res.json(buildPaginatedResponse(rsvps, Number(total), pagination));
   } catch (error) {
     console.error('Error fetching RSVPs:', error);
     res.status(500).json({ error: 'Failed to fetch RSVPs' });
@@ -189,7 +199,16 @@ export async function updateRsvp(req: Request, res: Response): Promise<void> {
     ]);
     
     const updatedRsvp = await db.get('SELECT * FROM rsvps WHERE id = ?', [id]);
-    
+
+    // Log status change if it changed (#271)
+    if (status && status !== existingRsvp.status) {
+      await auditFromRequest(
+        req,
+        'rsvp.status_changed',
+        `RSVP #${id} status changed from "${existingRsvp.status}" to "${status}"`,
+      );
+    }
+
     res.json(updatedRsvp);
   } catch (error) {
     console.error('Error updating RSVP:', error);

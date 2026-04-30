@@ -5,6 +5,7 @@
 
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database';
+import { parsePagination, buildPaginatedResponse } from '../utils/pagination';
 
 export interface EventData {
   title: string;
@@ -32,20 +33,28 @@ async function recordEventAudit(
 }
 
 /**
- * Get all events
+ * Get all events — supports pagination via ?page=&limit= query params.
+ * Returns { data, total, page, limit } envelope.
  */
 export async function getAllEvents(req: Request, res: Response): Promise<void> {
   try {
     const db = getDatabase();
+    const pagination = parsePagination(req.query as Record<string, unknown>);
+
+    // Count total matching rows for the pagination envelope
+    const countRow = await db.get(`SELECT COUNT(*) AS count FROM events WHERE deleted_at IS NULL`);
+    const total = (countRow?.count as number) ?? 0;
+
     const events = await db.all(`
       SELECT e.*, u.display_name as created_by_name
       FROM events e
       LEFT JOIN users u ON e.created_by = u.id
       WHERE e.deleted_at IS NULL
       ORDER BY e.date DESC
-    `);
-    
-    res.json(events);
+      LIMIT ? OFFSET ?
+    `, [pagination.limit, pagination.offset]);
+
+    res.json(buildPaginatedResponse(events, Number(total), pagination));
   } catch (error) {
     console.error('Error fetching events:', error);
     res.status(500).json({ error: 'Failed to fetch events' });

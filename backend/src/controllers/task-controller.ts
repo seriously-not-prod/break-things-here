@@ -5,6 +5,8 @@
 
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database';
+import { parsePagination, buildPaginatedResponse } from '../utils/pagination';
+import { auditFromRequest } from '../utils/audit';
 
 export interface TaskData {
   event_id: number;
@@ -16,26 +18,34 @@ export interface TaskData {
 }
 
 /**
- * Get all tasks (optionally filtered by event)
+ * Get all tasks — supports pagination via ?page=&limit= and optional
+ * ?event_id= filter. Returns { data, total, page, limit } envelope.
  */
 export async function getAllTasks(req: Request, res: Response): Promise<void> {
   try {
     const db = getDatabase();
     const { event_id } = req.query;
-    
-    let query = 'SELECT * FROM tasks';
-    const params: any[] = [];
-    
-    if (event_id) {
-      query += ' WHERE event_id = ?';
-      params.push(event_id);
-    }
-    
-    query += ' ORDER BY due_date ASC, created_at DESC';
-    
-    const tasks = await db.all(query, params);
-    
-    res.json(tasks);
+    const pagination = parsePagination(req.query as Record<string, unknown>);
+
+    const whereClause = event_id ? 'WHERE event_id = ?' : '';
+    const countParams = event_id ? [event_id] : [];
+
+    const countRow = await db.get(
+      `SELECT COUNT(*) AS count FROM tasks ${whereClause}`,
+      countParams,
+    );
+    const total = (countRow?.count as number) ?? 0;
+
+    const dataParams: unknown[] = event_id
+      ? [event_id, pagination.limit, pagination.offset]
+      : [pagination.limit, pagination.offset];
+
+    const tasks = await db.all(
+      `SELECT * FROM tasks ${whereClause} ORDER BY due_date ASC, created_at DESC LIMIT ? OFFSET ?`,
+      dataParams,
+    );
+
+    res.json(buildPaginatedResponse(tasks, Number(total), pagination));
   } catch (error) {
     console.error('Error fetching tasks:', error);
     res.status(500).json({ error: 'Failed to fetch tasks' });
@@ -104,7 +114,9 @@ export async function createTask(req: Request, res: Response): Promise<void> {
     `, [event_id, title, description || '', assignee || '', due_date || null, status || 'Pending']);
     
     const newTask = await db.get('SELECT * FROM tasks WHERE id = ?', [result.lastID]);
-    
+
+    await auditFromRequest(req, 'task.created', `Created task #${result.lastID}: "${title}" in event #${event_id}`);
+
     res.status(201).json(newTask);
   } catch (error) {
     console.error('Error creating task:', error);
@@ -155,7 +167,9 @@ export async function updateTask(req: Request, res: Response): Promise<void> {
     ]);
     
     const updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
-    
+
+    await auditFromRequest(req, 'task.updated', `Updated task #${id}: "${updatedTask?.title ?? existingTask.title}"`);
+
     res.json(updatedTask);
   } catch (error) {
     console.error('Error updating task:', error);
@@ -184,7 +198,9 @@ export async function deleteTask(req: Request, res: Response): Promise<void> {
     }
     
     await db.run('DELETE FROM tasks WHERE id = ?', [id]);
-    
+
+    await auditFromRequest(req, 'task.deleted', `Deleted task #${id}: "${task.title}"`);
+
     res.json({ message: 'Task deleted successfully' });
   } catch (error) {
     console.error('Error deleting task:', error);
@@ -221,7 +237,9 @@ export async function toggleTaskStatus(req: Request, res: Response): Promise<voi
     `, [newStatus, id]);
     
     const updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
-    
+
+    await auditFromRequest(req, 'task.status_toggled', `Toggled task #${id} status to "${newStatus}"`);
+
     res.json(updatedTask);
   } catch (error) {
     console.error('Error toggling task status:', error);

@@ -1,22 +1,32 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { parsePagination, buildPaginatedResponse } from '../utils/pagination.js';
+import { auditFromRequest } from '../utils/audit.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
 }
 
-/** GET /api/admin/users — list all users */
-export async function listUsers(_req: Request, res: Response): Promise<Response> {
+/** GET /api/admin/users — list all users with pagination (?page=&limit=) */
+export async function listUsers(req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
+  const pagination = parsePagination(req.query as Record<string, unknown>);
+
+  const countRow = await db.get(`SELECT COUNT(*) AS count FROM users`);
+  const total = (countRow?.count as number) ?? 0;
+
   const users = await db.all(
     `SELECT u.id, u.email, u.display_name, u.email_verified, u.account_locked,
             u.login_attempts, u.created_at, u.deleted_at,
             r.name AS role_name, r.id AS role_id
      FROM users u
      LEFT JOIN roles r ON u.role_id = r.id
-     ORDER BY u.created_at DESC`,
+     ORDER BY u.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [pagination.limit, pagination.offset],
   );
-  return res.json({ users });
+
+  return res.json(buildPaginatedResponse(users, Number(total), pagination));
 }
 
 /** PATCH /api/admin/users/:id/role — change user role */
@@ -36,6 +46,13 @@ export async function changeUserRole(req: AuthRequest, res: Response): Promise<R
   }
 
   await db.run('UPDATE users SET role_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [role_id, id]);
+
+  await auditFromRequest(
+    req as AuthRequest,
+    'admin.user.role_changed',
+    `Admin changed role of user #${id} to role_id ${role_id}`,
+  );
+
   return res.json({ message: 'Role updated.' });
 }
 
@@ -58,6 +75,12 @@ export async function toggleLock(req: AuthRequest, res: Response): Promise<Respo
     [locked ? 1 : 0, locked ? null : null, id],
   );
 
+  await auditFromRequest(
+    req as AuthRequest,
+    locked ? 'admin.user.locked' : 'admin.user.unlocked',
+    `Admin ${locked ? 'locked' : 'unlocked'} account for user #${id}`,
+  );
+
   return res.json({ message: locked ? 'Account locked.' : 'Account unlocked.' });
 }
 
@@ -78,6 +101,13 @@ export async function deleteUser(req: AuthRequest, res: Response): Promise<Respo
     "UPDATE users SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     [id],
   );
+
+  await auditFromRequest(
+    req as AuthRequest,
+    'admin.user.deleted',
+    `Admin soft-deleted user #${id}`,
+  );
+
   return res.json({ message: 'User deleted.' });
 }
 
