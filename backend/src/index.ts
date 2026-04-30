@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 import { initializeDatabase } from './db/database.js';
 import apiRoutes from './routes/api-routes.js';
+import { errorHandler } from './middleware/error-handler.js';
 
 const app = express();
 const port = parseInt(process.env.PORT || '4000', 10);
@@ -84,6 +85,10 @@ app.get('/health', (_req, res) => {
 
 // Mount API routes with CSRF protection for state-changing methods
 app.use('/api', csrfProtection, apiRoutes);
+
+// Global error handler — must be the last middleware registered.
+// Catches any error forwarded via next(err) from routes/controllers.
+app.use(errorHandler);
 
 // Start server after initializing the database
 async function start(): Promise<void> {
