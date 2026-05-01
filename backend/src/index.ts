@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 import { initializeDatabase } from './db/database.js';
 import apiRoutes from './routes/api-routes.js';
+import { startReminderScheduler } from './utils/event-reminder-scheduler.js';
 
 const app = express();
 const port = parseInt(process.env.PORT || '4000', 10);
@@ -88,6 +89,7 @@ app.use('/api', csrfProtection, apiRoutes);
 // Start server after initializing the database
 async function start(): Promise<void> {
   await initializeDatabase();
+  startReminderScheduler();
   app.listen(port, '0.0.0.0', () => {
     console.log(`Festival Planner API running on port ${port}`);
   });

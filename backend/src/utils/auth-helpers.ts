@@ -219,3 +219,45 @@ export async function sendPasswordResetEmail(
     throw err;
   }
 }
+
+/**
+ * Sends a 24-hour event reminder email to an RSVP attendee
+ * @param email - Recipient email address
+ * @param name - Attendee name
+ * @param eventTitle - Title of the event
+ * @param eventDate - ISO date string of the event
+ * @param eventLocation - Optional event location
+ */
+export async function sendEventReminderEmail(
+  email: string,
+  name: string,
+  eventTitle: string,
+  eventDate: string,
+  eventLocation?: string | null,
+): Promise<void> {
+  const locationLine = eventLocation ? `\nLocation: ${eventLocation}` : '';
+  const body =
+    `Hi ${name},\n\n` +
+    `This is a friendly reminder that "${eventTitle}" is happening tomorrow.\n\n` +
+    `Date: ${new Date(eventDate).toDateString()}${locationLine}\n\n` +
+    `We look forward to seeing you!\n\nFestival Planner Team`;
+
+  try {
+    const nodemailer = await import('nodemailer');
+    const transport = nodemailer.default.createTransport({
+      host: process.env.SMTP_HOST || 'localhost',
+      port: Number(process.env.SMTP_PORT) || 587,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    });
+
+    await transport.sendMail({
+      from: process.env.FROM_EMAIL || 'noreply@festival-planner.local',
+      to: email,
+      subject: `Reminder: "${eventTitle}" is tomorrow!`,
+      text: body,
+    });
+  } catch (err) {
+    console.error(`Failed to send reminder email to ${email}:`, err);
+    throw err;
+  }
+}
