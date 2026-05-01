@@ -4,17 +4,21 @@ import xss from 'xss';
 const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const MAX_DEPTH = 20;
 
+function sanitizeString(value: string): string {
+  return xss(value, {
+    whiteList: {},
+    stripIgnoreTag: true,
+    stripIgnoreTagBody: ['script', 'style'],
+  });
+}
+
 function sanitizeValue(value: unknown, depth = 0): unknown {
   if (depth > MAX_DEPTH) {
     return value;
   }
 
   if (typeof value === 'string') {
-    return xss(value, {
-      whiteList: {},
-      stripIgnoreTag: true,
-      stripIgnoreTagBody: ['script', 'style'],
-    });
+    return sanitizeString(value);
   }
 
   if (Array.isArray(value)) {
@@ -35,22 +39,11 @@ function sanitizeValue(value: unknown, depth = 0): unknown {
 }
 
 export function sanitizeRequest(req: Request, _res: Response, next: NextFunction): void {
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-    next();
-    return;
-  }
+  req.params = sanitizeValue(req.params) as Request['params'];
+  req.query = sanitizeValue(req.query) as Request['query'];
 
-  if (req.body !== undefined) {
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.body !== undefined) {
     req.body = sanitizeValue(req.body);
-  }
-
-  for (const key of Object.keys(req.query)) {
-    if (!DANGEROUS_KEYS.has(key)) {
-      const val = req.query[key];
-      if (typeof val === 'string') {
-        (req.query as Record<string, unknown>)[key] = sanitizeValue(val);
-      }
-    }
   }
 
   next();

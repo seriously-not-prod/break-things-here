@@ -11,6 +11,14 @@ function buildApp() {
     res.status(200).json(req.body);
   });
 
+  app.all('/echo/:name', sanitizeRequestBody, (req, res) => {
+    res.status(200).json({
+      params: req.params,
+      query: req.query,
+      body: req.body ?? null,
+    });
+  });
+
   app.get('/view', sanitizeRequestBody, (_req, res) => {
     res.status(200).json({ ok: true });
   });
@@ -45,6 +53,22 @@ describe('Input sanitization middleware (#247)', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ ok: true });
+  });
+
+  it('sanitizes req.params and req.query even on safe requests', async () => {
+    const app = buildApp();
+    const response = await request(app)
+      .get('/echo/%3Cscript%3Ealert(1)%3C%2Fscript%3EAlice%20%3Cb%3EAdmin%3C%2Fb%3E')
+      .query({
+        search: '<img src=x onerror=alert(1)>team',
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      params: { name: 'Alice Admin' },
+      query: { search: 'team' },
+      body: {},
+    });
   });
 
   it('passes non-string primitives through unchanged', async () => {
