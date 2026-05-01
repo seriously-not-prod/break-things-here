@@ -4,6 +4,11 @@ import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 import { initializeDatabase } from './db/database.js';
 import apiRoutes from './routes/api-routes.js';
+import { requestLogger } from './middleware/request-logger.js';
+import { healthCheck } from './controllers/health-controller.js';
+import { startSessionCleanup } from './utils/session-cleanup.js';
+import { validateEmailConfig } from './utils/email-service.js';
+import logger from './utils/logger.js';
 
 const app = express();
 const port = parseInt(process.env.PORT || '4000', 10);
@@ -30,6 +35,7 @@ if (isDev) {
 app.use(cors(corsOptions));
 app.use(cookieParser()); // Add cookie parser to read req.cookies
 app.use(express.json());
+app.use(requestLogger);
 
 // CSRF Protection Middleware (Double Submit Cookie pattern)
 // This is applied via middleware in routes to prevent CSRF attacks
@@ -74,13 +80,8 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
   next();
 });
 
-// Health check endpoint
-app.get('/health', (_req, res) => {
-  res.json({
-    status: 'healthy',
-    uptime: process.uptime(),
-  });
-});
+// Enriched health check endpoint (#257) — verifies DB connectivity
+app.get('/health', healthCheck);
 
 // Mount API routes with CSRF protection for state-changing methods
 app.use('/api', csrfProtection, apiRoutes);
@@ -88,12 +89,19 @@ app.use('/api', csrfProtection, apiRoutes);
 // Start server after initializing the database
 async function start(): Promise<void> {
   await initializeDatabase();
+
+  // Validate email SMTP configuration on startup (#245)
+  validateEmailConfig();
+
+  // Start periodic stale session cleanup (#253)
+  startSessionCleanup();
+
   app.listen(port, '0.0.0.0', () => {
-    console.log(`Festival Planner API running on port ${port}`);
+    logger.info({ port }, `Festival Planner API running on port ${port}`);
   });
 }
 
 start().catch((err) => {
-  console.error('Failed to start server:', err);
+  logger.fatal({ err }, 'Failed to start server');
   process.exit(1);
 });
