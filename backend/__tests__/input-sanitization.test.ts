@@ -46,4 +46,57 @@ describe('Input sanitization middleware (#247)', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ ok: true });
   });
+
+  it('passes non-string primitives through unchanged', async () => {
+    const app = buildApp();
+    const response = await request(app).post('/submit').send({
+      count: 42,
+      active: true,
+      value: null,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.count).toBe(42);
+    expect(response.body.active).toBe(true);
+    expect(response.body.value).toBeNull();
+  });
+
+  it('does not throw on empty or undefined body', async () => {
+    const app = buildApp();
+    const response = await request(app)
+      .post('/submit')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(response.status).toBe(200);
+  });
+
+  it('does not overflow the call stack for deeply nested objects', async () => {
+    const app = buildApp();
+    // build an object nested 30 levels deep (exceeds MAX_DEPTH=20)
+    let nested: Record<string, unknown> = { value: '<b>leaf</b>' };
+    for (let i = 0; i < 30; i++) {
+      nested = { child: nested };
+    }
+
+    const response = await request(app).post('/submit').send(nested);
+    expect(response.status).toBe(200);
+  });
+
+  it('does not allow prototype-pollution style payloads to affect sanitized bodies', async () => {
+    const app = buildApp();
+    // JSON.parse bypasses object literal key restrictions, simulating a real attack
+    const payload = JSON.parse('{"displayName":"Alice","__proto__":{"isAdmin":true}}') as Record<string, unknown>;
+
+    expect(({} as { isAdmin?: boolean }).isAdmin).toBeUndefined();
+
+    const response = await request(app).post('/submit').send(payload);
+
+    expect(response.status).toBe(200);
+    expect(response.body.displayName).toBe('Alice');
+    // The __proto__ key must not appear as an own property of the sanitized body
+    expect(Object.prototype.hasOwnProperty.call(response.body, '__proto__')).toBe(false);
+    // Prototype pollution must not have mutated Object.prototype
+    expect(({} as { isAdmin?: boolean }).isAdmin).toBeUndefined();
+  });
 });

@@ -1,7 +1,14 @@
 import type { NextFunction, Request, Response } from 'express';
 import xss from 'xss';
 
-function sanitizeValue(value: unknown): unknown {
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const MAX_DEPTH = 20;
+
+function sanitizeValue(value: unknown, depth = 0): unknown {
+  if (depth > MAX_DEPTH) {
+    return value;
+  }
+
   if (typeof value === 'string') {
     return xss(value, {
       whiteList: {},
@@ -11,26 +18,43 @@ function sanitizeValue(value: unknown): unknown {
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => sanitizeValue(item));
+    return value.map((item) => sanitizeValue(item, depth + 1));
   }
 
   if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>).map(([key, nestedValue]) => [
-      key,
-      sanitizeValue(nestedValue),
-    ]);
-    return Object.fromEntries(entries);
+    const result: Record<string, unknown> = {};
+    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+      if (!DANGEROUS_KEYS.has(key)) {
+        result[key] = sanitizeValue(nestedValue, depth + 1);
+      }
+    }
+    return result;
   }
 
   return value;
 }
 
-export function sanitizeRequestBody(req: Request, _res: Response, next: NextFunction): void {
+export function sanitizeRequest(req: Request, _res: Response, next: NextFunction): void {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     next();
     return;
   }
 
-  req.body = sanitizeValue(req.body);
+  if (req.body !== undefined) {
+    req.body = sanitizeValue(req.body);
+  }
+
+  for (const key of Object.keys(req.query)) {
+    if (!DANGEROUS_KEYS.has(key)) {
+      const val = req.query[key];
+      if (typeof val === 'string') {
+        (req.query as Record<string, unknown>)[key] = sanitizeValue(val);
+      }
+    }
+  }
+
   next();
 }
+
+// Backward-compatible alias
+export const sanitizeRequestBody = sanitizeRequest;
