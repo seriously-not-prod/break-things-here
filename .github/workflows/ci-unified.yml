@@ -87,20 +87,6 @@ jobs:
     needs: lint-and-typecheck
     permissions:
       contents: read
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: festival_planner
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -118,7 +104,8 @@ jobs:
       - name: Run backend tests
         working-directory: backend
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/festival_planner
+          NODE_ENV: test
+          VITEST: 'true'
         run: npm test
 
   test-frontend:
