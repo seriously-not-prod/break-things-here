@@ -59,7 +59,7 @@ export class DbWrapper {
     this.engine = engine;
   }
 
-  async get<T = unknown>(sql: string, params?: unknown[]): Promise<T | undefined> {
+  async get<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T | undefined> {
     if (this.engine === 'sqlite') {
       return (await (this.db as SqliteDatabase).get<T>(sql, params ?? [])) ?? undefined;
     }
@@ -69,9 +69,9 @@ export class DbWrapper {
     return result.rows[0] as T | undefined;
   }
 
-  async all<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
+  async all<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]> {
     if (this.engine === 'sqlite') {
-      return (await (this.db as SqliteDatabase).all<T>(sql, params ?? [])) ?? [];
+      return (await (this.db as SqliteDatabase).all<T[]>(sql, params ?? [])) ?? [];
     }
 
     const converted = convertPlaceholders(sql);
