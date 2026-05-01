@@ -7,6 +7,7 @@ import * as passwordResetController from '../controllers/password-reset-controll
 import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
+import * as legacyRsvpController from '../controllers/rsvp-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import rateLimit from 'express-rate-limit';
@@ -147,11 +148,11 @@ router.delete('/tasks/:id', authenticateToken, taskController.deleteTask);
 router.post('/tasks/:id/toggle', authenticateToken, taskController.toggleTaskStatus);
 
 // ============ RSVP ROUTES ============
-router.get('/rsvps', authenticateToken, rsvpController.getAllRsvps);
-router.get('/rsvps/:id', authenticateToken, rsvpController.getRsvpById);
-router.post('/rsvps', rsvpController.submitRsvp); // Public endpoint
-router.put('/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
-router.delete('/rsvps/:id', authenticateToken, rsvpController.deleteRsvp);
+router.get('/rsvps', authenticateToken, legacyRsvpController.getAllRsvps);
+router.get('/rsvps/:id', authenticateToken, legacyRsvpController.getRsvpById);
+router.post('/rsvps', legacyRsvpController.submitRsvp); // Public endpoint
+router.put('/rsvps/:id', authenticateToken, legacyRsvpController.updateRsvp);
+router.delete('/rsvps/:id', authenticateToken, legacyRsvpController.deleteRsvp);
 
 export default router;
 

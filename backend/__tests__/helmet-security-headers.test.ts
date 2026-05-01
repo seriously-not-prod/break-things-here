@@ -1,108 +1,88 @@
 /**
- * Integration tests for HTTP security headers via helmet (#288)
+ * Integration tests for HTTP security headers via helmet (#266)
  *
- * Verifies all acceptance criteria for issues #266 and #246:
- * - helmet middleware is applied before route mounting
- * - X-Content-Type-Options: nosniff is present
- * - X-Frame-Options: SAMEORIGIN is present
- * - X-DNS-Prefetch-Control header is present
- * - Content-Security-Policy header is present
- * - Strict-Transport-Security header is present
- * Tests run against the /health endpoint (no auth required)
+ * Verifies the real backend app applies the expected security headers
+ * and filters invalid production CSP origins before mounting routes.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import express from 'express';
-import helmet from 'helmet';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
+import { createApp } from '../src/index.js';
 
-function buildTestApp() {
-  const app = express();
+describe('HTTP Security Headers — helmet middleware (#266)', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalCorsAllowedOrigins = process.env.CORS_ALLOWED_ORIGINS;
 
-  app.use(
-    helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'blob:'],
-          connectSrc: ["'self'"],
-          fontSrc: ["'self'"],
-          objectSrc: ["'none'"],
-          frameAncestors: ["'none'"],
-        },
-      },
-    }),
-  );
-
-  app.get('/health', (_req, res) => {
-    res.status(200).json({ status: 'healthy' });
+  beforeEach(() => {
+    process.env.NODE_ENV = 'test';
+    delete process.env.CORS_ALLOWED_ORIGINS;
   });
 
-  return app;
-}
+  afterEach(() => {
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
 
-describe('HTTP Security Headers — helmet middleware (#246 #266 #288)', () => {
-  let app: express.Express;
-
-  beforeAll(() => {
-    app = buildTestApp();
+    if (originalCorsAllowedOrigins === undefined) {
+      delete process.env.CORS_ALLOWED_ORIGINS;
+    } else {
+      process.env.CORS_ALLOWED_ORIGINS = originalCorsAllowedOrigins;
+    }
   });
-
-  // ── AC: x-content-type-options ─────────────────────────────────────────────
 
   it('sets X-Content-Type-Options: nosniff', async () => {
-    const res = await request(app).get('/health');
+    const res = await request(createApp()).get('/health');
     expect(res.status).toBe(200);
     expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
 
-  // ── AC: x-frame-options ────────────────────────────────────────────────────
-
   it('sets X-Frame-Options: SAMEORIGIN', async () => {
-    const res = await request(app).get('/health');
+    const res = await request(createApp()).get('/health');
     expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
   });
 
-  // ── AC: x-dns-prefetch-control ─────────────────────────────────────────────
-
   it('sets X-DNS-Prefetch-Control: off', async () => {
-    const res = await request(app).get('/health');
+    const res = await request(createApp()).get('/health');
     expect(res.headers['x-dns-prefetch-control']).toBe('off');
   });
 
-  // ── AC: content-security-policy ────────────────────────────────────────────
-
-  it('sets Content-Security-Policy header', async () => {
-    const res = await request(app).get('/health');
+  it('sets Content-Security-Policy header from the real app', async () => {
+    const res = await request(createApp()).get('/health');
     expect(res.headers['content-security-policy']).toBeDefined();
     const csp = res.headers['content-security-policy'] as string;
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("connect-src 'self' http://localhost:3000 http://localhost:4173 http://localhost:5173 http://localhost:5174");
   });
 
-  // ── AC: strict-transport-security ──────────────────────────────────────────
+  it('filters blank production origins out of CSP connect-src', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.CORS_ALLOWED_ORIGINS = ' https://one.example , , https://two.example ,, ';
+
+    const res = await request(createApp()).get('/health');
+    const csp = res.headers['content-security-policy'] as string;
+
+    expect(csp).toContain("connect-src 'self' https://one.example https://two.example");
+    expect(csp).not.toContain("connect-src 'self'  ");
+    expect(csp).not.toContain(" ,");
+  });
 
   it('sets Strict-Transport-Security header', async () => {
-    const res = await request(app).get('/health');
+    const res = await request(createApp()).get('/health');
     expect(res.headers['strict-transport-security']).toBeDefined();
     expect(res.headers['strict-transport-security']).toContain('max-age=');
   });
 
-  // ── AC: x-xss-protection disabled (modern best practice) ──────────────────
-
   it('disables X-XSS-Protection (helmet modern best practice)', async () => {
-    const res = await request(app).get('/health');
-    // helmet sets this to 0 to disable the buggy browser XSS auditor
+    const res = await request(createApp()).get('/health');
     expect(res.headers['x-xss-protection']).toBe('0');
   });
 
-  // ── AC: no X-Powered-By header ────────────────────────────────────────────
-
   it('removes X-Powered-By header', async () => {
-    const res = await request(app).get('/health');
+    const res = await request(createApp()).get('/health');
     expect(res.headers['x-powered-by']).toBeUndefined();
   });
 });
