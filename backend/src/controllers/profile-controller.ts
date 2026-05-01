@@ -28,6 +28,10 @@ interface AuthRequest extends Request {
   };
 }
 
+interface ProfilePhotoRow {
+  profile_photo_url: string | null;
+}
+
 export async function getUserProfile(req: AuthRequest, res: Response) {
   try {
     if (!req.user) {
@@ -132,7 +136,7 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
     const db = getDatabase();
 
     // Get old photo URL if exists
-    const existingProfile = await db.get(
+    const existingProfile = await db.get<ProfilePhotoRow>(
       'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
       [req.user.id],
     );
@@ -178,7 +182,7 @@ export async function deleteProfilePhoto(req: AuthRequest, res: Response) {
     const db = getDatabase();
 
     // Get photo URL
-    const profile = await db.get(
+    const profile = await db.get<ProfilePhotoRow>(
       'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
       [req.user.id],
     );
