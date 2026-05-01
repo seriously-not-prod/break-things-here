@@ -5,6 +5,11 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['__tests__/**/*.test.ts'],
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
     // Provide deterministic secrets for tests so no hardcoded literals are needed
     // in source or test files (satisfies CodeQL js/hardcoded-credentials rule).
     env: {
