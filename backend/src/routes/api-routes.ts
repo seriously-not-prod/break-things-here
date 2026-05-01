@@ -8,6 +8,7 @@ import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
+import * as settingsController from '../controllers/settings-controller.js';
 import * as eventDocumentsController from '../controllers/event-documents-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
@@ -174,6 +175,10 @@ router.post('/tasks', authenticateToken, taskController.createTask);
 router.put('/tasks/:id', authenticateToken, taskController.updateTask);
 router.delete('/tasks/:id', authenticateToken, taskController.deleteTask);
 router.post('/tasks/:id/toggle', authenticateToken, taskController.toggleTaskStatus);
+
+// ============ ADMIN SETTINGS ROUTES (#244) ============
+router.get('/admin/settings', authenticateToken, authorizeRole(['Admin']), settingsController.getSettings);
+router.patch('/admin/settings', authenticateToken, authorizeRole(['Admin']), settingsController.updateSettings);
 
 export default router;
 

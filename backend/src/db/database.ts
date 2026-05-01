@@ -472,6 +472,18 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // System settings key-value store (#244)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      description TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_by INTEGER,
+      FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
 }
 
 async function runSqliteMigrations(db: DbWrapper): Promise<void> {
@@ -672,6 +684,18 @@ async function runSqliteMigrations(db: DbWrapper): Promise<void> {
       PRIMARY KEY (event_id, user_id),
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // System settings key-value store (#244)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      description TEXT,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_by INTEGER,
+      FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
 }
