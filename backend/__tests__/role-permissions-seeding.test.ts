@@ -3,13 +3,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { authorizePermission } from '../src/middleware/auth.js';
 import { closeDatabase, getDatabase, initializeDatabase } from '../src/db/database.js';
 
-const originalDatabaseUrl = process.env.DATABASE_URL;
-const defaultDatabaseUrl = 'postgresql://postgres:postgres@127.0.0.1:5432/festival_planner';
-
-if (!originalDatabaseUrl) {
-  process.env.DATABASE_URL = defaultDatabaseUrl;
-}
-
 interface MockResponse extends Partial<Response> {
   statusCode: number;
   body: unknown;
@@ -67,13 +60,6 @@ beforeAll(async (): Promise<void> => {
 
 afterAll(async (): Promise<void> => {
   await closeDatabase();
-
-  if (originalDatabaseUrl) {
-    process.env.DATABASE_URL = originalDatabaseUrl;
-    return;
-  }
-
-  delete process.env.DATABASE_URL;
 });
 
 describe('Role permission seeding', () => {
