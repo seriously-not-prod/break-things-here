@@ -14,9 +14,11 @@
  * - Admin can list all roles
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'fs';
 import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
 import * as adminController from '../src/controllers/admin-controller.js';
+import { authorizeRole } from '../src/middleware/auth.js';
 import { hashPassword } from '../src/utils/auth-helpers.js';
 
 function makeRes() {
@@ -37,6 +39,8 @@ function makeRes() {
 function makeReq(params: any = {}, body: any = {}, user?: { id: number; email: string; role_id: number }) {
   return { params, body, user } as any;
 }
+
+const apiRoutesSource = readFileSync(new URL('../src/routes/api-routes.ts', import.meta.url), 'utf8');
 
 async function seedUser(
   email: string,
@@ -72,6 +76,36 @@ describe('Admin API — integration tests (#260 #279 #280)', () => {
     await closeDatabase();
   });
 
+  describe('admin route wiring', () => {
+    it('registers all admin routes with auth and admin-role middleware', () => {
+      const expectedRoutes = [
+        "router.get('/admin/users', authenticateToken, authorizeRole(['Admin']), adminController.listUsers);",
+        "router.patch('/admin/users/:id/role', authenticateToken, authorizeRole(['Admin']), adminController.changeUserRole);",
+        "router.patch('/admin/users/:id/lock', authenticateToken, authorizeRole(['Admin']), adminController.toggleLock);",
+        "router.delete('/admin/users/:id', authenticateToken, authorizeRole(['Admin']), adminController.deleteUser);",
+        "router.post('/admin/users/:id/restore', authenticateToken, authorizeRole(['Admin']), adminController.restoreUser);",
+        "router.get('/admin/roles', authenticateToken, authorizeRole(['Admin']), adminController.listRoles);",
+      ];
+
+      for (const routeLine of expectedRoutes) {
+        expect(apiRoutesSource).toContain(routeLine);
+      }
+    });
+
+    it('returns 403 from admin middleware for non-admin users', async () => {
+      const authorizeAdmin = authorizeRole(['Admin']);
+      const req = makeReq({}, {}, { id: regularUserId, email: 'user@example.com', role_id: 1 });
+      const res = makeRes();
+      const next = vi.fn();
+
+      await authorizeAdmin(req, res, next);
+
+      expect(res.statusCode).toBe(403);
+      expect(res.body.error).toMatch(/insufficient permissions/i);
+      expect(next).not.toHaveBeenCalled();
+    });
+  });
+
   // ── AC: List Users ─────────────────────────────────────────────────────────
 
   describe('GET /api/admin/users', () => {
@@ -84,12 +118,13 @@ describe('Admin API — integration tests (#260 #279 #280)', () => {
       expect(res.body.users.length).toBeGreaterThanOrEqual(2);
     });
 
-    it('includes role_name in each user row', async () => {
+    it('includes role_name and updated_at in each user row', async () => {
       const res = makeRes();
       await adminController.listUsers(makeReq(), res);
       const user = res.body.users.find((u: any) => u.email === 'admin@example.com');
       expect(user).toBeDefined();
       expect(user.role_name).toBe('Admin');
+      expect(user.updated_at).toBeDefined();
     });
   });
 

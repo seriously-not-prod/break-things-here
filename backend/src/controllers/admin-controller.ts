@@ -10,7 +10,7 @@ export async function listUsers(_req: Request, res: Response): Promise<Response>
   const db = getDatabase();
   const users = await db.all(
     `SELECT u.id, u.email, u.display_name, u.email_verified, u.account_locked,
-            u.login_attempts, u.created_at, u.deleted_at,
+            u.login_attempts, u.created_at, u.updated_at, u.deleted_at,
             r.name AS role_name, r.id AS role_id
      FROM users u
      LEFT JOIN roles r ON u.role_id = r.id
