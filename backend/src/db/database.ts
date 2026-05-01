@@ -329,7 +329,7 @@ async function runMigrations(db: any): Promise<void> {
     await db.exec(`
       INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
       SELECT 1, id FROM permissions
-      WHERE name IN ('events.view', 'users.view')
+      WHERE name = 'events.view'
     `);
 
     await db.exec(`
@@ -541,7 +541,7 @@ async function runMigrations(db: any): Promise<void> {
   await db.exec(`
     INSERT INTO role_permissions (role_id, permission_id)
     SELECT 1, id FROM permissions
-    WHERE name IN ('events.view', 'users.view')
+    WHERE name = 'events.view'
     ON CONFLICT (role_id, permission_id) DO NOTHING
   `);
 

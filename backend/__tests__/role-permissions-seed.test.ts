@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NextFunction, Response } from 'express';
 import { authorizePermission } from '../src/middleware/auth.js';
 import { closeDatabase, getDatabase, initializeDatabase } from '../src/db/database.js';
 
-process.env.DATABASE_URL ||= 'postgresql://festival_user:change_me_in_local_env@localhost:5432/festival_planner_test';
+const originalDatabaseUrl = process.env.DATABASE_URL;
+const defaultDatabaseUrl = 'sqlite::memory:';
 
 type AuthRequest = {
   user?: { id: number; email: string; role_id: number };
@@ -26,8 +27,9 @@ function makeResponse() {
 
 async function runPermissionCheck(roleId: number, permission: string) {
   const middleware = authorizePermission(permission);
+  const userId = roleId + 1000;
   const req = {
-    user: { id: roleId, email: `role-${roleId}@test.com`, role_id: roleId },
+    user: { id: userId, email: `role-${roleId}@test.com`, role_id: roleId },
   } as AuthRequest;
   const res = makeResponse();
   const next = vi.fn() as NextFunction;
@@ -39,6 +41,8 @@ async function runPermissionCheck(roleId: number, permission: string) {
 
 describe('Role-permission seed migration (#265 #287)', () => {
   beforeEach(async () => {
+    process.env.DATABASE_URL = originalDatabaseUrl ?? defaultDatabaseUrl;
+
     await initializeDatabase();
     const db = getDatabase();
     await db.run('DELETE FROM role_permissions');
@@ -49,6 +53,15 @@ describe('Role-permission seed migration (#265 #287)', () => {
 
   afterEach(async () => {
     await closeDatabase();
+  });
+
+  afterAll(() => {
+    if (originalDatabaseUrl) {
+      process.env.DATABASE_URL = originalDatabaseUrl;
+      return;
+    }
+
+    delete process.env.DATABASE_URL;
   });
 
   it('seeds the expected permissions for each default role', async () => {
@@ -89,7 +102,6 @@ describe('Role-permission seed migration (#265 #287)', () => {
 
     expect(rolePermissions.get(1)).toEqual([
       'events.view',
-      'users.view',
     ]);
   });
 
