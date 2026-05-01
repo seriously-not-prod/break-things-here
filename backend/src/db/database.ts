@@ -17,6 +17,8 @@ export interface RunResult {
   changes: number;
 }
 
+type AllReturn<T> = T extends Array<unknown> ? T : T[];
+
 /**
  * Converts SQLite-style ? positional placeholders to PostgreSQL $N style.
  */
@@ -59,7 +61,7 @@ export class DbWrapper {
     this.engine = engine;
   }
 
-  async get<T = unknown>(sql: string, params?: unknown[]): Promise<T | undefined> {
+  async get<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T | undefined> {
     if (this.engine === 'sqlite') {
       return (await (this.db as SqliteDatabase).get<T>(sql, params ?? [])) ?? undefined;
     }
@@ -69,14 +71,14 @@ export class DbWrapper {
     return result.rows[0] as T | undefined;
   }
 
-  async all<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
+  async all<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<AllReturn<T>> {
     if (this.engine === 'sqlite') {
-      return (await (this.db as SqliteDatabase).all<T>(sql, params ?? [])) ?? [];
+      return (((await (this.db as SqliteDatabase).all<unknown>(sql, params ?? [])) ?? []) as AllReturn<T>);
     }
 
     const converted = convertPlaceholders(sql);
     const result = await (this.db as pg.Pool).query(converted, params ?? []);
-    return result.rows as T[];
+    return result.rows as AllReturn<T>;
   }
 
   /**
@@ -399,6 +401,25 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     )
   `);
+
+  // Create event_documents table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_documents (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL,
+      original_name TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      created_by INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_documents_event_id ON event_documents(event_id)`);
 }
 
 async function runSqliteMigrations(db: DbWrapper): Promise<void> {
