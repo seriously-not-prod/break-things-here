@@ -17,10 +17,10 @@ export async function getBudget(req: Request, res: Response): Promise<Response> 
   const budget = await db.get('SELECT * FROM event_budgets WHERE event_id = ?', [eventId]);
 
   // Aggregate spend totals
-  const totalSpentRow = await db.get<{ total: number }>(
+  const totalSpentRow = (await db.get(
     `SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE event_id = ?`,
     [eventId],
-  );
+  )) as { total: number } | undefined;
   const totalSpent = Number(totalSpentRow?.total ?? 0);
   const totalBudget = budget ? Number(budget.total_budget) : 0;
 
