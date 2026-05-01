@@ -164,11 +164,11 @@ jobs:
     steps:
       - name: Check all jobs passed
         run: |
-          if [[ "${{ needs.lint-and-typecheck.result }}" != "success" || \
-                "${{ needs.test-root.result }}" != "success" || \
-                "${{ needs.test-backend.result }}" != "success" || \
-                "${{ needs.test-frontend.result }}" != "success" || \
-                "${{ needs.build-check.result }}" != "success" ]]; then
+          if [[ "${{ needs['lint-and-typecheck'].result }}" != "success" || \
+                "${{ needs['test-root'].result }}" != "success" || \
+                "${{ needs['test-backend'].result }}" != "success" || \
+                "${{ needs['test-frontend'].result }}" != "success" || \
+                "${{ needs['build-check'].result }}" != "success" ]]; then
             echo "❌ One or more CI jobs failed"
             exit 1
           fi
