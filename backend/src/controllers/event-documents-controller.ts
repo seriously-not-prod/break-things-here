@@ -29,8 +29,14 @@ function assertSafePath(filePath: string): string {
 
 async function cleanupUploadedFile(filePath?: string): Promise<void> {
   if (!filePath) return;
+  const fileName = path.basename(filePath);
+  if (!/^[a-zA-Z0-9._-]+$/.test(fileName)) {
+    console.error('Skipped cleanup for invalid uploaded filename');
+    return;
+  }
+
   try {
-    await fs.unlink(assertSafePath(filePath));
+    await fs.unlink(assertSafePath(path.join(UPLOADS_DIR, fileName)));
   } catch (error) {
     console.error('Failed to cleanup uploaded document:', error);
   }
@@ -130,7 +136,8 @@ export async function downloadEventDocument(req: Request, res: Response): Promis
   if (!document) return res.status(404).json({ error: 'Document not found.' });
 
   const filePath = assertSafePath(path.join(UPLOADS_DIR, document.file_name));
-  return res.download(filePath, document.original_name);
+  res.download(filePath, document.original_name);
+  return res;
 }
 
 /** DELETE /api/events/:eventId/documents/:id */

@@ -94,7 +94,6 @@ export default function EventDetailPage(): JSX.Element {
   const [editRsvpId, setEditRsvpId] = useState<number | null>(null);
   const [rsvpForm, setRsvpForm] = useState({ name: '', email: '', status: 'Pending', notes: '' });
   const [rsvpSaving, setRsvpSaving] = useState(false);
-  const [rsvpError, setRsvpError] = useState<string | null>(null);
   const [documentUploading, setDocumentUploading] = useState(false);
   const [documentError, setDocumentError] = useState<string | null>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);

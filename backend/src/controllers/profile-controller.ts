@@ -28,6 +28,23 @@ interface AuthRequest extends Request {
   };
 }
 
+interface ProfilePhotoRow {
+  profile_photo_url: string | null;
+}
+
+interface UserProfileRow extends ProfilePhotoRow {
+  email: string;
+  display_name: string;
+  email_verified: number;
+  bio: string | null;
+  phone_number: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  country: string | null;
+}
+
 function normalizeProfilePhotoUrl(photoUrl: string | null | undefined): string | null {
   if (!photoUrl) return null;
   if (photoUrl.startsWith('/api/')) return photoUrl;
@@ -48,7 +65,7 @@ export async function getUserProfile(req: AuthRequest, res: Response) {
       [req.user.id],
     );
 
-    const profile = await db.get(
+    const profile = await db.get<UserProfileRow>(
       `SELECT up.*, u.email, u.display_name, u.email_verified
        FROM user_profiles up
        JOIN users u ON up.user_id = u.id
@@ -171,7 +188,7 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
     const db = getDatabase();
 
     // Get old photo URL if exists
-    const existingProfile = await db.get(
+    const existingProfile = await db.get<ProfilePhotoRow>(
       'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
       [req.user.id],
     );
@@ -217,7 +234,7 @@ export async function deleteProfilePhoto(req: AuthRequest, res: Response) {
     const db = getDatabase();
 
     // Get photo URL
-    const profile = await db.get(
+    const profile = await db.get<ProfilePhotoRow>(
       'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
       [req.user.id],
     );
