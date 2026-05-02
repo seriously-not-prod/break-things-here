@@ -14,5 +14,13 @@ export default defineConfig({
       // Default to an isolated in-memory SQLite database for test runs.
       DATABASE_URL: 'sqlite::memory:',
     },
+    server: {
+      deps: {
+        // sqlite3 uses native Node bindings — exclude from Vite's bundler so
+        // the require() path is used directly (Node CJS) without Vite transform.
+        // `sqlite` is the promise wrapper around sqlite3 used in some tests.
+        external: ['sqlite3', 'sqlite'],
+      },
+    },
   },
 });
