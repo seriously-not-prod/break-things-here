@@ -118,12 +118,13 @@ describe('Admin API — integration tests (#260 #279 #280)', () => {
       expect(res.body.users.length).toBeGreaterThanOrEqual(2);
     });
 
-    it('includes role_name in each user row', async () => {
+    it('includes role_name and updated_at in each user row', async () => {
       const res = makeRes();
       await adminController.listUsers(makeReq(), res);
       const user = res.body.users.find((u: any) => u.email === 'admin@example.com');
       expect(user).toBeDefined();
       expect(user.role_name).toBe('Admin');
+      expect(user.updated_at).toBeDefined();
     });
   });
 
