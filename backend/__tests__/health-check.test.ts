@@ -29,11 +29,9 @@ function createMockRes() {
   return res as unknown as Response & { statusCode: number; body: unknown };
 }
 
-const originalDatabaseUrl = process.env.DATABASE_URL;
-
 describe('Health Check Endpoint', () => {
   beforeEach(async () => {
-    if (!originalDatabaseUrl) process.env.DATABASE_URL = ':memory:';
+    process.env.DATABASE_URL = ':memory:';
     await initializeDatabase();
   });
 

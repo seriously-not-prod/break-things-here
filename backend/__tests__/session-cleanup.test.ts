@@ -8,11 +8,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
 import { purgeExpiredSessions, startSessionCleanup, stopSessionCleanup } from '../src/utils/session-cleanup.js';
 
-const originalDatabaseUrl = process.env.DATABASE_URL;
-
 describe('Session Cleanup', () => {
   beforeEach(async () => {
-    if (!originalDatabaseUrl) process.env.DATABASE_URL = ':memory:';
+    process.env.DATABASE_URL = ':memory:';
     await initializeDatabase();
     const db = getDatabase();
 
