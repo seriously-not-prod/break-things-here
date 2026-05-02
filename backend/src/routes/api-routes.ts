@@ -7,6 +7,7 @@ import * as passwordResetController from '../controllers/password-reset-controll
 import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
+import * as rsvpAdminController from '../controllers/rsvp-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
 import * as analyticsController from '../controllers/analytics-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
@@ -148,11 +149,11 @@ router.delete('/tasks/:id', authenticateToken, taskController.deleteTask);
 router.post('/tasks/:id/toggle', authenticateToken, taskController.toggleTaskStatus);
 
 // ============ RSVP ROUTES ============
-router.get('/rsvps', authenticateToken, rsvpController.getAllRsvps);
-router.get('/rsvps/:id', authenticateToken, rsvpController.getRsvpById);
-router.post('/rsvps', rsvpController.submitRsvp); // Public endpoint
-router.put('/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
-router.delete('/rsvps/:id', authenticateToken, rsvpController.deleteRsvp);
+router.get('/rsvps', authenticateToken, rsvpAdminController.getAllRsvps);
+router.get('/rsvps/:id', authenticateToken, rsvpAdminController.getRsvpById);
+router.post('/rsvps', rsvpAdminController.submitRsvp); // Public endpoint
+router.put('/rsvps/:id', authenticateToken, rsvpAdminController.updateRsvp);
+router.delete('/rsvps/:id', authenticateToken, rsvpAdminController.deleteRsvp);
 
 // ============ ANALYTICS ROUTES ============
 router.get('/analytics/overview', authenticateToken, authorizeRole(['Admin']), analyticsController.getOverview);
