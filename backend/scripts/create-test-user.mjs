@@ -9,9 +9,12 @@ import { open } from 'sqlite';
 import bcrypt from 'bcrypt';
 
 async function createTestUser() {
-  const dbPath = './database/dev.sqlite';
-  
-  console.log('📝 Creating test user...\n');
+  const envDbPath = process.env.DATABASE_URL;
+  const dbPath = envDbPath && !/^postgres(?:ql)?:\/\//i.test(envDbPath)
+    ? envDbPath
+    : './dev.db';
+
+  console.log(`📝 Creating test user in database: ${dbPath}\n`);
   
   const db = await open({
     filename: dbPath,
