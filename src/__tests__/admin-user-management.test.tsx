@@ -42,7 +42,7 @@ function mockFetchError() {
   });
 }
 
-function mockRoleUpdate(user: User) {
+function mockRoleUpdate(_user: User) {
   mockFetch.mockResolvedValueOnce({
     ok: true,
     status: 200,
@@ -178,8 +178,8 @@ describe('AdminUserManagement', () => {
     fireEvent.change(screen.getByLabelText(/new role for organizer jane/i), { target: { value: 'Admin' } });
 
     const updatedUser = { ...orgUser, role: UserRole.Admin };
-  mockRoleUpdate(updatedUser);
-  mockFetchUsers([updatedUser]);
+    mockRoleUpdate(updatedUser);
+    mockFetchUsers([updatedUser]);
 
     fireEvent.click(screen.getByRole('button', { name: /confirm changing role to admin/i }));
 
