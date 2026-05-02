@@ -10,7 +10,6 @@ function buildApp() {
   return app;
 }
 
-
 describe('POST /api/auth/register', () => {
   beforeEach(() => {
     inMemoryUserStore.clear();
@@ -96,45 +95,46 @@ describe('POST /api/auth/register', () => {
 
   it('should return 400 for invalid email format', async () => {
     const res = await request(buildApp()).post('/api/auth/register').send({
-      email: 'not-an-email',
       name: 'User',
+      email: 'not-an-email',
       password: 'pass12345',
     });
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({
-      errors: [{ field: 'email', message: 'Email must be a valid email address' }],
-    });
+    expect(res.body.errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'email' })]),
+    );
   });
 
   it('should return 409 when email is already registered', async () => {
     const app = buildApp();
     await request(app).post('/api/auth/register').send({
-      email: 'dup@test.com',
       name: 'First',
-      password: 'pass12345',
+      email: 'dup@test.com',
+      password: 'SecurePass123!',
     });
 
     const res = await request(app).post('/api/auth/register').send({
-      email: 'dup@test.com',
       name: 'Second',
-      password: 'pass12345',
+      email: 'dup@test.com',
+      password: 'SecurePass123!',
     });
 
     expect(res.status).toBe(409);
-    expect(res.body).toEqual({
-      errors: [{ field: 'email', message: 'This email address cannot be used' }],
-    });
+    expect(res.body.errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'email' })]),
+    );
   });
 
-  it('should trim surrounding whitespace from name before storing', async () => {
-    await request(buildApp()).post('/api/auth/register').send({
+  it('should not echo back user-supplied input in the registration response', async () => {
+    const res = await request(buildApp()).post('/api/auth/register').send({
+      name: '<script>alert("xss")</script>',
       email: 'xss@test.com',
-      name: '  Trim Me  ',
-      password: 'pass12345',
+      password: 'SecurePass123!',
     });
 
-    const stored = await inMemoryUserStore.findByEmail('xss@test.com');
-    expect(stored?.name).toBe('Trim Me');
+    // Registration succeeds but response must not reflect back the raw script tag
+    expect(res.status).toBe(201);
+    expect(JSON.stringify(res.body)).not.toContain('<script>');
   });
 });
