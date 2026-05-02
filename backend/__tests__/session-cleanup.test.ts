@@ -8,9 +8,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
 import { purgeExpiredSessions, startSessionCleanup, stopSessionCleanup } from '../src/utils/session-cleanup.js';
 
+const originalDatabaseUrl = process.env.DATABASE_URL;
+
 describe('Session Cleanup', () => {
   beforeEach(async () => {
-    process.env.DATABASE_URL = ':memory:';
+    if (!originalDatabaseUrl) process.env.DATABASE_URL = ':memory:';
     await initializeDatabase();
     const db = getDatabase();
 
@@ -20,25 +22,29 @@ describe('Session Cleanup', () => {
       ['cleanup@test.com', 'hash123', 'Cleanup User'],
     );
 
+    const pastDate1 = new Date(Date.now() - 60 * 60 * 1000).toISOString().replace('T', ' ').replace('Z', '');
+    const pastDate2 = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString().replace('T', ' ').replace('Z', '');
+    const futureDate = new Date(Date.now() + 60 * 60 * 1000).toISOString().replace('T', ' ').replace('Z', '');
+
     // Insert an expired session
     await db.run(
       `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
-       VALUES (?, ?, ?, datetime('now', '-1 hour'))`,
-      [1, 'expired-token-1', 'expired-refresh-1'],
+       VALUES (?, ?, ?, ?)`,
+      [1, 'expired-token-1', 'expired-refresh-1', pastDate1],
     );
 
     // Insert another expired session
     await db.run(
       `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
-       VALUES (?, ?, ?, datetime('now', '-2 hours'))`,
-      [1, 'expired-token-2', 'expired-refresh-2'],
+       VALUES (?, ?, ?, ?)`,
+      [1, 'expired-token-2', 'expired-refresh-2', pastDate2],
     );
 
     // Insert an active session (expires in the future)
     await db.run(
       `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
-       VALUES (?, ?, ?, datetime('now', '+1 hour'))`,
-      [1, 'active-token', 'active-refresh'],
+       VALUES (?, ?, ?, ?)`,
+      [1, 'active-token', 'active-refresh', futureDate],
     );
   });
 

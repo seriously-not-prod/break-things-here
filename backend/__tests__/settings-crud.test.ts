@@ -32,9 +32,11 @@ function createMockRes() {
   return res as unknown as Response & { statusCode: number; body: unknown };
 }
 
+const originalDatabaseUrl = process.env.DATABASE_URL;
+
 describe('Admin Settings Controller', () => {
   beforeEach(async () => {
-    process.env.DATABASE_URL = ':memory:';
+    if (!originalDatabaseUrl) process.env.DATABASE_URL = ':memory:';
     await initializeDatabase();
     // Create a test user for FK references
     const db = getDatabase();
