@@ -72,8 +72,10 @@ export default function EventsPage(): JSX.Element {
   async function loadEvents(): Promise<void> {
     setLoading(true);
     try {
-      const data = await api.get<{ events: PlannerEvent[] }>('/api/events');
-      setEvents(data.events);
+      const data = await api.get<PlannerEvent[] | { events: PlannerEvent[] }>('/api/events');
+      // Backend returns an array; older frontend expected { events: [] }.
+      const list: PlannerEvent[] = Array.isArray(data) ? data : (data as any).events ?? [];
+      setEvents(list);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load events.');
     } finally {

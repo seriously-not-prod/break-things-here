@@ -19,8 +19,9 @@ export default function CalendarPage(): JSX.Element {
   async function load(): Promise<void> {
     setLoading(true);
     try {
-      const data = await api.get<{ events: PlannerEvent[] }>('/api/events');
-      setEvents(data.events.map((e) => ({ ...e, event_date: e.event_date })));
+      const data = await api.get<PlannerEvent[] | { events: PlannerEvent[] }>('/api/events');
+      const list: PlannerEvent[] = Array.isArray(data) ? data : (data as any).events ?? [];
+      setEvents(list.map((e) => ({ ...e, event_date: e.event_date })));
     } catch (err) {
       console.error('Calendar load failed', err instanceof ApiError ? err.message : err);
     } finally {
