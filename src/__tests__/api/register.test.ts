@@ -133,6 +133,7 @@ describe('POST /api/auth/register', () => {
       password: 'SecurePass123!',
     });
 
+    // Registration succeeds but response must not reflect back the raw script tag
     expect(res.status).toBe(201);
     expect(JSON.stringify(res.body)).not.toContain('<script>');
   });
