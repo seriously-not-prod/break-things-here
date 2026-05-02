@@ -107,6 +107,15 @@ export default function EventsPage(): JSX.Element {
   async function handleSave(e: FormEvent): Promise<void> {
     e.preventDefault();
     setSaveError(null);
+    // #219: explicit client-side validation before API call
+    if (!form.title.trim()) {
+      setSaveError('Title is required.');
+      return;
+    }
+    if (!form.event_date) {
+      setSaveError('Event Date is required.');
+      return;
+    }
     setSaving(true);
     try {
       if (editingId) {

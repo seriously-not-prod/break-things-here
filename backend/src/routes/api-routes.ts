@@ -8,15 +8,14 @@ import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
+import * as eventDocumentsController from '../controllers/event-documents-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
-import rateLimit from 'express-rate-limit';
+import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { hashPassword } from '../utils/auth-helpers.js';
 import { getDatabase } from '../db/database.js';
-
-const apiLimiter = rateLimit({ windowMs: 60_000, max: 100 });
 
 const router = Router();
 
@@ -26,6 +25,9 @@ router.use(apiLimiter);
 // Ensure uploads directory exists outside web root
 const UPLOADS_DIR = path.resolve('uploads/profile-photos');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const DOCUMENTS_DIR = path.resolve('uploads/event-documents');
+if (!fs.existsSync(DOCUMENTS_DIR)) fs.mkdirSync(DOCUMENTS_DIR, { recursive: true });
 
 // Configure multer for profile photo uploads
 const storage = multer.diskStorage({
@@ -51,10 +53,32 @@ const upload = multer({
   },
 });
 
+const documentStorage = multer.diskStorage({
+  destination: DOCUMENTS_DIR,
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, 'document-' + uniqueSuffix + ext);
+  },
+});
+
+const documentUpload = multer({
+  storage: documentStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF, JPEG, PNG, and WebP files are accepted'));
+    }
+  },
+});
+
 // ============ AUTH ROUTES ============
-router.post('/auth/register', authController.register);
+router.post('/auth/register', createAuthLimiter(), authController.register);
 router.post('/auth/verify-email', authController.verifyEmail);
-router.post('/auth/login', authController.login);
+router.post('/auth/login', createAuthLimiter(), authController.login);
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
 
@@ -66,7 +90,7 @@ router.post('/auth/refresh', authController.refreshTokenEndpoint);
 router.post('/auth/session/heartbeat', authenticateToken, authController.sessionHeartbeat);
 
 // Password reset routes
-router.post('/auth/forgot-password', passwordResetController.forgotPassword);
+router.post('/auth/forgot-password', createAuthLimiter(), passwordResetController.forgotPassword);
 router.post('/auth/reset-password', passwordResetController.resetPassword);
 
 // Profile email-change confirmation and account deletion
@@ -93,6 +117,7 @@ router.get('/profile', authenticateToken, profileController.getUserProfile);
 router.put('/profile', authenticateToken, profileController.updateUserProfile);
 router.post('/profile/photo', authenticateToken, upload.single('photo'), profileController.uploadProfilePhoto);
 router.delete('/profile/photo', authenticateToken, profileController.deleteProfilePhoto);
+router.get('/uploads/profile-photos/:filename', authenticateToken, profileController.getProfilePhoto);
 router.post('/profile/change-email', authenticateToken, profileController.changeEmail);
 
 // ============ RBAC ROUTES ============
@@ -137,6 +162,10 @@ router.post('/events', authenticateToken, eventController.createEvent);
 router.put('/events/:id', authenticateToken, eventController.updateEvent);
 router.delete('/events/:id', authenticateToken, eventController.deleteEvent);
 router.post('/events/:id/restore', authenticateToken, eventController.restoreEvent);
+router.get('/events/:eventId/documents', authenticateToken, eventDocumentsController.listEventDocuments);
+router.post('/events/:eventId/documents', authenticateToken, documentUpload.single('document'), eventDocumentsController.uploadEventDocument);
+router.get('/events/:eventId/documents/:id', authenticateToken, eventDocumentsController.downloadEventDocument);
+router.delete('/events/:eventId/documents/:id', authenticateToken, eventDocumentsController.deleteEventDocument);
 
 // ============ TASK ROUTES ============
 router.get('/tasks', authenticateToken, taskController.getAllTasks);
@@ -145,13 +174,6 @@ router.post('/tasks', authenticateToken, taskController.createTask);
 router.put('/tasks/:id', authenticateToken, taskController.updateTask);
 router.delete('/tasks/:id', authenticateToken, taskController.deleteTask);
 router.post('/tasks/:id/toggle', authenticateToken, taskController.toggleTaskStatus);
-
-// ============ RSVP ROUTES ============
-router.get('/rsvps', authenticateToken, rsvpController.getAllRsvps);
-router.get('/rsvps/:id', authenticateToken, rsvpController.getRsvpById);
-router.post('/rsvps', rsvpController.submitRsvp); // Public endpoint
-router.put('/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
-router.delete('/rsvps/:id', authenticateToken, rsvpController.deleteRsvp);
 
 export default router;
 
