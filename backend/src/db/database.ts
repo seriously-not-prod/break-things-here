@@ -4,24 +4,31 @@
  */
 
 import pg from 'pg';
-
-const { Pool } = pg;
-
-export interface RunResult {
-  lastID?: number;
-  changes: number;
-}
+import type { Database as SqliteDatabase, StatementContext as SqliteStatementContext } from 'sqlite3';
 
 /*
  * Unified database initialization supporting SQLite (default for dev)
  * and PostgreSQL (when DATABASE_URL points to Postgres).
  */
 
-import pg from 'pg';
-
 export interface RunResult {
   lastID?: number;
   changes: number;
+}
+
+interface DatabaseRow {
+  [key: string]: unknown;
+}
+
+type QueryParams = unknown[];
+
+export interface DatabaseAdapter {
+  isSqlite?: boolean;
+  get<T = DatabaseRow>(sql: string, params?: QueryParams): Promise<T | undefined>;
+  all<T = DatabaseRow>(sql: string, params?: QueryParams): Promise<T[]>;
+  run(sql: string, params?: QueryParams): Promise<RunResult>;
+  exec(sql: string): Promise<void>;
+  close?(): Promise<void>;
 }
 
 function convertPlaceholders(sql: string): string {
@@ -37,23 +44,23 @@ class PgWrapper {
     this.pool = pool;
   }
 
-  async get<T = any>(sql: string, params?: any[]): Promise<T | undefined> {
+  async get<T = DatabaseRow>(sql: string, params?: QueryParams): Promise<T | undefined> {
     const converted = convertPlaceholders(sql);
-    const result = await this.pool.query(converted, params);
+    const result = await this.pool.query<DatabaseRow>(converted, params ?? []);
     return result.rows[0] as T | undefined;
   }
 
-  async all<T = any>(sql: string, params?: any[]): Promise<T[]> {
+  async all<T = DatabaseRow>(sql: string, params?: QueryParams): Promise<T[]> {
     const converted = convertPlaceholders(sql);
-    const result = await this.pool.query(converted, params ?? []);
+    const result = await this.pool.query<DatabaseRow>(converted, params ?? []);
     return result.rows as T[];
   }
 
-  async run(sql: string, params?: any[]): Promise<RunResult> {
+  async run(sql: string, params?: QueryParams): Promise<RunResult> {
     const trimmedUpper = sql.trim().toUpperCase();
     const converted = convertPlaceholders(sql);
-    const result = await this.pool.query(converted, params);
-    const lastID = /\bRETURNING\b/.test(trimmedUpper) ? (result.rows[0]?.id as number | undefined) : undefined;
+    const result = await this.pool.query<{ id?: number }>(converted, params ?? []);
+    const lastID = /\bRETURNING\b/.test(trimmedUpper) ? result.rows[0]?.id : undefined;
     return { lastID, changes: result.rowCount ?? 0 };
   }
 
@@ -65,33 +72,33 @@ class PgWrapper {
 // SQLite wrapper implementing same API
 class SqliteWrapper {
   public isSqlite = true;
-  private db: any;
+  private db: SqliteDatabase;
 
-  constructor(db: any) {
+  constructor(db: SqliteDatabase) {
     this.db = db;
   }
 
-  async get<T = any>(sql: string, params?: any[]): Promise<T | undefined> {
+  async get<T = DatabaseRow>(sql: string, params?: QueryParams): Promise<T | undefined> {
     return new Promise((resolve, reject) => {
-      this.db.get(sql, params || [], (err: any, row: T) => {
+      this.db.get<T>(sql, params ?? [], (err: Error | null, row: T | undefined) => {
         if (err) return reject(err);
         resolve(row);
       });
     });
   }
 
-  async all<T = any>(sql: string, params?: any[]): Promise<T[]> {
+  async all<T = DatabaseRow>(sql: string, params?: QueryParams): Promise<T[]> {
     return new Promise((resolve, reject) => {
-      this.db.all(sql, params || [], (err: any, rows: T[]) => {
+      this.db.all<T>(sql, params ?? [], (err: Error | null, rows: T[]) => {
         if (err) return reject(err);
         resolve(rows);
       });
     });
   }
 
-  async run(sql: string, params?: any[]): Promise<RunResult> {
+  async run(sql: string, params?: QueryParams): Promise<RunResult> {
     return new Promise((resolve, reject) => {
-      this.db.run(sql, params || [], function (this: any, err: any) {
+      this.db.run(sql, params ?? [], function (this: SqliteStatementContext, err: Error | null) {
         if (err) return reject(err);
         resolve({ lastID: this.lastID as number | undefined, changes: this.changes ?? 0 });
       });
@@ -100,7 +107,7 @@ class SqliteWrapper {
 
   async exec(sql: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.db.exec(sql, (err: any) => {
+      this.db.exec(sql, (err: Error | null) => {
         if (err) return reject(err);
         resolve();
       });
@@ -109,7 +116,7 @@ class SqliteWrapper {
 
   async close(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.db.close((err: any) => {
+      this.db.close((err: Error | null) => {
         if (err) return reject(err);
         resolve();
       });
@@ -117,7 +124,7 @@ class SqliteWrapper {
   }
 }
 
-let dbWrapper: any = null;
+let dbWrapper: DatabaseAdapter | null = null;
 let pool: pg.Pool | null = null;
 
 function looksLikeSqlite(conn: string | undefined): boolean {
@@ -125,7 +132,67 @@ function looksLikeSqlite(conn: string | undefined): boolean {
   return conn.startsWith('sqlite') || conn.endsWith('.sqlite') || conn.startsWith('./') || conn.startsWith('/');
 }
 
-export async function initializeDatabase(): Promise<any> {
+const ORGANIZER_PERMISSION_NAMES = [
+  'events.view',
+  'events.create',
+  'events.edit',
+  'events.delete',
+  'roles.view',
+];
+
+const ATTENDEE_PERMISSION_NAMES = ['events.view'];
+
+const ROLE_NAMES = {
+  attendee: 'Attendee',
+  organizer: 'Organizer',
+  admin: 'Admin',
+} as const;
+
+type RoleName = (typeof ROLE_NAMES)[keyof typeof ROLE_NAMES];
+
+async function seedRolePermissions(db: DatabaseAdapter): Promise<void> {
+  const [adminRoleId, organizerRoleId, attendeeRoleId] = await Promise.all([
+    getRoleIdByName(db, ROLE_NAMES.admin),
+    getRoleIdByName(db, ROLE_NAMES.organizer),
+    getRoleIdByName(db, ROLE_NAMES.attendee),
+  ]);
+
+  await insertRolePermissions(db, adminRoleId);
+  await insertRolePermissions(db, organizerRoleId, ORGANIZER_PERMISSION_NAMES);
+  await insertRolePermissions(db, attendeeRoleId, ATTENDEE_PERMISSION_NAMES);
+}
+
+async function getRoleIdByName(db: DatabaseAdapter, roleName: RoleName): Promise<number> {
+  const role = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = ?', [roleName]);
+  if (!role) {
+    throw new Error(`Role ${roleName} was not found during permission seeding`);
+  }
+
+  return role.id;
+}
+
+async function insertRolePermissions(
+  db: DatabaseAdapter,
+  roleId: number,
+  permissionNames?: string[],
+): Promise<void> {
+  const params = [roleId, ...(permissionNames ?? [])];
+  const permissionFilter = permissionNames?.length
+    ? ` WHERE name IN (${permissionNames.map(() => '?').join(', ')})`
+    : '';
+  const conflictClause = db.isSqlite ? '' : ' ON CONFLICT (role_id, permission_id) DO NOTHING';
+  const insertClause = db.isSqlite
+    ? 'INSERT OR IGNORE INTO role_permissions (role_id, permission_id)'
+    : 'INSERT INTO role_permissions (role_id, permission_id)';
+
+  await db.run(
+    `${insertClause}
+     SELECT ?, id FROM permissions${permissionFilter}${conflictClause}`,
+    params,
+  );
+}
+
+export async function initializeDatabase(): Promise<DatabaseAdapter> {
   if (dbWrapper) return dbWrapper;
 
   const connectionString = process.env.DATABASE_URL || './database/dev.sqlite';
@@ -155,13 +222,13 @@ export async function initializeDatabase(): Promise<any> {
   return dbWrapper;
 }
 
-export function getDatabase(): any {
+export function getDatabase(): DatabaseAdapter {
   if (!dbWrapper) throw new Error('Database not initialized. Call initializeDatabase() first.');
   return dbWrapper;
 }
 
 export async function closeDatabase(): Promise<void> {
-  if (dbWrapper && dbWrapper.isSqlite) {
+  if (dbWrapper?.isSqlite && dbWrapper.close) {
     await dbWrapper.close();
     dbWrapper = null;
     return;
@@ -173,7 +240,7 @@ export async function closeDatabase(): Promise<void> {
   }
 }
 
-async function runMigrations(db: any): Promise<void> {
+async function runMigrations(db: DatabaseAdapter): Promise<void> {
   if (db.isSqlite) {
     // SQLite-specific DDL (use INSERT OR IGNORE for idempotent seeds)
     await db.exec(`
@@ -315,22 +382,7 @@ async function runMigrations(db: any): Promise<void> {
       ('roles.manage', 'Manage roles and permissions')
     `);
 
-    await db.exec(`
-      INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
-      SELECT 3, id FROM permissions
-    `);
-
-    await db.exec(`
-      INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
-      SELECT 2, id FROM permissions
-      WHERE name IN ('events.view', 'events.create', 'events.edit', 'events.delete', 'roles.view')
-    `);
-
-    await db.exec(`
-      INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
-      SELECT 1, id FROM permissions
-      WHERE name = 'events.view'
-    `);
+    await seedRolePermissions(db);
 
     await db.exec(`
       CREATE TABLE IF NOT EXISTS events (
@@ -377,6 +429,24 @@ async function runMigrations(db: any): Promise<void> {
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
       )
     `);
+
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS event_documents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL,
+        original_name TEXT NOT NULL,
+        file_name TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        file_size INTEGER NOT NULL,
+        created_by INTEGER,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+      )
+    `);
+
+    await db.exec('CREATE INDEX IF NOT EXISTS idx_event_documents_event_id ON event_documents(event_id)');
 
     return;
   }
@@ -525,25 +595,7 @@ async function runMigrations(db: any): Promise<void> {
     ON CONFLICT (name) DO NOTHING
   `);
 
-  await db.exec(`
-    INSERT INTO role_permissions (role_id, permission_id)
-    SELECT 3, id FROM permissions
-    ON CONFLICT (role_id, permission_id) DO NOTHING
-  `);
-
-  await db.exec(`
-    INSERT INTO role_permissions (role_id, permission_id)
-    SELECT 2, id FROM permissions
-    WHERE name IN ('events.view', 'events.create', 'events.edit', 'events.delete', 'roles.view')
-    ON CONFLICT (role_id, permission_id) DO NOTHING
-  `);
-
-  await db.exec(`
-    INSERT INTO role_permissions (role_id, permission_id)
-    SELECT 1, id FROM permissions
-    WHERE name = 'events.view'
-    ON CONFLICT (role_id, permission_id) DO NOTHING
-  `);
+  await seedRolePermissions(db);
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS events (
@@ -598,6 +650,24 @@ async function runMigrations(db: any): Promise<void> {
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     )
   `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_documents (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL,
+      original_name TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      created_by INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+
+  await db.exec('CREATE INDEX IF NOT EXISTS idx_event_documents_event_id ON event_documents(event_id)');
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS event_members (

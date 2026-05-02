@@ -143,10 +143,12 @@ CREATE TABLE IF NOT EXISTS events (
   date        TEXT NOT NULL,
   location    TEXT NOT NULL,
   description TEXT,
+  capacity    INTEGER,
   status      TEXT CHECK(status IN ('Draft', 'Active', 'Completed')) DEFAULT 'Draft',
   created_by  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  deleted_at  TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
@@ -155,15 +157,18 @@ CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
 -- Tasks
 -- ============================================================
 CREATE TABLE IF NOT EXISTS tasks (
-  id          SERIAL PRIMARY KEY,
-  event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  title       TEXT NOT NULL,
-  description TEXT,
-  assignee    TEXT,
-  due_date    TEXT,
-  status      TEXT CHECK(status IN ('Pending', 'Complete')) DEFAULT 'Pending',
-  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id               SERIAL PRIMARY KEY,
+  event_id         INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  title            TEXT NOT NULL,
+  notes            TEXT,
+  assignee_name    TEXT,
+  assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  due_date         TEXT,
+  status           TEXT CHECK(status IN ('Pending', 'In Progress', 'Blocked', 'Complete')) DEFAULT 'Pending',
+  priority         TEXT CHECK(priority IN ('Low', 'Medium', 'High')) DEFAULT 'Medium',
+  created_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_event_id ON tasks(event_id);
@@ -177,10 +182,40 @@ CREATE TABLE IF NOT EXISTS rsvps (
   name       TEXT NOT NULL,
   email      TEXT NOT NULL,
   guests     INTEGER DEFAULT 1,
-  status     TEXT CHECK(status IN ('Pending', 'Confirmed', 'Declined')) DEFAULT 'Pending',
+  status     TEXT CHECK(status IN ('Pending', 'Going', 'Maybe', 'Not Going', 'Declined')) DEFAULT 'Pending',
+  notes      TEXT,
+  source     TEXT DEFAULT 'public',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(event_id, email)
 );
 
 CREATE INDEX IF NOT EXISTS idx_rsvps_event_id ON rsvps(event_id);
+
+-- ============================================================
+-- Event Members
+-- ============================================================
+CREATE TABLE IF NOT EXISTS event_members (
+  event_id  INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role      TEXT DEFAULT 'Member',
+  joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (event_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_members_event_id ON event_members(event_id);
+
+-- ============================================================
+-- Permissions seed data
+-- ============================================================
+INSERT INTO permissions (name, description) VALUES
+  ('users.view',    'View user profiles'),
+  ('users.edit',    'Edit user profiles'),
+  ('users.delete',  'Delete users'),
+  ('events.view',   'View events'),
+  ('events.create', 'Create events'),
+  ('events.edit',   'Edit events'),
+  ('events.delete', 'Delete events'),
+  ('roles.view',    'View roles'),
+  ('roles.manage',  'Manage roles and permissions')
+ON CONFLICT (name) DO NOTHING;
