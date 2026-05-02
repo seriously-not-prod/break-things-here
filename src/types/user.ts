@@ -9,6 +9,7 @@ export interface User {
   displayName: string;
   role: UserRole;
   emailConfirmed: boolean;
+  deletedAt?: Date | null;
   profilePhotoUrl?: string;
   createdAt: Date;
   updatedAt: Date;

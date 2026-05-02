@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -26,7 +26,7 @@ import {
 } from '@mui/material';
 import { AddRounded, ArrowBackRounded, DeleteRounded, EditRounded } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, ApiError } from '../../lib/api-client';
+import { api, ApiError, getAuthHeaders } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
 
 interface PlannerEvent {
@@ -35,6 +35,7 @@ interface PlannerEvent {
   description: string | null;
   location: string | null;
   event_date: string;
+  capacity: number | null;
   status: string;
   creator_name: string | null;
 }
@@ -44,22 +45,52 @@ interface Task {
   title: string;
   notes: string | null;
   assignee_name: string | null;
+  assigned_user_id: number | null;
   due_date: string | null;
   status: string;
+  priority: string;
 }
 
 interface Rsvp {
   id: number;
   name: string;
   email: string;
+  guests: number;
   status: string;
   notes: string | null;
   source: string;
 }
 
-const TASK_STATUSES = ['Pending', 'In Progress', 'Completed'];
-const RSVP_STATUSES = ['Going', 'Maybe', 'Not Going', 'Pending'];
+interface EventMember {
+  user_id: number;
+  display_name: string;
+  email: string;
+  role: string;
+  joined_at: string;
+}
 
+interface EventDocument {
+  id: number;
+  event_id: number;
+  original_name: string;
+  file_name: string;
+  mime_type: string;
+  file_size: number;
+  created_at: string;
+}
+
+interface UserOption {
+  user_id: number;
+  display_name: string;
+  email: string;
+  role_name: string | null;
+}
+
+const TASK_STATUSES = ['Pending', 'In Progress', 'Blocked', 'Complete', 'Completed'];
+const TASK_PRIORITIES = ['Low', 'Medium', 'High'];
+const RSVP_STATUSES = ['Pending', 'Going', 'Maybe', 'Not Going', 'Declined'];
+const RSVP_EXPORT_FORMAT = 'csv';
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
 export default function EventDetailPage(): JSX.Element {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -67,6 +98,9 @@ export default function EventDetailPage(): JSX.Element {
   const [event, setEvent] = useState<PlannerEvent | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [rsvps, setRsvps] = useState<Rsvp[]>([]);
+  const [members, setMembers] = useState<EventMember[]>([]);
+  const [documents, setDocuments] = useState<EventDocument[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState(0);
@@ -74,24 +108,45 @@ export default function EventDetailPage(): JSX.Element {
   // Task dialog
   const [taskDialog, setTaskDialog] = useState(false);
   const [editTaskId, setEditTaskId] = useState<number | null>(null);
-  const [taskForm, setTaskForm] = useState({ title: '', notes: '', assignee_name: '', due_date: '', status: 'Pending' });
+  const [taskForm, setTaskForm] = useState({ title: '', notes: '', assigned_user_id: '', due_date: '', status: 'Pending', priority: 'Medium' });
   const [taskSaving, setTaskSaving] = useState(false);
+  const [taskError, setTaskError] = useState<string | null>(null);
 
   // RSVP dialog
   const [rsvpDialog, setRsvpDialog] = useState(false);
   const [editRsvpId, setEditRsvpId] = useState<number | null>(null);
-  const [rsvpForm, setRsvpForm] = useState({ name: '', email: '', status: 'Pending', notes: '' });
+  const [rsvpForm, setRsvpForm] = useState({ name: '', email: '', guests: '1', status: 'Pending', notes: '' });
   const [rsvpSaving, setRsvpSaving] = useState(false);
+  const [rsvpError, setRsvpError] = useState<string | null>(null);
+  const [documentUploading, setDocumentUploading] = useState(false);
+  const [documentError, setDocumentError] = useState<string | null>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
+
+  // Team dialog state
+  const [memberUserId, setMemberUserId] = useState('');
+  const [memberRole, setMemberRole] = useState('Member');
+  const [memberSaving, setMemberSaving] = useState(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
 
   const canEdit = user && user.roleId >= 2;
+  const remainingCapacity = event?.capacity === null || event?.capacity === undefined
+    ? null
+    : Math.max(
+      event.capacity - rsvps.reduce((sum, rsvp) => sum + (rsvp.status === 'Going' ? Number(rsvp.guests || 1) : 0), 0),
+      0,
+    );
 
   async function load(): Promise<void> {
     setLoading(true);
     try {
-      const data = await api.get<{ event: PlannerEvent; tasks: Task[]; rsvps: Rsvp[] }>(`/api/events/${id}`);
+      const data = await api.get<{ event: PlannerEvent; tasks: Task[]; rsvps: Rsvp[]; members: EventMember[]; availableUsers: UserOption[] }>(`/api/events/${id}`);
       setEvent(data.event);
       setTasks(data.tasks);
       setRsvps(data.rsvps);
+      setMembers(data.members ?? []);
+      setAvailableUsers(data.availableUsers ?? []);
+      const docs = await api.get<EventDocument[]>(`/api/events/${id}/documents`);
+      setDocuments(Array.isArray(docs) ? docs : []);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load event.');
     } finally {
@@ -104,29 +159,46 @@ export default function EventDetailPage(): JSX.Element {
   // ---- Tasks ----
   function openAddTask(): void {
     setEditTaskId(null);
-    setTaskForm({ title: '', notes: '', assignee_name: '', due_date: '', status: 'Pending' });
+    setTaskForm({ title: '', notes: '', assigned_user_id: '', due_date: '', status: 'Pending', priority: 'Medium' });
+    setTaskError(null);
     setTaskDialog(true);
   }
 
   function openEditTask(t: Task): void {
     setEditTaskId(t.id);
-    setTaskForm({ title: t.title, notes: t.notes ?? '', assignee_name: t.assignee_name ?? '', due_date: t.due_date ?? '', status: t.status });
+    setTaskForm({
+      title: t.title,
+      notes: t.notes ?? '',
+      assigned_user_id: t.assigned_user_id ? String(t.assigned_user_id) : '',
+      due_date: t.due_date ?? '',
+      status: t.status,
+      priority: t.priority ?? 'Medium',
+    });
+    setTaskError(null);
     setTaskDialog(true);
   }
 
   async function saveTask(e: FormEvent): Promise<void> {
     e.preventDefault();
+    setTaskError(null);
     setTaskSaving(true);
     try {
+      const assignedUserId = taskForm.assigned_user_id ? Number(taskForm.assigned_user_id) : null;
       if (editTaskId) {
-        await api.patch(`/api/events/${id}/tasks/${editTaskId}`, taskForm);
+        await api.patch(`/api/events/${id}/tasks/${editTaskId}`, {
+          ...taskForm,
+          assigned_user_id: assignedUserId,
+        });
       } else {
-        await api.post(`/api/events/${id}/tasks`, taskForm);
+        await api.post(`/api/events/${id}/tasks`, {
+          ...taskForm,
+          assigned_user_id: assignedUserId,
+        });
       }
       setTaskDialog(false);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Save failed.');
+      setTaskError(err instanceof ApiError ? err.message : 'Save failed.');
     } finally {
       setTaskSaving(false);
     }
@@ -141,29 +213,33 @@ export default function EventDetailPage(): JSX.Element {
   // ---- RSVPs ----
   function openAddRsvp(): void {
     setEditRsvpId(null);
-    setRsvpForm({ name: '', email: '', status: 'Pending', notes: '' });
+    setRsvpForm({ name: '', email: '', guests: '1', status: 'Pending', notes: '' });
+    setRsvpError(null);
     setRsvpDialog(true);
   }
 
   function openEditRsvp(r: Rsvp): void {
     setEditRsvpId(r.id);
-    setRsvpForm({ name: r.name, email: r.email, status: r.status, notes: r.notes ?? '' });
+    setRsvpForm({ name: r.name, email: r.email, guests: String(r.guests ?? 1), status: r.status, notes: r.notes ?? '' });
+    setRsvpError(null);
     setRsvpDialog(true);
   }
 
   async function saveRsvp(e: FormEvent): Promise<void> {
     e.preventDefault();
+    setRsvpError(null);
     setRsvpSaving(true);
     try {
+      const guests = Number(rsvpForm.guests || 1);
       if (editRsvpId) {
-        await api.patch(`/api/events/${id}/rsvps/${editRsvpId}`, rsvpForm);
+        await api.patch(`/api/events/${id}/rsvps/${editRsvpId}`, { ...rsvpForm, guests });
       } else {
-        await api.post(`/api/events/${id}/rsvps`, rsvpForm);
+        await api.post(`/api/events/${id}/rsvps`, { ...rsvpForm, guests });
       }
       setRsvpDialog(false);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Save failed.');
+      setRsvpError(err instanceof ApiError ? err.message : 'Save failed.');
     } finally {
       setRsvpSaving(false);
     }
@@ -172,6 +248,114 @@ export default function EventDetailPage(): JSX.Element {
   async function deleteRsvp(rsvpId: number): Promise<void> {
     if (!window.confirm('Delete this RSVP?')) return;
     await api.delete(`/api/events/${id}/rsvps/${rsvpId}`).catch((err) => setError(err.message));
+    await load();
+  }
+
+  async function exportRsvpsCsv(): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE}/api/events/${id}/rsvps/export?format=${RSVP_EXPORT_FORMAT}`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ error: response.statusText })) as { error?: string };
+        throw new Error(body.error ?? response.statusText);
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = objectUrl;
+      link.download = `event-${id}-rsvps.csv`;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'CSV export failed.');
+    }
+  }
+
+  async function addMember(): Promise<void> {
+    if (!memberUserId) {
+      setMemberError('Please choose a user to add.');
+      return;
+    }
+    setMemberSaving(true);
+    setMemberError(null);
+    try {
+      await api.post(`/api/events/${id}/members`, { user_id: Number(memberUserId), role: memberRole });
+      setMemberUserId('');
+      setMemberRole('Member');
+      await load();
+    } catch (err) {
+      setMemberError(err instanceof ApiError ? err.message : 'Failed to add member.');
+    } finally {
+      setMemberSaving(false);
+    }
+  }
+
+  async function removeMember(userId: number): Promise<void> {
+    if (!window.confirm('Remove this team member?')) return;
+    await api.delete(`/api/events/${id}/members/${userId}`).catch((err) => setError(err.message));
+    await load();
+  }
+
+  async function uploadDocument(e: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setDocumentUploading(true);
+    setDocumentError(null);
+    try {
+      const formData = new FormData();
+      formData.append('document', file);
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${API_BASE}/api/events/${id}/documents`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string };
+        throw new Error(body.error ?? res.statusText);
+      }
+
+      await load();
+      if (documentInputRef.current) documentInputRef.current.value = '';
+    } catch (err) {
+      setDocumentError(err instanceof Error ? err.message : 'Document upload failed.');
+    } finally {
+      setDocumentUploading(false);
+    }
+  }
+
+  async function downloadDocument(doc: EventDocument): Promise<void> {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${API_BASE}/api/events/${id}/documents/${doc.id}`, {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string };
+        throw new Error(body.error ?? res.statusText);
+      }
+
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = objectUrl;
+      link.download = doc.original_name;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Document download failed.');
+    }
+  }
+
+  async function deleteDocument(documentId: number): Promise<void> {
+    if (!window.confirm('Delete this document?')) return;
+    await api.delete(`/api/events/${id}/documents/${documentId}`).catch((err) => setError(err.message));
     await load();
   }
 
@@ -198,6 +382,11 @@ export default function EventDetailPage(): JSX.Element {
             <Typography variant="body2" color="text.secondary">
               {new Date(event.event_date).toLocaleDateString()} {event.location ? `· ${event.location}` : ''}
             </Typography>
+            {event.capacity !== null && event.capacity !== undefined && (
+              <Typography variant="body2" color="text.secondary">
+                Capacity: {event.capacity} {remainingCapacity !== null ? `· Remaining: ${remainingCapacity}` : ''}
+              </Typography>
+            )}
             {event.description && <Typography variant="body1" sx={{ mt: 1 }}>{event.description}</Typography>}
           </Box>
           <Chip label={event.status} color={event.status === 'Active' ? 'primary' : event.status === 'Completed' ? 'success' : 'default'} />
@@ -207,6 +396,8 @@ export default function EventDetailPage(): JSX.Element {
       <Tabs value={tab} onChange={(_, v: number) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label={`Tasks (${tasks.length})`} />
         <Tab label={`RSVPs (${rsvps.length})`} />
+        <Tab label={`Team (${members.length})`} />
+        <Tab label={`Documents (${documents.length})`} />
       </Tabs>
       <Divider sx={{ mb: 2 }} />
 
@@ -228,6 +419,7 @@ export default function EventDetailPage(): JSX.Element {
                     <TableCell><strong>Title</strong></TableCell>
                     <TableCell><strong>Assignee</strong></TableCell>
                     <TableCell><strong>Due Date</strong></TableCell>
+                    <TableCell><strong>Priority</strong></TableCell>
                     <TableCell><strong>Status</strong></TableCell>
                     {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
                   </TableRow>
@@ -238,8 +430,9 @@ export default function EventDetailPage(): JSX.Element {
                       <TableCell>{t.title}</TableCell>
                       <TableCell>{t.assignee_name ?? '—'}</TableCell>
                       <TableCell>{t.due_date ? new Date(t.due_date).toLocaleDateString() : '—'}</TableCell>
+                      <TableCell><Chip label={t.priority ?? 'Medium'} size="small" variant="outlined" /></TableCell>
                       <TableCell>
-                        <Chip label={t.status} size="small" color={t.status === 'Completed' ? 'success' : t.status === 'In Progress' ? 'warning' : 'default'} />
+                        <Chip label={t.status} size="small" color={t.status === 'Complete' || t.status === 'Completed' ? 'success' : t.status === 'In Progress' ? 'warning' : t.status === 'Blocked' ? 'error' : 'default'} />
                       </TableCell>
                       {canEdit && (
                         <TableCell align="right">
@@ -261,11 +454,24 @@ export default function EventDetailPage(): JSX.Element {
       {/* RSVPs Tab */}
       {tab === 1 && (
         <>
-          {canEdit && (
-            <Button variant="contained" startIcon={<AddRounded />} sx={{ mb: 2 }} onClick={openAddRsvp}>
-              Add RSVP
-            </Button>
-          )}
+          <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap' }}>
+            {canEdit && (
+              <Button variant="contained" startIcon={<AddRounded />} onClick={openAddRsvp}>
+                Add RSVP
+              </Button>
+            )}
+            {canEdit && (
+              <Button variant="outlined" onClick={exportRsvpsCsv}>
+                Export CSV
+              </Button>
+            )}
+            {event.capacity !== null && event.capacity !== undefined && (
+              <Typography variant="body2" color="text.secondary" sx={{ alignSelf: 'center' }}>
+                Remaining capacity: {remainingCapacity === null ? 'n/a' : remainingCapacity}
+              </Typography>
+            )}
+          </Stack>
+          {rsvpError && <Alert severity="error" sx={{ mb: 2 }}>{rsvpError}</Alert>}
           {rsvps.length === 0 ? (
             <Paper sx={{ p: 3, textAlign: 'center' }}><Typography color="text.secondary">No RSVPs yet.</Typography></Paper>
           ) : (
@@ -275,6 +481,7 @@ export default function EventDetailPage(): JSX.Element {
                   <TableRow>
                     <TableCell><strong>Name</strong></TableCell>
                     <TableCell><strong>Email</strong></TableCell>
+                    <TableCell><strong>Guests</strong></TableCell>
                     <TableCell><strong>Status</strong></TableCell>
                     <TableCell><strong>Source</strong></TableCell>
                     {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
@@ -285,8 +492,9 @@ export default function EventDetailPage(): JSX.Element {
                     <TableRow key={r.id} hover>
                       <TableCell>{r.name}</TableCell>
                       <TableCell>{r.email}</TableCell>
+                      <TableCell>{r.guests ?? 1}</TableCell>
                       <TableCell>
-                        <Chip label={r.status} size="small" color={r.status === 'Going' ? 'success' : r.status === 'Maybe' ? 'warning' : 'default'} />
+                        <Chip label={r.status} size="small" color={r.status === 'Going' ? 'success' : r.status === 'Maybe' ? 'warning' : r.status === 'Declined' || r.status === 'Not Going' ? 'default' : 'default'} />
                       </TableCell>
                       <TableCell><Chip label={r.source} size="small" variant="outlined" /></TableCell>
                       {canEdit && (
@@ -306,15 +514,160 @@ export default function EventDetailPage(): JSX.Element {
         </>
       )}
 
+      {/* Team Tab */}
+      {tab === 2 && (
+        <>
+          {canEdit && (
+            <Paper sx={{ p: 2, mb: 2 }}>
+              <Stack spacing={2} direction={{ xs: 'column', md: 'row' }}>
+                <TextField
+                  label="Invite User"
+                  select
+                  value={memberUserId}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setMemberUserId(e.target.value)}
+                  fullWidth
+                >
+                  {availableUsers
+                    .filter((option) => !members.some((member) => member.user_id === option.user_id))
+                    .map((option) => (
+                      <MenuItem key={option.user_id} value={option.user_id}>
+                        {option.display_name} ({option.email})
+                      </MenuItem>
+                    ))}
+                </TextField>
+                <TextField
+                  label="Role"
+                  value={memberRole}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setMemberRole(e.target.value)}
+                  fullWidth
+                />
+                <Button variant="contained" onClick={addMember} disabled={memberSaving}>
+                  {memberSaving ? 'Adding…' : 'Invite'}
+                </Button>
+              </Stack>
+              {memberError && <Alert severity="error" sx={{ mt: 2 }}>{memberError}</Alert>}
+            </Paper>
+          )}
+          {members.length === 0 ? (
+            <Paper sx={{ p: 3, textAlign: 'center' }}><Typography color="text.secondary">No team members yet.</Typography></Paper>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell><strong>Name</strong></TableCell>
+                    <TableCell><strong>Email</strong></TableCell>
+                    <TableCell><strong>Role</strong></TableCell>
+                    <TableCell><strong>Joined</strong></TableCell>
+                    {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {members.map((member) => (
+                    <TableRow key={member.user_id} hover>
+                      <TableCell>{member.display_name}</TableCell>
+                      <TableCell>{member.email}</TableCell>
+                      <TableCell>{member.role}</TableCell>
+                      <TableCell>{new Date(member.joined_at).toLocaleString()}</TableCell>
+                      {canEdit && (
+                        <TableCell align="right">
+                          <Button size="small" color="error" onClick={() => removeMember(member.user_id)}>
+                            Remove
+                          </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </>
+      )}
+
+      {/* Documents Tab */}
+      {tab === 3 && (
+        <>
+          {canEdit && (
+            <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: 'center' }}>
+              <Button variant="contained" component="label">
+                {documentUploading ? 'Uploading…' : 'Upload Document'}
+                <input
+                  ref={documentInputRef}
+                  hidden
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp"
+                  onChange={uploadDocument}
+                />
+              </Button>
+              <Typography variant="caption" color="text.secondary">PDF, JPEG, PNG, WebP · max 5 MB</Typography>
+            </Stack>
+          )}
+          {documentError && <Alert severity="error" sx={{ mb: 2 }}>{documentError}</Alert>}
+          {documents.length === 0 ? (
+            <Paper sx={{ p: 3, textAlign: 'center' }}><Typography color="text.secondary">No documents yet.</Typography></Paper>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell><strong>Name</strong></TableCell>
+                    <TableCell><strong>Type</strong></TableCell>
+                    <TableCell><strong>Size</strong></TableCell>
+                    <TableCell><strong>Uploaded</strong></TableCell>
+                    {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {documents.map((doc) => (
+                    <TableRow key={doc.id} hover>
+                      <TableCell>{doc.original_name}</TableCell>
+                      <TableCell>{doc.mime_type}</TableCell>
+                      <TableCell>{Math.ceil(doc.file_size / 1024)} KB</TableCell>
+                      <TableCell>{new Date(doc.created_at).toLocaleString()}</TableCell>
+                      {canEdit && (
+                        <TableCell align="right">
+                          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                            <Button size="small" onClick={() => downloadDocument(doc)}>Download</Button>
+                            <Button size="small" color="error" onClick={() => deleteDocument(doc.id)}>Delete</Button>
+                          </Stack>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </>
+      )}
+
       {/* Task Dialog */}
       <Dialog open={taskDialog} onClose={() => setTaskDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{editTaskId ? 'Edit Task' : 'New Task'}</DialogTitle>
         <DialogContent>
           <Box component="form" id="task-form" onSubmit={saveTask} noValidate>
             <Stack spacing={2} sx={{ mt: 1 }}>
+              {taskError && <Alert severity="error">{taskError}</Alert>}
               <TextField label="Title" value={taskForm.title} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, title: e.target.value }))} required fullWidth />
-              <TextField label="Assignee" value={taskForm.assignee_name} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, assignee_name: e.target.value }))} fullWidth />
+              <TextField
+                label="Assignee"
+                select
+                value={taskForm.assigned_user_id}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, assigned_user_id: e.target.value }))}
+                fullWidth
+              >
+                <MenuItem value="">Unassigned</MenuItem>
+                {availableUsers.map((option) => (
+                  <MenuItem key={option.user_id} value={option.user_id}>
+                    {option.display_name} ({option.email})
+                  </MenuItem>
+                ))}
+              </TextField>
               <TextField label="Due Date" type="date" value={taskForm.due_date} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, due_date: e.target.value }))} fullWidth InputLabelProps={{ shrink: true }} />
+              <TextField label="Priority" select value={taskForm.priority} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, priority: e.target.value }))} fullWidth>
+                {TASK_PRIORITIES.map((priority) => <MenuItem key={priority} value={priority}>{priority}</MenuItem>)}
+              </TextField>
               <TextField label="Notes" value={taskForm.notes} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, notes: e.target.value }))} multiline rows={2} fullWidth />
               <TextField label="Status" select value={taskForm.status} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, status: e.target.value }))} fullWidth>
                 {TASK_STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
@@ -337,8 +690,10 @@ export default function EventDetailPage(): JSX.Element {
         <DialogContent>
           <Box component="form" id="rsvp-form" onSubmit={saveRsvp} noValidate>
             <Stack spacing={2} sx={{ mt: 1 }}>
+              {rsvpError && <Alert severity="error">{rsvpError}</Alert>}
               <TextField label="Name" value={rsvpForm.name} onChange={(e: ChangeEvent<HTMLInputElement>) => setRsvpForm((p) => ({ ...p, name: e.target.value }))} required fullWidth />
               <TextField label="Email" type="email" value={rsvpForm.email} onChange={(e: ChangeEvent<HTMLInputElement>) => setRsvpForm((p) => ({ ...p, email: e.target.value }))} required fullWidth />
+              <TextField label="Guest Count" type="number" value={rsvpForm.guests} onChange={(e: ChangeEvent<HTMLInputElement>) => setRsvpForm((p) => ({ ...p, guests: e.target.value }))} inputProps={{ min: 1 }} fullWidth />
               <TextField label="Status" select value={rsvpForm.status} onChange={(e: ChangeEvent<HTMLInputElement>) => setRsvpForm((p) => ({ ...p, status: e.target.value }))} fullWidth>
                 {RSVP_STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
               </TextField>

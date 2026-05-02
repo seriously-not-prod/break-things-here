@@ -168,16 +168,16 @@ describe('JWT Token Refresh (#81)', () => {
     expect((res.body as Record<string, string>).error).toMatch(/refresh token/i);
   });
 
-  it('returns 403 for an invalid/expired refresh token', async () => {
+  it('returns 403 for a malformed or unknown refresh token', async () => {
     const req = makeReq({}, { refreshToken: 'not.a.valid.jwt' });
     const res = makeRes();
     await refreshTokenEndpoint(req, res as unknown as import('express').Response);
 
     expect(res.statusCode).toBe(403);
-    expect((res.body as Record<string, string>).error).toMatch(/invalid|expired/i);
+    expect((res.body as Record<string, string>).error).toMatch(/invalid|revoked/i);
   });
 
-  it('returns 403 when refresh token is valid JWT but not in sessions table (revoked)', async () => {
+  it('returns 403 when refresh token is not in the sessions table (revoked)', async () => {
     const userId = await seedUser(EMAIL, PASSWORD);
     const revokedToken = makeRefreshToken(userId, EMAIL, 1);
 
@@ -270,7 +270,7 @@ describe('JWT Token Refresh (#81)', () => {
     expect(session).toBeUndefined();
   });
 
-  it('accepts refresh token from request body as well', async () => {
+  it('returns 401 when refresh token is sent in the request body only', async () => {
     const userId = await seedUser(EMAIL, PASSWORD);
     const oldRefresh = makeRefreshToken(userId, EMAIL, 1);
     await insertSession(userId, 'old-access-token', oldRefresh);
@@ -280,9 +280,8 @@ describe('JWT Token Refresh (#81)', () => {
     const res = makeRes();
     await refreshTokenEndpoint(req, res as unknown as import('express').Response);
 
-    expect(res.statusCode).toBe(200);
-    // access token is now set as an encrypted httpOnly cookie
-    expect(res.cookies).toHaveProperty('accessToken');
+    expect(res.statusCode).toBe(401);
+    expect((res.body as Record<string, string>).error).toMatch(/refresh token/i);
   });
 
   it('reusing a rotated-out refresh token returns 403', async () => {

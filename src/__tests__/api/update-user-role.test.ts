@@ -136,6 +136,7 @@ describe('PATCH /api/admin/users/:id/role', () => {
     expect(res.body).toMatchObject({
       id: targetUser.id,
       role: UserRole.Organizer,
+      tokenRefreshRequired: true,
     });
   });
 
