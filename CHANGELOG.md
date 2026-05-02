@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tests for JWT token refresh, session timeout, remember-me sessions, forgot/reset password, admin user management
 
 ### Fixed
+- Seed default `role_permissions` rows during backend migrations for Admin, Organizer, and Attendee roles, and add coverage that verifies `authorizePermission` succeeds with Postgres-backed seeded permissions (#265, #287)
 - Backend entry point (`index.ts`) rewritten from PostgreSQL to SQLite for consistency with rest of codebase
 - `AuthRequest` interface in profile-controller.ts no longer conflicts with multer file types (#102)
 - `authenticateToken` middleware converted to async with database session validation and timeout checking
