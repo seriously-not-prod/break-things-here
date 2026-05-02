@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 import { pathToFileURL } from 'url';
 import { initializeDatabase } from './db/database.js';
+import { sanitizeRequestBody } from './middleware/sanitize-input.js';
 import apiRoutes from './routes/api-routes.js';
 
 const port = parseInt(process.env.PORT || '4000', 10);
@@ -99,7 +100,7 @@ export function createApp(): express.Express {
     });
   });
 
-  app.use('/api', csrfProtection, apiRoutes);
+  app.use('/api', csrfProtection, sanitizeRequestBody, apiRoutes);
 
   return app;
 }
