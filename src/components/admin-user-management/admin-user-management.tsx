@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { User } from '../../types/user';
 import { UserRole, USER_ROLES } from '../../types/user-role';
 import { useUserRole } from '../../hooks/use-user-role';
-import { fetchAllUsers, updateUserRole } from '../../api/admin/admin-users';
+import { fetchAllUsers, restoreUser, updateUserRole } from '../../api/admin/admin-users';
 import { UserTableRow } from './user-table-row';
 import { RoleChangeDialog } from './role-change-dialog';
 import './admin-user-management.css';
@@ -65,8 +65,8 @@ export function AdminUserManagement(): React.JSX.Element {
     if (!changeTarget) return;
     setChangeTarget(null);
     try {
-      const updated = await updateUserRole(changeTarget.userId, newRole);
-      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+      await updateUserRole(changeTarget.userId, newRole);
+      await loadUsers();
       setFeedback({ type: 'success', message: `${changeTarget.userName}'s role updated to ${newRole}.` });
     } catch (err) {
       setFeedback({
@@ -74,7 +74,20 @@ export function AdminUserManagement(): React.JSX.Element {
         message: err instanceof Error ? err.message : 'Failed to update role.',
       });
     }
-  }, [changeTarget]);
+  }, [changeTarget, loadUsers]);
+
+  const handleRestore = useCallback(async (userId: string, userName: string) => {
+    try {
+      await restoreUser(userId);
+      await loadUsers();
+      setFeedback({ type: 'success', message: `${userName}'s account was restored.` });
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Failed to restore user.',
+      });
+    }
+  }, [loadUsers]);
 
   const cancelRoleChange = useCallback(() => { setChangeTarget(null); }, []);
 
@@ -158,7 +171,7 @@ export function AdminUserManagement(): React.JSX.Element {
               <tr><td colSpan={5} style={{ textAlign: 'center' }}>No users found.</td></tr>
             ) : (
               pageUsers.map((u) => (
-                <UserTableRow key={u.id} user={u} onRoleChange={handleRoleChange} />
+                <UserTableRow key={u.id} user={u} onRoleChange={handleRoleChange} onRestore={handleRestore} />
               ))
             )}
           </tbody>

@@ -6,8 +6,10 @@ import * as rbacController from '../controllers/rbac-controller.js';
 import * as passwordResetController from '../controllers/password-reset-controller.js';
 import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
+import * as legacyRsvpController from '../controllers/rsvp-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
+import * as adminController from '../controllers/admin-controller.js';
 import * as eventDocumentsController from '../controllers/event-documents-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
@@ -39,20 +41,6 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({
-  storage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB — issue #38
-  fileFilter: (req, file, cb) => {
-    // Validate by MIME type (not just extension) — issue #38
-    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (allowedMimes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only JPEG, PNG, and WebP images are accepted'));
-    }
-  },
-});
-
 const documentStorage = multer.diskStorage({
   destination: DOCUMENTS_DIR,
   filename: (req, file, cb) => {
@@ -71,6 +59,20 @@ const documentUpload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only PDF, JPEG, PNG, and WebP files are accepted'));
+    }
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB — issue #38
+  fileFilter: (req, file, cb) => {
+    // Validate by MIME type (not just extension) — issue #38
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only JPEG, PNG, and WebP images are accepted'));
     }
   },
 });
@@ -100,6 +102,11 @@ router.delete('/profile/account', authenticateToken, profileController.deleteAcc
 // ============ USER (self-service) ROUTES — issues #36, #39 ============
 router.get('/users/me', authenticateToken, usersController.getMe);
 router.patch('/users/me', authenticateToken, usersController.updateMe);
+router.get('/rsvps', authenticateToken, legacyRsvpController.getAllRsvps);
+router.get('/rsvps/:id', authenticateToken, legacyRsvpController.getRsvpById);
+router.post('/rsvps', legacyRsvpController.submitRsvp);
+router.put('/rsvps/:id', authenticateToken, legacyRsvpController.updateRsvp);
+router.delete('/rsvps/:id', authenticateToken, legacyRsvpController.deleteRsvp);
 router.get('/events/:eventId/rsvps', authenticateToken, rsvpController.listRsvps);
 router.post('/events/:eventId/rsvps', rsvpController.createRsvp);
 router.patch('/events/:eventId/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
@@ -166,6 +173,15 @@ router.get('/events/:eventId/documents', authenticateToken, eventDocumentsContro
 router.post('/events/:eventId/documents', authenticateToken, documentUpload.single('document'), eventDocumentsController.uploadEventDocument);
 router.get('/events/:eventId/documents/:id', authenticateToken, eventDocumentsController.downloadEventDocument);
 router.delete('/events/:eventId/documents/:id', authenticateToken, eventDocumentsController.deleteEventDocument);
+
+// ============ ADMIN ROUTES — issues #260 #279 ============
+// All admin routes require authentication + Admin role
+router.get('/admin/users', authenticateToken, authorizeRole(['Admin']), adminController.listUsers);
+router.patch('/admin/users/:id/role', authenticateToken, authorizeRole(['Admin']), adminController.changeUserRole);
+router.patch('/admin/users/:id/lock', authenticateToken, authorizeRole(['Admin']), adminController.toggleLock);
+router.delete('/admin/users/:id', authenticateToken, authorizeRole(['Admin']), adminController.deleteUser);
+router.post('/admin/users/:id/restore', authenticateToken, authorizeRole(['Admin']), adminController.restoreUser);
+router.get('/admin/roles', authenticateToken, authorizeRole(['Admin']), adminController.listRoles);
 
 // ============ TASK ROUTES ============
 router.get('/tasks', authenticateToken, taskController.getAllTasks);
