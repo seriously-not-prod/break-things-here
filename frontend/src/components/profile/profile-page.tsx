@@ -136,6 +136,7 @@ export default function ProfilePage(): JSX.Element {
 
       {/* Avatar */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+        {/* Profile photos are served from a protected API route, so normalize the URL for the browser. */}
         <Avatar
           src={profile?.profile_photo_url ?? undefined}
           sx={{ width: 80, height: 80, fontSize: 32 }}
