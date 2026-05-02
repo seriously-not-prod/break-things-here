@@ -13,7 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import { CameraAltRounded, DeleteRounded, SaveRounded } from '@mui/icons-material';
-import { api, ApiError } from '../../lib/api-client';
+import { api, ApiError, getAuthHeaders } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
 
 interface ProfileData {
@@ -91,10 +91,10 @@ export default function ProfilePage(): JSX.Element {
     try {
       const formData = new FormData();
       formData.append('photo', file);
-      const token = localStorage.getItem('accessToken');
       const res = await fetch(`${API_BASE}/api/profile/photo`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: getAuthHeaders(),
+        credentials: 'include',
         body: formData,
       });
       if (!res.ok) {
