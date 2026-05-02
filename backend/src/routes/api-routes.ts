@@ -5,10 +5,15 @@ import * as usersController from '../controllers/users-controller.js';
 import * as rbacController from '../controllers/rbac-controller.js';
 import * as passwordResetController from '../controllers/password-reset-controller.js';
 import * as eventController from '../controllers/event-controller.js';
+import * as eventsStatsController from '../controllers/events-controller.js';
 import * as taskController from '../controllers/task-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
 import * as eventDocumentsController from '../controllers/event-documents-controller.js';
+import * as photosController from '../controllers/photos-controller.js';
+import * as albumsController from '../controllers/albums-controller.js';
+import * as mediaStatsController from '../controllers/media-stats-controller.js';
+import * as publicShareController from '../controllers/public-share-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
 import multer from 'multer';
@@ -28,6 +33,9 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const DOCUMENTS_DIR = path.resolve('uploads/event-documents');
 if (!fs.existsSync(DOCUMENTS_DIR)) fs.mkdirSync(DOCUMENTS_DIR, { recursive: true });
+
+const PHOTOS_DIR = path.resolve('uploads/event-photos');
+if (!fs.existsSync(PHOTOS_DIR)) fs.mkdirSync(PHOTOS_DIR, { recursive: true });
 
 // Configure multer for profile photo uploads
 const storage = multer.diskStorage({
@@ -64,14 +72,43 @@ const documentStorage = multer.diskStorage({
 
 const documentUpload = multer({
   storage: documentStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB per file
   fileFilter: (req, file, cb) => {
-    const allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    const allowedMimes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'text/csv',
+      'application/zip',
+    ];
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only PDF, JPEG, PNG, and WebP files are accepted'));
+      cb(new Error('Unsupported document type'));
     }
+  },
+});
+
+const photoStorage = multer.diskStorage({
+  destination: PHOTOS_DIR,
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, 'photo-' + uniqueSuffix + ext);
+  },
+});
+
+const photoUpload = multer({
+  storage: photoStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB each
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+    if (allowedMimes.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Unsupported image type'));
   },
 });
 
@@ -157,6 +194,7 @@ router.get('/user/role-permissions', authenticateToken, rbacController.getUserRo
 
 // ============ EVENT ROUTES ============
 router.get('/events', authenticateToken, eventController.getAllEvents);
+router.get('/events/stats', authenticateToken, eventsStatsController.getEventStats);
 router.get('/events/:id', authenticateToken, eventController.getEventById);
 router.post('/events', authenticateToken, eventController.createEvent);
 router.put('/events/:id', authenticateToken, eventController.updateEvent);
@@ -164,8 +202,31 @@ router.delete('/events/:id', authenticateToken, eventController.deleteEvent);
 router.post('/events/:id/restore', authenticateToken, eventController.restoreEvent);
 router.get('/events/:eventId/documents', authenticateToken, eventDocumentsController.listEventDocuments);
 router.post('/events/:eventId/documents', authenticateToken, documentUpload.single('document'), eventDocumentsController.uploadEventDocument);
+router.patch('/events/:eventId/documents/:id', authenticateToken, eventDocumentsController.updateEventDocument);
 router.get('/events/:eventId/documents/:id', authenticateToken, eventDocumentsController.downloadEventDocument);
 router.delete('/events/:eventId/documents/:id', authenticateToken, eventDocumentsController.deleteEventDocument);
+
+// Media stats and recent items
+router.get('/events/:eventId/media/stats', authenticateToken, mediaStatsController.getMediaStats);
+router.get('/events/:eventId/media/recent-documents', authenticateToken, mediaStatsController.recentDocuments);
+router.get('/events/:eventId/media/recent-photos', authenticateToken, mediaStatsController.recentPhotos);
+
+// Photo routes
+router.get('/events/:eventId/photos', authenticateToken, photosController.listEventPhotos);
+router.post('/events/:eventId/photos', authenticateToken, photoUpload.array('photos', 20), photosController.uploadEventPhotos);
+router.patch('/events/:eventId/photos/:photoId', authenticateToken, photosController.updateEventPhoto);
+router.get('/events/:eventId/photos/:photoId/download', authenticateToken, photosController.downloadEventPhoto);
+router.post('/events/:eventId/photos/:photoId/share', authenticateToken, photosController.sharePhoto);
+router.delete('/events/:eventId/photos/:photoId', authenticateToken, photosController.deleteEventPhoto);
+
+// Albums
+router.get('/events/:eventId/albums', authenticateToken, albumsController.listAlbums);
+router.post('/events/:eventId/albums', authenticateToken, albumsController.createAlbum);
+router.patch('/events/:eventId/albums/:albumId', authenticateToken, albumsController.renameAlbum);
+router.delete('/events/:eventId/albums/:albumId', authenticateToken, albumsController.deleteAlbum);
+
+// Public share route (no auth)
+router.get('/share/photo/:token', publicShareController.publicPhotoView);
 
 // ============ TASK ROUTES ============
 router.get('/tasks', authenticateToken, taskController.getAllTasks);

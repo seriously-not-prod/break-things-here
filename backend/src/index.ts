@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 import { initializeDatabase } from './db/database.js';
 import apiRoutes from './routes/api-routes.js';
+import * as publicShareController from './controllers/public-share-controller.js';
 
 const app = express();
 const port = parseInt(process.env.PORT || '4000', 10);
@@ -81,6 +82,9 @@ app.get('/health', (_req, res) => {
     uptime: process.uptime(),
   });
 });
+
+// Public photo share (no auth)
+app.get('/share/photo/:token', publicShareController.publicPhotoView);
 
 // Mount API routes with CSRF protection for state-changing methods
 app.use('/api', csrfProtection, apiRoutes);

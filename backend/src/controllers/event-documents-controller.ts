@@ -70,13 +70,34 @@ export async function listEventDocuments(req: Request, res: Response): Promise<R
   if (!event) return res as Response;
 
   const db = getDatabase();
-  const documents = await db.all(
-    `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at
-     FROM event_documents
-     WHERE event_id = ?
-     ORDER BY created_at DESC`,
-    [req.params.eventId],
-  );
+  // Query params: q (search), category, sort (date|name|size), order (asc|desc)
+  const q = (req.query.q as string) || null;
+  const category = (req.query.category as string) || null;
+  const sort = (req.query.sort as string) || 'date';
+  const order = (req.query.order as string) === 'asc' ? 'ASC' : 'DESC';
+
+  const sortMap: Record<string, string> = {
+    date: 'created_at',
+    name: 'display_name',
+    size: 'file_size',
+  };
+  const orderBy = sortMap[sort] || 'created_at';
+
+  let sql = `SELECT id, event_id, original_name, display_name, description, category, pinned, file_name, mime_type, file_size, created_by, created_at FROM event_documents WHERE event_id = ?`;
+  const params: any[] = [req.params.eventId];
+  if (q) {
+    sql += ` AND (display_name LIKE ? OR original_name LIKE ?)`;
+    params.push(`%${q}%`, `%${q}%`);
+  }
+  if (category) {
+    sql += ` AND category = ?`;
+    params.push(category);
+  }
+
+  // pinned first, then sort
+  sql += ` ORDER BY pinned DESC, ${orderBy} ${order}`;
+
+  const documents = await db.all(sql, params);
 
   return res.json({ documents });
 }
@@ -95,13 +116,20 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
   }
 
   const db = getDatabase();
+  const displayName = (req.body?.display_name as string) || authReq.file.originalname;
+  const description = (req.body?.description as string) || null;
+  const category = (req.body?.category as string) || null;
+
   const result = await db.run(
-    `INSERT INTO event_documents (event_id, original_name, file_name, mime_type, file_size, created_by)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO event_documents (event_id, original_name, display_name, description, category, file_name, mime_type, file_size, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      RETURNING id`,
     [
       req.params.eventId,
       authReq.file.originalname,
+      displayName,
+      description,
+      category,
       authReq.file.filename,
       authReq.file.mimetype,
       authReq.file.size,
@@ -119,6 +147,33 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
     document,
     downloadUrl: `/api/events/${req.params.eventId}/documents/${result.lastID}`,
   });
+}
+
+/** PATCH /api/events/:eventId/documents/:id */
+export async function updateEventDocument(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const event = await getAuthorizedEvent(authReq, res, req.params.eventId);
+  if (!event) return res as Response;
+
+  const { display_name, description, category, pinned } = req.body ?? {};
+  const db = getDatabase();
+
+  if (typeof pinned !== 'undefined') {
+    // pinned may be 1 or 0
+    await db.run(`UPDATE event_documents SET pinned = ? WHERE id = ? AND event_id = ?`, [pinned ? 1 : 0, req.params.id, req.params.eventId]);
+  }
+
+  await db.run(
+    `UPDATE event_documents SET display_name = COALESCE(?, display_name), description = COALESCE(?, description), category = COALESCE(?, category), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?`,
+    [display_name, description, category, req.params.id, req.params.eventId],
+  );
+
+  const document = await db.get(
+    `SELECT id, display_name, original_name, category, description, file_size, created_at, pinned FROM event_documents WHERE id = ? AND event_id = ?`,
+    [req.params.id, req.params.eventId],
+  );
+
+  return res.json({ document });
 }
 
 /** GET /api/events/:eventId/documents/:id */

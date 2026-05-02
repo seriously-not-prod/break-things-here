@@ -111,6 +111,57 @@ export class DbWrapper {
   }
 }
 
+    CREATE TABLE IF NOT EXISTS event_photos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      original_name TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      caption TEXT,
+      status TEXT CHECK(status IN ('Approved', 'Pending', 'Rejected')) DEFAULT 'Approved',
+      is_cover INTEGER DEFAULT 0,
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS albums (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      cover_photo_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY (cover_photo_id) REFERENCES event_photos(id) ON DELETE SET NULL
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS album_photos (
+      album_id INTEGER NOT NULL,
+      photo_id INTEGER NOT NULL,
+      PRIMARY KEY (album_id, photo_id),
+      FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE,
+      FOREIGN KEY (photo_id) REFERENCES event_photos(id) ON DELETE CASCADE
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS photo_shares (
+      token TEXT PRIMARY KEY,
+      photo_id INTEGER NOT NULL,
+      expires_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (photo_id) REFERENCES event_photos(id) ON DELETE CASCADE
+    )
+  `);
+
 let dbWrapper: DbWrapper | null = null;
 let dbConnection: SupportedDatabase | null = null;
 let dbEngine: DatabaseEngine | null = null;
@@ -399,11 +450,20 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
     CREATE TABLE IF NOT EXISTS events (
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,
-      date TEXT NOT NULL,
-      location TEXT NOT NULL,
       description TEXT,
-      status TEXT CHECK(status IN ('Draft', 'Active', 'Completed')) DEFAULT 'Draft',
+      event_type TEXT CHECK(event_type IN ('Birthday', 'Wedding', 'Corporate', 'Festival', 'Conference', 'Other')) DEFAULT 'Other',
+      status TEXT CHECK(status IN ('Draft', 'Planning', 'Confirmed', 'Active', 'Completed', 'Cancelled')) DEFAULT 'Draft',
+      start_date TIMESTAMP NOT NULL,
+      end_date TIMESTAMP,
+      venue_name TEXT,
+      address TEXT,
+      location TEXT,
+      capacity INTEGER,
+      is_public INTEGER DEFAULT 1,
+      cover_image_url TEXT,
+      tags TEXT,
       created_by INTEGER NOT NULL,
+      deleted_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
@@ -448,6 +508,10 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       id SERIAL PRIMARY KEY,
       event_id INTEGER NOT NULL,
       original_name TEXT NOT NULL,
+      display_name TEXT,
+      description TEXT,
+      category TEXT,
+      pinned INTEGER DEFAULT 0,
       file_name TEXT NOT NULL,
       mime_type TEXT NOT NULL,
       file_size INTEGER NOT NULL,
@@ -460,6 +524,63 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
   `);
 
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_documents_event_id ON event_documents(event_id)`);
+
+  // Create event_photos table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_photos (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL,
+      original_name TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      caption TEXT,
+      status TEXT CHECK(status IN ('Approved', 'Pending', 'Rejected')) DEFAULT 'Approved',
+      is_cover INTEGER DEFAULT 0,
+      created_by INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_photos_event_id ON event_photos(event_id)`);
+
+  // Albums and album_photos
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS albums (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      cover_photo_id INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY (cover_photo_id) REFERENCES event_photos(id) ON DELETE SET NULL
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS album_photos (
+      album_id INTEGER NOT NULL,
+      photo_id INTEGER NOT NULL,
+      PRIMARY KEY (album_id, photo_id),
+      FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE,
+      FOREIGN KEY (photo_id) REFERENCES event_photos(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Share tokens for public photo links
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS photo_shares (
+      token TEXT PRIMARY KEY,
+      photo_id INTEGER NOT NULL,
+      expires_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (photo_id) REFERENCES event_photos(id) ON DELETE CASCADE
+    )
+  `);
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS event_members (
@@ -621,10 +742,18 @@ async function runSqliteMigrations(db: DbWrapper): Promise<void> {
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
-      date TEXT NOT NULL,
-      location TEXT NOT NULL,
       description TEXT,
-      status TEXT CHECK(status IN ('Draft', 'Active', 'Completed')) DEFAULT 'Draft',
+      event_type TEXT CHECK(event_type IN ('Birthday', 'Wedding', 'Corporate', 'Festival', 'Conference', 'Other')) DEFAULT 'Other',
+      status TEXT CHECK(status IN ('Draft', 'Planning', 'Confirmed', 'Active', 'Completed', 'Cancelled')) DEFAULT 'Draft',
+      start_date DATETIME NOT NULL,
+      end_date DATETIME,
+      venue_name TEXT,
+      address TEXT,
+      location TEXT,
+      capacity INTEGER,
+      is_public INTEGER DEFAULT 1,
+      cover_image_url TEXT,
+      tags TEXT,
       created_by INTEGER NOT NULL,
       deleted_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

@@ -119,24 +119,60 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    const { title, date, location, description, capacity, status }: EventData = req.body;
+    const {
+      title,
+      start_date,
+      end_date,
+      venue_name,
+      address,
+      location,
+      description,
+      capacity,
+      status,
+      event_type,
+      is_public,
+      cover_image_url,
+      tags,
+    } = req.body as Record<string, unknown>;
     
     // Validation
-    if (!title || !date || !location) {
-      res.status(400).json({ error: 'Title, date, and location are required' });
+    if (!title || !start_date) {
+      res.status(400).json({ error: 'Title and start_date are required' });
       return;
     }
     
-    if (status && !['Draft', 'Active', 'Completed'].includes(status)) {
+    const VALID_STATUSES = ['Draft', 'Planning', 'Confirmed', 'Active', 'Completed', 'Cancelled'];
+    if (status && !VALID_STATUSES.includes(String(status))) {
       res.status(400).json({ error: 'Invalid status' });
+      return;
+    }
+
+    const VALID_TYPES = ['Birthday', 'Wedding', 'Corporate', 'Festival', 'Conference', 'Other'];
+    if (event_type && !VALID_TYPES.includes(String(event_type))) {
+      res.status(400).json({ error: 'Invalid event_type' });
       return;
     }
     
     const result = await db.run(`
-      INSERT INTO events (title, date, location, description, capacity, status, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO events (title, description, event_type, status, start_date, end_date, venue_name, address, location, capacity, is_public, cover_image_url, tags, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING id
-    `, [title, date, location, description || '', capacity ?? null, status || 'Draft', userId]);
+    `, [
+      String(title).trim(),
+      description ? String(description) : null,
+      event_type ? String(event_type) : 'Other',
+      status ? String(status) : 'Draft',
+      String(start_date),
+      end_date ? String(end_date) : null,
+      venue_name ? String(venue_name) : null,
+      address ? String(address) : null,
+      location ? String(location) : null,
+      capacity ? Number(capacity) : null,
+      is_public ? (is_public ? 1 : 0) : 1,
+      cover_image_url ? String(cover_image_url) : null,
+      tags ? String(tags) : null,
+      userId,
+    ]);
     
     const newEvent = await db.get('SELECT * FROM events WHERE id = ?', [result.lastID]);
     await db.run(
@@ -166,7 +202,21 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    const { title, date, location, description, capacity, status }: EventData = req.body;
+    const {
+      title,
+      start_date,
+      end_date,
+      venue_name,
+      address,
+      location,
+      description,
+      capacity,
+      status,
+      event_type,
+      is_public,
+      cover_image_url,
+      tags,
+    } = req.body as Record<string, unknown>;
     
     // Check if event exists
     const existingEvent = await db.get('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL', [id]);
@@ -181,23 +231,37 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
     }
     
     // Validation
-    if (status && !['Draft', 'Active', 'Completed'].includes(status)) {
+    const VALID_STATUSES = ['Draft', 'Planning', 'Confirmed', 'Active', 'Completed', 'Cancelled'];
+    if (status && !VALID_STATUSES.includes(String(status))) {
       res.status(400).json({ error: 'Invalid status' });
       return;
     }
-    
+
+    const VALID_TYPES = ['Birthday', 'Wedding', 'Corporate', 'Festival', 'Conference', 'Other'];
+    if (event_type && !VALID_TYPES.includes(String(event_type))) {
+      res.status(400).json({ error: 'Invalid event_type' });
+      return;
+    }
+
     await db.run(`
-      UPDATE events 
-      SET title = ?, date = ?, location = ?, description = ?, capacity = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE events
+      SET title = ?, description = ?, event_type = ?, status = ?, start_date = ?, end_date = ?, venue_name = ?, address = ?, location = ?, capacity = ?, is_public = ?, cover_image_url = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [
       title || existingEvent.title,
-      date || existingEvent.date,
-      location || existingEvent.location,
       description !== undefined ? description : existingEvent.description,
-      capacity !== undefined ? capacity : existingEvent.capacity,
-      status || existingEvent.status,
-      id
+      event_type ? String(event_type) : existingEvent.event_type ?? 'Other',
+      status ? String(status) : existingEvent.status,
+      start_date ? String(start_date) : existingEvent.start_date,
+      end_date ? String(end_date) : existingEvent.end_date,
+      venue_name ? String(venue_name) : existingEvent.venue_name,
+      address ? String(address) : existingEvent.address,
+      location ? String(location) : existingEvent.location,
+      capacity !== undefined ? Number(capacity) : existingEvent.capacity,
+      typeof is_public !== 'undefined' ? (is_public ? 1 : 0) : existingEvent.is_public,
+      cover_image_url ? String(cover_image_url) : existingEvent.cover_image_url,
+      tags ? String(tags) : existingEvent.tags,
+      id,
     ]);
     
     const updatedEvent = await db.get('SELECT * FROM events WHERE id = ?', [id]);

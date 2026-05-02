@@ -6,10 +6,31 @@ import App from './App';
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#0f6b8f'
+      main: '#6C63FF'
     },
     background: {
-      default: '#f5f9fc'
+      default: '#F4F3FF'
+    },
+    text: {
+      primary: '#1A1A2E'
+    }
+  },
+  components: {
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          borderRadius: 16,
+          boxShadow: '0 6px 18px rgba(108,99,255,0.08)'
+        }
+      }
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 999,
+          textTransform: 'none'
+        }
+      }
     }
   }
 });

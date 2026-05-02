@@ -9,6 +9,8 @@ import { AppNav } from './components/nav/app-nav';
 import Dashboard from './components/dashboard/Dashboard';
 import EventsPage from './components/events/events-page';
 import EventDetailPage from './components/events/event-detail-page';
+import EventsDashboard from './components/events/events-dashboard';
+import EventFormPage from './components/events/event-form-page';
 import PublicRsvpPage from './components/events/public-rsvp-page';
 import ProfilePage from './components/profile/profile-page';
 import AdminPage from './components/admin/admin-page';
@@ -36,11 +38,22 @@ function AuthShell(): JSX.Element {
         display: 'grid',
         placeItems: 'center',
         px: 2,
-        background: 'linear-gradient(160deg, #e8f2ff 0%, #f5faf5 100%)',
+        background: 'linear-gradient(160deg, rgba(15,107,143,0.18) 0%, rgba(15,107,143,0.06) 42%, #f5f9fc 100%)',
       }}
     >
-      <Paper elevation={6} sx={{ width: '100%', maxWidth: 420, p: 4, borderRadius: 3 }}>
-        <Typography component="h1" variant="h5" fontWeight={700} sx={{ mb: 2 }}>
+      <Paper
+        elevation={8}
+        sx={{
+          width: '100%',
+          maxWidth: 460,
+          p: 4,
+          borderRadius: 4,
+          border: '1px solid',
+          borderColor: 'primary.light',
+          bgcolor: 'background.paper',
+        }}
+      >
+        <Typography component="h1" variant="h5" fontWeight={700} color="primary.main" sx={{ mb: 2 }}>
           🎪 Festival Planner
         </Typography>
         <Typography variant="h6" sx={{ mb: 3 }}>
@@ -95,7 +108,11 @@ function AppShell(): JSX.Element {
       <Box component="main" sx={{ flexGrow: 1, ml: `${DRAWER_WIDTH}px`, minHeight: '100vh', bgcolor: 'background.default' }}>
         <Routes>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/events/dashboard" element={<EventsDashboard />} />
           <Route path="/events" element={<EventsPage />} />
+          <Route path="/events/new" element={<EventFormPage />} />
+          <Route path="/events/calendar" element={<EventsPage />} />
+          <Route path="/events/my" element={<EventsPage />} />
           <Route path="/events/:id" element={<EventDetailPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin" element={<AdminPage />} />
