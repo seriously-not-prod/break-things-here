@@ -118,12 +118,14 @@ export function AppNav(): JSX.Element {
         </List>
       </Box>
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)' }} />
-      <List dense>
-        <ListItemButton onClick={handleLogout} sx={{ color: 'common.white' }}>
-          <ListItemIcon sx={{ color: 'inherit' }}><LogoutRounded /></ListItemIcon>
-          <ListItemText primary="Log out" />
-        </ListItemButton>
-      </List>
+      {user && (
+        <List dense>
+          <ListItemButton onClick={handleLogout} sx={{ color: 'common.white' }}>
+            <ListItemIcon sx={{ color: 'inherit' }}><LogoutRounded /></ListItemIcon>
+            <ListItemText primary="Log out" />
+          </ListItemButton>
+        </List>
+      )}
     </Drawer>
   );
 }

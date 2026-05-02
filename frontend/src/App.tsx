@@ -8,6 +8,7 @@ import { ResetPasswordForm } from './components/reset-password-form/reset-passwo
 import { AppNav } from './components/nav/app-nav';
 import Dashboard from './components/dashboard/Dashboard';
 import EventsPage from './components/events/events-page';
+import CalendarPage from './components/events/calendar-page';
 import EventDetailPage from './components/events/event-detail-page';
 import EventsDashboard from './components/events/events-dashboard';
 import EventFormPage from './components/events/event-form-page';
@@ -111,7 +112,7 @@ function AppShell(): JSX.Element {
           <Route path="/events/dashboard" element={<EventsDashboard />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/events/new" element={<EventFormPage />} />
-          <Route path="/events/calendar" element={<EventsPage />} />
+          <Route path="/events/calendar" element={<CalendarPage />} />
           <Route path="/events/my" element={<EventsPage />} />
           <Route path="/events/:id" element={<EventDetailPage />} />
           <Route path="/profile" element={<ProfilePage />} />

@@ -3,6 +3,7 @@ import * as authController from '../controllers/auth-controller.js';
 import * as profileController from '../controllers/profile-controller.js';
 import * as usersController from '../controllers/users-controller.js';
 import * as rbacController from '../controllers/rbac-controller.js';
+import * as adminController from '../controllers/admin-controller.js';
 import * as passwordResetController from '../controllers/password-reset-controller.js';
 import * as eventController from '../controllers/event-controller.js';
 import * as eventsStatsController from '../controllers/events-controller.js';
@@ -182,6 +183,16 @@ router.post(
   authorizePermission('roles.manage'),
   rbacController.removePermissionFromRole,
 );
+
+// ============ ADMIN ROUTES ============
+// Admin-only user management endpoints
+router.get('/admin/users', authenticateToken, authorizeRole(['Admin']), adminController.listUsers);
+router.get('/admin/roles', authenticateToken, authorizeRole(['Admin']), adminController.listRoles);
+router.post('/admin/users', authenticateToken, authorizeRole(['Admin']), adminController.createUser);
+router.put('/admin/users/:id', authenticateToken, authorizeRole(['Admin']), adminController.updateUser);
+router.patch('/admin/users/:id/role', authenticateToken, authorizeRole(['Admin']), adminController.changeUserRole);
+router.patch('/admin/users/:id/lock', authenticateToken, authorizeRole(['Admin']), adminController.toggleLock);
+router.delete('/admin/users/:id', authenticateToken, authorizeRole(['Admin']), adminController.deleteUser);
 
 router.get(
   '/permissions',

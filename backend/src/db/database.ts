@@ -111,57 +111,6 @@ export class DbWrapper {
   }
 }
 
-    CREATE TABLE IF NOT EXISTS event_photos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id INTEGER NOT NULL,
-      original_name TEXT NOT NULL,
-      file_name TEXT NOT NULL,
-      mime_type TEXT NOT NULL,
-      file_size INTEGER NOT NULL,
-      caption TEXT,
-      status TEXT CHECK(status IN ('Approved', 'Pending', 'Rejected')) DEFAULT 'Approved',
-      is_cover INTEGER DEFAULT 0,
-      created_by INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
-      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS albums (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id INTEGER NOT NULL,
-      name TEXT NOT NULL,
-      cover_photo_id INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
-      FOREIGN KEY (cover_photo_id) REFERENCES event_photos(id) ON DELETE SET NULL
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS album_photos (
-      album_id INTEGER NOT NULL,
-      photo_id INTEGER NOT NULL,
-      PRIMARY KEY (album_id, photo_id),
-      FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE,
-      FOREIGN KEY (photo_id) REFERENCES event_photos(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS photo_shares (
-      token TEXT PRIMARY KEY,
-      photo_id INTEGER NOT NULL,
-      expires_at DATETIME,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (photo_id) REFERENCES event_photos(id) ON DELETE CASCADE
-    )
-  `);
-
 let dbWrapper: DbWrapper | null = null;
 let dbConnection: SupportedDatabase | null = null;
 let dbEngine: DatabaseEngine | null = null;
