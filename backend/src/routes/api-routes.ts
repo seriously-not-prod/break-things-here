@@ -6,6 +6,7 @@ import * as rbacController from '../controllers/rbac-controller.js';
 import * as passwordResetController from '../controllers/password-reset-controller.js';
 import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
+import * as legacyRsvpController from '../controllers/rsvp-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
 import * as eventDocumentsController from '../controllers/event-documents-controller.js';
@@ -100,6 +101,11 @@ router.delete('/profile/account', authenticateToken, profileController.deleteAcc
 // ============ USER (self-service) ROUTES — issues #36, #39 ============
 router.get('/users/me', authenticateToken, usersController.getMe);
 router.patch('/users/me', authenticateToken, usersController.updateMe);
+router.get('/rsvps', authenticateToken, legacyRsvpController.getAllRsvps);
+router.get('/rsvps/:id', authenticateToken, legacyRsvpController.getRsvpById);
+router.post('/rsvps', legacyRsvpController.submitRsvp);
+router.put('/rsvps/:id', authenticateToken, legacyRsvpController.updateRsvp);
+router.delete('/rsvps/:id', authenticateToken, legacyRsvpController.deleteRsvp);
 router.get('/events/:eventId/rsvps', authenticateToken, rsvpController.listRsvps);
 router.post('/events/:eventId/rsvps', rsvpController.createRsvp);
 router.patch('/events/:eventId/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
