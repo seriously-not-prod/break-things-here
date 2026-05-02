@@ -71,9 +71,9 @@ export async function createExpense(req: Request, res: Response): Promise<Respon
 /** PATCH /api/events/:eventId/expenses/:id */
 export async function updateExpense(req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
-  const { id } = req.params;
+  const { eventId, id } = req.params;
 
-  const expense = await db.get('SELECT * FROM expenses WHERE id = ?', [id]);
+  const expense = await db.get('SELECT * FROM expenses WHERE id = ? AND event_id = ?', [id, eventId]);
   if (!expense) return res.status(404).json({ error: 'Expense not found.' });
 
   const { title, amount, category_id, paid_by, receipt_url, status, notes } = req.body as Record<string, string | number>;
@@ -81,8 +81,18 @@ export async function updateExpense(req: Request, res: Response): Promise<Respon
   const params: (string | number | null)[] = [];
 
   if (title !== undefined) { fields.push('title = ?'); params.push(String(title).trim()); }
-  if (amount !== undefined) { fields.push('amount = ?'); params.push(Number(amount)); }
-  if (category_id !== undefined) { fields.push('category_id = ?'); params.push(category_id ?? null); }
+  if (amount !== undefined) {
+    const numAmount = Number(amount);
+    if (isNaN(numAmount) || numAmount < 0) return res.status(400).json({ error: 'Amount must be a non-negative number.' });
+    fields.push('amount = ?'); params.push(numAmount);
+  }
+  if (category_id !== undefined) {
+    if (category_id !== null) {
+      const cat = await db.get('SELECT id FROM expense_categories WHERE id = ?', [category_id]);
+      if (!cat) return res.status(400).json({ error: 'Category not found.' });
+    }
+    fields.push('category_id = ?'); params.push(category_id ?? null);
+  }
   if (paid_by !== undefined) { fields.push('paid_by = ?'); params.push(String(paid_by).trim() || null); }
   if (receipt_url !== undefined) { fields.push('receipt_url = ?'); params.push(String(receipt_url).trim() || null); }
   if (status !== undefined) { fields.push('status = ?'); params.push(String(status)); }
@@ -92,8 +102,9 @@ export async function updateExpense(req: Request, res: Response): Promise<Respon
 
   fields.push('updated_at = CURRENT_TIMESTAMP');
   params.push(id);
+  params.push(eventId);
 
-  await db.run(`UPDATE expenses SET ${fields.join(', ')} WHERE id = ?`, params);
+  await db.run(`UPDATE expenses SET ${fields.join(', ')} WHERE id = ? AND event_id = ?`, params);
   const updated = await db.get(
     `SELECT e.*, ec.name AS category_name, ec.color AS category_color
      FROM expenses e
@@ -107,11 +118,11 @@ export async function updateExpense(req: Request, res: Response): Promise<Respon
 /** DELETE /api/events/:eventId/expenses/:id */
 export async function deleteExpense(req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
-  const { id } = req.params;
+  const { eventId, id } = req.params;
 
-  const expense = await db.get('SELECT id FROM expenses WHERE id = ?', [id]);
+  const expense = await db.get('SELECT id FROM expenses WHERE id = ? AND event_id = ?', [id, eventId]);
   if (!expense) return res.status(404).json({ error: 'Expense not found.' });
 
-  await db.run('DELETE FROM expenses WHERE id = ?', [id]);
+  await db.run('DELETE FROM expenses WHERE id = ? AND event_id = ?', [id, eventId]);
   return res.json({ message: 'Expense deleted.' });
 }
