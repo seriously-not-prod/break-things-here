@@ -41,6 +41,10 @@ async function cleanupUploadedFile(filePath?: string): Promise<void> {
   }
 }
 
+// Roles 1 (Admin) and 2 (Organizer) can manage documents for any event;
+// higher role IDs (Attendee and above) can only manage events they created.
+const ORGANIZER_AND_ABOVE_MAX_ROLE_ID = 2;
+
 async function getAuthorizedEvent(req: AuthRequest, res: Response, eventId: string): Promise<EventRow | null> {
   if (!req.user) {
     res.status(401).json({ error: 'Authentication required' });
@@ -58,7 +62,7 @@ async function getAuthorizedEvent(req: AuthRequest, res: Response, eventId: stri
     return null;
   }
 
-  if (req.user.role_id < 3 && event.created_by !== req.user.id) {
+  if (req.user.role_id > ORGANIZER_AND_ABOVE_MAX_ROLE_ID && event.created_by !== req.user.id) {
     res.status(403).json({ error: 'Not authorised to manage documents for this event.' });
     return null;
   }
@@ -95,31 +99,40 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
     return res.status(400).json({ error: 'No file uploaded.' });
   }
 
+  // Sanitize the original filename to prevent header injection via Content-Disposition
+  const safeOriginalName = path.basename(authReq.file.originalname).replace(/[^a-zA-Z0-9._\-]/g, '_');
+
   const db = getDatabase();
-  const result = await db.run(
-    `INSERT INTO event_documents (event_id, original_name, file_name, mime_type, file_size, created_by)
-     VALUES (?, ?, ?, ?, ?, ?)
-     RETURNING id`,
-    [
-      req.params.eventId,
-      authReq.file.originalname,
-      authReq.file.filename,
-      authReq.file.mimetype,
-      authReq.file.size,
-      authReq.user!.id,
-    ],
-  );
+  try {
+    const result = await db.run(
+      `INSERT INTO event_documents (event_id, original_name, file_name, mime_type, file_size, created_by)
+       VALUES (?, ?, ?, ?, ?, ?)
+       RETURNING id`,
+      [
+        req.params.eventId,
+        safeOriginalName,
+        authReq.file.filename,
+        authReq.file.mimetype,
+        authReq.file.size,
+        authReq.user!.id,
+      ],
+    );
 
-  const document = await db.get(
-    `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at
-     FROM event_documents WHERE id = ?`,
-    [result.lastID],
-  );
+    const document = await db.get(
+      `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at
+       FROM event_documents WHERE id = ?`,
+      [result.lastID],
+    );
 
-  return res.status(201).json({
-    document,
-    downloadUrl: `/api/events/${req.params.eventId}/documents/${result.lastID}`,
-  });
+    return res.status(201).json({
+      document,
+      downloadUrl: `/api/events/${req.params.eventId}/documents/${result.lastID}`,
+    });
+  } catch (error) {
+    console.error('Failed to save uploaded document to database:', error);
+    await cleanupUploadedFile(authReq.file.path);
+    return res.status(500).json({ error: 'Failed to save document.' });
+  }
 }
 
 export async function downloadEventDocument(req: Request, res: Response): Promise<Response> {
