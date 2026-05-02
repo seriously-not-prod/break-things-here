@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -69,6 +69,16 @@ interface EventMember {
   joined_at: string;
 }
 
+interface EventDocument {
+  id: number;
+  event_id: number;
+  original_name: string;
+  file_name: string;
+  mime_type: string;
+  file_size: number;
+  created_at: string;
+}
+
 interface UserOption {
   user_id: number;
   display_name: string;
@@ -89,6 +99,7 @@ export default function EventDetailPage(): JSX.Element {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [rsvps, setRsvps] = useState<Rsvp[]>([]);
   const [members, setMembers] = useState<EventMember[]>([]);
+  const [documents, setDocuments] = useState<EventDocument[]>([]);
   const [availableUsers, setAvailableUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +118,9 @@ export default function EventDetailPage(): JSX.Element {
   const [rsvpForm, setRsvpForm] = useState({ name: '', email: '', guests: '1', status: 'Pending', notes: '' });
   const [rsvpSaving, setRsvpSaving] = useState(false);
   const [rsvpError, setRsvpError] = useState<string | null>(null);
+  const [documentUploading, setDocumentUploading] = useState(false);
+  const [documentError, setDocumentError] = useState<string | null>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
 
   // Team dialog state
   const [memberUserId, setMemberUserId] = useState('');
@@ -131,6 +145,8 @@ export default function EventDetailPage(): JSX.Element {
       setRsvps(data.rsvps);
       setMembers(data.members ?? []);
       setAvailableUsers(data.availableUsers ?? []);
+      const docs = await api.get<EventDocument[]>(`/api/events/${id}/documents`);
+      setDocuments(Array.isArray(docs) ? docs : []);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load event.');
     } finally {
@@ -283,6 +299,66 @@ export default function EventDetailPage(): JSX.Element {
     await load();
   }
 
+  async function uploadDocument(e: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setDocumentUploading(true);
+    setDocumentError(null);
+    try {
+      const formData = new FormData();
+      formData.append('document', file);
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${API_BASE}/api/events/${id}/documents`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string };
+        throw new Error(body.error ?? res.statusText);
+      }
+
+      await load();
+      if (documentInputRef.current) documentInputRef.current.value = '';
+    } catch (err) {
+      setDocumentError(err instanceof Error ? err.message : 'Document upload failed.');
+    } finally {
+      setDocumentUploading(false);
+    }
+  }
+
+  async function downloadDocument(doc: EventDocument): Promise<void> {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${API_BASE}/api/events/${id}/documents/${doc.id}`, {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string };
+        throw new Error(body.error ?? res.statusText);
+      }
+
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = objectUrl;
+      link.download = doc.original_name;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Document download failed.');
+    }
+  }
+
+  async function deleteDocument(documentId: number): Promise<void> {
+    if (!window.confirm('Delete this document?')) return;
+    await api.delete(`/api/events/${id}/documents/${documentId}`).catch((err) => setError(err.message));
+    await load();
+  }
+
   if (loading) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
   }
@@ -321,6 +397,7 @@ export default function EventDetailPage(): JSX.Element {
         <Tab label={`Tasks (${tasks.length})`} />
         <Tab label={`RSVPs (${rsvps.length})`} />
         <Tab label={`Team (${members.length})`} />
+        <Tab label={`Documents (${documents.length})`} />
       </Tabs>
       <Divider sx={{ mb: 2 }} />
 
@@ -497,6 +574,63 @@ export default function EventDetailPage(): JSX.Element {
                           <Button size="small" color="error" onClick={() => removeMember(member.user_id)}>
                             Remove
                           </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </>
+      )}
+
+      {/* Documents Tab */}
+      {tab === 3 && (
+        <>
+          {canEdit && (
+            <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: 'center' }}>
+              <Button variant="contained" component="label">
+                {documentUploading ? 'Uploading…' : 'Upload Document'}
+                <input
+                  ref={documentInputRef}
+                  hidden
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp"
+                  onChange={uploadDocument}
+                />
+              </Button>
+              <Typography variant="caption" color="text.secondary">PDF, JPEG, PNG, WebP · max 5 MB</Typography>
+            </Stack>
+          )}
+          {documentError && <Alert severity="error" sx={{ mb: 2 }}>{documentError}</Alert>}
+          {documents.length === 0 ? (
+            <Paper sx={{ p: 3, textAlign: 'center' }}><Typography color="text.secondary">No documents yet.</Typography></Paper>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell><strong>Name</strong></TableCell>
+                    <TableCell><strong>Type</strong></TableCell>
+                    <TableCell><strong>Size</strong></TableCell>
+                    <TableCell><strong>Uploaded</strong></TableCell>
+                    {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {documents.map((doc) => (
+                    <TableRow key={doc.id} hover>
+                      <TableCell>{doc.original_name}</TableCell>
+                      <TableCell>{doc.mime_type}</TableCell>
+                      <TableCell>{Math.ceil(doc.file_size / 1024)} KB</TableCell>
+                      <TableCell>{new Date(doc.created_at).toLocaleString()}</TableCell>
+                      {canEdit && (
+                        <TableCell align="right">
+                          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                            <Button size="small" onClick={() => downloadDocument(doc)}>Download</Button>
+                            <Button size="small" color="error" onClick={() => deleteDocument(doc.id)}>Delete</Button>
+                          </Stack>
                         </TableCell>
                       )}
                     </TableRow>
