@@ -41,20 +41,6 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({
-  storage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB — issue #38
-  fileFilter: (req, file, cb) => {
-    // Validate by MIME type (not just extension) — issue #38
-    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (allowedMimes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only JPEG, PNG, and WebP images are accepted'));
-    }
-  },
-});
-
 const documentStorage = multer.diskStorage({
   destination: DOCUMENTS_DIR,
   filename: (req, file, cb) => {
@@ -73,6 +59,20 @@ const documentUpload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only PDF, JPEG, PNG, and WebP files are accepted'));
+    }
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB — issue #38
+  fileFilter: (req, file, cb) => {
+    // Validate by MIME type (not just extension) — issue #38
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only JPEG, PNG, and WebP images are accepted'));
     }
   },
 });
