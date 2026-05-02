@@ -46,6 +46,12 @@ When contributing to this project:
 - Validate all user inputs
 - Implement proper authentication and authorization
 
+## JWT Secret Management
+
+For detailed guidance on generating, rotating, and revoking JWT secrets (`JWT_SECRET`, `REFRESH_TOKEN_ENC_KEY`, `TOKEN_HASH_SECRET`), see:
+
+- [docs/security/jwt-secrets.md](docs/security/jwt-secrets.md)
+
 ## Disclosure Policy
 
 We follow responsible disclosure practices. Please allow us time to address the vulnerability before publicly disclosing it.
