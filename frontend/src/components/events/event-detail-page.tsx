@@ -848,7 +848,7 @@ export default function EventDetailPage(): JSX.Element {
                       <Cell key={`cell-${idx}`} fill={entry.color ?? '#6366f1'} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
+                  <Tooltip formatter={(value) => (typeof value === 'number' ? `$${value.toFixed(2)}` : value)} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
