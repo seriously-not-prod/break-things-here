@@ -13,8 +13,23 @@
  * - Input validation and sanitization on all fields
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import sqlite3 from 'sqlite3';
+import { open, type Database } from 'sqlite';
+
+// ---------------------------------------------------------------------------
+// In-memory SQLite — replaces the real database module so the test runner does
+// not need a running PostgreSQL instance.
+// ---------------------------------------------------------------------------
+let testDb: Database;
+
+vi.mock('../src/db/database.js', () => ({
+  getDatabase: () => testDb,
+  initializeDatabase: async () => testDb,
+  closeDatabase: async () => testDb?.close(),
+}));
+
+import { getDatabase } from '../src/db/database.js';
 import { resetPassword } from '../src/controllers/password-reset-controller.js';
 import { hashPassword, hashResetVerifier } from '../src/utils/auth-helpers.js';
 
@@ -75,16 +90,48 @@ async function seedToken(
 
 describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
   beforeEach(async () => {
-    await initializeDatabase();
-    const db = getDatabase();
-    await db.run('DELETE FROM password_reset_tokens');
-    await db.run('DELETE FROM sessions');
-    await db.run('DELETE FROM audit_log');
-    await db.run('DELETE FROM users');
+    testDb = await open({ filename: ':memory:', driver: sqlite3.Database });
+    await testDb.exec(`
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        display_name TEXT,
+        email_verified INTEGER DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        deleted_at DATETIME
+      );
+      CREATE TABLE password_reset_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        email TEXT NOT NULL,
+        token_selector TEXT NOT NULL,
+        token TEXT NOT NULL,
+        expires_at DATETIME NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        used_at DATETIME
+      );
+      CREATE TABLE sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token TEXT UNIQUE NOT NULL,
+        refresh_token TEXT,
+        expires_at DATETIME NOT NULL
+      );
+      CREATE TABLE audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        email TEXT,
+        action TEXT NOT NULL,
+        description TEXT,
+        ip_address TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
   });
 
   afterEach(async () => {
-    await closeDatabase();
+    await testDb?.close();
   });
 
   // ── Input Validation ───────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import { CameraAltRounded, DeleteRounded, SaveRounded } from '@mui/icons-material';
-import { api, ApiError } from '../../lib/api-client';
+import { api, ApiError, getAuthHeaders } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
 
 interface ProfileData {
@@ -91,10 +91,10 @@ export default function ProfilePage(): JSX.Element {
     try {
       const formData = new FormData();
       formData.append('photo', file);
-      const token = localStorage.getItem('accessToken');
       const res = await fetch(`${API_BASE}/api/profile/photo`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: getAuthHeaders(),
+        credentials: 'include',
         body: formData,
       });
       if (!res.ok) {
@@ -136,6 +136,7 @@ export default function ProfilePage(): JSX.Element {
 
       {/* Avatar */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+        {/* Profile photos are served from a protected API route, so normalize the URL for the browser. */}
         <Avatar
           src={profile?.profile_photo_url ?? undefined}
           sx={{ width: 80, height: 80, fontSize: 32 }}
