@@ -1,10 +1,10 @@
 declare module 'sqlite3' {
   interface Database {
-    get(sql: string, params: unknown[], callback: (err: unknown, row: unknown) => void): void;
-    all(sql: string, params: unknown[], callback: (err: unknown, rows: unknown[]) => void): void;
-    run(sql: string, params: unknown[], callback: (this: StatementContext, err: unknown) => void): void;
-    exec(sql: string, callback: (err: unknown) => void): void;
-    close(callback: (err: unknown) => void): void;
+    get<T = unknown>(sql: string, params: unknown[], callback: (err: Error | null, row: T | undefined) => void): void;
+    all<T = unknown>(sql: string, params: unknown[], callback: (err: Error | null, rows: T[]) => void): void;
+    run(sql: string, params: unknown[], callback: (this: StatementContext, err: Error | null) => void): void;
+    exec(sql: string, callback: (err: Error | null) => void): void;
+    close(callback: (err: Error | null) => void): void;
   }
 
   interface StatementContext {
