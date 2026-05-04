@@ -19,6 +19,23 @@ vi.mock('nodemailer', () => ({
     createTransport: () => ({ sendMail: vi.fn().mockResolvedValue({}) }),
   },
 }));
+// Use pg-mem (in-memory PostgreSQL) so tests run without a real database server
+// Create a fresh pg-mem db per Pool instance so each beforeEach/afterEach cycle
+// starts with a clean schema (avoids CREATE TABLE IF NOT EXISTS re-run errors in pg-mem)
+vi.mock('pg', async () => {
+  const { newDb } = await import('pg-mem');
+  return {
+    default: {
+      Pool: class {
+        constructor() {
+          const memDb = newDb();
+          const { Pool: PgMemPool } = memDb.adapters.createPg();
+          return new PgMemPool();
+        }
+      },
+    },
+  };
+});
 import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
 import { forgotPassword } from '../src/controllers/password-reset-controller.js';
 
@@ -253,9 +270,9 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
         await forgotPassword(req, res);
       }
 
-      // Manually update window start to 2 hours ago
+      // Manually update window start to 2 hours ago (PostgreSQL syntax)
       await db.run(
-        "UPDATE password_reset_rate_limit SET window_start = datetime('now', '-2 hours') WHERE email = ?",
+        "UPDATE password_reset_rate_limit SET window_start = NOW() - INTERVAL '2 hours' WHERE email = $1",
         ['test@example.com'],
       );
 

@@ -13,7 +13,24 @@
  * - Input validation and sanitization on all fields
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// Use pg-mem (in-memory PostgreSQL) so tests run without a real database server
+// Create a fresh pg-mem db per Pool instance so each beforeEach/afterEach cycle
+// starts with a clean schema (avoids CREATE TABLE IF NOT EXISTS re-run errors in pg-mem)
+vi.mock('pg', async () => {
+  const { newDb } = await import('pg-mem');
+  return {
+    default: {
+      Pool: class {
+        constructor() {
+          const memDb = newDb();
+          const { Pool: PgMemPool } = memDb.adapters.createPg();
+          return new PgMemPool();
+        }
+      },
+    },
+  };
+});
 import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
 import { resetPassword } from '../src/controllers/password-reset-controller.js';
 import { hashPassword, hashResetVerifier } from '../src/utils/auth-helpers.js';
@@ -41,7 +58,7 @@ async function seedUser(email: string, password: string): Promise<number> {
   const db = getDatabase();
   const hash = await hashPassword(password);
   const result = await db.run(
-    `INSERT INTO users (email, password_hash, display_name, email_verified) VALUES (?, ?, ?, 1)`,
+    `INSERT INTO users (email, password_hash, display_name, email_verified) VALUES (?, ?, ?, 1) RETURNING id`,
     [email, hash, 'Test User'],
   );
   return result.lastID as number;
