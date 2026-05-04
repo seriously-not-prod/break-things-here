@@ -24,7 +24,7 @@ function makeReq(
   params: Record<string, string> = {},
   body: Record<string, unknown> = {},
 ) {
-  return { params, body } as unknown as import('express').Request;
+  return { params, body, user: { id: 1, email: 'admin@test.com', role_id: 3 } } as unknown as import('express').Request;
 }
 
 // ---------------------------------------------------------------------------

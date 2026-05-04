@@ -173,7 +173,8 @@ describe('updateCategory', () => {
   });
 
   it('updates name and returns updated category', async () => {
-    mockDb.get.mockResolvedValueOnce(CATEGORY);
+    mockDb.get.mockResolvedValueOnce(CATEGORY);              // category found
+    mockDb.get.mockResolvedValueOnce(null);                  // duplicate check: no duplicate
     mockDb.run.mockResolvedValueOnce({});
     mockDb.get.mockResolvedValueOnce({ ...CATEGORY, name: 'Décor' });
     const req = makeReq({ id: '1' }, { name: 'Décor' });

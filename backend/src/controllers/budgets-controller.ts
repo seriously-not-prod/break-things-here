@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 
+interface AuthRequest extends Request {
+  user?: { id: number; email: string; role_id: number };
+}
+
 /**
  * GET /api/events/:eventId/budget
  * Returns the event budget record plus a spend summary:
@@ -38,6 +42,12 @@ export async function getBudget(req: Request, res: Response): Promise<Response> 
     [eventId],
   );
 
+  // Coerce Postgres NUMERIC/string amounts to JS numbers
+  const typedBreakdown = (breakdown as { category: string; color: string; amount: unknown }[]).map((row) => ({
+    ...row,
+    amount: Number(row.amount),
+  }));
+
   return res.json({
     budget: budget ?? null,
     summary: {
@@ -45,7 +55,7 @@ export async function getBudget(req: Request, res: Response): Promise<Response> 
       total_spent: totalSpent,
       remaining: totalBudget - totalSpent,
     },
-    breakdown,
+    breakdown: typedBreakdown,
   });
 }
 
@@ -55,6 +65,10 @@ export async function getBudget(req: Request, res: Response): Promise<Response> 
  */
 export async function upsertBudget(req: Request, res: Response): Promise<Response> {
   const { eventId } = req.params;
+  const authReq = req as AuthRequest;
+  const userId = authReq.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Authentication required.' });
+
   const { total_budget, currency, notes } = req.body as {
     total_budget?: number;
     currency?: string;
@@ -64,13 +78,16 @@ export async function upsertBudget(req: Request, res: Response): Promise<Respons
   if (total_budget === undefined || total_budget === null) {
     return res.status(400).json({ error: 'total_budget is required.' });
   }
-  if (typeof total_budget !== 'number' || total_budget < 0) {
+  if (!Number.isFinite(total_budget) || total_budget < 0) {
     return res.status(400).json({ error: 'total_budget must be a non-negative number.' });
   }
 
   const db = getDatabase();
-  const event = await db.get('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
+  const event = await db.get('SELECT id, created_by FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
   if (!event) return res.status(404).json({ error: 'Event not found.' });
+  if (Number(event.created_by) !== Number(userId) && authReq.user?.role_id !== 3) {
+    return res.status(403).json({ error: 'Not authorised to manage the budget for this event.' });
+  }
 
   await db.run(
     `INSERT INTO event_budgets (event_id, total_budget, currency, notes, updated_at)

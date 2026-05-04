@@ -24,11 +24,11 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { Cell, Pie, PieChart, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { AddRounded, ArrowBackRounded, DeleteRounded, EditRounded } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
+import { BudgetTab } from './BudgetTab';
 
 interface PlannerEvent {
   id: number;
@@ -87,47 +87,6 @@ interface UserOption {
   role_name: string | null;
 }
 
-interface ExpenseCategory {
-  id: number;
-  name: string;
-  description: string | null;
-  color: string;
-}
-
-interface Budget {
-  id: number;
-  event_id: number;
-  total_budget: number;
-  currency: string;
-  notes: string | null;
-}
-
-interface BudgetSummary {
-  total_budget: number;
-  total_spent: number;
-  remaining: number;
-}
-
-interface BudgetBreakdown {
-  category: string;
-  color: string;
-  amount: number;
-}
-
-interface Expense {
-  id: number;
-  event_id: number;
-  category_id: number | null;
-  title: string;
-  amount: number;
-  paid_by: string | null;
-  receipt_url: string | null;
-  status: string;
-  notes: string | null;
-  category_name: string | null;
-  category_color: string | null;
-}
-
 const TASK_STATUSES = ['Pending', 'In Progress', 'Blocked', 'Complete', 'Completed'];
 const TASK_PRIORITIES = ['Low', 'Medium', 'High'];
 const RSVP_STATUSES = ['Pending', 'Going', 'Maybe', 'Not Going', 'Declined'];
@@ -170,26 +129,6 @@ export default function EventDetailPage(): JSX.Element {
   const [memberSaving, setMemberSaving] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
 
-  // Budget state
-  const [budget, setBudget] = useState<Budget | null>(null);
-  const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(null);
-  const [breakdown, setBreakdown] = useState<BudgetBreakdown[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
-
-  // Budget dialog
-  const [budgetDialog, setBudgetDialog] = useState(false);
-  const [budgetForm, setBudgetForm] = useState({ total_budget: '', currency: 'USD', notes: '' });
-  const [budgetSaving, setBudgetSaving] = useState(false);
-  const [budgetError, setBudgetError] = useState<string | null>(null);
-
-  // Expense dialog
-  const [expenseDialog, setExpenseDialog] = useState(false);
-  const [editExpenseId, setEditExpenseId] = useState<number | null>(null);
-  const [expenseForm, setExpenseForm] = useState({ title: '', amount: '', category_id: '', paid_by: '', status: 'Pending', notes: '' });
-  const [expenseSaving, setExpenseSaving] = useState(false);
-  const [expenseError, setExpenseError] = useState<string | null>(null);
-
   const canEdit = user && user.roleId >= 2;
   const remainingCapacity = event?.capacity === null || event?.capacity === undefined
     ? null
@@ -201,22 +140,14 @@ export default function EventDetailPage(): JSX.Element {
   async function load(): Promise<void> {
     setLoading(true);
     try {
-      const [eventData, budgetData, expensesData, categoriesData] = await Promise.all([
+      const [eventData] = await Promise.all([
         api.get<{ event: PlannerEvent; tasks: Task[]; rsvps: Rsvp[]; members: EventMember[]; availableUsers: UserOption[] }>(`/api/events/${id}`),
-        api.get<{ budget: Budget | null; summary: BudgetSummary | null; breakdown: BudgetBreakdown[] }>(`/api/events/${id}/budget`).catch(() => ({ budget: null, summary: null, breakdown: [] })),
-        api.get<{ expenses: Expense[] }>(`/api/events/${id}/expenses`).catch(() => ({ expenses: [] })),
-        api.get<{ categories: ExpenseCategory[] }>('/api/expense-categories').catch(() => ({ categories: [] })),
       ]);
       setEvent(eventData.event);
       setTasks(eventData.tasks);
       setRsvps(eventData.rsvps);
       setMembers(eventData.members ?? []);
       setAvailableUsers(eventData.availableUsers ?? []);
-      setBudget(budgetData.budget);
-      setBudgetSummary(budgetData.summary);
-      setBreakdown(budgetData.breakdown ?? []);
-      setExpenses(expensesData.expenses ?? []);
-      setCategories(categoriesData.categories ?? []);
       const docs = await api.get<EventDocument[]>(`/api/events/${id}/documents`).catch(() => [] as EventDocument[]);
       setDocuments(Array.isArray(docs) ? docs : []);
     } catch (err) {
@@ -428,91 +359,6 @@ export default function EventDetailPage(): JSX.Element {
   async function deleteDocument(documentId: number): Promise<void> {
     if (!window.confirm('Delete this document?')) return;
     await api.delete(`/api/events/${id}/documents/${documentId}`).catch((err) => setError(err.message));
-    await load();
-  }
-
-  // ---- Budget ----
-  function openBudgetDialog(): void {
-    setBudgetForm({
-      total_budget: budget ? String(budget.total_budget) : '',
-      currency: budget?.currency ?? 'USD',
-      notes: budget?.notes ?? '',
-    });
-    setBudgetError(null);
-    setBudgetDialog(true);
-  }
-
-  async function saveBudget(e: FormEvent): Promise<void> {
-    e.preventDefault();
-    setBudgetError(null);
-    setBudgetSaving(true);
-    try {
-      await api.put(`/api/events/${id}/budget`, {
-        total_budget: Number(budgetForm.total_budget),
-        currency: budgetForm.currency || 'USD',
-        notes: budgetForm.notes || null,
-      });
-      setBudgetDialog(false);
-      await load();
-    } catch (err) {
-      setBudgetError(err instanceof ApiError ? err.message : 'Failed to save budget.');
-    } finally {
-      setBudgetSaving(false);
-    }
-  }
-
-  // ---- Expenses ----
-  function openAddExpense(): void {
-    setEditExpenseId(null);
-    setExpenseForm({ title: '', amount: '', category_id: '', paid_by: '', status: 'Pending', notes: '' });
-    setExpenseError(null);
-    setExpenseDialog(true);
-  }
-
-  function openEditExpense(exp: Expense): void {
-    setEditExpenseId(exp.id);
-    setExpenseForm({
-      title: exp.title,
-      amount: String(exp.amount),
-      category_id: exp.category_id ? String(exp.category_id) : '',
-      paid_by: exp.paid_by ?? '',
-      status: exp.status,
-      notes: exp.notes ?? '',
-    });
-    setExpenseError(null);
-    setExpenseDialog(true);
-  }
-
-  async function saveExpense(e: FormEvent): Promise<void> {
-    e.preventDefault();
-    setExpenseError(null);
-    setExpenseSaving(true);
-    try {
-      const payload = {
-        title: expenseForm.title,
-        amount: Number(expenseForm.amount),
-        category_id: expenseForm.category_id ? Number(expenseForm.category_id) : null,
-        paid_by: expenseForm.paid_by || null,
-        status: expenseForm.status,
-        notes: expenseForm.notes || null,
-      };
-      if (editExpenseId) {
-        await api.patch(`/api/events/${id}/expenses/${editExpenseId}`, payload);
-      } else {
-        await api.post(`/api/events/${id}/expenses`, payload);
-      }
-      setExpenseDialog(false);
-      await load();
-    } catch (err) {
-      setExpenseError(err instanceof ApiError ? err.message : 'Failed to save expense.');
-    } finally {
-      setExpenseSaving(false);
-    }
-  }
-
-  async function deleteExpense(expenseId: number): Promise<void> {
-    if (!window.confirm('Delete this expense?')) return;
-    await api.delete(`/api/events/${id}/expenses/${expenseId}`).catch((err) => setError(err.message));
     await load();
   }
 
@@ -802,119 +648,7 @@ export default function EventDetailPage(): JSX.Element {
 
       {/* Budget Tab */}
       {tab === 4 && (
-        <>
-          {/* Summary card */}
-          <Paper sx={{ p: 2, mb: 2 }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={2}>
-              <Box>
-                <Typography variant="h6" fontWeight={700}>Budget Overview</Typography>
-                {budget ? (
-                  <Stack direction="row" spacing={3} sx={{ mt: 1 }}>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">Total Budget</Typography>
-                      <Typography fontWeight={600}>{budget.currency} {budgetSummary ? budgetSummary.total_budget.toFixed(2) : '0.00'}</Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">Total Spent</Typography>
-                      <Typography fontWeight={600}>{budget.currency} {budgetSummary ? budgetSummary.total_spent.toFixed(2) : '0.00'}</Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">Remaining</Typography>
-                      <Typography fontWeight={600} color={budgetSummary && budgetSummary.remaining < 0 ? 'error.main' : 'success.main'}>
-                        {budget.currency} {budgetSummary ? budgetSummary.remaining.toFixed(2) : '0.00'}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                ) : (
-                  <Typography color="text.secondary" sx={{ mt: 1 }}>No budget set.</Typography>
-                )}
-              </Box>
-              {canEdit && (
-                <Button variant="outlined" onClick={openBudgetDialog}>
-                  {budget ? 'Edit Budget' : 'Set Budget'}
-                </Button>
-              )}
-            </Stack>
-          </Paper>
-
-          {/* Pie chart breakdown — #235 requirement */}
-          {breakdown.length > 0 && (
-            <Paper sx={{ p: 2, mb: 2 }}>
-              <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>Expense Breakdown by Category</Typography>
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie data={breakdown} dataKey="amount" nameKey="category" cx="50%" cy="50%" outerRadius={90} label>
-                    {breakdown.map((entry, idx) => (
-                      <Cell key={`cell-${idx}`} fill={entry.color ?? '#6366f1'} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => (typeof value === 'number' ? `$${value.toFixed(2)}` : value)} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </Paper>
-          )}
-
-          {/* Expenses table */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-            <Typography variant="subtitle1" fontWeight={600}>Expenses ({expenses.length})</Typography>
-            {canEdit && (
-              <Button startIcon={<AddRounded />} variant="contained" size="small" onClick={openAddExpense}>
-                Add Expense
-              </Button>
-            )}
-          </Box>
-
-          {expenses.length === 0 ? (
-            <Paper sx={{ p: 3, textAlign: 'center' }}>
-              <Typography color="text.secondary">No expenses recorded.</Typography>
-            </Paper>
-          ) : (
-            <TableContainer component={Paper}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell><strong>Title</strong></TableCell>
-                    <TableCell><strong>Category</strong></TableCell>
-                    <TableCell align="right"><strong>Amount</strong></TableCell>
-                    <TableCell><strong>Paid By</strong></TableCell>
-                    <TableCell><strong>Status</strong></TableCell>
-                    {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {expenses.map((exp) => (
-                    <TableRow key={exp.id} hover>
-                      <TableCell>{exp.title}</TableCell>
-                      <TableCell>
-                        {exp.category_name ? (
-                          <Chip label={exp.category_name} size="small" sx={{ bgcolor: exp.category_color ?? '#6366f1', color: '#fff', fontWeight: 600 }} />
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">—</Typography>
-                        )}
-                      </TableCell>
-                      <TableCell align="right">${Number(exp.amount).toFixed(2)}</TableCell>
-                      <TableCell>{exp.paid_by ?? '—'}</TableCell>
-                      <TableCell>
-                        <Chip label={exp.status} size="small"
-                          color={exp.status === 'Approved' ? 'success' : exp.status === 'Rejected' ? 'error' : 'default'}
-                        />
-                      </TableCell>
-                      {canEdit && (
-                        <TableCell align="right">
-                          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                            <Button size="small" startIcon={<EditRounded />} onClick={() => openEditExpense(exp)}>Edit</Button>
-                            <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => deleteExpense(exp.id)}>Delete</Button>
-                          </Stack>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </>
+        <BudgetTab eventId={id} canEdit={!!canEdit} />
       )}
 
       {/* Task Dialog */}
@@ -981,100 +715,6 @@ export default function EventDetailPage(): JSX.Element {
           <Button type="submit" form="rsvp-form" variant="contained" disabled={rsvpSaving}
             startIcon={rsvpSaving ? <CircularProgress size={16} color="inherit" /> : null}>
             {rsvpSaving ? 'Saving…' : 'Save'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Budget Dialog */}
-      <Dialog open={budgetDialog} onClose={() => setBudgetDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{budget ? 'Edit Budget' : 'Set Budget'}</DialogTitle>
-        <DialogContent>
-          <Box component="form" id="budget-form" onSubmit={saveBudget} noValidate>
-            <Stack spacing={2} sx={{ mt: 1 }}>
-              {budgetError && <Alert severity="error">{budgetError}</Alert>}
-              <TextField
-                label="Total Budget"
-                type="number"
-                value={budgetForm.total_budget}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setBudgetForm((p) => ({ ...p, total_budget: e.target.value }))}
-                inputProps={{ min: 0, step: '0.01' }}
-                required
-                fullWidth
-              />
-              <TextField
-                label="Currency"
-                value={budgetForm.currency}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setBudgetForm((p) => ({ ...p, currency: e.target.value }))}
-                fullWidth
-              />
-              <TextField
-                label="Notes"
-                value={budgetForm.notes}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setBudgetForm((p) => ({ ...p, notes: e.target.value }))}
-                multiline
-                rows={2}
-                fullWidth
-              />
-            </Stack>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setBudgetDialog(false)}>Cancel</Button>
-          <Button type="submit" form="budget-form" variant="contained" disabled={budgetSaving}
-            startIcon={budgetSaving ? <CircularProgress size={16} color="inherit" /> : null}>
-            {budgetSaving ? 'Saving…' : 'Save'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Expense Dialog */}
-      <Dialog open={expenseDialog} onClose={() => setExpenseDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editExpenseId ? 'Edit Expense' : 'New Expense'}</DialogTitle>
-        <DialogContent>
-          <Box component="form" id="expense-form" onSubmit={saveExpense} noValidate>
-            <Stack spacing={2} sx={{ mt: 1 }}>
-              {expenseError && <Alert severity="error">{expenseError}</Alert>}
-              <TextField label="Title" value={expenseForm.title} onChange={(e: ChangeEvent<HTMLInputElement>) => setExpenseForm((p) => ({ ...p, title: e.target.value }))} required fullWidth />
-              <TextField
-                label="Amount"
-                type="number"
-                value={expenseForm.amount}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setExpenseForm((p) => ({ ...p, amount: e.target.value }))}
-                inputProps={{ min: 0, step: '0.01' }}
-                required
-                fullWidth
-              />
-              <TextField
-                label="Category"
-                select
-                value={expenseForm.category_id}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setExpenseForm((p) => ({ ...p, category_id: e.target.value }))}
-                fullWidth
-              >
-                <MenuItem value="">None</MenuItem>
-                {categories.map((cat) => (
-                  <MenuItem key={cat.id} value={String(cat.id)}>{cat.name}</MenuItem>
-                ))}
-              </TextField>
-              <TextField label="Paid By" value={expenseForm.paid_by} onChange={(e: ChangeEvent<HTMLInputElement>) => setExpenseForm((p) => ({ ...p, paid_by: e.target.value }))} fullWidth />
-              <TextField
-                label="Status"
-                select
-                value={expenseForm.status}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setExpenseForm((p) => ({ ...p, status: e.target.value }))}
-                fullWidth
-              >
-                {['Pending', 'Approved', 'Rejected'].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-              </TextField>
-              <TextField label="Notes" value={expenseForm.notes} onChange={(e: ChangeEvent<HTMLInputElement>) => setExpenseForm((p) => ({ ...p, notes: e.target.value }))} multiline rows={2} fullWidth />
-            </Stack>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setExpenseDialog(false)}>Cancel</Button>
-          <Button type="submit" form="expense-form" variant="contained" disabled={expenseSaving}
-            startIcon={expenseSaving ? <CircularProgress size={16} color="inherit" /> : null}>
-            {expenseSaving ? 'Saving…' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>

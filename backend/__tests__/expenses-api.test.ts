@@ -24,7 +24,7 @@ function makeReq(
   params: Record<string, string> = {},
   body: Record<string, unknown> = {},
 ) {
-  return { params, body } as unknown as import('express').Request;
+  return { params, body, user: { id: 1, email: 'admin@test.com', role_id: 3 } } as unknown as import('express').Request;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,7 +201,8 @@ describe('updateExpense', () => {
   });
 
   it('returns 400 when no fields provided', async () => {
-    mockDb.get.mockResolvedValueOnce(EXPENSE);
+    mockDb.get.mockResolvedValueOnce(EXPENSE);          // expense found
+    mockDb.get.mockResolvedValueOnce({ id: 10, created_by: 1 }); // event found
     const req = makeReq({ eventId: '10', id: '1' }, {});
     const res = makeRes();
     await expensesController.updateExpense(req, res as never);
@@ -210,7 +211,8 @@ describe('updateExpense', () => {
   });
 
   it('updates status field', async () => {
-    mockDb.get.mockResolvedValueOnce(EXPENSE);
+    mockDb.get.mockResolvedValueOnce(EXPENSE);          // expense found
+    mockDb.get.mockResolvedValueOnce({ id: 10, created_by: 1 }); // event found
     mockDb.run.mockResolvedValueOnce({});
     mockDb.get.mockResolvedValueOnce({ ...EXPENSE, status: 'Approved' });
     const req = makeReq({ eventId: '10', id: '1' }, { status: 'Approved' });
@@ -221,7 +223,8 @@ describe('updateExpense', () => {
   });
 
   it('updates amount and includes updated_at', async () => {
-    mockDb.get.mockResolvedValueOnce(EXPENSE);
+    mockDb.get.mockResolvedValueOnce(EXPENSE);          // expense found
+    mockDb.get.mockResolvedValueOnce({ id: 10, created_by: 1 }); // event found
     mockDb.run.mockResolvedValueOnce({});
     mockDb.get.mockResolvedValueOnce({ ...EXPENSE, amount: 2000 });
     const req = makeReq({ eventId: '10', id: '1' }, { amount: 2000 });
@@ -233,13 +236,15 @@ describe('updateExpense', () => {
   });
 
   it('returns updated expense with category join', async () => {
-    mockDb.get.mockResolvedValueOnce(EXPENSE);
+    mockDb.get.mockResolvedValueOnce(EXPENSE);          // expense found
+    mockDb.get.mockResolvedValueOnce({ id: 10, created_by: 1 }); // event found
     mockDb.run.mockResolvedValueOnce({});
-    mockDb.get.mockResolvedValueOnce({ ...EXPENSE, notes: 'Paid in full' });
+    mockDb.get.mockResolvedValueOnce({ ...EXPENSE, notes: 'Paid in full' }); // re-fetch
     const req = makeReq({ eventId: '10', id: '1' }, { notes: 'Paid in full' });
     const res = makeRes();
     await expensesController.updateExpense(req, res as never);
-    const fetchSql = mockDb.get.mock.calls[1][0] as string;
+    // calls[2] is the re-fetch (calls[0]=expense, calls[1]=event, calls[2]=re-fetch)
+    const fetchSql = mockDb.get.mock.calls[2][0] as string;
     expect(fetchSql).toContain('LEFT JOIN expense_categories');
   });
 });
@@ -258,7 +263,8 @@ describe('deleteExpense', () => {
   });
 
   it('deletes expense and returns success message', async () => {
-    mockDb.get.mockResolvedValueOnce({ id: 1 });
+    mockDb.get.mockResolvedValueOnce({ id: 1 });              // expense found
+    mockDb.get.mockResolvedValueOnce({ id: 10, created_by: 1 }); // event found
     mockDb.run.mockResolvedValueOnce({});
     const req = makeReq({ eventId: '10', id: '1' });
     const res = makeRes();
@@ -267,7 +273,7 @@ describe('deleteExpense', () => {
     expect((res.body as { message: string }).message).toMatch(/deleted/i);
     expect(mockDb.run).toHaveBeenCalledWith(
       expect.stringContaining('DELETE FROM expenses'),
-      ['1'],
+      ['1', '10'],
     );
   });
 });

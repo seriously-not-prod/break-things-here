@@ -190,9 +190,9 @@ router.delete('/events/:eventId/expenses/:id', authenticateToken, expensesContro
 
 // ============ EXPENSE CATEGORY ROUTES ============
 router.get('/expense-categories', authenticateToken, expenseCategoriesController.listCategories);
-router.post('/expense-categories', authenticateToken, expenseCategoriesController.createCategory);
-router.patch('/expense-categories/:id', authenticateToken, expenseCategoriesController.updateCategory);
-router.delete('/expense-categories/:id', authenticateToken, expenseCategoriesController.deleteCategory);
+router.post('/expense-categories', authenticateToken, authorizeRole(['Organizer', 'Admin']), expenseCategoriesController.createCategory);
+router.patch('/expense-categories/:id', authenticateToken, authorizeRole(['Organizer', 'Admin']), expenseCategoriesController.updateCategory);
+router.delete('/expense-categories/:id', authenticateToken, authorizeRole(['Organizer', 'Admin']), expenseCategoriesController.deleteCategory);
 
 export default router;
 

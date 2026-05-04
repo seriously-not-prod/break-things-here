@@ -1,6 +1,12 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 
+interface AuthRequest extends Request {
+  user?: { id: number; email: string; role_id: number };
+}
+
+const VALID_EXPENSE_STATUSES = ['Pending', 'Approved', 'Rejected'];
+
 /** GET /api/events/:eventId/expenses */
 export async function listExpenses(req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
@@ -19,6 +25,10 @@ export async function listExpenses(req: Request, res: Response): Promise<Respons
 /** POST /api/events/:eventId/expenses */
 export async function createExpense(req: Request, res: Response): Promise<Response> {
   const { eventId } = req.params;
+  const authReq = req as AuthRequest;
+  const userId = authReq.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Authentication required.' });
+
   const { title, amount, category_id, paid_by, receipt_url, status, notes } = req.body as {
     title?: string;
     amount?: number;
@@ -31,11 +41,14 @@ export async function createExpense(req: Request, res: Response): Promise<Respon
 
   if (!title?.trim()) return res.status(400).json({ error: 'Expense title is required.' });
   if (amount === undefined || amount === null) return res.status(400).json({ error: 'Amount is required.' });
-  if (typeof amount !== 'number' || amount < 0) return res.status(400).json({ error: 'Amount must be a non-negative number.' });
+  if (!Number.isFinite(amount) || amount < 0) return res.status(400).json({ error: 'Amount must be a non-negative number.' });
 
   const db = getDatabase();
-  const event = await db.get('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
+  const event = await db.get('SELECT id, created_by FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
   if (!event) return res.status(404).json({ error: 'Event not found.' });
+  if (Number(event.created_by) !== Number(userId) && authReq.user?.role_id !== 3) {
+    return res.status(403).json({ error: 'Not authorised to manage expenses for this event.' });
+  }
 
   if (category_id != null) {
     const cat = await db.get('SELECT id FROM expense_categories WHERE id = ?', [category_id]);
@@ -72,9 +85,18 @@ export async function createExpense(req: Request, res: Response): Promise<Respon
 export async function updateExpense(req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
   const { eventId, id } = req.params;
+  const authReq = req as AuthRequest;
+  const userId = authReq.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Authentication required.' });
 
   const expense = await db.get('SELECT * FROM expenses WHERE id = ? AND event_id = ?', [id, eventId]);
   if (!expense) return res.status(404).json({ error: 'Expense not found.' });
+
+  const event = await db.get('SELECT created_by FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
+  if (!event) return res.status(404).json({ error: 'Event not found.' });
+  if (Number(event.created_by) !== Number(userId) && authReq.user?.role_id !== 3) {
+    return res.status(403).json({ error: 'Not authorised to manage expenses for this event.' });
+  }
 
   const { title, amount, category_id, paid_by, receipt_url, status, notes } = req.body as Record<string, string | number>;
   const fields: string[] = [];
@@ -83,7 +105,7 @@ export async function updateExpense(req: Request, res: Response): Promise<Respon
   if (title !== undefined) { fields.push('title = ?'); params.push(String(title).trim()); }
   if (amount !== undefined) {
     const numAmount = Number(amount);
-    if (isNaN(numAmount) || numAmount < 0) return res.status(400).json({ error: 'Amount must be a non-negative number.' });
+    if (!Number.isFinite(numAmount) || numAmount < 0) return res.status(400).json({ error: 'Amount must be a non-negative number.' });
     fields.push('amount = ?'); params.push(numAmount);
   }
   if (category_id !== undefined) {
@@ -95,7 +117,12 @@ export async function updateExpense(req: Request, res: Response): Promise<Respon
   }
   if (paid_by !== undefined) { fields.push('paid_by = ?'); params.push(String(paid_by).trim() || null); }
   if (receipt_url !== undefined) { fields.push('receipt_url = ?'); params.push(String(receipt_url).trim() || null); }
-  if (status !== undefined) { fields.push('status = ?'); params.push(String(status)); }
+  if (status !== undefined) {
+    if (!VALID_EXPENSE_STATUSES.includes(String(status))) {
+      return res.status(400).json({ error: `Status must be one of: ${VALID_EXPENSE_STATUSES.join(', ')}.` });
+    }
+    fields.push('status = ?'); params.push(String(status));
+  }
   if (notes !== undefined) { fields.push('notes = ?'); params.push(String(notes).trim() || null); }
 
   if (fields.length === 0) return res.status(400).json({ error: 'No fields to update.' });
@@ -119,9 +146,18 @@ export async function updateExpense(req: Request, res: Response): Promise<Respon
 export async function deleteExpense(req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
   const { eventId, id } = req.params;
+  const authReq = req as AuthRequest;
+  const userId = authReq.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Authentication required.' });
 
   const expense = await db.get('SELECT id FROM expenses WHERE id = ? AND event_id = ?', [id, eventId]);
   if (!expense) return res.status(404).json({ error: 'Expense not found.' });
+
+  const event = await db.get('SELECT created_by FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
+  if (!event) return res.status(404).json({ error: 'Event not found.' });
+  if (Number(event.created_by) !== Number(userId) && authReq.user?.role_id !== 3) {
+    return res.status(403).json({ error: 'Not authorised to manage expenses for this event.' });
+  }
 
   await db.run('DELETE FROM expenses WHERE id = ? AND event_id = ?', [id, eventId]);
   return res.json({ message: 'Expense deleted.' });

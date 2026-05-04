@@ -44,7 +44,12 @@ export async function updateCategory(req: Request, res: Response): Promise<Respo
   const fields: string[] = [];
   const params: (string | null)[] = [];
 
-  if (name !== undefined) { fields.push('name = ?'); params.push(name.trim()); }
+  if (name !== undefined) {
+    const trimmedName = name.trim();
+    const duplicate = await db.get('SELECT id FROM expense_categories WHERE name = ? AND id != ?', [trimmedName, id]);
+    if (duplicate) return res.status(409).json({ error: 'Category name already exists.' });
+    fields.push('name = ?'); params.push(trimmedName);
+  }
   if (description !== undefined) { fields.push('description = ?'); params.push(description.trim() || null); }
   if (color !== undefined) { fields.push('color = ?'); params.push(color.trim() || null); }
 
