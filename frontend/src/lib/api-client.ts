@@ -21,20 +21,20 @@ function getToken(): string | null {
   return localStorage.getItem('accessToken');
 }
 
-function getCsrfToken(): string | null {
-  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
-  return match ? match[1] : null;
-}
+// In-memory CSRF token — avoids cookie-forwarding issues through Vite dev proxy.
+let _csrfToken: string | null = null;
 
-async function ensureCsrfCookie(): Promise<void> {
-  if (getCsrfToken()) return;
-
-  // Any GET response from the backend can set the CSRF cookie. This makes
-  // the first mutating request resilient if the page has not hit the API yet.
-  await fetch(`${API_BASE}/api/auth/me`, {
-    method: 'GET',
-    credentials: 'include',
-  }).catch(() => undefined);
+async function ensureCsrfToken(): Promise<void> {
+  if (_csrfToken) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/csrf-token`, { credentials: 'include' });
+    if (res.ok) {
+      const data = await res.json() as { csrfToken: string };
+      _csrfToken = data.csrfToken;
+    }
+  } catch {
+    // Silently continue — request will fail with 403 if token is truly missing
+  }
 }
 
 export function setToken(token: string | null): void {
@@ -67,9 +67,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const method = (init.method ?? 'GET').toUpperCase();
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    await ensureCsrfCookie();
-    const csrfToken = getCsrfToken();
-    if (csrfToken) headers['X-XSRF-TOKEN'] = csrfToken;
+    await ensureCsrfToken();
+    if (_csrfToken) headers['X-XSRF-Token'] = _csrfToken;
+    // After a successful mutation, force a fresh token next time
+    // (tokens are single-use at the nonce level — server validates HMAC)
+    _csrfToken = null;
   }
 
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers, credentials: 'include' });

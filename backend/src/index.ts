@@ -32,48 +32,49 @@ app.use(cors(corsOptions));
 app.use(cookieParser()); // Add cookie parser to read req.cookies
 app.use(express.json());
 
-// CSRF Protection Middleware (Double Submit Cookie pattern)
-// This is applied via middleware in routes to prevent CSRF attacks
+// CSRF Protection — HMAC-signed stateless token.
+// Works correctly through the Vite dev proxy where Double Submit Cookie
+// is unreliable (Set-Cookie headers may not propagate back to the browser).
+const CSRF_SECRET = process.env.CSRF_SECRET ?? crypto.randomBytes(32).toString('hex');
+
+function generateCsrfToken(): string {
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const hmac = crypto.createHmac('sha256', CSRF_SECRET).update(nonce).digest('hex');
+  return `${nonce}.${hmac}`;
+}
+
+function verifyCsrfToken(token: string): boolean {
+  const dot = token.lastIndexOf('.');
+  if (dot === -1) return false;
+  const nonce = token.slice(0, dot);
+  const hmac = token.slice(dot + 1);
+  if (!nonce || !hmac) return false;
+  try {
+    const expected = crypto.createHmac('sha256', CSRF_SECRET).update(nonce).digest('hex');
+    const expectedBuf = Buffer.from(expected, 'hex');
+    const actualBuf = Buffer.from(hmac, 'hex');
+    if (expectedBuf.length !== actualBuf.length) return false;
+    return crypto.timingSafeEqual(expectedBuf, actualBuf);
+  } catch {
+    return false;
+  }
+}
+
 const csrfProtection = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
-  // Skip CSRF check for GET, HEAD, OPTIONS requests (safe methods)
+  // GET / HEAD / OPTIONS are safe methods — skip check
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     next();
     return;
   }
-  
-  const cookieToken = req.cookies['XSRF-TOKEN'];
-  const headerToken = req.headers['x-xsrf-token'] as string;
-  
-  if (!cookieToken || !headerToken || cookieToken !== headerToken) {
-    // Log details to help debug CSRF failures during development
-    console.warn('CSRF validation failed', {
-      method: req.method,
-      path: req.path,
-      origin: req.headers.origin || req.headers.referer || null,
-      cookieToken: !!cookieToken,
-      headerToken: !!headerToken,
-      cookieTokenValue: cookieToken ? cookieToken.slice(0, 8) + '...' : null,
-      headerTokenValue: headerToken ? headerToken.slice(0, 8) + '...' : null,
-    });
+
+  const headerToken = (req.headers['x-xsrf-token'] as string | undefined) ?? '';
+  if (!verifyCsrfToken(headerToken)) {
     res.status(403).json({ error: 'Invalid CSRF token' });
     return;
   }
-  
+
   next();
 };
-
-// Generate and set CSRF token for all requests
-app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (!req.cookies['XSRF-TOKEN']) {
-    const token = crypto.randomBytes(32).toString('hex');
-    res.cookie('XSRF-TOKEN', token, {
-      httpOnly: false, // Must be readable by JavaScript for header inclusion
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict'
-    });
-  }
-  next();
-});
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -81,6 +82,12 @@ app.get('/health', (_req, res) => {
     status: 'healthy',
     uptime: process.uptime(),
   });
+});
+
+// CSRF token endpoint — called by the frontend before any state-changing request.
+// Returns an HMAC-signed token; no cookie required.
+app.get('/api/csrf-token', (_req, res) => {
+  res.json({ csrfToken: generateCsrfToken() });
 });
 
 // Public photo share (no auth)
