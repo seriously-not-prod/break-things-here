@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner PORT=4000 tsx watch src/index.ts",
     "build": "tsc",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner_test vitest run",
+    "test:watch": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner_test vitest",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit"
   },
@@ -21,8 +21,6 @@
     "multer": "^2.1.1",
     "nodemailer": "^6.9.7",
     "pg": "^8.20.0",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7",
     "xss": "^1.0.15"
   },
   "devDependencies": {
