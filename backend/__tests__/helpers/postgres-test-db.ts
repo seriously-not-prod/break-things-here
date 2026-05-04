@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
+import { resolveTestDatabaseUrl } from '../../test-database-url.js';
 
 export interface TestRunResult {
   lastID?: number;
@@ -80,10 +81,9 @@ class PostgresTestDatabase implements TestDatabase {
 }
 
 export async function createPostgresTestDatabase(schemaSql: string): Promise<TestDatabase> {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error('DATABASE_URL must be set for backend tests.');
-  }
+  const connectionString = process.env.TEST_DATABASE_URL
+    ?? process.env.DATABASE_URL
+    ?? resolveTestDatabaseUrl();
 
   const schemaName = `test_${randomUUID().replace(/-/g, '_')}`;
   const database = new PostgresTestDatabase(connectionString, schemaName);

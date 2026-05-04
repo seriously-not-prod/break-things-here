@@ -18,6 +18,14 @@ vi.mock('../src/services/dashboard-service', () => ({
   fetchDashboardData: vi.fn(),
 }));
 
+vi.mock('../src/components/dashboard/budget-overview-panel', () => ({
+  BudgetOverviewPanel: () => <div>Budget panel content</div>,
+}));
+
+vi.mock('../src/components/analytics/global-analytics-widget', () => ({
+  GlobalAnalyticsWidget: () => <div>Analytics widget content</div>,
+}));
+
 import Dashboard from '../src/components/dashboard/Dashboard';
 import * as authContext from '../src/contexts/auth-context';
 import * as dashboardService from '../src/services/dashboard-service';
@@ -168,15 +176,25 @@ describe('Dashboard', () => {
       });
     });
 
-    it('shows the budget placeholder message', async () => {
+    it('renders the budget overview panel content', async () => {
       vi.mocked(dashboardService.fetchDashboardData).mockResolvedValue(mockData);
 
       renderDashboard();
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Budget tracking module is coming soon/i),
+          screen.getByText('Budget panel content'),
         ).toBeInTheDocument();
+      });
+    });
+
+    it('renders the analytics widget content', async () => {
+      vi.mocked(dashboardService.fetchDashboardData).mockResolvedValue(mockData);
+
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText('Analytics widget content')).toBeInTheDocument();
       });
     });
 

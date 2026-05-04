@@ -2,9 +2,10 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import type { NextFunction, Response } from 'express';
 import { authorizePermission } from '../src/middleware/auth.js';
 import { closeDatabase, getDatabase, initializeDatabase } from '../src/db/database.js';
+import { resolveTestDatabaseUrl } from '../test-database-url.js';
 
 const originalDatabaseUrl = process.env.DATABASE_URL;
-const defaultDatabaseUrl = 'postgresql://postgres:postgres@localhost:5432/festival_planner_test';
+const defaultDatabaseUrl = resolveTestDatabaseUrl();
 
 type AuthRequest = {
   user?: { id: number; email: string; role_id: number };

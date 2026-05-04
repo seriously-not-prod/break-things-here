@@ -127,7 +127,7 @@ async function insertRolePermissions(
 export async function initializeDatabase(): Promise<DatabaseAdapter> {
   if (dbWrapper) return dbWrapper;
 
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error(
       'DATABASE_URL environment variable is required. Set it to a PostgreSQL connection string.',
@@ -319,6 +319,24 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     )
   `);
 
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS cover_image_url TEXT`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_type TEXT DEFAULT 'Other'`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMP`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS activity_feed (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action_type TEXT NOT NULL,
+      description TEXT NOT NULL,
+      link TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   await db.exec(`
     CREATE TABLE IF NOT EXISTS tasks (
       id SERIAL PRIMARY KEY,
@@ -356,6 +374,67 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     )
   `);
 
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS checked_in BOOLEAN DEFAULT FALSE`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS budget_categories (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      allocated_amount NUMERIC(10,2) DEFAULT 0,
+      color TEXT DEFAULT '#6366f1',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS expenses (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      category_id INTEGER REFERENCES budget_categories(id) ON DELETE SET NULL,
+      title TEXT NOT NULL,
+      amount NUMERIC(10,2) NOT NULL,
+      payment_status TEXT CHECK(payment_status IN ('Pending','Paid','Overdue','Cancelled')) DEFAULT 'Pending',
+      vendor_name TEXT,
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS seating_tables (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      capacity INTEGER DEFAULT 8,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS seating_assignments (
+      table_id INTEGER NOT NULL REFERENCES seating_tables(id) ON DELETE CASCADE,
+      rsvp_id INTEGER NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
+      PRIMARY KEY (table_id, rsvp_id)
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT,
+      link TEXT,
+      is_read BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   await db.exec(`
     CREATE TABLE IF NOT EXISTS event_documents (
       id SERIAL PRIMARY KEY,
@@ -385,4 +464,97 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // ── Vendor Management (BRD 3.6) ──────────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS vendors (
+      id             SERIAL PRIMARY KEY,
+      event_id       INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name           TEXT NOT NULL,
+      category       TEXT NOT NULL,
+      email          TEXT,
+      phone          TEXT,
+      website        TEXT,
+      status         TEXT CHECK(status IN ('Contacted','Quote Received','Booked','Confirmed','Cancelled')) DEFAULT 'Contacted',
+      quoted_amount  NUMERIC(10,2),
+      contract_file  TEXT,
+      notes          TEXT,
+      rating         INTEGER CHECK(rating BETWEEN 1 AND 5),
+      created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // ── Shopping Lists & Items (BRD 3.7) ─────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS shopping_lists (
+      id         SERIAL PRIMARY KEY,
+      event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name       TEXT NOT NULL,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS shopping_items (
+      id             SERIAL PRIMARY KEY,
+      list_id        INTEGER NOT NULL REFERENCES shopping_lists(id) ON DELETE CASCADE,
+      name           TEXT NOT NULL,
+      quantity       INTEGER DEFAULT 1,
+      unit           TEXT,
+      estimated_cost NUMERIC(10,2),
+      actual_cost    NUMERIC(10,2),
+      status         TEXT CHECK(status IN ('Needed','Purchased','Not Available','Ordered')) DEFAULT 'Needed',
+      assigned_to    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      notes          TEXT,
+      created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // ── Event Timeline (BRD 3.8) ──────────────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS timeline_activities (
+      id          SERIAL PRIMARY KEY,
+      event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      title       TEXT NOT NULL,
+      description TEXT,
+      start_time  TIMESTAMP,
+      end_time    TIMESTAMP,
+      location    TEXT,
+      vendor_id   INTEGER REFERENCES vendors(id) ON DELETE SET NULL,
+      sort_order  INTEGER DEFAULT 0,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // ── Task enhancements (BRD 3.5, issues #373 #374) ────────────────────────
+  await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS description TEXT`);
+  await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS estimated_hours NUMERIC(5,2)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_comments (
+      id         SERIAL PRIMARY KEY,
+      task_id    INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      body       TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_subtasks (
+      id         SERIAL PRIMARY KEY,
+      task_id    INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      title      TEXT NOT NULL,
+      completed  BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_subtasks_task_id ON task_subtasks(task_id)`);
 }

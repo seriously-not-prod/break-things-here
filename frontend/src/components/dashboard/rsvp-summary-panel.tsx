@@ -6,6 +6,7 @@
 import { Box, Skeleton, Stack, Typography } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import type { Formatter, NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 import type { DashboardRsvp } from '../../services/dashboard-service';
 
 export interface RsvpSummaryPanelProps {
@@ -27,6 +28,18 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
 };
 
 const STATUS_ORDER = ['Going', 'Pending', 'Maybe', 'Not Going', 'Declined'] as const;
+
+function normalizeTooltipValue(value: ValueType | undefined): number {
+  if (Array.isArray(value)) {
+    return Number(value[0] ?? 0);
+  }
+
+  return Number(value ?? 0);
+}
+
+const formatRsvpTooltip: Formatter<ValueType, NameType> = (value, name) => {
+  return [normalizeTooltipValue(value), String(name ?? '')];
+};
 
 export function RsvpSummaryPanel({ rsvps, loading }: RsvpSummaryPanelProps): JSX.Element {
   if (loading) {
@@ -77,10 +90,7 @@ export function RsvpSummaryPanel({ rsvps, loading }: RsvpSummaryPanelProps): JSX
               <Cell key={entry.name} fill={entry.color} />
             ))}
           </Pie>
-          <Tooltip
-            formatter={(value: number, name: string) => [value, name]}
-            contentStyle={{ borderRadius: 8, fontSize: 12 }}
-          />
+          <Tooltip formatter={formatRsvpTooltip} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
         </PieChart>
       </ResponsiveContainer>
 

@@ -24,10 +24,11 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { AddRounded, ArrowBackRounded, DeleteRounded, EditRounded } from '@mui/icons-material';
+import { AddRounded, ArrowBackRounded, AttachMoneyRounded, CameraAltRounded, DeleteRounded, EditRounded, ViewKanbanRounded } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, getAuthHeaders } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
+import { ActivityFeedPanel } from './activity-feed-panel';
 
 interface PlannerEvent {
   id: number;
@@ -38,6 +39,8 @@ interface PlannerEvent {
   capacity: number | null;
   status: string;
   creator_name: string | null;
+  cover_image_url?: string | null;
+  event_type?: string | null;
 }
 
 interface Task {
@@ -121,6 +124,11 @@ export default function EventDetailPage(): JSX.Element {
   const [documentUploading, setDocumentUploading] = useState(false);
   const [documentError, setDocumentError] = useState<string | null>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
+
+  // Cover image upload state
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverError, setCoverError] = useState<string | null>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   // Team dialog state
   const [memberUserId, setMemberUserId] = useState('');
@@ -359,6 +367,41 @@ export default function EventDetailPage(): JSX.Element {
     await load();
   }
 
+  async function uploadCoverImage(e: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCoverUploading(true);
+    setCoverError(null);
+    try {
+      // Step 1: upload the file via the existing documents endpoint
+      const formData = new FormData();
+      formData.append('document', file);
+      const token = localStorage.getItem('accessToken');
+      const uploadRes = await fetch(`${API_BASE}/api/events/${id}/documents`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!uploadRes.ok) {
+        const body = await uploadRes.json().catch(() => ({ error: uploadRes.statusText })) as { error?: string };
+        throw new Error(body.error ?? uploadRes.statusText);
+      }
+      const uploadData = await uploadRes.json() as { document?: { file_name?: string } };
+      const fileName: string = uploadData.document?.file_name ?? '';
+      if (!fileName) throw new Error('Upload did not return a file name.');
+
+      // Step 2: set the cover_image_url reference on the event
+      const coverUrl = `/api/uploads/event-documents/${fileName}`;
+      await api.patch(`/api/events/${id}/cover`, { cover_image_url: coverUrl });
+      await load();
+      if (coverInputRef.current) coverInputRef.current.value = '';
+    } catch (err) {
+      setCoverError(err instanceof Error ? err.message : 'Cover image upload failed.');
+    } finally {
+      setCoverUploading(false);
+    }
+  }
+
   if (loading) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
   }
@@ -376,12 +419,73 @@ export default function EventDetailPage(): JSX.Element {
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Paper sx={{ p: 3, mb: 3 }}>
+        {/* Cover image banner */}
+        {event.cover_image_url && (
+          <Box
+            sx={{
+              width: '100%',
+              height: 220,
+              overflow: 'hidden',
+              mb: 2,
+              borderRadius: 1,
+              position: 'relative',
+            }}
+          >
+            <Box
+              component="img"
+              src={event.cover_image_url}
+              alt="Event cover"
+              sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+            {canEdit && (
+              <Box
+                component="label"
+                aria-label="Change cover image"
+                sx={{
+                  position: 'absolute',
+                  bottom: 8,
+                  right: 8,
+                  bgcolor: 'rgba(0,0,0,0.55)',
+                  borderRadius: '50%',
+                  p: 0.75,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: '#fff',
+                }}
+              >
+                {coverUploading ? <CircularProgress size={20} color="inherit" /> : <CameraAltRounded fontSize="small" />}
+                <input hidden type="file" accept="image/jpeg,image/png,image/webp" ref={coverInputRef} onChange={uploadCoverImage} />
+              </Box>
+            )}
+          </Box>
+        )}
+        {!event.cover_image_url && canEdit && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <Button
+              component="label"
+              size="small"
+              startIcon={coverUploading ? <CircularProgress size={14} color="inherit" /> : <CameraAltRounded />}
+              variant="outlined"
+              disabled={coverUploading}
+            >
+              {coverUploading ? 'Uploading…' : 'Set Cover Image'}
+              <input hidden type="file" accept="image/jpeg,image/png,image/webp" ref={coverInputRef} onChange={uploadCoverImage} />
+            </Button>
+            {coverError && <Typography variant="caption" color="error">{coverError}</Typography>}
+          </Box>
+        )}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Box>
             <Typography variant="h5" fontWeight={700}>{event.title}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              {new Date(event.event_date).toLocaleDateString()} {event.location ? `· ${event.location}` : ''}
-            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+              {event.event_type && (
+                <Chip label={event.event_type} size="small" color="info" variant="outlined" />
+              )}
+              <Typography variant="body2" color="text.secondary">
+                {new Date(event.event_date).toLocaleDateString()} {event.location ? `· ${event.location}` : ''}
+              </Typography>
+            </Stack>
             {event.capacity !== null && event.capacity !== undefined && (
               <Typography variant="body2" color="text.secondary">
                 Capacity: {event.capacity} {remainingCapacity !== null ? `· Remaining: ${remainingCapacity}` : ''}
@@ -393,22 +497,43 @@ export default function EventDetailPage(): JSX.Element {
         </Box>
       </Paper>
 
+      <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<AttachMoneyRounded />}
+          onClick={() => navigate(`/events/${id}/budget`)}
+        >
+          Manage Budget
+        </Button>
+      </Stack>
+
       <Tabs value={tab} onChange={(_, v: number) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label={`Tasks (${tasks.length})`} />
         <Tab label={`RSVPs (${rsvps.length})`} />
         <Tab label={`Team (${members.length})`} />
         <Tab label={`Documents (${documents.length})`} />
+        <Tab label="Activity" />
       </Tabs>
       <Divider sx={{ mb: 2 }} />
 
       {/* Tasks Tab */}
       {tab === 0 && (
         <>
-          {canEdit && (
-            <Button variant="contained" startIcon={<AddRounded />} sx={{ mb: 2 }} onClick={openAddTask}>
-              Add Task
+          <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+            {canEdit && (
+              <Button variant="contained" startIcon={<AddRounded />} onClick={openAddTask}>
+                Add Task
+              </Button>
+            )}
+            <Button
+              variant="outlined"
+              startIcon={<ViewKanbanRounded />}
+              onClick={() => navigate(`/events/${id}/tasks`)}
+            >
+              Kanban Board
             </Button>
-          )}
+          </Stack>
           {tasks.length === 0 ? (
             <Paper sx={{ p: 3, textAlign: 'center' }}><Typography color="text.secondary">No tasks yet.</Typography></Paper>
           ) : (
@@ -640,6 +765,11 @@ export default function EventDetailPage(): JSX.Element {
             </TableContainer>
           )}
         </>
+      )}
+
+      {/* Activity Tab */}
+      {tab === 4 && (
+        <ActivityFeedPanel eventId={id ?? ''} />
       )}
 
       {/* Task Dialog */}

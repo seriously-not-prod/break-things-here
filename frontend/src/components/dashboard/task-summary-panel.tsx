@@ -6,6 +6,7 @@
 import { Box, Skeleton, Stack, Typography } from '@mui/material';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import type { Formatter, NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 import type { DashboardTask } from '../../services/dashboard-service';
 
 export interface TaskSummaryPanelProps {
@@ -26,6 +27,18 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
 };
 
 const STATUS_ORDER = ['Pending', 'In Progress', 'Blocked', 'Complete'] as const;
+
+function normalizeTooltipValue(value: ValueType | undefined): number {
+  if (Array.isArray(value)) {
+    return Number(value[0] ?? 0);
+  }
+
+  return Number(value ?? 0);
+}
+
+const formatTaskTooltip: Formatter<ValueType, NameType> = (value, name) => {
+  return [normalizeTooltipValue(value), String(name ?? '')];
+};
 
 export function TaskSummaryPanel({ tasks, loading }: TaskSummaryPanelProps): JSX.Element {
   if (loading) {
@@ -71,10 +84,7 @@ export function TaskSummaryPanel({ tasks, loading }: TaskSummaryPanelProps): JSX
               <Cell key={entry.name} fill={entry.color} />
             ))}
           </Pie>
-          <Tooltip
-            formatter={(value: number, name: string) => [value, name]}
-            contentStyle={{ borderRadius: 8, fontSize: 12 }}
-          />
+          <Tooltip formatter={formatTaskTooltip} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
         </PieChart>
       </ResponsiveContainer>
 

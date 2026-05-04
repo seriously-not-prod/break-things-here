@@ -3,6 +3,7 @@ import {
   CalendarMonthRounded,
   DashboardRounded,
   LogoutRounded,
+  MailRounded,
   PersonRounded,
 } from '@mui/icons-material';
 import {
@@ -13,11 +14,13 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Stack,
   Toolbar,
   Typography,
 } from '@mui/material';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/auth-context';
+import { NotificationBell } from '../notifications/notification-bell';
 
 const DRAWER_WIDTH = 220;
 
@@ -33,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Events', to: '/events', icon: <CalendarMonthRounded /> },
   { label: 'Profile', to: '/profile', icon: <PersonRounded /> },
   { label: 'Admin', to: '/admin', icon: <AdminPanelSettingsRounded />, adminOnly: true },
+  { label: 'Messages', to: '/messages', icon: <MailRounded /> },
 ];
 
 export function AppNav(): JSX.Element {
@@ -58,10 +62,13 @@ export function AppNav(): JSX.Element {
         '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box' },
       }}
     >
-      <Toolbar>
+      <Toolbar sx={{ justifyContent: 'space-between' }}>
         <Typography variant="h6" noWrap fontWeight={700} color="primary">
           🎪 FestPlanner
         </Typography>
+        <Stack direction="row" alignItems="center">
+          <NotificationBell />
+        </Stack>
       </Toolbar>
       <Divider />
       <Box sx={{ overflow: 'auto', flexGrow: 1 }}>

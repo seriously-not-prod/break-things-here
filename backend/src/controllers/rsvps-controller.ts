@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { createRsvpNotification } from './notifications-controller.js';
+import { logActivity } from './activity-feed-controller.js';
 
 interface RsvpRow {
   id: number;
@@ -75,12 +77,32 @@ export async function getPublicRsvpContext(req: Request, res: Response): Promise
 /** POST /api/events/:eventId/rsvps  (public — no auth) */
 export async function createRsvp(req: Request, res: Response): Promise<Response> {
   const { eventId } = req.params;
-  const { name, email, status, notes, guests } = req.body as {
+  const {
+    name,
+    email,
+    status,
+    notes,
+    guests,
+    phone,
+    dietary_restriction,
+    accessibility_needs,
+    plus_one,
+    plus_one_name,
+    guest_group,
+    rsvp_deadline,
+  } = req.body as {
     name?: string;
     email?: string;
     status?: string;
     notes?: string;
     guests?: number | string;
+    phone?: string;
+    dietary_restriction?: string;
+    accessibility_needs?: string;
+    plus_one?: boolean;
+    plus_one_name?: string;
+    guest_group?: string;
+    rsvp_deadline?: string;
   };
 
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required.' });
@@ -110,8 +132,12 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   const source = authReq.user ? 'internal' : 'public';
 
   const result = await db.run(
-    `INSERT INTO rsvps (event_id, name, email, guests, status, notes, source)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO rsvps (
+       event_id, name, email, guests, status, notes, source,
+       phone, dietary_restriction, accessibility_needs,
+       plus_one, plus_one_name, guest_group, rsvp_deadline
+     )
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      RETURNING id`,
     [
       eventId,
@@ -121,10 +147,29 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
       status || 'Pending',
       notes?.trim() || null,
       source,
+      phone?.trim() || null,
+      dietary_restriction?.trim() || 'None',
+      accessibility_needs?.trim() || null,
+      Boolean(plus_one),
+      plus_one_name?.trim() || null,
+      guest_group?.trim() || null,
+      rsvp_deadline || null,
     ],
   );
 
   const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ?', [result.lastID]);
+
+  // Fire notification to event owner when a new RSVP is confirmed
+  if ((status || 'Pending') === 'Going') {
+    const ev = await db.get<{ created_by: number }>(
+      'SELECT created_by FROM events WHERE id = ?',
+      [eventId],
+    );
+    if (ev) {
+      await createRsvpNotification(Number(eventId), ev.created_by, name.trim());
+    }
+  }
+
   return res.status(201).json({ rsvp });
 }
 
@@ -135,7 +180,20 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
   const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ?', [id]);
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
-  const { name, email, status, notes, guests } = req.body as Record<string, string>;
+  const {
+    name,
+    email,
+    status,
+    notes,
+    guests,
+    phone,
+    dietary_restriction,
+    accessibility_needs,
+    plus_one,
+    plus_one_name,
+    guest_group,
+    rsvp_deadline,
+  } = req.body as Record<string, string | boolean>;
   const fields: string[] = [];
   const params: (string | number | null)[] = [];
 
@@ -148,9 +206,9 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
     params.push(parsed);
   }
   if (status !== undefined) {
-    nextStatus = status;
+    nextStatus = String(status);
     fields.push('status = ?');
-    params.push(status);
+    params.push(String(status));
   }
 
   if (isGoing(nextStatus)) {
@@ -163,9 +221,25 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
     }
   }
 
-  if (name !== undefined) { fields.push('name = ?'); params.push(name.trim()); }
-  if (email !== undefined) { fields.push('email = ?'); params.push(email.trim().toLowerCase()); }
-  if (notes !== undefined) { fields.push('notes = ?'); params.push(notes.trim() || null); }
+  if (name !== undefined) { fields.push('name = ?'); params.push(String(name).trim()); }
+  if (email !== undefined) { fields.push('email = ?'); params.push(String(email).trim().toLowerCase()); }
+  if (notes !== undefined) { fields.push('notes = ?'); params.push(String(notes).trim() || null); }
+  if (phone !== undefined) { fields.push('phone = ?'); params.push(String(phone).trim() || null); }
+  if (dietary_restriction !== undefined) {
+    fields.push('dietary_restriction = ?');
+    params.push(String(dietary_restriction).trim() || 'None');
+  }
+  if (accessibility_needs !== undefined) {
+    fields.push('accessibility_needs = ?');
+    params.push(String(accessibility_needs).trim() || null);
+  }
+  if (plus_one !== undefined) { fields.push('plus_one = ?'); params.push(plus_one ? 1 : 0); }
+  if (plus_one_name !== undefined) {
+    fields.push('plus_one_name = ?');
+    params.push(String(plus_one_name).trim() || null);
+  }
+  if (guest_group !== undefined) { fields.push('guest_group = ?'); params.push(String(guest_group).trim() || null); }
+  if (rsvp_deadline !== undefined) { fields.push('rsvp_deadline = ?'); params.push(String(rsvp_deadline).trim() || null); }
 
   if (fields.length === 0) return res.status(400).json({ error: 'No fields to update.' });
 
@@ -174,6 +248,27 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
 
   await db.run(`UPDATE rsvps SET ${fields.join(', ')} WHERE id = ?`, params);
   const updated = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ?', [id]);
+
+  if (nextStatus === 'Going') {
+    const authReq = req as AuthRequest;
+    await logActivity(
+      rsvp.event_id,
+      authReq.user?.id ?? null,
+      'rsvp_confirmed',
+      `${(updated as RsvpRow & { name?: string }).name ?? 'A guest'} confirmed attendance`,
+      `/events/${rsvp.event_id}`,
+    );
+    // Notify event owner of the confirmed RSVP
+    const ev = await db.get<{ created_by: number }>(
+      'SELECT created_by FROM events WHERE id = ?',
+      [rsvp.event_id],
+    );
+    if (ev) {
+      const guestName = (updated as RsvpRow & { name?: string }).name ?? 'A guest';
+      await createRsvpNotification(rsvp.event_id, ev.created_by, String(guestName));
+    }
+  }
+
   return res.json({ rsvp: updated });
 }
 
@@ -213,20 +308,44 @@ export async function exportRsvpsCsv(req: Request, res: Response): Promise<Respo
   const rows = await db.all<{
     name: string;
     email: string;
+    phone: string | null;
     status: string;
     guests: number;
     notes: string | null;
+    dietary_restriction: string | null;
+    accessibility_needs: string | null;
+    plus_one: boolean;
+    plus_one_name: string | null;
+    guest_group: string | null;
+    checked_in: boolean;
     created_at: string;
-  }>('SELECT name, email, status, guests, notes, created_at FROM rsvps WHERE event_id = ? ORDER BY created_at DESC', [eventId]);
+  }>(
+    `SELECT name, email, phone, status, guests, notes,
+            dietary_restriction, accessibility_needs,
+            plus_one, plus_one_name, guest_group, checked_in, created_at
+     FROM rsvps WHERE event_id = ? ORDER BY created_at DESC`,
+    [eventId],
+  );
 
   const csv = [
-    ['name', 'email', 'status', 'guests', 'notes', 'submitted_at'].join(','),
+    [
+      'name', 'email', 'phone', 'status', 'guests', 'notes',
+      'dietary_restriction', 'accessibility_needs',
+      'plus_one', 'plus_one_name', 'guest_group', 'checked_in', 'submitted_at',
+    ].join(','),
     ...rows.map((row) => [
       csvEscape(row.name),
       csvEscape(row.email),
+      csvEscape(row.phone ?? ''),
       csvEscape(row.status),
       csvEscape(row.guests),
       csvEscape(row.notes ?? ''),
+      csvEscape(row.dietary_restriction ?? 'None'),
+      csvEscape(row.accessibility_needs ?? ''),
+      csvEscape(row.plus_one ? 'true' : 'false'),
+      csvEscape(row.plus_one_name ?? ''),
+      csvEscape(row.guest_group ?? ''),
+      csvEscape(row.checked_in ? 'true' : 'false'),
       csvEscape(row.created_at),
     ].join(',')),
   ].join('\n');
@@ -234,4 +353,134 @@ export async function exportRsvpsCsv(req: Request, res: Response): Promise<Respo
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="event-${eventId}-rsvps.csv"`);
   return res.send(csv);
+}
+
+/** PATCH /api/events/:eventId/rsvps/:id/checkin */
+export async function checkInGuest(req: Request, res: Response): Promise<Response> {
+  const db = getDatabase();
+  const { id, eventId } = req.params;
+
+  const rsvp = await db.get<RsvpRow & { checked_in: boolean; checked_in_at: string | null }>(
+    'SELECT * FROM rsvps WHERE id = ? AND event_id = ?',
+    [id, eventId],
+  );
+  if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
+
+  // Idempotent: already checked in — return current state without writing
+  if (rsvp.checked_in) {
+    return res.json({ rsvp });
+  }
+
+  await db.run(
+    'UPDATE rsvps SET checked_in = TRUE, checked_in_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    [id],
+  );
+
+  const updated = await db.get<RsvpRow & { name?: string }>('SELECT * FROM rsvps WHERE id = ?', [id]);
+
+  const authReq = req as AuthRequest;
+  await logActivity(
+    eventId,
+    authReq.user?.id ?? null,
+    'guest_checked_in',
+    `${updated?.name ?? 'A guest'} checked in`,
+    `/events/${eventId}`,
+  );
+
+  return res.json({ rsvp: updated });
+}
+
+/** POST /api/events/:eventId/rsvps/import — CSV file upload via multer */
+export async function importCsv(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  if (!authReq.user) return res.status(401).json({ error: 'Authentication required.' });
+
+  const { eventId } = req.params;
+  const file = (req as Request & { file?: Express.Multer.File }).file;
+  if (!file) return res.status(400).json({ error: 'No CSV file uploaded.' });
+
+  const db = getDatabase();
+  const event = await db.get<{ id: number }>(
+    'SELECT id FROM events WHERE id = ? AND deleted_at IS NULL',
+    [eventId],
+  );
+  if (!event) return res.status(404).json({ error: 'Event not found.' });
+
+  const content = file.buffer.toString('utf8');
+  const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) return res.status(400).json({ error: 'CSV file has no data rows.' });
+
+  // Parse simple CSV (supports quoted fields)
+  function parseCsvLine(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, '_'));
+  const dataLines = lines.slice(1);
+
+  let imported = 0;
+  let skipped = 0;
+
+  for (const line of dataLines) {
+    const values = parseCsvLine(line);
+    const row: Record<string, string> = {};
+    headers.forEach((h, i) => { row[h] = values[i] ?? ''; });
+
+    const name = row['name']?.trim();
+    const email = row['email']?.trim().toLowerCase();
+    if (!name || !email) { skipped++; continue; }
+
+    try {
+      const result = await db.run(
+        `INSERT INTO rsvps (event_id, name, email, guests, status, notes, source,
+                            phone, dietary_restriction, accessibility_needs,
+                            plus_one, plus_one_name, guest_group)
+         VALUES (?, ?, ?, ?, ?, ?, 'import', ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (event_id, email) DO NOTHING`,
+        [
+          eventId,
+          name,
+          email,
+          parseGuests(row['guests']),
+          row['status'] || 'Pending',
+          row['notes'] || null,
+          row['phone'] || null,
+          row['dietary_restriction'] || 'None',
+          row['accessibility_needs'] || null,
+          row['plus_one'] === 'true' ? true : false,
+          row['plus_one_name'] || null,
+          row['guest_group'] || null,
+        ],
+      );
+      if ((result.changes ?? 0) > 0) {
+        imported++;
+      } else {
+        skipped++;
+      }
+    } catch {
+      skipped++;
+    }
+  }
+
+  return res.json({ imported, skipped });
 }

@@ -29,6 +29,10 @@ function getAllowedOrigins(isDev: boolean): string[] {
 
 export function createApp(): express.Express {
   const app = express();
+
+  // Trust the first proxy (nginx) so express-rate-limit and req.ip work correctly
+  app.set('trust proxy', 1);
+
   const isDev = process.env.NODE_ENV !== 'production';
   const allowedOrigins = getAllowedOrigins(isDev);
   const corsOptions = { origin: allowedOrigins, credentials: true };
