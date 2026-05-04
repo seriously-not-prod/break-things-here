@@ -52,6 +52,7 @@ async function getRoleId(roleName: 'Admin' | 'Organizer' | 'Attendee'): Promise<
 
   return role.id;
 }
+
 async function runPermissionCheck(
   roleId: number,
   permissionName: string,
@@ -98,7 +99,6 @@ describe('Role permission seeding', () => {
        WHERE rp.role_id = ?
        ORDER BY p.name`,
       [adminRoleId],
-  [adminRoleId],
     );
 
     expect(adminPermissions.map(({ name }) => name)).toEqual(allPermissions.map(({ name }) => name));
@@ -116,18 +116,24 @@ describe('Role permission seeding', () => {
     const organizerRoleId = await getRoleId('Organizer');
     const createEventCheck = await runPermissionCheck(organizerRoleId, 'events.create');
     const viewRolesCheck = await runPermissionCheck(organizerRoleId, 'roles.view');
+    const manageRolesCheck = await runPermissionCheck(organizerRoleId, 'roles.manage');
 
     expect(createEventCheck.next).toHaveBeenCalledOnce();
     expect(createEventCheck.response.statusCode).toBe(200);
     expect(viewRolesCheck.next).toHaveBeenCalledOnce();
     expect(viewRolesCheck.response.statusCode).toBe(200);
+    expect(manageRolesCheck.next).not.toHaveBeenCalled();
+    expect(manageRolesCheck.response.statusCode).toBe(403);
   });
 
   it('allows Attendee users through authorizePermission for seeded permissions', async () => {
     const attendeeRoleId = await getRoleId('Attendee');
-    const { next, response } = await runPermissionCheck(attendeeRoleId, 'events.view');
+    const viewEventsCheck = await runPermissionCheck(attendeeRoleId, 'events.view');
+    const createEventCheck = await runPermissionCheck(attendeeRoleId, 'events.create');
 
-    expect(next).toHaveBeenCalledOnce();
-    expect(response.statusCode).toBe(200);
+    expect(viewEventsCheck.next).toHaveBeenCalledOnce();
+    expect(viewEventsCheck.response.statusCode).toBe(200);
+    expect(createEventCheck.next).not.toHaveBeenCalled();
+    expect(createEventCheck.response.statusCode).toBe(403);
   });
 });
