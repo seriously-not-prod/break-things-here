@@ -6,7 +6,8 @@ const { Pool } = pg;
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     console.error('DATABASE_URL environment variable is required.');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const pool = new Pool({ connectionString });
@@ -86,7 +87,7 @@ const { Pool } = pg;
     console.log('\n✨ Database check complete!\n');
   } catch (err) {
     console.error('Database check failed:', err);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     await pool.end();
   }

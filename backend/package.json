@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "PORT=4000 tsx watch src/index.ts",
+    "dev": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner PORT=4000 tsx watch src/index.ts",
     "build": "tsc",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner_test vitest run",
+    "test:watch": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner_test vitest",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit"
   },
