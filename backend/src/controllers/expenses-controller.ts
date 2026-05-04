@@ -42,6 +42,9 @@ export async function createExpense(req: Request, res: Response): Promise<Respon
   if (!title?.trim()) return res.status(400).json({ error: 'Expense title is required.' });
   if (amount === undefined || amount === null) return res.status(400).json({ error: 'Amount is required.' });
   if (!Number.isFinite(amount) || amount < 0) return res.status(400).json({ error: 'Amount must be a non-negative number.' });
+  if (status !== undefined && !VALID_EXPENSE_STATUSES.includes(String(status))) {
+    return res.status(400).json({ error: `Status must be one of: ${VALID_EXPENSE_STATUSES.join(', ')}.` });
+  }
 
   const db = getDatabase();
   const event = await db.get('SELECT id, created_by FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
@@ -102,7 +105,11 @@ export async function updateExpense(req: Request, res: Response): Promise<Respon
   const fields: string[] = [];
   const params: (string | number | null)[] = [];
 
-  if (title !== undefined) { fields.push('title = ?'); params.push(String(title).trim()); }
+  if (title !== undefined) {
+    const trimmedTitle = String(title).trim();
+    if (!trimmedTitle) return res.status(400).json({ error: 'Expense title cannot be blank.' });
+    fields.push('title = ?'); params.push(trimmedTitle);
+  }
   if (amount !== undefined) {
     const numAmount = Number(amount);
     if (!Number.isFinite(numAmount) || numAmount < 0) return res.status(400).json({ error: 'Amount must be a non-negative number.' });

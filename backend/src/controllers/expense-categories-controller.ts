@@ -46,6 +46,7 @@ export async function updateCategory(req: Request, res: Response): Promise<Respo
 
   if (name !== undefined) {
     const trimmedName = name.trim();
+    if (!trimmedName) return res.status(400).json({ error: 'Category name cannot be blank.' });
     const duplicate = await db.get('SELECT id FROM expense_categories WHERE name = ? AND id != ?', [trimmedName, id]);
     if (duplicate) return res.status(409).json({ error: 'Category name already exists.' });
     fields.push('name = ?'); params.push(trimmedName);

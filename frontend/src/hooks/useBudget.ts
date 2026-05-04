@@ -77,6 +77,9 @@ export function useBudget(eventId: string | undefined) {
   const [expenseSaving, setExpenseSaving] = useState(false);
   const [expenseError, setExpenseError] = useState<string | null>(null);
 
+  // Delete confirmation dialog
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+
   const loadBudgetData = useCallback(async (): Promise<void> => {
     if (!eventId) return;
     const [budgetData, expensesData, categoriesData] = await Promise.all([
@@ -177,8 +180,14 @@ export function useBudget(eventId: string | undefined) {
   }
 
   async function deleteExpense(expenseId: number): Promise<void> {
-    if (!window.confirm('Delete this expense?')) return;
-    await api.delete(`/api/events/${eventId}/expenses/${expenseId}`).catch(() => undefined);
+    setDeleteConfirmId(expenseId);
+  }
+
+  async function confirmDeleteExpense(): Promise<void> {
+    if (deleteConfirmId === null) return;
+    const id = deleteConfirmId;
+    setDeleteConfirmId(null);
+    await api.delete(`/api/events/${eventId}/expenses/${id}`).catch(() => undefined);
     await loadBudgetData();
   }
 
@@ -210,5 +219,8 @@ export function useBudget(eventId: string | undefined) {
     openEditExpense,
     saveExpense,
     deleteExpense,
+    confirmDeleteExpense,
+    deleteConfirmId,
+    setDeleteConfirmId,
   };
 }

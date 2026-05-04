@@ -57,6 +57,9 @@ export function BudgetTab({ eventId, canEdit }: BudgetTabProps): JSX.Element {
     openEditExpense,
     saveExpense,
     deleteExpense,
+    confirmDeleteExpense,
+    deleteConfirmId,
+    setDeleteConfirmId,
   } = useBudget(eventId);
 
   // Issue 9: coerce value to Number and use the event's configured currency
@@ -273,6 +276,18 @@ export function BudgetTab({ eventId, canEdit }: BudgetTabProps): JSX.Element {
             startIcon={expenseSaving ? <CircularProgress size={16} color="inherit" /> : null}>
             {expenseSaving ? 'Saving…' : 'Save'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Expense Confirmation Dialog */}
+      <Dialog open={deleteConfirmId !== null} onClose={() => setDeleteConfirmId(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete Expense</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to delete this expense? This action cannot be undone.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={() => void confirmDeleteExpense()}>Delete</Button>
         </DialogActions>
       </Dialog>
     </>

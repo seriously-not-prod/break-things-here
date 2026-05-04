@@ -516,6 +516,10 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       FOREIGN KEY (category_id) REFERENCES expense_categories(id) ON DELETE SET NULL
     )
   `);
+
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_budgets_event_id ON event_budgets(event_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expenses_event_id ON expenses(event_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expenses_category_id ON expenses(category_id)`);
 }
 
 async function runSqliteMigrations(db: DbWrapper): Promise<void> {
