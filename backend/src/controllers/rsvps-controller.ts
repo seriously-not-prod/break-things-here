@@ -406,16 +406,28 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
   );
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
+  const MAX_CSV_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
+  const MAX_CSV_LINE_CHARS = 10_000;
+  const MAX_CSV_ROWS = 10_000;
+
+  if (file.buffer.length > MAX_CSV_FILE_BYTES) {
+    return res.status(400).json({ error: 'CSV file exceeds maximum allowed size of 5 MB.' });
+  }
+
   const content = file.buffer.toString('utf8');
   const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length < 2) return res.status(400).json({ error: 'CSV file has no data rows.' });
+  if (lines.length > MAX_CSV_ROWS + 1) {
+    return res.status(400).json({ error: `CSV file exceeds maximum of ${MAX_CSV_ROWS} data rows.` });
+  }
 
   // Parse simple CSV (supports quoted fields)
   function parseCsvLine(line: string): string[] {
     const result: string[] = [];
     let current = '';
     let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
+    const safeLength = Math.min(line.length, MAX_CSV_LINE_CHARS);
+    for (let i = 0; i < safeLength; i++) {
       const ch = line[i];
       if (ch === '"') {
         if (inQuotes && line[i + 1] === '"') {
