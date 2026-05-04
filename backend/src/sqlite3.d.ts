@@ -1,23 +1,23 @@
 declare module 'sqlite3' {
-  interface Database {
-    get<T = unknown>(sql: string, params: unknown[], callback: (err: Error | null, row: T | undefined) => void): void;
-    all<T = unknown>(sql: string, params: unknown[], callback: (err: Error | null, rows: T[]) => void): void;
-    run(sql: string, params: unknown[], callback: (this: StatementContext, err: Error | null) => void): void;
-    exec(sql: string, callback: (err: Error | null) => void): void;
-    close(callback: (err: Error | null) => void): void;
-  }
-
-  interface StatementContext {
+  export interface StatementContext {
     lastID?: number;
     changes?: number;
   }
 
-  interface Sqlite3Static {
-    Database: new (filename: string) => Database;
-    verbose(): void;
+  export interface Database {
+    get<T = unknown>(sql: string, params: readonly unknown[], callback: (err: Error | null, row: T | undefined) => void): void;
+    all<T = unknown>(sql: string, params: readonly unknown[], callback: (err: Error | null, rows: T[]) => void): void;
+    run(sql: string, params: readonly unknown[], callback: (this: StatementContext, err: Error | null) => void): void;
+    exec(sql: string, callback: (err: Error | null) => void): void;
+    close(callback: (err: Error | null) => void): void;
   }
 
-  export { Database, StatementContext };
+  export interface Sqlite3Static {
+    Database: new (filename: string) => Database;
+    verbose(): Sqlite3Static;
+  }
+
+  export { Database, StatementContext, Sqlite3Static };
   const sqlite3: Sqlite3Static;
   export default sqlite3;
 }

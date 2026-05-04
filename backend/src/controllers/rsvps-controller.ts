@@ -124,7 +124,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
     ],
   );
 
-  const rsvp = await db.get('SELECT * FROM rsvps WHERE id = ?', [result.lastID]);
+  const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ?', [result.lastID]);
   return res.status(201).json({ rsvp });
 }
 
@@ -132,8 +132,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
 export async function updateRsvp(req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
   const { id } = req.params;
-
-    const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ?', [id]);
+  const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ?', [id]);
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
   const { name, email, status, notes, guests } = req.body as Record<string, string>;
@@ -174,7 +173,7 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
   params.push(id);
 
   await db.run(`UPDATE rsvps SET ${fields.join(', ')} WHERE id = ?`, params);
-  const updated = await db.get('SELECT * FROM rsvps WHERE id = ?', [id]);
+  const updated = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ?', [id]);
   return res.json({ rsvp: updated });
 }
 
@@ -183,7 +182,7 @@ export async function deleteRsvp(req: Request, res: Response): Promise<Response>
   const db = getDatabase();
   const { id } = req.params;
 
-  const rsvp = await db.get('SELECT id FROM rsvps WHERE id = ?', [id]);
+  const rsvp = await db.get<Pick<RsvpRow, 'id'>>('SELECT id FROM rsvps WHERE id = ?', [id]);
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
   await db.run('DELETE FROM rsvps WHERE id = ?', [id]);

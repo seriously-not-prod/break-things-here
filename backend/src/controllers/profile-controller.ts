@@ -44,7 +44,6 @@ interface UserProfileRow extends ProfilePhotoRow {
   zip_code: string | null;
   country: string | null;
 }
-
 function normalizeProfilePhotoUrl(photoUrl: string | null | undefined): string | null {
   if (!photoUrl) return null;
   if (photoUrl.startsWith('/api/')) return photoUrl;
@@ -94,7 +93,7 @@ export async function getProfilePhoto(req: AuthRequest, res: Response) {
     }
 
     const db = getDatabase();
-    const profile = await db.get<{ profile_photo_url?: string }>(
+  const profile = await db.get<ProfilePhotoRow>(
       'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
       [req.user.id],
     );

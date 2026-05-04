@@ -4,7 +4,7 @@ import { authorizePermission } from '../src/middleware/auth.js';
 import { closeDatabase, getDatabase, initializeDatabase } from '../src/db/database.js';
 
 const originalDatabaseUrl = process.env.DATABASE_URL;
-const defaultDatabaseUrl = 'postgresql://postgres:postgres@127.0.0.1:5432/festival_planner';
+const defaultDatabaseUrl = 'sqlite::memory:';
 
 if (!originalDatabaseUrl) {
   process.env.DATABASE_URL = defaultDatabaseUrl;
@@ -40,6 +40,17 @@ function makeRequest(roleId: number): { user: { id: number; email: string; role_
       role_id: roleId,
     },
   };
+}
+
+async function getRoleId(roleName: 'Admin' | 'Organizer' | 'Attendee'): Promise<number> {
+  const db = getDatabase();
+  const role = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = ?', [roleName]);
+
+  if (!role) {
+    throw new Error(`Role ${roleName} was not found during test setup`);
+  }
+
+  return role.id;
 }
 
 async function runPermissionCheck(
@@ -79,6 +90,7 @@ afterAll(async (): Promise<void> => {
 describe('Role permission seeding', () => {
   it('seeds every defined permission for the Admin role', async () => {
     const db = getDatabase();
+    const adminRoleId = await getRoleId('Admin');
     const allPermissions = await db.all<{ name: string }>('SELECT name FROM permissions ORDER BY name');
     const adminPermissions = await db.all<{ name: string }>(
       `SELECT p.name
@@ -86,33 +98,42 @@ describe('Role permission seeding', () => {
        JOIN role_permissions rp ON rp.permission_id = p.id
        WHERE rp.role_id = ?
        ORDER BY p.name`,
-      [3],
+      [adminRoleId],
     );
 
     expect(adminPermissions.map(({ name }) => name)).toEqual(allPermissions.map(({ name }) => name));
   });
 
   it('allows Admin users through authorizePermission for seeded permissions', async () => {
-    const { next, response } = await runPermissionCheck(3, 'roles.manage');
+    const adminRoleId = await getRoleId('Admin');
+    const { next, response } = await runPermissionCheck(adminRoleId, 'roles.manage');
 
     expect(next).toHaveBeenCalledOnce();
     expect(response.statusCode).toBe(200);
   });
 
   it('allows Organizer users through authorizePermission for seeded permissions', async () => {
-    const createEventCheck = await runPermissionCheck(2, 'events.create');
-    const viewRolesCheck = await runPermissionCheck(2, 'roles.view');
+    const organizerRoleId = await getRoleId('Organizer');
+    const createEventCheck = await runPermissionCheck(organizerRoleId, 'events.create');
+    const viewRolesCheck = await runPermissionCheck(organizerRoleId, 'roles.view');
+    const manageRolesCheck = await runPermissionCheck(organizerRoleId, 'roles.manage');
 
     expect(createEventCheck.next).toHaveBeenCalledOnce();
     expect(createEventCheck.response.statusCode).toBe(200);
     expect(viewRolesCheck.next).toHaveBeenCalledOnce();
     expect(viewRolesCheck.response.statusCode).toBe(200);
+    expect(manageRolesCheck.next).not.toHaveBeenCalled();
+    expect(manageRolesCheck.response.statusCode).toBe(403);
   });
 
   it('allows Attendee users through authorizePermission for seeded permissions', async () => {
-    const { next, response } = await runPermissionCheck(1, 'events.view');
+    const attendeeRoleId = await getRoleId('Attendee');
+    const viewEventsCheck = await runPermissionCheck(attendeeRoleId, 'events.view');
+    const createEventCheck = await runPermissionCheck(attendeeRoleId, 'events.create');
 
-    expect(next).toHaveBeenCalledOnce();
-    expect(response.statusCode).toBe(200);
+    expect(viewEventsCheck.next).toHaveBeenCalledOnce();
+    expect(viewEventsCheck.response.statusCode).toBe(200);
+    expect(createEventCheck.next).not.toHaveBeenCalled();
+    expect(createEventCheck.response.statusCode).toBe(403);
   });
 });

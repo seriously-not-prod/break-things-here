@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import path from 'path';
 import fs from 'fs/promises';
+import path from 'path';
 import { getDatabase } from '../db/database.js';
 
 interface AuthRequest extends Request {
@@ -15,8 +15,6 @@ interface EventRow {
 }
 
 const UPLOADS_DIR = path.resolve('uploads/event-documents');
-// Ensure the boundary ends with a separator to prevent prefix-bypass attacks
-// e.g. /uploads/event-documents-evil would be blocked
 const UPLOADS_DIR_PREFIX = UPLOADS_DIR + path.sep;
 
 function assertSafePath(filePath: string): string {
@@ -29,6 +27,7 @@ function assertSafePath(filePath: string): string {
 
 async function cleanupUploadedFile(filePath?: string): Promise<void> {
   if (!filePath) return;
+
   const fileName = path.basename(filePath);
   if (!/^[a-zA-Z0-9._-]+$/.test(fileName)) {
     console.error('Skipped cleanup for invalid uploaded filename');
@@ -49,7 +48,11 @@ async function getAuthorizedEvent(req: AuthRequest, res: Response, eventId: stri
   }
 
   const db = getDatabase();
-  const event = await db.get<EventRow>('SELECT id, created_by, deleted_at FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
+  const event = await db.get<EventRow>(
+    'SELECT id, created_by, deleted_at FROM events WHERE id = ? AND deleted_at IS NULL',
+    [eventId],
+  );
+
   if (!event) {
     res.status(404).json({ error: 'Event not found.' });
     return null;
@@ -63,7 +66,6 @@ async function getAuthorizedEvent(req: AuthRequest, res: Response, eventId: stri
   return event;
 }
 
-/** GET /api/events/:eventId/documents */
 export async function listEventDocuments(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
   const event = await getAuthorizedEvent(authReq, res, req.params.eventId);
@@ -81,7 +83,6 @@ export async function listEventDocuments(req: Request, res: Response): Promise<R
   return res.json({ documents });
 }
 
-/** POST /api/events/:eventId/documents */
 export async function uploadEventDocument(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
   const event = await getAuthorizedEvent(authReq, res, req.params.eventId);
@@ -94,34 +95,41 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
     return res.status(400).json({ error: 'No file uploaded.' });
   }
 
+  const safeOriginalName = path.basename(authReq.file.originalname).replace(/[^a-zA-Z0-9._\-]/g, '_');
+
   const db = getDatabase();
-  const result = await db.run(
-    `INSERT INTO event_documents (event_id, original_name, file_name, mime_type, file_size, created_by)
-     VALUES (?, ?, ?, ?, ?, ?)
-     RETURNING id`,
-    [
-      req.params.eventId,
-      authReq.file.originalname,
-      authReq.file.filename,
-      authReq.file.mimetype,
-      authReq.file.size,
-      authReq.user!.id,
-    ],
-  );
+  try {
+    const result = await db.run(
+      `INSERT INTO event_documents (event_id, original_name, file_name, mime_type, file_size, created_by)
+       VALUES (?, ?, ?, ?, ?, ?)
+       RETURNING id`,
+      [
+        req.params.eventId,
+        safeOriginalName,
+        authReq.file.filename,
+        authReq.file.mimetype,
+        authReq.file.size,
+        authReq.user!.id,
+      ],
+    );
 
-  const document = await db.get(
-    `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at
-     FROM event_documents WHERE id = ?`,
-    [result.lastID],
-  );
+    const document = await db.get(
+      `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at
+       FROM event_documents WHERE id = ?`,
+      [result.lastID],
+    );
 
-  return res.status(201).json({
-    document,
-    downloadUrl: `/api/events/${req.params.eventId}/documents/${result.lastID}`,
-  });
+    return res.status(201).json({
+      document,
+      downloadUrl: `/api/events/${req.params.eventId}/documents/${result.lastID}`,
+    });
+  } catch (error) {
+    console.error('Failed to save uploaded document to database:', error);
+    await cleanupUploadedFile(authReq.file.path);
+    return res.status(500).json({ error: 'Failed to save document.' });
+  }
 }
 
-/** GET /api/events/:eventId/documents/:id */
 export async function downloadEventDocument(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
   const event = await getAuthorizedEvent(authReq, res, req.params.eventId);
@@ -140,7 +148,6 @@ export async function downloadEventDocument(req: Request, res: Response): Promis
   return res;
 }
 
-/** DELETE /api/events/:eventId/documents/:id */
 export async function deleteEventDocument(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
   const event = await getAuthorizedEvent(authReq, res, req.params.eventId);
