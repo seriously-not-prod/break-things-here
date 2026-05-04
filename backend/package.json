@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner PORT=4000 tsx watch src/index.ts",
+    "dev": "TZ=UTC DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner PORT=4000 tsx watch src/index.ts",
     "build": "tsc",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "TZ=UTC DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/festival_planner_test} vitest run --pool threads --poolOptions.threads.singleThread --maxWorkers 1",
+    "test:watch": "TZ=UTC DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/festival_planner_test} vitest --pool threads --poolOptions.threads.singleThread --maxWorkers 1",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit"
   },
@@ -19,9 +19,7 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
     "nodemailer": "^6.9.7",
-    "pg": "^8.20.0",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7"
+    "pg": "^8.20.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

@@ -3,14 +3,14 @@
  * Sets up the connection pool and runs schema migrations
  */
 
+process.env.TZ = process.env.TZ || 'UTC';
+
 import pg from 'pg';
-import sqlite3 from 'sqlite3';
-import { open, type Database as SqliteDatabase } from 'sqlite';
 
 const { Pool } = pg;
 
-type SupportedDatabase = pg.Pool | SqliteDatabase;
-type DatabaseEngine = 'postgres' | 'sqlite';
+type SupportedDatabase = pg.Pool;
+type DatabaseEngine = 'postgres';
 
 export interface RunResult {
   lastID?: number;
@@ -20,27 +20,11 @@ export interface RunResult {
 type AllReturn<T> = T extends Array<unknown> ? T : T[];
 
 /**
- * Converts SQLite-style ? positional placeholders to PostgreSQL $N style.
+ * Converts ? positional placeholders to PostgreSQL $N style.
  */
 function convertPlaceholders(sql: string): string {
   let index = 0;
   return sql.replace(/\?/g, () => `$${++index}`);
-}
-
-function isPostgresConnectionString(connectionString: string | undefined): boolean {
-  return typeof connectionString === 'string' && /^(postgres|postgresql):\/\//i.test(connectionString);
-}
-
-function shouldUseSqlite(connectionString: string | undefined): boolean {
-  if (isPostgresConnectionString(connectionString)) {
-    return false;
-  }
-
-  if (connectionString) {
-    return true;
-  }
-
-  return process.env.VITEST === 'true' || process.env.NODE_ENV === 'test';
 }
 
 function stripReturningId(sql: string): string {
@@ -48,9 +32,9 @@ function stripReturningId(sql: string): string {
 }
 
 /**
- * SQLite-compatible wrapper around a PostgreSQL Pool.
- * Provides get / all / run / exec so existing controller code needs
- * minimal changes beyond fixing SQLite-specific SQL syntax.
+ * Wrapper around a PostgreSQL Pool.
+ * Provides get / all / run / exec so controller code can use a simple
+ * database abstraction with placeholder conversion.
  */
 export class DbWrapper {
   private db: SupportedDatabase;
@@ -62,20 +46,12 @@ export class DbWrapper {
   }
 
   async get<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T | undefined> {
-    if (this.engine === 'sqlite') {
-      return (await (this.db as SqliteDatabase).get<T>(sql, params ?? [])) ?? undefined;
-    }
-
     const converted = convertPlaceholders(sql);
     const result = await (this.db as pg.Pool).query(converted, params);
     return result.rows[0] as T | undefined;
   }
 
   async all<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<AllReturn<T>> {
-    if (this.engine === 'sqlite') {
-      return (((await (this.db as SqliteDatabase).all<unknown>(sql, params ?? [])) ?? []) as AllReturn<T>);
-    }
-
     const converted = convertPlaceholders(sql);
     const result = await (this.db as pg.Pool).query(converted, params ?? []);
     return result.rows as AllReturn<T>;
@@ -86,14 +62,6 @@ export class DbWrapper {
    * If the SQL contains a RETURNING clause, rows[0].id is surfaced as lastID.
    */
   async run(sql: string, params?: unknown[]): Promise<RunResult> {
-    if (this.engine === 'sqlite') {
-      const statement = await (this.db as SqliteDatabase).run(stripReturningId(sql), params ?? []);
-      return {
-        lastID: typeof statement.lastID === 'number' ? statement.lastID : undefined,
-        changes: statement.changes ?? 0,
-      };
-    }
-
     const trimmedUpper = sql.trim().toUpperCase();
     const converted = convertPlaceholders(sql);
     const result = await (this.db as pg.Pool).query(converted, params);
@@ -102,11 +70,6 @@ export class DbWrapper {
   }
 
   async exec(sql: string): Promise<void> {
-    if (this.engine === 'sqlite') {
-      await (this.db as SqliteDatabase).exec(sql);
-      return;
-    }
-
     await (this.db as pg.Pool).query(sql);
   }
 }
@@ -159,30 +122,14 @@ async function insertRolePermissions(
 export async function initializeDatabase(): Promise<DbWrapper> {
   if (dbWrapper) return dbWrapper;
 
-  const configuredConnection = process.env.DATABASE_URL;
-
-  if (shouldUseSqlite(configuredConnection)) {
-    const filename = configuredConnection || ':memory:';
-    const sqliteDb = await open({
-      filename,
-      driver: sqlite3.Database,
-    });
-
-    await sqliteDb.exec('PRAGMA foreign_keys = ON');
-
-    dbConnection = sqliteDb;
-    dbEngine = 'sqlite';
-    dbWrapper = new DbWrapper(sqliteDb, 'sqlite');
-    await runMigrations(dbWrapper, 'sqlite');
-
-    return dbWrapper;
-  }
-
   const connectionString =
-    configuredConnection ||
+    process.env.DATABASE_URL ||
     'postgresql://postgres:postgres@localhost:5432/festival_planner';
 
   const pool = new Pool({ connectionString });
+  pool.on('connect', (client) => {
+    void client.query("SET TIME ZONE 'UTC'");
+  });
 
   // Verify connectivity
   const client = await pool.connect();
@@ -211,12 +158,7 @@ export function getDatabase(): DbWrapper {
  */
 export async function closeDatabase(): Promise<void> {
   if (dbConnection) {
-    if (dbEngine === 'sqlite') {
-      await (dbConnection as SqliteDatabase).close();
-    } else {
-      await (dbConnection as pg.Pool).end();
-    }
-
+    await (dbConnection as pg.Pool).end();
     dbConnection = null;
     dbEngine = null;
     dbWrapper = null;
@@ -228,15 +170,18 @@ export async function closeDatabase(): Promise<void> {
  * required reference data (roles, permissions).
  */
 async function runMigrations(db: DbWrapper, engine: DatabaseEngine): Promise<void> {
-  if (engine === 'sqlite') {
-    await runSqliteMigrations(db);
-    return;
-  }
-
   await runPostgresMigrations(db);
 }
 
 async function runPostgresMigrations(db: DbWrapper): Promise<void> {
+  if (process.env.NODE_ENV === 'test') {
+    await db.exec(`
+      DROP TABLE IF EXISTS album_photos, albums, photo_shares, event_photos, event_documents,
+        rsvps, tasks, event_members, events, role_permissions, permissions, user_profiles,
+        sessions, password_reset_rate_limit, password_reset_tokens, audit_log, users CASCADE;
+    `);
+  }
+
   // Create users table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -245,18 +190,18 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       password_hash TEXT NOT NULL,
       display_name TEXT NOT NULL,
       email_verified INTEGER DEFAULT 0,
-      email_verified_at TIMESTAMP,
+      email_verified_at TIMESTAMPTZ,
       email_verification_token TEXT,
       pending_email TEXT,
       pending_email_token TEXT,
-      pending_email_token_expiry TIMESTAMP,
+      pending_email_token_expiry TIMESTAMPTZ,
       role_id INTEGER DEFAULT 1,
       account_locked INTEGER DEFAULT 0,
-      locked_until TIMESTAMP,
+      locked_until TIMESTAMPTZ,
       login_attempts INTEGER DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      deleted_at TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TIMESTAMPTZ
     )
   `);
 
@@ -267,9 +212,9 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       user_id INTEGER NOT NULL,
       token TEXT NOT NULL UNIQUE,
       refresh_token TEXT NOT NULL UNIQUE,
-      expires_at TIMESTAMP NOT NULL,
-      last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMPTZ NOT NULL,
+      last_activity TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
@@ -282,10 +227,10 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       email TEXT NOT NULL,
       token_selector TEXT NOT NULL DEFAULT '',
       token TEXT NOT NULL UNIQUE,
-      expires_at TIMESTAMP NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
       used INTEGER DEFAULT 0,
-      used_at TIMESTAMP,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      used_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
@@ -296,7 +241,7 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       id SERIAL PRIMARY KEY,
       email TEXT NOT NULL,
       request_count INTEGER DEFAULT 1,
-      window_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      window_start TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(email)
     )
   `);
@@ -310,7 +255,7 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       action TEXT NOT NULL,
       description TEXT,
       ip_address TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
@@ -321,7 +266,7 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       id SERIAL PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
       description TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -343,7 +288,7 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       id SERIAL PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
       description TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -371,8 +316,8 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       state TEXT,
       zip_code TEXT,
       country TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
@@ -402,8 +347,8 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       description TEXT,
       event_type TEXT CHECK(event_type IN ('Birthday', 'Wedding', 'Corporate', 'Festival', 'Conference', 'Other')) DEFAULT 'Other',
       status TEXT CHECK(status IN ('Draft', 'Planning', 'Confirmed', 'Active', 'Completed', 'Cancelled')) DEFAULT 'Draft',
-      start_date TIMESTAMP NOT NULL,
-      end_date TIMESTAMP,
+      start_date TIMESTAMPTZ NOT NULL,
+      end_date TIMESTAMPTZ,
       venue_name TEXT,
       address TEXT,
       location TEXT,
@@ -412,9 +357,9 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       cover_image_url TEXT,
       tags TEXT,
       created_by INTEGER NOT NULL,
-      deleted_at TIMESTAMP,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
@@ -429,8 +374,8 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       assignee TEXT,
       due_date TEXT,
       status TEXT CHECK(status IN ('Pending', 'Complete')) DEFAULT 'Pending',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     )
   `);
@@ -444,8 +389,8 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       email TEXT NOT NULL,
       guests INTEGER DEFAULT 1,
       status TEXT CHECK(status IN ('Pending', 'Confirmed', 'Declined')) DEFAULT 'Pending',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(event_id, email),
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     )
@@ -465,8 +410,8 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       mime_type TEXT NOT NULL,
       file_size INTEGER NOT NULL,
       created_by INTEGER,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     )
@@ -487,8 +432,8 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       status TEXT CHECK(status IN ('Approved', 'Pending', 'Rejected')) DEFAULT 'Approved',
       is_cover INTEGER DEFAULT 0,
       created_by INTEGER,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     )
@@ -503,8 +448,8 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       event_id INTEGER NOT NULL,
       name TEXT NOT NULL,
       cover_photo_id INTEGER,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
       FOREIGN KEY (cover_photo_id) REFERENCES event_photos(id) ON DELETE SET NULL
     )
@@ -525,8 +470,8 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
     CREATE TABLE IF NOT EXISTS photo_shares (
       token TEXT PRIMARY KEY,
       photo_id INTEGER NOT NULL,
-      expires_at TIMESTAMP,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (photo_id) REFERENCES event_photos(id) ON DELETE CASCADE
     )
   `);
@@ -536,7 +481,7 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
       event_id INTEGER NOT NULL,
       user_id INTEGER NOT NULL,
       role TEXT DEFAULT 'Member',
-      joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      joined_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (event_id, user_id),
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -544,212 +489,3 @@ async function runPostgresMigrations(db: DbWrapper): Promise<void> {
   `);
 }
 
-async function runSqliteMigrations(db: DbWrapper): Promise<void> {
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      display_name TEXT NOT NULL,
-      email_verified INTEGER DEFAULT 0,
-      email_verified_at DATETIME,
-      email_verification_token TEXT,
-      pending_email TEXT,
-      pending_email_token TEXT,
-      pending_email_token_expiry DATETIME,
-      role_id INTEGER DEFAULT 1,
-      account_locked INTEGER DEFAULT 0,
-      locked_until DATETIME,
-      login_attempts INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      deleted_at DATETIME
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      token TEXT NOT NULL UNIQUE,
-      refresh_token TEXT NOT NULL UNIQUE,
-      expires_at DATETIME NOT NULL,
-      last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS password_reset_tokens (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      email TEXT NOT NULL,
-      token_selector TEXT NOT NULL DEFAULT '',
-      token TEXT NOT NULL UNIQUE,
-      expires_at DATETIME NOT NULL,
-      used INTEGER DEFAULT 0,
-      used_at DATETIME,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS password_reset_rate_limit (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT NOT NULL,
-      request_count INTEGER DEFAULT 1,
-      window_start DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(email)
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS audit_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      email TEXT,
-      action TEXT NOT NULL,
-      description TEXT,
-      ip_address TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS roles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      description TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  await db.exec(`
-    INSERT OR IGNORE INTO roles (id, name, description) VALUES
-    (1, 'Attendee', 'Default role for new users'),
-    (2, 'Organizer', 'Can create and manage events'),
-    (3, 'Admin', 'Full system access')
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS permissions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      description TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS role_permissions (
-      role_id INTEGER NOT NULL,
-      permission_id INTEGER NOT NULL,
-      PRIMARY KEY (role_id, permission_id),
-      FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
-      FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS user_profiles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER UNIQUE NOT NULL,
-      bio TEXT,
-      phone_number TEXT,
-      profile_photo_url TEXT,
-      address TEXT,
-      city TEXT,
-      state TEXT,
-      zip_code TEXT,
-      country TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      deleted_at DATETIME,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.exec(`
-    INSERT OR IGNORE INTO permissions (name, description) VALUES
-    ('users.view', 'View user profiles'),
-    ('users.edit', 'Edit user profiles'),
-    ('users.delete', 'Delete users'),
-    ('events.view', 'View events'),
-    ('events.create', 'Create events'),
-    ('events.edit', 'Edit events'),
-    ('events.delete', 'Delete events'),
-    ('roles.view', 'View roles'),
-    ('roles.manage', 'Manage roles and permissions')
-  `);
-
-  await seedRolePermissions(db, true);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      description TEXT,
-      event_type TEXT CHECK(event_type IN ('Birthday', 'Wedding', 'Corporate', 'Festival', 'Conference', 'Other')) DEFAULT 'Other',
-      status TEXT CHECK(status IN ('Draft', 'Planning', 'Confirmed', 'Active', 'Completed', 'Cancelled')) DEFAULT 'Draft',
-      start_date DATETIME NOT NULL,
-      end_date DATETIME,
-      venue_name TEXT,
-      address TEXT,
-      location TEXT,
-      capacity INTEGER,
-      is_public INTEGER DEFAULT 1,
-      cover_image_url TEXT,
-      tags TEXT,
-      created_by INTEGER NOT NULL,
-      deleted_at DATETIME,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT,
-      assignee TEXT,
-      due_date TEXT,
-      status TEXT CHECK(status IN ('Pending', 'Complete')) DEFAULT 'Pending',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS rsvps (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id INTEGER NOT NULL,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      guests INTEGER DEFAULT 1,
-      status TEXT CHECK(status IN ('Pending', 'Confirmed', 'Declined')) DEFAULT 'Pending',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(event_id, email),
-      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS event_members (
-      event_id INTEGER NOT NULL,
-      user_id INTEGER NOT NULL,
-      role TEXT DEFAULT 'Member',
-      joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (event_id, user_id),
-      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-}

@@ -255,7 +255,7 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
 
       // Manually update window start to 2 hours ago
       await db.run(
-        "UPDATE password_reset_rate_limit SET window_start = datetime('now', '-2 hours') WHERE email = ?",
+        "UPDATE password_reset_rate_limit SET window_start = CURRENT_TIMESTAMP - INTERVAL '2 hours' WHERE email = ?",
         ['test@example.com'],
       );
 

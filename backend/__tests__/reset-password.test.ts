@@ -41,7 +41,7 @@ async function seedUser(email: string, password: string): Promise<number> {
   const db = getDatabase();
   const hash = await hashPassword(password);
   const result = await db.run(
-    `INSERT INTO users (email, password_hash, display_name, email_verified) VALUES (?, ?, ?, 1)`,
+    `INSERT INTO users (email, password_hash, display_name, email_verified) VALUES (?, ?, ?, 1) RETURNING id`,
     [email, hash, 'Test User'],
   );
   return result.lastID as number;

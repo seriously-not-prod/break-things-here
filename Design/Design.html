@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eventora – Plan. Organize. Celebrate.</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --primary: #6C3EF4;
+    --primary-light: #7C4DFF;
+    --primary-bg: #EEE9FD;
+    --sidebar-bg: #1A0E3C;
+    --sidebar-text: #A89CC8;
+    --sidebar-active: #6C3EF4;
+    --bg: #F4F5FA;
+    --card: #FFFFFF;
+    --text: #1E1B39;
+    --text-muted: #8B8AAA;
+    --border: #EDEEF5;
+    --green: #22C55E;
+    --orange: #F97316;
+    --blue: #3B82F6;
+    --pink: #EC4899;
+    --yellow: #EAB308;
+    --red: #EF4444;
+    --shadow: 0 2px 12px rgba(108,62,244,0.08);
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    font-size: 13px;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 210px;
+    min-width: 210px;
+    background: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    height: 100vh;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .sidebar::-webkit-scrollbar { display: none; }
+
+  .sidebar-logo {
+    padding: 22px 20px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-icon {
+    width: 34px; height: 34px;
+    background: var(--primary);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 16px;
+  }
+  .logo-text { color: #fff; font-weight: 800; font-size: 16px; line-height: 1; }
+  .logo-sub { color: var(--sidebar-text); font-size: 9px; font-weight: 500; }
+
+  .sidebar-search {
+    margin: 0 14px 16px;
+    background: rgba(255,255,255,0.06);
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    color: var(--sidebar-text); font-size: 12px;
+  }
+  .sidebar-search i { font-size: 11px; }
+
+  .sidebar-section { padding: 0 10px; margin-bottom: 4px; }
+  .nav-label {
+    color: #5B5080; font-size: 9px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 6px 10px 4px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: var(--radius-sm);
+    color: var(--sidebar-text); font-weight: 500;
+    cursor: pointer; transition: all .15s; font-size: 13px;
+    text-decoration: none; margin-bottom: 2px;
+  }
+  .nav-item i { width: 16px; text-align: center; font-size: 13px; }
+  .nav-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
+  .nav-item.active { background: var(--primary); color: #fff; }
+  .nav-badge {
+    margin-left: auto; background: var(--primary);
+    color: #fff; font-size: 9px; font-weight: 700;
+    padding: 2px 6px; border-radius: 20px;
+  }
+  .nav-item.active .nav-badge { background: rgba(255,255,255,0.3); }
+
+  .sidebar-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 8px 16px; }
+
+  .quick-actions {
+    padding: 0 14px; margin-top: 4px;
+  }
+  .quick-label {
+    color: #5B5080; font-size: 9px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;
+  }
+  .qa-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: var(--radius-sm);
+    color: var(--sidebar-text); font-size: 12.5px; font-weight: 500;
+    cursor: pointer; margin-bottom: 2px; transition: all .15s;
+  }
+  .qa-btn:hover { color: #fff; }
+  .qa-btn.primary-btn {
+    background: var(--primary); color: #fff;
+    justify-content: center; font-weight: 700;
+    margin-bottom: 10px; font-size: 13px;
+  }
+  .qa-btn .qa-icon {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: rgba(255,255,255,0.08);
+    display: flex; align-items: center; justify-content: center; font-size: 11px;
+  }
+  .qa-btn.primary-btn .qa-icon { background: rgba(255,255,255,0.2); }
+
+  .sidebar-user {
+    margin-top: auto; padding: 14px 16px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .user-avatar-sm {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--primary); display: flex; align-items: center;
+    justify-content: center; font-weight: 700; color: #fff; font-size: 13px;
+    flex-shrink: 0; overflow: hidden;
+  }
+  .user-avatar-sm img { width: 100%; height: 100%; object-fit: cover; }
+  .user-name-sm { color: #fff; font-weight: 600; font-size: 12.5px; }
+  .user-role-sm { color: var(--sidebar-text); font-size: 10.5px; }
+  .user-chevron { margin-left: auto; color: var(--sidebar-text); font-size: 11px; cursor: pointer; }
+
+  .upgrade-box {
+    margin: 10px 14px 16px;
+    background: linear-gradient(135deg, #3D1A8A, #6C3EF4);
+    border-radius: var(--radius); padding: 14px;
+  }
+  .upgrade-box .crown { font-size: 18px; margin-bottom: 6px; }
+  .upgrade-box p { color: rgba(255,255,255,0.8); font-size: 11px; margin-bottom: 10px; line-height: 1.5; }
+  .upgrade-box button {
+    background: #fff; color: var(--primary); border: none;
+    border-radius: 8px; padding: 7px 14px; font-size: 11.5px;
+    font-weight: 700; cursor: pointer; width: 100%;
+  }
+
+  /* ── MAIN ── */
+  .main {
+    flex: 1; display: flex; flex-direction: column;
+    overflow: hidden; min-width: 0;
+  }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    background: var(--card); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 24px; height: 60px; flex-shrink: 0;
+  }
+  .topbar-hamburger { color: var(--text-muted); cursor: pointer; font-size: 16px; }
+  .topbar-search {
+    flex: 1; max-width: 360px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); display: flex; align-items: center;
+    gap: 8px; padding: 8px 14px; color: var(--text-muted); font-size: 12.5px;
+  }
+  .topbar-search input {
+    border: none; background: transparent; outline: none;
+    font-family: inherit; font-size: 12.5px; color: var(--text); flex: 1;
+  }
+  .topbar-kbd {
+    background: var(--border); border-radius: 4px;
+    padding: 1px 6px; font-size: 10px; color: var(--text-muted);
+  }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .topbar-icon {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--bg); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 14px; cursor: pointer;
+    position: relative; transition: all .15s;
+  }
+  .topbar-icon:hover { background: var(--primary-bg); color: var(--primary); }
+  .notif-dot {
+    width: 8px; height: 8px; background: var(--red);
+    border-radius: 50%; position: absolute; top: 6px; right: 6px;
+    border: 2px solid var(--card);
+  }
+  .topbar-add {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--primary); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; cursor: pointer; font-weight: 300;
+  }
+  .topbar-user {
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+  }
+  .topbar-user-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, #6C3EF4, #EC4899);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 14px;
+  }
+  .topbar-user-info { line-height: 1.3; }
+  .topbar-user-name { font-weight: 700; font-size: 13px; }
+  .topbar-user-role { color: var(--text-muted); font-size: 10.5px; }
+
+  /* ── CONTENT ── */
+  .content {
+    flex: 1; overflow-y: auto; padding: 22px 24px;
+    scrollbar-width: thin; scrollbar-color: #ddd transparent;
+  }
+
+  .page-title { font-size: 20px; font-weight: 800; margin-bottom: 18px; }
+
+  /* ── STAT CARDS ── */
+  .stats-row {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    gap: 14px; margin-bottom: 22px;
+  }
+  .stat-card {
+    background: var(--card); border-radius: var(--radius);
+    padding: 16px 18px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .stat-icon-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .stat-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; flex-shrink: 0;
+  }
+  .stat-label { color: var(--text-muted); font-size: 11.5px; font-weight: 500; }
+  .stat-value { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  .stat-change {
+    font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 3px;
+  }
+  .stat-change.up { color: var(--green); }
+  .stat-change.down { color: var(--red); }
+  .stat-change span { color: var(--text-muted); font-weight: 400; }
+
+  /* Budget card special */
+  .stat-card.budget-card { background: linear-gradient(135deg, #6C3EF4, #9B6DFF); }
+  .stat-card.budget-card .stat-label,
+  .stat-card.budget-card .stat-value,
+  .stat-card.budget-card .stat-change { color: rgba(255,255,255,0.9); }
+  .stat-card.budget-card .stat-change span { color: rgba(255,255,255,0.6); }
+  .budget-progress-bar {
+    height: 5px; background: rgba(255,255,255,0.25); border-radius: 3px; margin-top: 6px;
+  }
+  .budget-progress-fill {
+    height: 100%; background: #fff; border-radius: 3px; width: 31%;
+  }
+  .budget-pct { color: rgba(255,255,255,0.7); font-size: 10.5px; margin-top: 3px; }
+
+  /* ── TWO COLUMN LAYOUT ── */
+  .two-col { display: grid; grid-template-columns: 1fr 320px; gap: 18px; margin-bottom: 22px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 300px; gap: 18px; margin-bottom: 22px; }
+
+  /* ── SECTION HEADER ── */
+  .sec-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .sec-title { font-size: 15px; font-weight: 800; }
+  .sec-link {
+    color: var(--primary); font-size: 12px; font-weight: 600;
+    cursor: pointer; text-decoration: none; display: flex; align-items: center; gap: 4px;
+  }
+
+  /* ── EVENT CARDS ── */
+  .events-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .event-card {
+    border-radius: var(--radius); overflow: hidden; position: relative;
+    box-shadow: var(--shadow); cursor: pointer;
+  }
+  .event-img {
+    height: 120px; width: 100%; object-fit: cover;
+    background: linear-gradient(135deg, #6C3EF4, #EC4899);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; position: relative; overflow: hidden;
+  }
+  .event-img-1 { background: linear-gradient(135deg, #7C3AED, #EC4899); }
+  .event-img-2 { background: linear-gradient(135deg, #0EA5E9, #22C55E); }
+  .event-img-3 { background: linear-gradient(135deg, #1E40AF, #3B82F6); }
+  .event-badge {
+    position: absolute; top: 10px; left: 10px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .badge-upcoming { background: var(--orange); color: #fff; }
+  .badge-planned { background: #fff; color: var(--text); }
+  .badge-confirmed { background: var(--green); color: #fff; }
+  .event-more {
+    position: absolute; top: 10px; right: 10px;
+    color: rgba(255,255,255,0.8); font-size: 14px; cursor: pointer;
+  }
+  .event-body { background: var(--card); padding: 12px 14px; }
+  .event-date-row { display: flex; align-items: flex-start; gap: 10px; }
+  .event-date-box { text-align: center; flex-shrink: 0; }
+  .event-date-num { font-size: 22px; font-weight: 800; color: var(--primary); line-height: 1; }
+  .event-date-mon { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+  .event-info { flex: 1; min-width: 0; }
+  .event-name { font-weight: 700; font-size: 13px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .event-loc { color: var(--text-muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .event-guests { color: var(--text-muted); font-size: 11px; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+
+  /* ── CALENDAR ── */
+  .calendar-card { background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
+  .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .cal-nav { display: flex; align-items: center; gap: 6px; }
+  .cal-nav-btn {
+    width: 26px; height: 26px; border: 1px solid var(--border);
+    border-radius: 6px; display: flex; align-items: center;
+    justify-content: center; cursor: pointer; color: var(--text-muted); font-size: 11px;
+  }
+  .cal-view { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 11.5px; font-weight: 600; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .cal-day-label { text-align: center; font-size: 10px; color: var(--text-muted); font-weight: 600; padding: 4px 0; }
+  .cal-day {
+    text-align: center; padding: 5px 2px; font-size: 11.5px;
+    border-radius: 6px; cursor: pointer; font-weight: 500;
+    position: relative;
+  }
+  .cal-day:hover { background: var(--primary-bg); color: var(--primary); }
+  .cal-day.today { background: var(--primary); color: #fff; font-weight: 700; }
+  .cal-day.other-month { color: #D1D0E0; }
+  .cal-dot {
+    width: 4px; height: 4px; border-radius: 50%;
+    position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+  }
+  .dot-purple { background: var(--primary); }
+  .dot-green { background: var(--green); }
+  .dot-orange { background: var(--orange); }
+  .cal-events { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .cal-event {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; background: var(--bg);
+    border-radius: var(--radius-sm); border-left: 3px solid var(--primary);
+  }
+  .cal-event.orange { border-left-color: var(--orange); }
+  .cal-event.blue { border-left-color: var(--blue); }
+  .cal-event-time { font-size: 10.5px; color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
+  .cal-event-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--primary); }
+  .cal-event.orange .cal-event-dot { background: var(--orange); }
+  .cal-event.blue .cal-event-dot { background: var(--blue); }
+  .cal-event-name { font-weight: 700; font-size: 12px; }
+  .cal-event-sub { color: var(--text-muted); font-size: 10.5px; }
+  .cal-event-more { margin-left: auto; color: var(--text-muted); font-size: 12px; cursor: pointer; }
+
+  /* ── TASK OVERVIEW ── */
+  .task-card { background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
+  .task-status-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .task-status {
+    background: var(--bg); border-radius: var(--radius-sm);
+    padding: 10px 12px; text-align: center;
+  }
+  .ts-count { font-size: 22px; font-weight: 800; }
+  .ts-label { font-size: 10px; color: var(--text-muted); font-weight: 600; margin-top: 1px; }
+  .ts-todo { color: var(--orange); }
+  .ts-progress { color: var(--blue); }
+  .ts-review { color: var(--yellow); }
+  .ts-done { color: var(--green); }
+  .task-list { display: flex; flex-direction: column; gap: 9px; }
+  .task-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); transition: all .15s; cursor: pointer;
+  }
+  .task-item:hover { border-color: var(--primary); background: var(--primary-bg); }
+  .task-check {
+    width: 16px; height: 16px; border: 2px solid var(--border);
+    border-radius: 4px; flex-shrink: 0; display: flex;
+    align-items: center; justify-content: center; font-size: 9px;
+  }
+  .task-name { flex: 1; font-weight: 500; font-size: 12.5px; }
+  .task-priority {
+    padding: 2px 8px; border-radius: 20px;
+    font-size: 10px; font-weight: 700; text-transform: capitalize;
+  }
+  .priority-high { background: #FEE2E2; color: var(--red); }
+  .priority-medium { background: #FEF3C7; color: #D97706; }
+  .priority-low { background: #DCFCE7; color: #16A34A; }
+  .task-date { color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
+  .task-avatar {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--primary-bg); display: flex; align-items: center;
+    justify-content: center; font-size: 9px; font-weight: 700; color: var(--primary);
+  }
+  .add-task {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--primary); font-size: 12.5px; font-weight: 600;
+    cursor: pointer; padding: 8px 4px; margin-top: 6px;
+  }
+
+  /* ── BUDGET ── */
+  .budget-card { background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
+  .budget-amounts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+  .budget-amt { text-align: center; }
+  .ba-label { font-size: 10.5px; color: var(--text-muted); font-weight: 500; margin-bottom: 2px; }
+  .ba-value { font-size: 16px; font-weight: 800; }
+  .ba-value.spent { color: var(--primary); }
+  .ba-value.remaining { color: var(--green); }
+  .donut-wrapper {
+    display: flex; align-items: center; justify-content: center;
+    position: relative; margin: 0 auto 16px; width: 140px; height: 140px;
+  }
+  .donut-center {
+    position: absolute; text-align: center;
+  }
+  .donut-center-value { font-size: 16px; font-weight: 800; }
+  .donut-center-label { font-size: 10px; color: var(--text-muted); }
+  .budget-legend { display: flex; flex-direction: column; gap: 7px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 11.5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .legend-name { flex: 1; color: var(--text-muted); }
+  .legend-val { font-weight: 700; }
+  .legend-pct { color: var(--text-muted); font-size: 10.5px; width: 32px; text-align: right; }
+
+  /* ── RECENT ACTIVITY ── */
+  .activity-card { background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
+  .activity-list { display: flex; flex-direction: column; gap: 12px; }
+  .activity-item { display: flex; align-items: flex-start; gap: 10px; }
+  .act-icon {
+    width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 13px;
+  }
+  .act-green { background: #DCFCE7; color: var(--green); }
+  .act-blue { background: #DBEAFE; color: var(--blue); }
+  .act-purple { background: var(--primary-bg); color: var(--primary); }
+  .act-orange { background: #FEF3C7; color: var(--orange); }
+  .act-red { background: #FEE2E2; color: var(--red); }
+  .act-body { flex: 1; }
+  .act-text { font-size: 12.5px; font-weight: 500; line-height: 1.4; }
+  .act-time { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+  /* ── QUICK ACCESS ── */
+  .quick-access-card { background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); margin-bottom: 10px; }
+  .qa-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
+  .qa-item {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    cursor: pointer; padding: 10px 8px; border-radius: var(--radius-sm);
+    transition: all .15s;
+  }
+  .qa-item:hover { background: var(--primary-bg); }
+  .qa-item-icon {
+    width: 38px; height: 38px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .qa-item-label { font-size: 10.5px; font-weight: 600; color: var(--text-muted); text-align: center; }
+
+  /* ── FAB ── */
+  .fab {
+    position: fixed; bottom: 28px; right: 28px;
+    width: 50px; height: 50px; border-radius: 50%;
+    background: var(--primary); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; cursor: pointer; box-shadow: 0 6px 24px rgba(108,62,244,0.4);
+    transition: transform .15s;
+  }
+  .fab:hover { transform: scale(1.08); }
+
+  /* ── SCROLLBAR ── */
+  .content::-webkit-scrollbar { width: 5px; }
+  .content::-webkit-scrollbar-thumb { background: #D1D0E0; border-radius: 3px; }
+
+  /* Donut SVG */
+  .donut-svg { transform: rotate(-90deg); }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon"><i class="fa-solid fa-calendar-star"></i></div>
+    <div>
+      <div class="logo-text">Eventora</div>
+      <div class="logo-sub">Plan. Organize. Celebrate.</div>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="nav-item active"><i class="fa-solid fa-grid-2"></i> Dashboard</div>
+    <div class="nav-item"><i class="fa-solid fa-calendar-days"></i> Events <span class="nav-badge">12</span></div>
+    <div class="nav-item"><i class="fa-solid fa-users"></i> Guests</div>
+    <div class="nav-item"><i class="fa-solid fa-list-check"></i> Tasks</div>
+    <div class="nav-item"><i class="fa-solid fa-wallet"></i> Budget</div>
+    <div class="nav-item"><i class="fa-solid fa-store"></i> Vendors</div>
+    <div class="nav-item"><i class="fa-solid fa-timeline"></i> Timeline</div>
+    <div class="nav-item"><i class="fa-solid fa-images"></i> Gallery</div>
+    <div class="nav-item"><i class="fa-solid fa-chart-bar"></i> Reports</div>
+    <div class="nav-item"><i class="fa-solid fa-bell"></i> Notifications <span class="nav-badge">3</span></div>
+  </div>
+
+  <div class="sidebar-divider"></div>
+
+  <div class="quick-actions">
+    <div class="quick-label">Quick Actions</div>
+    <div class="qa-btn primary-btn"><div class="qa-icon"><i class="fa-solid fa-plus"></i></div> Create Event</div>
+    <div class="qa-btn"><div class="qa-icon"><i class="fa-solid fa-user-plus"></i></div> Add Guest</div>
+    <div class="qa-btn"><div class="qa-icon"><i class="fa-solid fa-circle-plus"></i></div> Create Task</div>
+    <div class="qa-btn"><div class="qa-icon"><i class="fa-solid fa-receipt"></i></div> Add Expense</div>
+    <div class="qa-btn"><div class="qa-icon"><i class="fa-solid fa-envelope"></i></div> Send Invitation</div>
+  </div>
+
+  <div class="upgrade-box">
+    <div class="crown">👑</div>
+    <p>Upgrade to Pro<br><small>Unlock advanced features</small></p>
+    <button>Upgrade Now</button>
+  </div>
+
+  <div class="sidebar-user">
+    <div class="user-avatar-sm">R</div>
+    <div>
+      <div class="user-name-sm">Rohan Organizer</div>
+      <div class="user-role-sm">Admin</div>
+    </div>
+    <div class="user-chevron"><i class="fa-solid fa-chevron-up"></i></div>
+  </div>
+</aside>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<div class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-hamburger"><i class="fa-solid fa-bars"></i></div>
+    <div class="topbar-search">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="text" placeholder="Search events, guests, tasks…">
+      <span class="topbar-kbd">Ctrl + K</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-add">+</div>
+      <div class="topbar-icon"><i class="fa-solid fa-bell"></i><div class="notif-dot"></div></div>
+      <div class="topbar-icon"><i class="fa-solid fa-message"></i></div>
+      <div class="topbar-user">
+        <div class="topbar-user-avatar">R</div>
+        <div class="topbar-user-info">
+          <div class="topbar-user-name">Rohan Organizer</div>
+          <div class="topbar-user-role">Event Planner</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- STAT CARDS -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon-row">
+          <div class="stat-icon" style="background:#EEE9FD; color:#6C3EF4;"><i class="fa-solid fa-calendar-star"></i></div>
+          <span class="stat-label">Upcoming Events</span>
+        </div>
+        <div class="stat-value">12</div>
+        <div class="stat-change up"><i class="fa-solid fa-arrow-trend-up"></i> 20% <span>vs last month</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-row">
+          <div class="stat-icon" style="background:#DBEAFE; color:#3B82F6;"><i class="fa-solid fa-users"></i></div>
+          <span class="stat-label">Total Guests</span>
+        </div>
+        <div class="stat-value">1,248</div>
+        <div class="stat-change up"><i class="fa-solid fa-arrow-trend-up"></i> 15% <span>vs last month</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-row">
+          <div class="stat-icon" style="background:#DCFCE7; color:#22C55E;"><i class="fa-solid fa-circle-check"></i></div>
+          <span class="stat-label">Tasks Completed</span>
+        </div>
+        <div class="stat-value">68%</div>
+        <div class="stat-change up"><i class="fa-solid fa-arrow-trend-up"></i> 8% <span>vs last month</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-row">
+          <div class="stat-icon" style="background:#FEF3C7; color:#EAB308;"><i class="fa-solid fa-coins"></i></div>
+          <span class="stat-label">Total Budget</span>
+        </div>
+        <div class="stat-value">₹24,50,000</div>
+        <div class="stat-change" style="color:var(--text-muted);">Spent ₹16,80,000</div>
+      </div>
+      <div class="stat-card budget-card">
+        <div class="stat-label">Budget Remaining</div>
+        <div class="stat-value">₹7,70,000</div>
+        <div class="budget-progress-bar"><div class="budget-progress-fill"></div></div>
+        <div class="budget-pct">31% Remaining</div>
+      </div>
+    </div>
+
+    <!-- UPCOMING EVENTS + CALENDAR -->
+    <div class="two-col">
+      <div>
+        <div class="sec-header">
+          <div class="sec-title">Upcoming Events</div>
+          <a class="sec-link">View all events <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+        <div class="events-grid">
+          <!-- Event 1 -->
+          <div class="event-card">
+            <div class="event-img event-img-1">
+              <span style="font-size:44px;">🎵</span>
+              <div class="event-badge badge-upcoming">Upcoming</div>
+              <div class="event-more"><i class="fa-solid fa-ellipsis"></i></div>
+            </div>
+            <div class="event-body">
+              <div class="event-date-row">
+                <div class="event-date-box">
+                  <div class="event-date-num">24</div>
+                  <div class="event-date-mon">MAY</div>
+                </div>
+                <div class="event-info">
+                  <div class="event-name">Sunset Music Festival 2025</div>
+                  <div class="event-loc"><i class="fa-solid fa-location-dot" style="font-size:9px;"></i> Wonderland Grounds, Mumbai</div>
+                </div>
+              </div>
+              <div class="event-guests"><i class="fa-solid fa-user-group" style="font-size:10px;"></i> 850 Guests</div>
+            </div>
+          </div>
+          <!-- Event 2 -->
+          <div class="event-card">
+            <div class="event-img event-img-2">
+              <span style="font-size:44px;">💍</span>
+              <div class="event-badge badge-planned">Planned</div>
+              <div class="event-more"><i class="fa-solid fa-ellipsis"></i></div>
+            </div>
+            <div class="event-body">
+              <div class="event-date-row">
+                <div class="event-date-box">
+                  <div class="event-date-num">18</div>
+                  <div class="event-date-mon">JUN</div>
+                </div>
+                <div class="event-info">
+                  <div class="event-name">Riya & Arjun Wedding</div>
+                  <div class="event-loc"><i class="fa-solid fa-location-dot" style="font-size:9px;"></i> Taj Benico, Goa</div>
+                </div>
+              </div>
+              <div class="event-guests"><i class="fa-solid fa-user-group" style="font-size:10px;"></i> 300 Guests</div>
+            </div>
+          </div>
+          <!-- Event 3 -->
+          <div class="event-card">
+            <div class="event-img event-img-3">
+              <span style="font-size:44px;">💼</span>
+              <div class="event-badge badge-confirmed">Confirmed</div>
+              <div class="event-more"><i class="fa-solid fa-ellipsis"></i></div>
+            </div>
+            <div class="event-body">
+              <div class="event-date-row">
+                <div class="event-date-box">
+                  <div class="event-date-num">05</div>
+                  <div class="event-date-mon">JUL</div>
+                </div>
+                <div class="event-info">
+                  <div class="event-name">Tech Innovators Summit</div>
+                  <div class="event-loc"><i class="fa-solid fa-location-dot" style="font-size:9px;"></i> Jio World Centre, Mumbai</div>
+                </div>
+              </div>
+              <div class="event-guests"><i class="fa-solid fa-user-group" style="font-size:10px;"></i> 600 Guests</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CALENDAR -->
+      <div class="calendar-card">
+        <div class="cal-header">
+          <div class="sec-title">Calendar</div>
+          <div class="cal-nav">
+            <div class="cal-view">Week ▾</div>
+            <div class="cal-nav-btn"><i class="fa-solid fa-chevron-left"></i></div>
+            <div class="cal-nav-btn"><i class="fa-solid fa-chevron-right"></i></div>
+          </div>
+        </div>
+        <div class="cal-grid">
+          <div class="cal-day-label">Mon</div><div class="cal-day-label">Tue</div>
+          <div class="cal-day-label">Wed</div><div class="cal-day-label">Thu</div>
+          <div class="cal-day-label">Fri</div><div class="cal-day-label">Sat</div>
+          <div class="cal-day-label">Sun</div>
+
+          <div class="cal-day">17</div><div class="cal-day">18</div>
+          <div class="cal-day">19</div><div class="cal-day">20</div>
+          <div class="cal-day">21</div><div class="cal-day">22</div>
+          <div class="cal-day">23</div>
+
+          <div class="cal-day today">24<div class="cal-dot dot-purple"></div></div>
+          <div class="cal-day">25<div class="cal-dot dot-green"></div></div>
+          <div class="cal-day">26</div><div class="cal-day">27</div>
+          <div class="cal-day">28<div class="cal-dot dot-orange"></div></div>
+          <div class="cal-day">29</div><div class="cal-day">30</div>
+
+          <div class="cal-day">31</div>
+          <div class="cal-day other-month">1</div><div class="cal-day other-month">2</div>
+          <div class="cal-day other-month">3</div><div class="cal-day other-month">4</div>
+          <div class="cal-day other-month">5</div><div class="cal-day other-month">6</div>
+        </div>
+        <div class="cal-events">
+          <div class="cal-event">
+            <div class="cal-event-dot"></div>
+            <div class="cal-event-body">
+              <div class="cal-event-name">Opening Ceremony</div>
+              <div class="cal-event-sub">Sunset Music Festival 2025</div>
+            </div>
+            <div class="cal-event-time">10:00 AM</div>
+            <div class="cal-event-more">···</div>
+          </div>
+          <div class="cal-event orange">
+            <div class="cal-event-dot"></div>
+            <div class="cal-event-body">
+              <div class="cal-event-name">Artist Sound Check</div>
+              <div class="cal-event-sub">Main Stage</div>
+            </div>
+            <div class="cal-event-time">02:00 PM</div>
+            <div class="cal-event-more">···</div>
+          </div>
+          <div class="cal-event blue">
+            <div class="cal-event-dot"></div>
+            <div class="cal-event-body">
+              <div class="cal-event-name">DJ Night Performance</div>
+              <div class="cal-event-sub">Electro Arena</div>
+            </div>
+            <div class="cal-event-time">07:00 PM</div>
+            <div class="cal-event-more">···</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TASKS + BUDGET + ACTIVITY -->
+    <div class="three-col">
+
+      <!-- TASK OVERVIEW -->
+      <div class="task-card">
+        <div class="sec-header">
+          <div class="sec-title">Task Overview</div>
+          <a class="sec-link">View all tasks <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+        <div class="task-status-row">
+          <div class="task-status"><div class="ts-count ts-todo">24</div><div class="ts-label">To Do</div></div>
+          <div class="task-status"><div class="ts-count ts-progress">16</div><div class="ts-label">In Progress</div></div>
+          <div class="task-status"><div class="ts-count ts-review">8</div><div class="ts-label">In Review</div></div>
+          <div class="task-status"><div class="ts-count ts-done">42</div><div class="ts-label">Completed</div></div>
+        </div>
+        <div class="task-list">
+          <div class="task-item">
+            <div class="task-check"></div>
+            <div class="task-name">Finalize stage design</div>
+            <span class="task-priority priority-high">High</span>
+            <div class="task-date">May 25</div>
+            <div class="task-avatar">A</div>
+          </div>
+          <div class="task-item">
+            <div class="task-check"></div>
+            <div class="task-name">Confirm artist lineup</div>
+            <span class="task-priority priority-high">High</span>
+            <div class="task-date">May 24</div>
+            <div class="task-avatar">R</div>
+          </div>
+          <div class="task-item">
+            <div class="task-check"></div>
+            <div class="task-name">Send invites to VIPs</div>
+            <span class="task-priority priority-medium">Medium</span>
+            <div class="task-date">May 26</div>
+            <div class="task-avatar">S</div>
+          </div>
+          <div class="task-item">
+            <div class="task-check"></div>
+            <div class="task-name">Venue walkthrough</div>
+            <span class="task-priority priority-medium">Medium</span>
+            <div class="task-date">May 27</div>
+            <div class="task-avatar">K</div>
+          </div>
+          <div class="task-item">
+            <div class="task-check"></div>
+            <div class="task-name">Prepare event schedule</div>
+            <span class="task-priority priority-low">Low</span>
+            <div class="task-date">May 28</div>
+            <div class="task-avatar">M</div>
+          </div>
+        </div>
+        <div class="add-task"><i class="fa-solid fa-plus"></i> Add New Task</div>
+      </div>
+
+      <!-- BUDGET OVERVIEW -->
+      <div class="budget-card">
+        <div class="sec-header">
+          <div class="sec-title">Budget Overview</div>
+          <a class="sec-link">View full report <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+        <div class="budget-amounts">
+          <div class="budget-amt"><div class="ba-label">Total Budget</div><div class="ba-value">₹24,50,000</div></div>
+          <div class="budget-amt"><div class="ba-label">Spent</div><div class="ba-value spent">₹16,80,000</div></div>
+          <div class="budget-amt"><div class="ba-label">Remaining</div><div class="ba-value remaining">₹7,70,000</div></div>
+        </div>
+
+        <div class="donut-wrapper">
+          <svg class="donut-svg" width="140" height="140" viewBox="0 0 140 140">
+            <circle cx="70" cy="70" r="55" fill="none" stroke="#F4F5FA" stroke-width="22"/>
+            <!-- Venue 38% -->
+            <circle cx="70" cy="70" r="55" fill="none" stroke="#6C3EF4" stroke-width="22"
+              stroke-dasharray="130.8 214.2" stroke-dashoffset="0"/>
+            <!-- Catering 23% -->
+            <circle cx="70" cy="70" r="55" fill="none" stroke="#3B82F6" stroke-width="22"
+              stroke-dasharray="79.2 265.8" stroke-dashoffset="-130.8"/>
+            <!-- Entertainment 23% -->
+            <circle cx="70" cy="70" r="55" fill="none" stroke="#22C55E" stroke-width="22"
+              stroke-dasharray="79.2 265.8" stroke-dashoffset="-210"/>
+            <!-- Decor 9% -->
+            <circle cx="70" cy="70" r="55" fill="none" stroke="#F97316" stroke-width="22"
+              stroke-dasharray="31 314" stroke-dashoffset="-289.2"/>
+            <!-- Others 5% -->
+            <circle cx="70" cy="70" r="55" fill="none" stroke="#EAB308" stroke-width="22"
+              stroke-dasharray="17.2 327.8" stroke-dashoffset="-320.2"/>
+          </svg>
+          <div class="donut-center">
+            <div class="donut-center-value">₹16,80,000</div>
+            <div class="donut-center-label">Total Spent</div>
+          </div>
+        </div>
+
+        <div class="budget-legend">
+          <div class="legend-item">
+            <div class="legend-dot" style="background:#6C3EF4;"></div>
+            <div class="legend-name">Venue</div>
+            <div class="legend-val">₹6,50,000</div>
+            <div class="legend-pct">38%</div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:#3B82F6;"></div>
+            <div class="legend-name">Catering</div>
+            <div class="legend-val">₹4,20,000</div>
+            <div class="legend-pct">23%</div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:#22C55E;"></div>
+            <div class="legend-name">Entertainment</div>
+            <div class="legend-val">₹3,80,000</div>
+            <div class="legend-pct">23%</div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:#F97316;"></div>
+            <div class="legend-name">Decor & Design</div>
+            <div class="legend-val">₹1,50,000</div>
+            <div class="legend-pct">9%</div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:#EAB308;"></div>
+            <div class="legend-name">Others</div>
+            <div class="legend-val">₹80,000</div>
+            <div class="legend-pct">5%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RECENT ACTIVITY -->
+      <div class="activity-card">
+        <div class="sec-header">
+          <div class="sec-title">Recent Activity</div>
+          <a class="sec-link">View all <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+        <div class="activity-list">
+          <div class="activity-item">
+            <div class="act-icon act-green"><i class="fa-solid fa-user-check"></i></div>
+            <div class="act-body">
+              <div class="act-text">Guest John Doe RSVP'd <strong>Yes</strong></div>
+              <div class="act-time">2m ago</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="act-icon act-blue"><i class="fa-solid fa-indian-rupee-sign"></i></div>
+            <div class="act-body">
+              <div class="act-text">Payment of <strong>₹50,000</strong> received</div>
+              <div class="act-time">15m ago</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="act-icon act-purple"><i class="fa-solid fa-list-check"></i></div>
+            <div class="act-body">
+              <div class="act-text">New task <strong>"Prepare schedule"</strong> created</div>
+              <div class="act-time">1h ago</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="act-icon act-orange"><i class="fa-solid fa-store"></i></div>
+            <div class="act-body">
+              <div class="act-text">Vendor <strong>"Sound & Light Co."</strong> added</div>
+              <div class="act-time">2h ago</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="act-icon act-red"><i class="fa-solid fa-receipt"></i></div>
+            <div class="act-body">
+              <div class="act-text">Expense of <strong>₹12,500</strong> added</div>
+              <div class="act-time">3h ago</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUICK ACCESS -->
+    <div class="quick-access-card">
+      <div class="sec-header"><div class="sec-title">Quick Access</div></div>
+      <div class="qa-grid">
+        <div class="qa-item">
+          <div class="qa-item-icon" style="background:#EEE9FD; color:#6C3EF4;"><i class="fa-solid fa-users"></i></div>
+          <div class="qa-item-label">Guest List</div>
+        </div>
+        <div class="qa-item">
+          <div class="qa-item-icon" style="background:#DBEAFE; color:#3B82F6;"><i class="fa-solid fa-chair"></i></div>
+          <div class="qa-item-label">Seating Chart</div>
+        </div>
+        <div class="qa-item">
+          <div class="qa-item-icon" style="background:#DCFCE7; color:#22C55E;"><i class="fa-solid fa-timeline"></i></div>
+          <div class="qa-item-label">Timeline</div>
+        </div>
+        <div class="qa-item">
+          <div class="qa-item-icon" style="background:#FEF3C7; color:#EAB308;"><i class="fa-solid fa-handshake"></i></div>
+          <div class="qa-item-label">Vendors</div>
+        </div>
+        <div class="qa-item">
+          <div class="qa-item-icon" style="background:#FCE7F3; color:#EC4899;"><i class="fa-solid fa-images"></i></div>
+          <div class="qa-item-label">Gallery</div>
+        </div>
+        <div class="qa-item">
+          <div class="qa-item-icon" style="background:#FEE2E2; color:#EF4444;"><i class="fa-solid fa-chart-pie"></i></div>
+          <div class="qa-item-label">Reports</div>
+        </div>
+        <div class="qa-item">
+          <div class="qa-item-icon" style="background:#F0FDF4; color:#16A34A;"><i class="fa-solid fa-qrcode"></i></div>
+          <div class="qa-item-label">Check-in</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- FAB -->
+<div class="fab"><i class="fa-solid fa-pen"></i></div>
+
+</body>
+</html>
