@@ -52,7 +52,6 @@ async function getRoleId(roleName: 'Admin' | 'Organizer' | 'Attendee'): Promise<
 
   return role.id;
 }
-
 async function runPermissionCheck(
   roleId: number,
   permissionName: string,
@@ -99,6 +98,7 @@ describe('Role permission seeding', () => {
        WHERE rp.role_id = ?
        ORDER BY p.name`,
       [adminRoleId],
+  [adminRoleId],
     );
 
     expect(adminPermissions.map(({ name }) => name)).toEqual(allPermissions.map(({ name }) => name));

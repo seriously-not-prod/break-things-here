@@ -84,7 +84,7 @@ cd backend && npm run build && cd ..
 ### What's New in Latest Develop
 
 **✅ Database Integration (PR #185 - Merged)**
-- SQLite database replaced localStorage
+- PostgreSQL database replaced localStorage
 - Cookie-based JWT authentication
 - Session timeout and token refresh
 - CSRF protection enabled
@@ -114,11 +114,15 @@ Expected output: **3 tests passed**
 
 ### Development Database
 
-The backend uses SQLite with automatic initialization:
+The backend uses **PostgreSQL**. Start the database with Docker before running the backend:
 
-- **Location**: `backend/database/dev.sqlite` (auto-created on first run)
+```bash
+docker-compose up -d db
+```
+
+- **Connection**: `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner`
 - **Schema**: See `database/init.sql`
-- **Reset**: Delete `backend/database/dev.sqlite` and restart backend
+- **Reset**: Drop and recreate the database, then restart the backend (migrations run automatically on startup)
 
 ### Check Database Contents
 
@@ -192,7 +196,7 @@ cd backend && npm run build && cd ..
 
 # Set production environment
 export NODE_ENV=production
-export DATABASE_URL=./database/production.sqlite
+export DATABASE_URL=postgresql://postgres:password@your-db-host:5432/festival_planner
 
 # Run backend
 cd backend && node dist/index.js

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import path from 'path';
 import fs from 'fs/promises';
+import path from 'path';
 import { getDatabase } from '../db/database.js';
 
 interface AuthRequest extends Request {
@@ -41,10 +41,6 @@ async function cleanupUploadedFile(filePath?: string): Promise<void> {
   }
 }
 
-// Roles 1 (Admin) and 2 (Organizer) can manage documents for any event;
-// higher role IDs (Attendee and above) can only manage events they created.
-const ORGANIZER_AND_ABOVE_MAX_ROLE_ID = 2;
-
 async function getAuthorizedEvent(req: AuthRequest, res: Response, eventId: string): Promise<EventRow | null> {
   if (!req.user) {
     res.status(401).json({ error: 'Authentication required' });
@@ -62,7 +58,7 @@ async function getAuthorizedEvent(req: AuthRequest, res: Response, eventId: stri
     return null;
   }
 
-  if (req.user.role_id > ORGANIZER_AND_ABOVE_MAX_ROLE_ID && event.created_by !== req.user.id) {
+  if (req.user.role_id < 3 && event.created_by !== req.user.id) {
     res.status(403).json({ error: 'Not authorised to manage documents for this event.' });
     return null;
   }
@@ -99,7 +95,6 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
     return res.status(400).json({ error: 'No file uploaded.' });
   }
 
-  // Sanitize the original filename to prevent header injection via Content-Disposition
   const safeOriginalName = path.basename(authReq.file.originalname).replace(/[^a-zA-Z0-9._\-]/g, '_');
 
   const db = getDatabase();

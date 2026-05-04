@@ -32,12 +32,23 @@ interface ProfilePhotoRow {
   profile_photo_url: string | null;
 }
 
+interface UserProfileRow extends ProfilePhotoRow {
+  email: string;
+  display_name: string;
+  email_verified: number;
+  bio: string | null;
+  phone_number: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  country: string | null;
+}
 function normalizeProfilePhotoUrl(photoUrl: string | null | undefined): string | null {
   if (!photoUrl) return null;
   if (photoUrl.startsWith('/api/')) return photoUrl;
   return `/api/${photoUrl.replace(/^\//, '')}`;
 }
-
 export async function getUserProfile(req: AuthRequest, res: Response) {
   try {
     if (!req.user) {
@@ -52,7 +63,7 @@ export async function getUserProfile(req: AuthRequest, res: Response) {
       [req.user.id],
     );
 
-    const profile = await db.get(
+    const profile = await db.get<UserProfileRow>(
       `SELECT up.*, u.email, u.display_name, u.email_verified
        FROM user_profiles up
        JOIN users u ON up.user_id = u.id
@@ -62,7 +73,7 @@ export async function getUserProfile(req: AuthRequest, res: Response) {
 
     return res.json({
       ...profile,
-      profile_photo_url: normalizeProfilePhotoUrl((profile as ProfilePhotoRow | undefined)?.profile_photo_url),
+      profile_photo_url: normalizeProfilePhotoUrl(profile?.profile_photo_url),
     });
   } catch (error) {
     console.error('Get profile error:', error);
@@ -82,7 +93,7 @@ export async function getProfilePhoto(req: AuthRequest, res: Response) {
     }
 
     const db = getDatabase();
-    const profile = await db.get<ProfilePhotoRow>(
+  const profile = await db.get<ProfilePhotoRow>(
       'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
       [req.user.id],
     );

@@ -1,15 +1,15 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 
-interface AuthRequest extends Request {
-  user?: { id: number; email: string; role_id: number };
-}
-
 interface RsvpRow {
   id: number;
   event_id: number;
   status: string;
   guests: number;
+}
+
+interface AuthRequest extends Request {
+  user?: { id: number; email: string; role_id: number };
 }
 
 function parseGuests(value: unknown): number {
@@ -94,7 +94,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   }
 
   const db = getDatabase();
-  const event = await db.get('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
+  const event = await db.get<{ id: number }>('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
   const capacity = await getEventCapacity(db, eventId);
@@ -132,7 +132,6 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
 export async function updateRsvp(req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
   const { id } = req.params;
-
   const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ?', [id]);
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 

@@ -17,7 +17,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import { LockRounded, LockOpenRounded, DeleteRounded } from '@mui/icons-material';
+import { LockRounded, LockOpenRounded, DeleteRounded, RestoreRounded } from '@mui/icons-material';
 import { api, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
 
@@ -100,6 +100,18 @@ export default function AdminPage(): JSX.Element {
     }
   }
 
+  async function restoreUser(userId: number): Promise<void> {
+    setError(null);
+    setSuccess(null);
+    try {
+      await api.post(`/api/admin/users/${userId}/restore`);
+      setSuccess('User restored.');
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to restore user.');
+    }
+  }
+
   if (loading) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
   }
@@ -175,6 +187,16 @@ export default function AdminPage(): JSX.Element {
                             Delete
                           </Button>
                         </>
+                      )}
+                      {!isSelf && isDeleted && (
+                        <Button
+                          size="small"
+                          color="success"
+                          startIcon={<RestoreRounded />}
+                          onClick={() => restoreUser(u.id)}
+                        >
+                          Restore
+                        </Button>
                       )}
                     </Stack>
                   </TableCell>

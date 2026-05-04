@@ -162,8 +162,10 @@ export async function login(req: Request, res: Response): Promise<Response> {
   };
 
   if (process.env.NODE_ENV !== 'production') {
+    // Only return accessToken in dev for Authorization-header fallback.
+    // refreshToken is NEVER returned in the JSON body — it lives
+    // exclusively in the HttpOnly cookie set above. (#289)
     resp.accessToken = accessToken;
-    resp.refreshToken = refreshToken;
   }
 
   return res.status(200).json(resp);
@@ -309,7 +311,8 @@ export async function getCurrentUser(req: AuthRequest, res: Response): Promise<R
  * Rotates the refresh token and issues a new access token.
  */
 export async function refreshTokenEndpoint(req: Request, res: Response): Promise<Response> {
-  let refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+  // AC #289/#290: refresh token must come from HttpOnly cookie only, never from body
+  let refreshToken = req.cookies?.refreshToken;
 
   // If cookie contains an encrypted token, decrypt it first
   if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
@@ -324,11 +327,7 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
     return res.status(401).json({ error: 'Refresh token is required.' });
   }
 
-  const payload = verifyToken(refreshToken);
-  if (!payload) {
-    return res.status(403).json({ error: 'Invalid or expired refresh token.' });
-  }
-
+  // Refresh tokens are opaque hex strings (not JWTs) — validate by DB lookup only
   const db = getDatabase();
 
   // Verify refresh token is in the sessions table
@@ -393,6 +392,7 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
 
   return res.status(200).json({
     message: 'Token refreshed successfully.',
+    accessToken: newAccessToken,
   });
 }
 

@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { UserRole } from '../../types/user-role';
 import { ApiRequest, ApiResponse } from '../../types/api';
 import { requireRole, requireAuth } from '../../middleware/rbac';
