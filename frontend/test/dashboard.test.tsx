@@ -246,7 +246,7 @@ describe('Dashboard', () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByRole('alert')).toBeInTheDocument();
+        expect(screen.getByTestId('dashboard-error-alert')).toBeInTheDocument();
         expect(screen.getByText('Network error')).toBeInTheDocument();
       });
     });
@@ -257,7 +257,7 @@ describe('Dashboard', () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByRole('alert')).toBeInTheDocument();
+        expect(screen.getByTestId('dashboard-error-alert')).toBeInTheDocument();
         expect(
           screen.getByText('Failed to load dashboard data.'),
         ).toBeInTheDocument();

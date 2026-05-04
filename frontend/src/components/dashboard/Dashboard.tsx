@@ -18,6 +18,7 @@ import { TaskSummaryPanel } from './task-summary-panel';
 import { RsvpSummaryPanel } from './rsvp-summary-panel';
 import { BudgetOverviewPanel } from './budget-overview-panel';
 import { QuickAccessGrid } from './quick-access-grid';
+import { GlobalAnalyticsWidget } from '../analytics/global-analytics-widget';
 
 export default function Dashboard(): JSX.Element {
   const { user } = useAuth();
@@ -62,7 +63,7 @@ export default function Dashboard(): JSX.Element {
           severity="error"
           sx={{ mb: 3 }}
           onClose={() => setError(null)}
-          role="alert"
+          data-testid="dashboard-error-alert"
         >
           {error}
         </Alert>
@@ -103,9 +104,9 @@ export default function Dashboard(): JSX.Element {
         </Grid>
       </Grid>
 
-      {/* Budget & Quick Access row */}
+      {/* Budget, analytics, and quick access row */}
       <Grid container spacing={3}>
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} lg={4}>
           <Paper elevation={2} sx={{ p: 2 }}>
             <Typography component="h2" variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
               Budget Overview
@@ -114,7 +115,11 @@ export default function Dashboard(): JSX.Element {
           </Paper>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} lg={4}>
+          <GlobalAnalyticsWidget />
+        </Grid>
+
+        <Grid item xs={12} lg={4}>
           <Paper elevation={2} sx={{ p: 2 }}>
             <Typography component="h2" variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
               Quick Access
