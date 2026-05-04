@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner PORT=4000 tsx watch src/index.ts",
     "build": "tsc",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "lint": "eslint src --ext .ts",
+    "test": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner_test vitest run",
+    "test:watch": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner_test vitest",
+    "lint": "eslint src",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -16,10 +16,12 @@
     "cors": "^2.8.6",
     "express": "^4.18.2",
     "express-rate-limit": "^8.3.2",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
     "nodemailer": "^6.9.7",
-    "pg": "^8.20.0"
+    "pg": "^8.20.0",
+    "xss": "^1.0.15"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
@@ -31,7 +33,10 @@
     "@types/node": "^20.11.5",
     "@types/nodemailer": "^6.4.14",
     "@types/pg": "^8.20.0",
+    "@types/supertest": "^7.2.0",
+    "@typescript-eslint/parser": "^8.59.1",
     "eslint": "^8.56.0",
+    "supertest": "^7.2.2",
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
