@@ -5,11 +5,6 @@
 
 import pg from 'pg';
 
-/*
- * Unified database initialization supporting SQLite (default for dev)
- * and PostgreSQL (when DATABASE_URL points to Postgres).
- */
-
 export interface RunResult {
   lastID?: number;
   changes: number;

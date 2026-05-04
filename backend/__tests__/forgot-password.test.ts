@@ -13,14 +13,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import sqlite3 from 'sqlite3';
-import { open, type Database } from 'sqlite';
+import { createPostgresTestDatabase, type TestDatabase } from './helpers/postgres-test-db.js';
 
 // ---------------------------------------------------------------------------
-// In-memory SQLite — replaces the real database module so the test runner does
-// not need a running PostgreSQL instance.
+// Isolated PostgreSQL schema — replaces the real database module so the test
+// runner does not need a running server instance.
 // ---------------------------------------------------------------------------
-let testDb: Database;
+let testDb: TestDatabase;
 
 vi.mock('../src/db/database.js', () => ({
   getDatabase: () => testDb,
@@ -63,38 +62,37 @@ function makeReq(body: any = {}, ip: string = '127.0.0.1') {
 
 describe('Password Reset — Forgot Password Endpoint (#77)', () => {
   beforeEach(async () => {
-    testDb = await open({ filename: ':memory:', driver: sqlite3.Database });
-    await testDb.exec(`
+    testDb = await createPostgresTestDatabase(`
       CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         display_name TEXT,
-        deleted_at DATETIME
+        deleted_at TIMESTAMP
       );
       CREATE TABLE password_reset_rate_limit (
         email TEXT PRIMARY KEY,
         request_count INTEGER NOT NULL DEFAULT 1,
-        window_start DATETIME DEFAULT CURRENT_TIMESTAMP
+        window_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       CREATE TABLE password_reset_tokens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER,
         email TEXT NOT NULL,
         token_selector TEXT NOT NULL,
         token TEXT NOT NULL,
-        expires_at DATETIME NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        used_at DATETIME
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        used_at TIMESTAMP
       );
       CREATE TABLE audit_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER,
         email TEXT,
         action TEXT NOT NULL,
         description TEXT,
         ip_address TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
   });
@@ -298,7 +296,7 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
 
       // Manually update window start to 2 hours ago
       await db.run(
-        "UPDATE password_reset_rate_limit SET window_start = datetime('now', '-2 hours') WHERE email = ?",
+        "UPDATE password_reset_rate_limit SET window_start = CURRENT_TIMESTAMP - INTERVAL '2 hours' WHERE email = ?",
         ['test@example.com'],
       );
 

@@ -14,14 +14,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import sqlite3 from 'sqlite3';
-import { open, type Database } from 'sqlite';
+import { createPostgresTestDatabase, type TestDatabase } from './helpers/postgres-test-db.js';
 
 // ---------------------------------------------------------------------------
-// In-memory SQLite — replaces the real database module so the test runner does
-// not need a running PostgreSQL instance.
+// Isolated PostgreSQL schema — replaces the real database module so the test
+// runner does not need a running server instance.
 // ---------------------------------------------------------------------------
-let testDb: Database;
+let testDb: TestDatabase;
 
 vi.mock('../src/db/database.js', () => ({
   getDatabase: () => testDb,
@@ -56,7 +55,7 @@ async function seedUser(email: string, password: string): Promise<number> {
   const db = getDatabase();
   const hash = await hashPassword(password);
   const result = await db.run(
-    `INSERT INTO users (email, password_hash, display_name, email_verified) VALUES (?, ?, ?, 1)`,
+    `INSERT INTO users (email, password_hash, display_name, email_verified) VALUES (?, ?, ?, 1) RETURNING id`,
     [email, hash, 'Test User'],
   );
   return result.lastID as number;
@@ -90,42 +89,41 @@ async function seedToken(
 
 describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
   beforeEach(async () => {
-    testDb = await open({ filename: ':memory:', driver: sqlite3.Database });
-    await testDb.exec(`
+    testDb = await createPostgresTestDatabase(`
       CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         display_name TEXT,
         email_verified INTEGER DEFAULT 0,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        deleted_at DATETIME
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMP
       );
       CREATE TABLE password_reset_tokens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER,
         email TEXT NOT NULL,
         token_selector TEXT NOT NULL,
         token TEXT NOT NULL,
-        expires_at DATETIME NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        used_at DATETIME
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        used_at TIMESTAMP
       );
       CREATE TABLE sessions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         token TEXT UNIQUE NOT NULL,
         refresh_token TEXT,
-        expires_at DATETIME NOT NULL
+        expires_at TIMESTAMP NOT NULL
       );
       CREATE TABLE audit_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER,
         email TEXT,
         action TEXT NOT NULL,
         description TEXT,
         ip_address TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
   });
