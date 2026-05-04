@@ -1,10 +1,10 @@
 import { defineConfig } from 'vitest/config';
+import { resolveTestDatabaseUrl } from './test-database-url.js';
 
-const testDatabaseUrl = process.env.DATABASE_URL;
+const testDatabaseUrl = resolveTestDatabaseUrl();
 
-if (!testDatabaseUrl) {
-  throw new Error('DATABASE_URL must be set for backend tests.');
-}
+process.env.TEST_DATABASE_URL = testDatabaseUrl;
+process.env.DATABASE_URL = testDatabaseUrl;
 
 export default defineConfig({
   test: {
@@ -21,8 +21,9 @@ export default defineConfig({
       JWT_SECRET: 'test-jwt-secret-vitest-only-not-for-production-use',
       TOKEN_HASH_SECRET: 'test-token-hash-secret-vitest-only',
       REFRESH_TOKEN_ENC_KEY: Buffer.from('test-refresh-enc-key-32bytes!!xx').toString('base64'),
-      // Backend tests run against an explicit PostgreSQL database URL supplied
-      // by the npm scripts locally and by CI in GitHub Actions.
+      // Backend tests run against an explicit PostgreSQL database URL when one
+      // is supplied; otherwise default to the dedicated local test database.
+      TEST_DATABASE_URL: testDatabaseUrl,
       DATABASE_URL: testDatabaseUrl,
     },
   },

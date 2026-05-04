@@ -253,6 +253,150 @@ export async function deleteEvent(req: Request, res: Response): Promise<void> {
 }
 
 /**
+ * Clone an existing event — POST /api/events/:id/clone
+ * Creates a new event row with title='Copy of X' and status='Draft'.
+ * Pass ?includeTasks=true to copy tasks as well.
+ */
+export async function cloneEvent(req: Request, res: Response): Promise<void> {
+  try {
+    const db = getDatabase();
+    const { id } = req.params;
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const source = await db.get(
+      'SELECT * FROM events WHERE id = ? AND deleted_at IS NULL',
+      [id],
+    );
+    if (!source) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const result = await db.run(
+      `INSERT INTO events
+         (title, date, location, description, capacity, status,
+          cover_image_url, event_type, is_public, rsvp_deadline, tags, created_by)
+       VALUES (?, ?, ?, ?, ?, 'Draft', ?, ?, ?, ?, ?, ?)
+       RETURNING id`,
+      [
+        `Copy of ${source.title as string}`,
+        source.date,
+        source.location,
+        source.description,
+        source.capacity,
+        source.cover_image_url ?? null,
+        source.event_type ?? null,
+        source.is_public ?? false,
+        source.rsvp_deadline ?? null,
+        source.tags ?? null,
+        userId,
+      ],
+    );
+
+    const newEventId: number = result.lastID as number;
+
+    if (req.query['includeTasks'] === 'true') {
+      const tasks = await db.all(
+        'SELECT * FROM tasks WHERE event_id = ?',
+        [id],
+      );
+      for (const task of tasks as Record<string, unknown>[]) {
+        await db.run(
+          `INSERT INTO tasks
+             (event_id, title, notes, assignee_name, due_date, status, priority, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            newEventId,
+            task['title'],
+            task['notes'] ?? null,
+            task['assignee_name'] ?? null,
+            task['due_date'] ?? null,
+            task['status'] ?? 'Pending',
+            task['priority'] ?? 'Medium',
+            userId,
+          ],
+        );
+      }
+    }
+
+    const newEvent = await db.get('SELECT * FROM events WHERE id = ?', [newEventId]);
+
+    await recordEventAudit(
+      db,
+      authReq,
+      'event.cloned',
+      `Cloned event #${id} as new event #${newEventId}: ${source.title as string}`,
+    );
+
+    res.status(201).json(newEvent);
+  } catch (error) {
+    console.error('Error cloning event:', error);
+    res.status(500).json({ error: 'Failed to clone event' });
+  }
+}
+
+/**
+ * Set cover image URL — PATCH /api/events/:id/cover
+ * Body: { cover_image_url: string }
+ * The image itself is uploaded via the existing documents endpoint;
+ * this endpoint just records the URL reference.
+ */
+export async function setCoverImage(req: Request, res: Response): Promise<void> {
+  try {
+    const db = getDatabase();
+    const { id } = req.params;
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const event = await db.get(
+      'SELECT * FROM events WHERE id = ? AND deleted_at IS NULL',
+      [id],
+    );
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { cover_image_url } = req.body as { cover_image_url?: string };
+    if (!cover_image_url || typeof cover_image_url !== 'string') {
+      res.status(400).json({ error: 'cover_image_url is required' });
+      return;
+    }
+
+    // Only allow relative URLs or same-origin absolute URLs to prevent SSRF
+    if (cover_image_url.startsWith('http://') || cover_image_url.startsWith('https://')) {
+      const allowed = process.env['ALLOWED_COVER_IMAGE_ORIGIN'];
+      if (!allowed || !cover_image_url.startsWith(allowed)) {
+        res.status(400).json({ error: 'Absolute URLs are not permitted for cover images.' });
+        return;
+      }
+    }
+
+    await db.run(
+      'UPDATE events SET cover_image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [cover_image_url, id],
+    );
+
+    const updated = await db.get('SELECT * FROM events WHERE id = ?', [id]);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error setting cover image:', error);
+    res.status(500).json({ error: 'Failed to set cover image' });
+  }
+}
+
+/**
  * Restore a soft-deleted event
  */
 export async function restoreEvent(req: Request, res: Response): Promise<void> {

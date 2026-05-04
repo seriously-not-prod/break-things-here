@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  ButtonGroup,
   Chip,
   CircularProgress,
   Dialog,
@@ -21,10 +22,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { AddRounded, DeleteRounded, EditRounded, OpenInNewRounded } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { AddRounded, CalendarMonthRounded, ContentCopyRounded, DeleteRounded, EditRounded, ListRounded, OpenInNewRounded } from '@mui/icons-material';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
+import { EventCalendarView } from './event-calendar-view';
+import type { Event as PlannerEventFull } from '../../services/events-service';
 
 interface PlannerEvent {
   id: number;
@@ -34,6 +37,7 @@ interface PlannerEvent {
   capacity: number | null;
   status: string;
   creator_name: string | null;
+  event_type?: string | null;
 }
 
 const STATUS_OPTIONS = ['Draft', 'Active', 'Completed', 'Cancelled'];
@@ -55,9 +59,14 @@ interface EventForm {
 
 const EMPTY_FORM: EventForm = { title: '', description: '', location: '', event_date: '', capacity: '', status: 'Draft' };
 
-export default function EventsPage(): JSX.Element {
+interface EventsPageProps {
+  initialView?: 'list' | 'calendar';
+}
+
+export default function EventsPage({ initialView = 'list' }: EventsPageProps): JSX.Element {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [events, setEvents] = useState<PlannerEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +75,7 @@ export default function EventsPage(): JSX.Element {
   const [form, setForm] = useState<EventForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [view, setView] = useState<'list' | 'calendar'>(initialView);
 
   const canCreate = user && user.roleId >= 2; // Organizer or Admin
 
@@ -82,6 +92,17 @@ export default function EventsPage(): JSX.Element {
   }
 
   useEffect(() => { void loadEvents(); }, []);
+
+  useEffect(() => {
+    if (location.pathname === '/events/calendar') {
+      setView('calendar');
+      return;
+    }
+
+    if (location.pathname === '/events') {
+      setView('list');
+    }
+  }, [location.pathname]);
 
   function openCreate(): void {
     setEditingId(null);
@@ -132,6 +153,15 @@ export default function EventsPage(): JSX.Element {
     }
   }
 
+  async function handleClone(id: number): Promise<void> {
+    try {
+      await api.post(`/api/events/${id}/clone`);
+      await loadEvents();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Clone failed.');
+    }
+  }
+
   async function handleDelete(id: number): Promise<void> {
     if (!window.confirm('Delete this event? This cannot be undone.')) return;
     try {
@@ -148,19 +178,41 @@ export default function EventsPage(): JSX.Element {
 
   return (
     <Box sx={{ p: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 1 }}>
         <Typography variant="h5" fontWeight={700}>Events</Typography>
-        {canCreate && (
-          <Button variant="contained" startIcon={<AddRounded />} onClick={openCreate}>
-            New Event
-          </Button>
-        )}
+        <Stack direction="row" spacing={1} alignItems="center">
+          <ButtonGroup size="small" variant="outlined" aria-label="View toggle">
+            <Button
+              startIcon={<ListRounded />}
+              onClick={() => navigate('/events')}
+              variant={view === 'list' ? 'contained' : 'outlined'}
+              aria-pressed={view === 'list'}
+            >
+              List
+            </Button>
+            <Button
+              startIcon={<CalendarMonthRounded />}
+              onClick={() => navigate('/events/calendar')}
+              variant={view === 'calendar' ? 'contained' : 'outlined'}
+              aria-pressed={view === 'calendar'}
+            >
+              Calendar
+            </Button>
+          </ButtonGroup>
+          {canCreate && (
+            <Button variant="contained" startIcon={<AddRounded />} onClick={openCreate}>
+              New Event
+            </Button>
+          )}
+        </Stack>
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}><CircularProgress /></Box>
+      ) : view === 'calendar' ? (
+        <EventCalendarView events={events as unknown as PlannerEventFull[]} />
       ) : events.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography color="text.secondary">No events yet. Create your first event!</Typography>
@@ -182,7 +234,12 @@ export default function EventsPage(): JSX.Element {
             <TableBody>
               {events.map((event) => (
                 <TableRow key={event.id} hover>
-                  <TableCell>{event.title}</TableCell>
+                  <TableCell>
+                    {event.title}
+                    {event.event_type && (
+                      <Chip label={event.event_type} size="small" variant="outlined" sx={{ ml: 1 }} />
+                    )}
+                  </TableCell>
                   <TableCell>{new Date(event.event_date).toLocaleDateString()}</TableCell>
                   <TableCell>{event.location ?? '—'}</TableCell>
                   <TableCell>{event.capacity ?? '—'}</TableCell>
@@ -203,6 +260,9 @@ export default function EventsPage(): JSX.Element {
                         <>
                           <Button size="small" startIcon={<EditRounded />} onClick={() => openEdit(event)}>
                             Edit
+                          </Button>
+                          <Button size="small" startIcon={<ContentCopyRounded />} onClick={() => handleClone(event.id)}>
+                            Clone
                           </Button>
                           <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => handleDelete(event.id)}>
                             Delete

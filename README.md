@@ -61,6 +61,8 @@ This repository is designed to teach:
    cd ../frontend && npm install
    ```
 
+   Backend tests resolve `TEST_DATABASE_URL` when provided. Without it, the backend defaults to the dedicated local test database at `postgresql://postgres:postgres@127.0.0.1:5433/festival_planner_test`.
+
 4. **Read the documentation**
    - [Universal Agent Guide](.github/universal-agent-guide.md) - Mandatory rules
    - [Branching Strategy](docs/processes/branching-strategy.md) - Git workflow
