@@ -178,10 +178,20 @@ export async function getEventDocumentFile(req: Request, res: Response): Promise
   if (!event) return res as Response;
 
   const filePath = assertSafePath(path.join(UPLOADS_DIR, document.file_name));
+
+  // Sanitize user-originated values before writing them into HTTP response headers
+  // to prevent HTTP header injection (CWE-113 / CodeQL js/header-injection).
+  const safeMimeType = /^[a-zA-Z0-9][a-zA-Z0-9!#$&\-^_.+]*\/[a-zA-Z0-9][a-zA-Z0-9!#$&\-^_.+]*$/.test(document.mime_type)
+    ? document.mime_type
+    : 'application/octet-stream';
+  // Strip ASCII control characters (including CR/LF) and characters that would break
+  // the quoted-string encoding inside Content-Disposition.
+  const safeFilename = document.original_name.replace(/[\x00-\x1f\x7f"\\]/g, '_');
+
   res.sendFile(filePath, {
     headers: {
-      'Content-Type': document.mime_type,
-      'Content-Disposition': `inline; filename="${document.original_name}"`,
+      'Content-Type': safeMimeType,
+      'Content-Disposition': `inline; filename="${safeFilename}"`,
     },
   });
   return res;
