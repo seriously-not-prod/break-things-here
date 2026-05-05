@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { requireEventAccess } from '../utils/event-access.js';
 
 interface SeatingTable {
   id: number;
@@ -24,10 +25,22 @@ interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
 }
 
+async function assertEventAccess(req: AuthRequest, res: Response, eventId: string): Promise<boolean> {
+  const event = await requireEventAccess(req, res, eventId, {
+    allowMembers: true,
+    forbiddenMessage: 'Not authorised to manage seating for this event.',
+  });
+  return Boolean(event);
+}
+
 /** GET /api/events/:eventId/seating/tables */
 export async function listTables(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
   const { eventId } = req.params;
+
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
 
   const tables = await db.all<SeatingTable>(
     'SELECT * FROM seating_tables WHERE event_id = ? ORDER BY name ASC',
@@ -52,9 +65,13 @@ export async function listTables(req: Request, res: Response): Promise<Response>
 
 /** POST /api/events/:eventId/seating/tables */
 export async function createTable(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
   const { eventId } = req.params;
   const { name, capacity } = req.body as { name?: string; capacity?: number | string };
+
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
 
   if (!name?.trim()) return res.status(400).json({ error: 'Table name is required.' });
 
@@ -84,8 +101,12 @@ export async function createTable(req: Request, res: Response): Promise<Response
 
 /** DELETE /api/events/:eventId/seating/tables/:tableId */
 export async function deleteTable(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
   const { tableId, eventId } = req.params;
+
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
 
   const table = await db.get<Pick<SeatingTable, 'id'>>(
     'SELECT id FROM seating_tables WHERE id = ? AND event_id = ?',
@@ -99,8 +120,12 @@ export async function deleteTable(req: Request, res: Response): Promise<Response
 
 /** POST /api/events/:eventId/seating/tables/:tableId/assign/:rsvpId */
 export async function assignGuest(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
   const { tableId, rsvpId, eventId } = req.params;
+
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
 
   const table = await db.get<{ id: number; capacity: number }>(
     'SELECT id, capacity FROM seating_tables WHERE id = ? AND event_id = ?',
@@ -149,8 +174,12 @@ export async function assignGuest(req: Request, res: Response): Promise<Response
 
 /** DELETE /api/events/:eventId/seating/tables/:tableId/assign/:rsvpId */
 export async function unassignGuest(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
-  const { tableId, rsvpId } = req.params;
+  const { tableId, rsvpId, eventId } = req.params;
+
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
 
   const assignment = await db.get<{ table_id: number }>(
     'SELECT table_id FROM seating_assignments WHERE table_id = ? AND rsvp_id = ?',

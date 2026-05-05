@@ -2,16 +2,11 @@ import { Request, Response } from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import { getDatabase } from '../db/database.js';
+import { requireEventAccess } from '../utils/event-access.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
   file?: Express.Multer.File;
-}
-
-interface EventRow {
-  id: number;
-  created_by: number;
-  deleted_at: string | null;
 }
 
 const UPLOADS_DIR = path.resolve('uploads/event-documents');
@@ -41,34 +36,12 @@ async function cleanupUploadedFile(filePath?: string): Promise<void> {
   }
 }
 
-async function getAuthorizedEvent(req: AuthRequest, res: Response, eventId: string): Promise<EventRow | null> {
-  if (!req.user) {
-    res.status(401).json({ error: 'Authentication required' });
-    return null;
-  }
-
-  const db = getDatabase();
-  const event = await db.get<EventRow>(
-    'SELECT id, created_by, deleted_at FROM events WHERE id = ? AND deleted_at IS NULL',
-    [eventId],
-  );
-
-  if (!event) {
-    res.status(404).json({ error: 'Event not found.' });
-    return null;
-  }
-
-  if (req.user.role_id < 3 && event.created_by !== req.user.id) {
-    res.status(403).json({ error: 'Not authorised to manage documents for this event.' });
-    return null;
-  }
-
-  return event;
-}
-
 export async function listEventDocuments(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
-  const event = await getAuthorizedEvent(authReq, res, req.params.eventId);
+  const event = await requireEventAccess(authReq, res, req.params.eventId, {
+    allowMembers: true,
+    forbiddenMessage: 'Not authorised to view documents for this event.',
+  });
   if (!event) return res as Response;
 
   const db = getDatabase();
@@ -85,7 +58,10 @@ export async function listEventDocuments(req: Request, res: Response): Promise<R
 
 export async function uploadEventDocument(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
-  const event = await getAuthorizedEvent(authReq, res, req.params.eventId);
+  const event = await requireEventAccess(authReq, res, req.params.eventId, {
+    allowMembers: true,
+    forbiddenMessage: 'Not authorised to manage documents for this event.',
+  });
   if (!event) {
     await cleanupUploadedFile(req.file?.path);
     return res as Response;
@@ -132,7 +108,10 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
 
 export async function downloadEventDocument(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
-  const event = await getAuthorizedEvent(authReq, res, req.params.eventId);
+  const event = await requireEventAccess(authReq, res, req.params.eventId, {
+    allowMembers: true,
+    forbiddenMessage: 'Not authorised to view documents for this event.',
+  });
   if (!event) return res as Response;
 
   const db = getDatabase();
@@ -150,7 +129,10 @@ export async function downloadEventDocument(req: Request, res: Response): Promis
 
 export async function deleteEventDocument(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
-  const event = await getAuthorizedEvent(authReq, res, req.params.eventId);
+  const event = await requireEventAccess(authReq, res, req.params.eventId, {
+    allowMembers: true,
+    forbiddenMessage: 'Not authorised to manage documents for this event.',
+  });
   if (!event) return res as Response;
 
   const db = getDatabase();
@@ -169,4 +151,48 @@ export async function deleteEventDocument(req: Request, res: Response): Promise<
 
   await db.run('DELETE FROM event_documents WHERE id = ? AND event_id = ?', [req.params.id, req.params.eventId]);
   return res.json({ message: 'Document deleted.' });
+}
+
+export async function getEventDocumentFile(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  if (!authReq.user) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+
+  const db = getDatabase();
+  const document = await db.get<{ event_id: number; original_name: string; file_name: string; mime_type: string }>(
+    `SELECT event_id, original_name, file_name, mime_type
+     FROM event_documents
+     WHERE file_name = ?`,
+    [req.params.filename],
+  );
+
+  if (!document) {
+    return res.status(404).json({ error: 'Document not found.' });
+  }
+
+  const event = await requireEventAccess(authReq, res, String(document.event_id), {
+    allowMembers: true,
+    forbiddenMessage: 'Not authorised to view documents for this event.',
+  });
+  if (!event) return res as Response;
+
+  const filePath = assertSafePath(path.join(UPLOADS_DIR, document.file_name));
+
+  // Sanitize user-originated values before writing them into HTTP response headers
+  // to prevent HTTP header injection (CWE-113 / CodeQL js/header-injection).
+  const safeMimeType = /^[a-zA-Z0-9][a-zA-Z0-9!#$&\-^_.+]*\/[a-zA-Z0-9][a-zA-Z0-9!#$&\-^_.+]*$/.test(document.mime_type)
+    ? document.mime_type
+    : 'application/octet-stream';
+  // Strip ASCII control characters (including CR/LF) and characters that would break
+  // the quoted-string encoding inside Content-Disposition.
+  const safeFilename = document.original_name.replace(/[\x00-\x1f\x7f"\\]/g, '_');
+
+  res.sendFile(filePath, {
+    headers: {
+      'Content-Type': safeMimeType,
+      'Content-Disposition': `inline; filename="${safeFilename}"`,
+    },
+  });
+  return res;
 }

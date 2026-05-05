@@ -376,6 +376,30 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS checked_in BOOLEAN DEFAULT FALSE`);
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS phone TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS dietary_restriction TEXT DEFAULT 'None'`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS accessibility_needs TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS plus_one BOOLEAN DEFAULT FALSE`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS plus_one_name TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS guest_group TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMP`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'public'`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS communication_log (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      guest_email TEXT,
+      communication_type TEXT NOT NULL,
+      subject TEXT,
+      content TEXT,
+      status TEXT DEFAULT 'sent',
+      sent_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec('CREATE INDEX IF NOT EXISTS idx_communication_log_event_id ON communication_log(event_id)');
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS budget_categories (
@@ -557,4 +581,20 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_subtasks_task_id ON task_subtasks(task_id)`);
+
+  // ── Event Messages / Team Conversation (issue #messages) ─────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_messages (
+      id         SERIAL PRIMARY KEY,
+      event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      sender_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      body       TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TIMESTAMP
+    )
+  `);
+
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_messages_event_id ON event_messages(event_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_messages_sender_id ON event_messages(sender_id)`);
 }

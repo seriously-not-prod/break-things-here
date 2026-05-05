@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { requireEventAccess } from '../utils/event-access.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -21,17 +22,11 @@ interface TimelineActivityRow {
 }
 
 async function assertEventAccess(req: AuthRequest, res: Response, eventId: string): Promise<boolean> {
-  if (!req.user) {
-    res.status(401).json({ error: 'Authentication required.' });
-    return false;
-  }
-  const db = getDatabase();
-  const event = await db.get<{ id: number }>('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
-  if (!event) {
-    res.status(404).json({ error: 'Event not found.' });
-    return false;
-  }
-  return true;
+  const event = await requireEventAccess(req, res, eventId, {
+    allowMembers: true,
+    forbiddenMessage: 'Not authorised to manage the timeline for this event.',
+  });
+  return Boolean(event);
 }
 
 /** GET /api/events/:eventId/timeline */

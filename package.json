@@ -7,7 +7,12 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:up": "docker compose up -d db",
+    "db:test:up": "docker compose up -d db-test",
+    "backend:dev": "cd backend && npm run dev",
+    "backend:build": "cd backend && npm run build",
+    "backend:test": "docker compose up -d db-test && cd backend && npm test"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

@@ -170,7 +170,7 @@ export async function getGlobalAnalytics(req: AuthRequest, res: Response): Promi
     }>(
       `SELECT
          COUNT(DISTINCT e.id)                                          AS total_events,
-         COUNT(DISTINCT e.id) FILTER (WHERE e.event_date >= ?)         AS upcoming_events,
+         COUNT(DISTINCT e.id) FILTER (WHERE e.date >= ?)               AS upcoming_events,
          COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'Completed')    AS completed_events,
          COALESCE(SUM(r.guests) FILTER (WHERE r.status = 'Going'), 0)  AS total_guests
        FROM events e

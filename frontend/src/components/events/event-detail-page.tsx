@@ -35,7 +35,8 @@ interface PlannerEvent {
   title: string;
   description: string | null;
   location: string | null;
-  event_date: string;
+  date: string;
+  event_date?: string;
   capacity: number | null;
   status: string;
   creator_name: string | null;
@@ -82,6 +83,10 @@ interface EventDocument {
   created_at: string;
 }
 
+interface EventDocumentsResponse {
+  documents?: EventDocument[];
+}
+
 interface UserOption {
   user_id: number;
   display_name: string;
@@ -94,6 +99,16 @@ const TASK_PRIORITIES = ['Low', 'Medium', 'High'];
 const RSVP_STATUSES = ['Pending', 'Going', 'Maybe', 'Not Going', 'Declined'];
 const RSVP_EXPORT_FORMAT = 'csv';
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
+
+function normalizePlannerEvent(event: PlannerEvent): PlannerEvent {
+  const eventDate = event.date ?? event.event_date ?? '';
+  return {
+    ...event,
+    date: eventDate,
+    event_date: eventDate,
+  };
+}
+
 export default function EventDetailPage(): JSX.Element {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -148,13 +163,13 @@ export default function EventDetailPage(): JSX.Element {
     setLoading(true);
     try {
       const data = await api.get<{ event: PlannerEvent; tasks: Task[]; rsvps: Rsvp[]; members: EventMember[]; availableUsers: UserOption[] }>(`/api/events/${id}`);
-      setEvent(data.event);
+      setEvent(normalizePlannerEvent(data.event));
       setTasks(data.tasks);
       setRsvps(data.rsvps);
       setMembers(data.members ?? []);
       setAvailableUsers(data.availableUsers ?? []);
-      const docs = await api.get<EventDocument[]>(`/api/events/${id}/documents`);
-      setDocuments(Array.isArray(docs) ? docs : []);
+      const docs = await api.get<EventDocumentsResponse | EventDocument[]>(`/api/events/${id}/documents`);
+      setDocuments(Array.isArray(docs) ? docs : docs.documents ?? []);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load event.');
     } finally {
@@ -193,7 +208,7 @@ export default function EventDetailPage(): JSX.Element {
     try {
       const assignedUserId = taskForm.assigned_user_id ? Number(taskForm.assigned_user_id) : null;
       if (editTaskId) {
-        await api.patch(`/api/events/${id}/tasks/${editTaskId}`, {
+        await api.put(`/api/events/${id}/tasks/${editTaskId}`, {
           ...taskForm,
           assigned_user_id: assignedUserId,
         });
@@ -315,10 +330,10 @@ export default function EventDetailPage(): JSX.Element {
     try {
       const formData = new FormData();
       formData.append('document', file);
-      const token = localStorage.getItem('accessToken');
       const res = await fetch(`${API_BASE}/api/events/${id}/documents`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: getAuthHeaders(),
+        credentials: 'include',
         body: formData,
       });
 
@@ -338,10 +353,10 @@ export default function EventDetailPage(): JSX.Element {
 
   async function downloadDocument(doc: EventDocument): Promise<void> {
     try {
-      const token = localStorage.getItem('accessToken');
       const res = await fetch(`${API_BASE}/api/events/${id}/documents/${doc.id}`, {
         method: 'GET',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: getAuthHeaders(),
+        credentials: 'include',
       });
 
       if (!res.ok) {
@@ -376,10 +391,10 @@ export default function EventDetailPage(): JSX.Element {
       // Step 1: upload the file via the existing documents endpoint
       const formData = new FormData();
       formData.append('document', file);
-      const token = localStorage.getItem('accessToken');
       const uploadRes = await fetch(`${API_BASE}/api/events/${id}/documents`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: getAuthHeaders(),
+        credentials: 'include',
         body: formData,
       });
       if (!uploadRes.ok) {
@@ -483,7 +498,7 @@ export default function EventDetailPage(): JSX.Element {
                 <Chip label={event.event_type} size="small" color="info" variant="outlined" />
               )}
               <Typography variant="body2" color="text.secondary">
-                {new Date(event.event_date).toLocaleDateString()} {event.location ? `· ${event.location}` : ''}
+                {new Date(event.date).toLocaleDateString()} {event.location ? `· ${event.location}` : ''}
               </Typography>
             </Stack>
             {event.capacity !== null && event.capacity !== undefined && (

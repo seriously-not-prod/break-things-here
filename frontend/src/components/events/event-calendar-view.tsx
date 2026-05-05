@@ -75,8 +75,9 @@ export function EventCalendarView({ events }: EventCalendarViewProps): JSX.Eleme
   const eventsByDate = useMemo<Map<string, Event[]>>(() => {
     const map = new Map<string, Event[]>();
     for (const ev of events) {
-      // event_date may be 'YYYY-MM-DD' or a full ISO timestamp; take the date part only
-      const dateKey = ev.event_date?.slice(0, 10) ?? '';
+      // Accept both the current `date` field and the legacy `event_date` alias.
+      const eventDate = ev.date ?? ev.event_date ?? '';
+      const dateKey = eventDate.slice(0, 10);
       if (!dateKey) continue;
       const existing = map.get(dateKey);
       if (existing) {

@@ -1,35 +1,21 @@
 /**
  * Quick Access Grid — issue #372
- * Navigation shortcuts to /events, /profile, /admin + placeholder chips for future features.
+ * Navigation shortcuts to the modules already available in the dedicated frontend.
  */
 
-import { Box, Button, Chip, Grid, Typography } from '@mui/material';
-import EventIcon from '@mui/icons-material/Event';
-import PersonIcon from '@mui/icons-material/Person';
+import { Box, Button, Grid } from '@mui/material';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import ImageIcon from '@mui/icons-material/Image';
-import HowToRegIcon from '@mui/icons-material/HowToReg';
-import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
-import TableRestaurantIcon from '@mui/icons-material/TableRestaurant';
-import type { ReactElement } from 'react';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import EventIcon from '@mui/icons-material/Event';
+import MailRoundedIcon from '@mui/icons-material/MailRounded';
+import PersonIcon from '@mui/icons-material/Person';
 import { useNavigate } from 'react-router-dom';
 import type { AuthUser } from '../../contexts/auth-context';
 
 export interface QuickAccessGridProps {
   user: AuthUser | null;
 }
-
-interface PlaceholderFeature {
-  label: string;
-  icon: ReactElement;
-}
-
-const PLACEHOLDER_FEATURES: PlaceholderFeature[] = [
-  { label: 'Gallery', icon: <ImageIcon fontSize="small" /> },
-  { label: 'Check-in', icon: <HowToRegIcon fontSize="small" /> },
-  { label: 'Budget', icon: <AttachMoneyIcon fontSize="small" /> },
-  { label: 'Seating', icon: <TableRestaurantIcon fontSize="small" /> },
-];
 
 export function QuickAccessGrid({ user }: QuickAccessGridProps): JSX.Element {
   const navigate = useNavigate();
@@ -38,7 +24,7 @@ export function QuickAccessGrid({ user }: QuickAccessGridProps): JSX.Element {
   return (
     <Box>
       <Grid container spacing={1.5}>
-        <Grid item xs={12} sm={isAdmin ? 4 : 6}>
+        <Grid item xs={12} sm={6}>
           <Button
             fullWidth
             variant="contained"
@@ -50,7 +36,43 @@ export function QuickAccessGrid({ user }: QuickAccessGridProps): JSX.Element {
           </Button>
         </Grid>
 
-        <Grid item xs={12} sm={isAdmin ? 4 : 6}>
+        <Grid item xs={12} sm={6}>
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<AddCircleOutlineIcon />}
+            onClick={() => navigate('/events/new')}
+            aria-label="Create a new event"
+          >
+            Create Event
+          </Button>
+        </Grid>
+
+        <Grid item xs={12} sm={6}>
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<CalendarMonthIcon />}
+            onClick={() => navigate('/events/calendar')}
+            aria-label="Open the event calendar"
+          >
+            Calendar
+          </Button>
+        </Grid>
+
+        <Grid item xs={12} sm={6}>
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<MailRoundedIcon />}
+            onClick={() => navigate('/messages')}
+            aria-label="Open messages"
+          >
+            Messages
+          </Button>
+        </Grid>
+
+        <Grid item xs={12} sm={isAdmin ? 6 : 12}>
           <Button
             fullWidth
             variant="outlined"
@@ -63,7 +85,7 @@ export function QuickAccessGrid({ user }: QuickAccessGridProps): JSX.Element {
         </Grid>
 
         {isAdmin && (
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={6}>
             <Button
               fullWidth
               variant="outlined"
@@ -77,27 +99,6 @@ export function QuickAccessGrid({ user }: QuickAccessGridProps): JSX.Element {
           </Grid>
         )}
       </Grid>
-
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{ mt: 2, mb: 0.75, display: 'block' }}
-      >
-        Coming soon
-      </Typography>
-
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-        {PLACEHOLDER_FEATURES.map((feat) => (
-          <Chip
-            key={feat.label}
-            icon={feat.icon}
-            label={feat.label}
-            size="small"
-            disabled
-            aria-label={`${feat.label} — coming soon`}
-          />
-        ))}
-      </Box>
     </Box>
   );
 }

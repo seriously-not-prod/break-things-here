@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
+import { parse as parseCookies } from 'cookie';
 import { getDatabase } from '../db/database.js';
 import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken, hashToken, encryptToken, decryptToken } from '../utils/auth-helpers.js';
 import { generateTokens, verifyToken, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
@@ -256,7 +257,7 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
 
   const db = getDatabase();
   // Prefer revoking session by the refresh token cookie (server-side session).
-  let refreshToken = req.cookies?.refreshToken;
+  let refreshToken = parseCookies(req.headers.cookie ?? '').refreshToken as string | undefined;
   const authHeader = req.headers?.['authorization'];
   const authToken = authHeader && typeof authHeader === 'string' ? authHeader.split(' ')[1] : undefined;
   if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
@@ -294,8 +295,17 @@ export async function getCurrentUser(req: AuthRequest, res: Response): Promise<R
 
   const db = getDatabase();
   const user = await db.get(
-    `SELECT id, email, display_name, email_verified, role_id, created_at, updated_at
-     FROM users WHERE id = ? AND deleted_at IS NULL`,
+    `SELECT u.id,
+            u.email,
+            u.display_name,
+            u.email_verified,
+            u.role_id,
+            r.name AS role_name,
+            u.created_at,
+            u.updated_at
+     FROM users u
+     LEFT JOIN roles r ON r.id = u.role_id
+     WHERE u.id = ? AND u.deleted_at IS NULL`,
     [req.user.id],
   );
 
@@ -312,7 +322,7 @@ export async function getCurrentUser(req: AuthRequest, res: Response): Promise<R
  */
 export async function refreshTokenEndpoint(req: Request, res: Response): Promise<Response> {
   // AC #289/#290: refresh token must come from HttpOnly cookie only, never from body
-  let refreshToken = req.cookies?.refreshToken;
+  let refreshToken = parseCookies(req.headers.cookie ?? '').refreshToken as string | undefined;
 
   // If cookie contains an encrypted token, decrypt it first
   if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
@@ -407,7 +417,7 @@ export async function sessionHeartbeat(req: AuthRequest, res: Response): Promise
 
   const db = getDatabase();
   // Update last_activity by refresh token stored in cookie (sessions keep refresh token hashes)
-  let refreshToken = req.cookies?.refreshToken;
+  let refreshToken = parseCookies(req.headers.cookie ?? '').refreshToken as string | undefined;
   if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
     try {
       refreshToken = decryptToken(refreshToken);

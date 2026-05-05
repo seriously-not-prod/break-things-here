@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { requireEventAccess } from '../utils/event-access.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -7,8 +8,15 @@ interface AuthRequest extends Request {
 
 /** GET /api/events/:eventId/members */
 export async function listMembers(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
   const { eventId } = req.params;
+  const event = await requireEventAccess(authReq, res, eventId, {
+    allowMembers: true,
+    forbiddenMessage: 'Not authorised to view members for this event.',
+  });
+  if (!event) return res as Response;
+
   const members = await db.all(
     `SELECT em.user_id, em.role, em.joined_at, u.display_name, u.email
      FROM event_members em
@@ -36,12 +44,11 @@ export async function addMember(req: Request, res: Response): Promise<Response> 
   const { eventId } = req.params;
   const { user_id, role } = req.body as { user_id?: number; role?: string };
 
-  if (!authReq.user) return res.status(401).json({ error: 'Authentication required.' });
-  const event = await db.get<{ created_by: number }>('SELECT created_by FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
-  if (!event) return res.status(404).json({ error: 'Event not found.' });
-  if (authReq.user.role_id < 3 && event.created_by !== authReq.user.id) {
-    return res.status(403).json({ error: 'Not authorised to manage members for this event.' });
-  }
+  const event = await requireEventAccess(authReq, res, eventId, {
+    ownerOnly: true,
+    forbiddenMessage: 'Not authorised to manage members for this event.',
+  });
+  if (!event) return res as Response;
 
   const numericUserId = Number(user_id);
   if (!Number.isInteger(numericUserId)) return res.status(400).json({ error: 'user_id is required.' });
@@ -65,12 +72,11 @@ export async function removeMember(req: Request, res: Response): Promise<Respons
   const db = getDatabase();
   const { eventId, userId } = req.params;
 
-  if (!authReq.user) return res.status(401).json({ error: 'Authentication required.' });
-  const event = await db.get<{ created_by: number }>('SELECT created_by FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
-  if (!event) return res.status(404).json({ error: 'Event not found.' });
-  if (authReq.user.role_id < 3 && event.created_by !== authReq.user.id) {
-    return res.status(403).json({ error: 'Not authorised to manage members for this event.' });
-  }
+  const event = await requireEventAccess(authReq, res, eventId, {
+    ownerOnly: true,
+    forbiddenMessage: 'Not authorised to manage members for this event.',
+  });
+  if (!event) return res as Response;
 
   await db.run('DELETE FROM event_members WHERE event_id = ? AND user_id = ?', [eventId, userId]);
   return res.json({ message: 'Member removed.' });

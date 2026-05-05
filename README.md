@@ -80,6 +80,7 @@ npm run dev
 Optional: run backend API in another terminal when working on backend training tasks:
 
 ```bash
+docker compose up -d db
 cd backend && npm run dev
 ```
 
@@ -89,7 +90,7 @@ Optional: run the separate `frontend/` training app surface if you specifically 
 cd frontend && npm run dev
 ```
 
-The active root planner app runs on `http://localhost:5173` and the backend runs on `http://localhost:3001`.
+The active root planner app runs on `http://localhost:5173` and the backend runs on `http://localhost:4000`.
 
 Current implementation includes:
 - Dashboard with event, RSVP, and task summaries
@@ -103,12 +104,14 @@ Current implementation includes:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `PORT` | `3001` | Backend server port |
+| `PORT` | `4000` | Backend server port |
 | `DEMO_EMAIL` | `user@example.com` | Demo login email |
 | `DEMO_PASSWORD` | `Password123!` | Demo login password |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated list of allowed CORS origins |
 | `LOGIN_RECORD_TTL_MS` | `600000` | How long login attempt records are retained after lockout expires |
 | `MAX_TRACKED_LOGIN_RECORDS` | `5000` | Maximum number of login attempt records kept in memory |
+
+For local development, `backend/.env` is loaded automatically when present. If no database URL is set, the backend falls back to `postgresql://postgres:postgres@127.0.0.1:5432/festival_planner`, so `docker compose up -d db` plus `cd backend && npm run dev` is enough for the standard local path.
 
 For local development, the backend allows requests from `http://localhost:5173` by default. In non-local environments, set `CORS_ALLOWED_ORIGINS` to a comma-separated list of frontend origins instead of changing the code.
 
@@ -118,6 +121,13 @@ For local development, the backend allows requests from `http://localhost:5173` 
 
 ```bash
 npm run build
+```
+
+To run backend integration tests locally, start the dedicated test database first:
+
+```bash
+docker compose up -d db-test
+cd backend && npm test
 ```
 
 ## Repository Structure

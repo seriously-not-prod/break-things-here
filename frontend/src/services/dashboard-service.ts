@@ -10,8 +10,7 @@ export interface DashboardEvent {
   id: number;
   title: string;
   location: string | null;
-  /** Backend column: PostgreSQL migration uses event_date */
-  event_date: string;
+  date: string;
   capacity: number | null;
   status: string;
   created_by_name: string | null;

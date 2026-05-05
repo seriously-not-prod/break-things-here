@@ -46,8 +46,8 @@ export function UpcomingEventsList({ events, loading }: UpcomingEventsListProps)
 
   const upcoming = [...events]
     .sort((a, b) => {
-      const timeA = a.event_date ? new Date(a.event_date).getTime() : 0;
-      const timeB = b.event_date ? new Date(b.event_date).getTime() : 0;
+      const timeA = a.date ? new Date(a.date).getTime() : 0;
+      const timeB = b.date ? new Date(b.date).getTime() : 0;
       return timeA - timeB;
     })
     .slice(0, 4);
@@ -84,7 +84,7 @@ export function UpcomingEventsList({ events, loading }: UpcomingEventsListProps)
               {event.title}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {event.event_date ? formatEventDate(event.event_date) : 'Date TBD'}
+              {event.date ? formatEventDate(event.date) : 'Date TBD'}
               {event.location ? ` · ${event.location}` : ''}
             </Typography>
           </Box>
