@@ -10,7 +10,7 @@ COPY . .
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev", "--", "--host"]
+CMD ["sh", "-c", "npm install && npm run dev -- --host"]
 
 # --- Production build stage ---
 FROM node:20-alpine AS build
@@ -21,6 +21,14 @@ COPY package.json package-lock.json* ./
 RUN npm install
 
 COPY . .
+
+# Bake VITE_ variables at build time so the static bundle uses relative API URLs
+# (empty VITE_API_URL → all /api requests are proxied by nginx in the same container)
+ARG VITE_API_URL=""
+ARG VITE_SESSION_TIMEOUT_MS=1800000
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_SESSION_TIMEOUT_MS=${VITE_SESSION_TIMEOUT_MS}
+
 RUN npm run build
 
 # --- Production stage ---

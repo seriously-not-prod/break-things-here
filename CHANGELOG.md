@@ -11,11 +11,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Local backend startup now auto-loads `backend/.env` or repo `.env`, and falls back to the standard local PostgreSQL URL when no development `DATABASE_URL` is set
+- Added a dedicated `db-test` PostgreSQL Docker service on port `5433` so backend integration tests match the documented local test setup
+- Added helper npm scripts for starting the main and test databases and for running backend build/test flows from the repo root
+- Corrected setup documentation to use the active backend port `4000` and to document the required database startup steps for local runs and backend tests
+- Fixed `docker-compose.yml` frontend service to build from `frontend/Dockerfile` (the full BRD feature app) instead of the root `Dockerfile.frontend` (stub app), so the new dashboard is served correctly
+- Fixed `analytics-controller.ts` query using non-existent column `e.event_date`; corrected to `e.date` to match the events table schema
+- Restored event date compatibility across backend and frontend event flows by returning both `date` and `event_date`, fixing calendar chips, event detail, and public RSVP pages
+
+### Added
+- Gallery and messages route wiring is now complete: backend `GET /api/events/:eventId/gallery`, frontend `/events/:id/gallery`, and frontend `/messages`
+- Event analytics reporting endpoints and frontend analytics UI, including CSV export and dashboard global analytics widget (BRD 3.10, 3.11)
+- Notifications controller helpers, due-task digest endpoint, and frontend notification bell/panel components (BRD 3.11)
+- Tasks Kanban Board at `/events/:id/tasks` with 4 columns: Pending, In Progress, Blocked, Complete (#373 #374)
+- `frontend/src/services/tasks-service.ts` — typed API adapter for tasks, comments, and subtasks
+- `frontend/src/components/tasks/tasks-kanban-page.tsx` — full Kanban board with drag-and-drop via `@dnd-kit/core` and `@dnd-kit/sortable`
+- `frontend/src/components/tasks/task-card.tsx` — individual task card with priority chip, due date (overdue red highlight), assignee avatar, subtask progress
+- `frontend/src/components/tasks/task-detail-drawer.tsx` — right-side MUI Drawer for inline task editing, subtask checklist, and comment thread
+- Extended `backend/src/controllers/tasks-controller.ts` with `listComments`, `addComment`, `addSubtask`, `toggleSubtask`, `deleteSubtask`
+- `frontend/test/tasks-kanban.test.tsx` — 8 tests covering column render, task count, add-task dialog, createTask call, loading/error states
+- npm packages: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@testing-library/user-event`
+
 ### Migration
 - Migrated backend database from SQLite to PostgreSQL (`pg` v8)
 - Replaced `sqlite` / `sqlite3` npm packages with `pg` and `@types/pg`
 - Rewrote `backend/src/db/database.ts`: PostgreSQL connection pool with a SQLite-compatible wrapper (`get`, `all`, `run`, `exec`) that auto-converts `?` placeholders to `$N` positional parameters
 - Converted all DDL: `INTEGER PRIMARY KEY AUTOINCREMENT` → `SERIAL PRIMARY KEY`, `DATETIME` → `TIMESTAMP`, seeded reference data uses `ON CONFLICT … DO NOTHING`
+- Migrated backend utility scripts and SQLite-backed test scaffolding to PostgreSQL-backed helpers so local tooling, CI, and application runtime all execute against PostgreSQL-only code paths
 - Fixed SQLite-only `INSERT OR IGNORE` → `INSERT … ON CONFLICT (col) DO NOTHING` in `profile-controller.ts`
 - Fixed SQLite integer-string concatenation `|| id ||` → `|| id::text ||` in `users-controller.ts`
 - Fixed SQLite `INSERT OR REPLACE` → `INSERT … ON CONFLICT (email) DO UPDATE SET …` in dev-seed route
@@ -51,6 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tests for JWT token refresh, session timeout, remember-me sessions, forgot/reset password, admin user management
 
 ### Fixed
+- Seed default `role_permissions` rows during backend migrations for Admin, Organizer, and Attendee roles, and add coverage that verifies `authorizePermission` succeeds with Postgres-backed seeded permissions (#265, #287)
 - Backend entry point (`index.ts`) rewritten from PostgreSQL to SQLite for consistency with rest of codebase
 - `AuthRequest` interface in profile-controller.ts no longer conflicts with multer file types (#102)
 - `authenticateToken` middleware converted to async with database session validation and timeout checking

@@ -1,12 +1,13 @@
 /**
  * Shared API client for Festival Event Planner frontend.
- * Reads the auth token from localStorage, attaches it to every request,
+ * Keeps the auth token in module memory, attaches it to every request,
  * and surfaces a typed error when the server responds with non-2xx.
  */
 
 // In dev the Vite proxy forwards /api/* to the backend, so we use a relative base.
 // In production set VITE_API_URL to the backend origin if the frontend is served separately.
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
+let accessToken: string | null = null;
 
 export class ApiError extends Error {
   status: number;
@@ -17,45 +18,37 @@ export class ApiError extends Error {
   }
 }
 
-function getToken(): string | null {
-  return localStorage.getItem('accessToken');
+export function getToken(): string | null {
+  return accessToken;
 }
 
-function getCsrfToken(): string | null {
-  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
-  return match ? match[1] : null;
-}
+// In-memory CSRF token — avoids cookie-forwarding issues through nginx proxy.
+let _csrfToken: string | null = null;
 
-async function ensureCsrfCookie(): Promise<void> {
-  if (getCsrfToken()) return;
-
-  // Any GET response from the backend can set the CSRF cookie. This makes
-  // the first mutating request resilient if the page has not hit the API yet.
-  await fetch(`${API_BASE}/api/auth/me`, {
-    method: 'GET',
-    credentials: 'include',
-  }).catch(() => undefined);
+async function ensureCsrfToken(): Promise<void> {
+  if (_csrfToken) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/csrf-token`, { credentials: 'include' });
+    if (res.ok) {
+      const data = await res.json() as { csrfToken: string };
+      _csrfToken = data.csrfToken;
+    }
+  } catch {
+    // Silently continue — request will fail with 403 if token is truly missing
+  }
 }
 
 export function setToken(token: string | null): void {
-  if (token) {
-    localStorage.setItem('accessToken', token);
-  } else {
-    localStorage.removeItem('accessToken');
-  }
+  accessToken = token;
 }
 
-export function setRefreshToken(token: string | null): void {
-  if (token) {
-    localStorage.setItem('refreshToken', token);
-  } else {
-    localStorage.removeItem('refreshToken');
-  }
+export function getAuthHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export function getRefreshToken(): string | null {
-  return localStorage.getItem('refreshToken');
-}
+// refreshToken is stored exclusively in an HttpOnly cookie set by the backend.
+// It is never read from or written to localStorage. (#290)
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
@@ -67,9 +60,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const method = (init.method ?? 'GET').toUpperCase();
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    await ensureCsrfCookie();
-    const csrfToken = getCsrfToken();
-    if (csrfToken) headers['X-XSRF-TOKEN'] = csrfToken;
+    await ensureCsrfToken();
+    if (_csrfToken) headers['X-XSRF-Token'] = _csrfToken;
+    // Clear after use — fetch a fresh token for every mutation
+    _csrfToken = null;
   }
 
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers, credentials: 'include' });
