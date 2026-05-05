@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { pathToFileURL } from 'url';
 import { initializeDatabase } from './db/database.js';
 import { sanitizeRequestBody } from './middleware/sanitize-input.js';
+import { apiLimiter } from './middleware/rate-limit.js';
 import apiRoutes from './routes/api-routes.js';
 
 const port = parseInt(process.env.PORT || '4000', 10);
@@ -57,7 +58,6 @@ export function createApp(): express.Express {
     }),
   );
   app.use(cors(corsOptions));
-  app.use(cookieParser());
   app.use(express.json());
 
   // CSRF Protection — HMAC-signed stateless token.
@@ -111,11 +111,14 @@ export function createApp(): express.Express {
 
   // CSRF token endpoint — called by the frontend before any state-changing request.
   // Returns an HMAC-signed token; no cookie required.
-  app.get('/api/csrf-token', (_req, res) => {
+  // Rate-limited to prevent token-farming abuse.
+  app.get('/api/csrf-token', apiLimiter, (_req, res) => {
     res.json({ csrfToken: generateCsrfToken() });
   });
 
-  app.use('/api', csrfProtection, sanitizeRequestBody, apiRoutes);
+  // cookieParser is scoped here so CodeQL can verify that all routes that read
+  // cookies also go through the csrfProtection middleware (CWE-352).
+  app.use('/api', cookieParser(), csrfProtection, sanitizeRequestBody, apiRoutes);
 
   return app;
 }
