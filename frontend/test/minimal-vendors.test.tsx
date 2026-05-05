@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -32,17 +32,11 @@ describe('dialog category interaction debug', () => {
     await userEvent.click(screen.getByRole('button', { name: /add vendor/i }));
     const dialog = await screen.findByRole('dialog');
 
-    // Try to find category combobox
-    const comboboxes = dialog.querySelectorAll('[role="combobox"]');
-    console.log('Number of comboboxes:', comboboxes.length);
-    if (comboboxes.length > 0) {
-      const categoryCombobox = comboboxes[0] as HTMLElement;
-      console.log('Category combobox aria-labelledby:', categoryCombobox.getAttribute('aria-labelledby'));
-      await userEvent.click(categoryCombobox);
-      const options = await screen.findAllByRole('option');
-      console.log('Options found:', options.length, options[0]?.textContent);
-    }
+    const categoryCombobox = within(dialog).getByRole('combobox', { name: /category/i });
+    fireEvent.mouseDown(categoryCombobox);
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByRole('option', { name: 'Catering' })).toBeInTheDocument();
 
     expect(dialog).toBeInTheDocument();
-  });
+  }, 15000);
 });

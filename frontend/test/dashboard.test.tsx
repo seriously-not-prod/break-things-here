@@ -204,9 +204,9 @@ describe('Dashboard', () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByText('Gallery')).toBeInTheDocument();
-        expect(screen.getByText('Check-in')).toBeInTheDocument();
-        expect(screen.getByText('Seating')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /go to events page/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /create a new event/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /open messages/i })).toBeInTheDocument();
       });
     });
   });

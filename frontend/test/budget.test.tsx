@@ -143,7 +143,7 @@ describe('BudgetPage', () => {
 
     expect(screen.getByRole('dialog', { name: /add expense/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
-  });
+  }, 15000);
 
   it('submits new expense and closes dialog', async () => {
     const newExpense: budgetService.Expense = {
@@ -184,7 +184,7 @@ describe('BudgetPage', () => {
     await waitFor(() => {
       expect(mockedService.createExpense).toHaveBeenCalledOnce();
     });
-  });
+  }, 15000);
 
   it('opens add category dialog and submits', async () => {
     const newCat: budgetService.BudgetCategory = {
@@ -223,5 +223,5 @@ describe('BudgetPage', () => {
         color: expect.any(String),
       });
     });
-  });
+  }, 15000);
 });

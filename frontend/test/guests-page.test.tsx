@@ -138,8 +138,9 @@ describe('GuestsPage', () => {
     const addButton = screen.getByRole('button', { name: /add guest/i });
     await userEvent.click(addButton);
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Add Guest')).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByRole('heading', { name: 'Add Guest' })).toBeInTheDocument();
   });
 
   it('Add Guest dialog has name and email fields', async () => {

@@ -60,6 +60,7 @@ services:
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/festival_planner
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - CSRF_SECRET=${CSRF_SECRET:-38a6e2426c2168dd83a4ab321467479d2141463f9c610487e4bf9b82af66cec7}
       - SESSION_TIMEOUT_MS=${SESSION_TIMEOUT_MS:-1800000}
       - TOKEN_HASH_SECRET=${TOKEN_HASH_SECRET:-change-this-token-hash-secret}
       - REFRESH_TOKEN_ENC_KEY=${REFRESH_TOKEN_ENC_KEY:-3Ipit2WZgUvcC+hCaaEQsfHCR852VBFimoyoob8r22A=}

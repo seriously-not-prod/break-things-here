@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import { AddPhotoAlternateRounded, PhotoLibraryRounded } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
-import { getAuthHeaders } from '../../lib/api-client';
+import { apiFetch } from '../../lib/api-client';
 import { listGallery, type GalleryItem } from '../../services/gallery-service';
 import { MediaPreviewDialog } from './media-preview-dialog';
 
@@ -47,10 +47,8 @@ export function GalleryPage(): JSX.Element {
       const formData = new FormData();
       formData.append('document', file);
 
-      const res = await fetch(`${API_BASE}/api/events/${eventId}/documents`, {
+      const res = await apiFetch(`/api/events/${eventId}/documents`, {
         method: 'POST',
-        headers: getAuthHeaders(),
-        credentials: 'include',
         body: formData,
       });
 

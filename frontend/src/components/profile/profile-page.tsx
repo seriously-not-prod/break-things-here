@@ -13,7 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import { CameraAltRounded, DeleteRounded, SaveRounded } from '@mui/icons-material';
-import { api, ApiError, getAuthHeaders } from '../../lib/api-client';
+import { api, apiFetch, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
 
 interface ProfileData {
@@ -26,9 +26,6 @@ interface ProfileData {
   country: string | null;
   profile_photo_url: string | null;
 }
-
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
-
 export default function ProfilePage(): JSX.Element {
   const { user } = useAuth();
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -91,10 +88,8 @@ export default function ProfilePage(): JSX.Element {
     try {
       const formData = new FormData();
       formData.append('photo', file);
-      const res = await fetch(`${API_BASE}/api/profile/photo`, {
+      const res = await apiFetch('/api/profile/photo', {
         method: 'POST',
-        headers: getAuthHeaders(),
-        credentials: 'include',
         body: formData,
       });
       if (!res.ok) {

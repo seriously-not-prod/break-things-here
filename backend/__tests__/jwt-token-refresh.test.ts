@@ -46,10 +46,11 @@ function makeReq(
   body: Record<string, unknown> = {},
   cookies: Record<string, string> = {},
 ) {
+  const cookieHeader = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ');
   return {
     body,
     cookies,
-    headers: {},
+    headers: cookieHeader ? { cookie: cookieHeader } : {},
   } as unknown as import('express').Request;
 }
 

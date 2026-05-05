@@ -38,6 +38,30 @@ async function ensureCsrfToken(): Promise<void> {
   }
 }
 
+async function performFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const token = getToken();
+  const headers = new Headers(init.headers ?? undefined);
+  const body = init.body;
+
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const method = (init.method ?? 'GET').toUpperCase();
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    await ensureCsrfToken();
+    if (_csrfToken && !headers.has('X-XSRF-Token')) {
+      headers.set('X-XSRF-Token', _csrfToken);
+    }
+  }
+
+  if (!(body instanceof FormData) && body !== undefined && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  return fetch(`${API_BASE}${path}`, { ...init, headers, credentials: 'include' });
+}
+
 export function setToken(token: string | null): void {
   accessToken = token;
 }
@@ -50,23 +74,23 @@ export function getAuthHeaders(): Record<string, string> {
 // refreshToken is stored exclusively in an HttpOnly cookie set by the backend.
 // It is never read from or written to localStorage. (#290)
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getToken();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(init.headers as Record<string, string>),
-  };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const method = (init.method ?? 'GET').toUpperCase();
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    await ensureCsrfToken();
-    if (_csrfToken) headers['X-XSRF-Token'] = _csrfToken;
-    // Clear after use — fetch a fresh token for every mutation
-    _csrfToken = null;
+  let response = await performFetch(path, init);
+
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && response.status === 403) {
+    const body = await response.clone().json().catch(() => null) as { error?: string } | null;
+    if (body?.error === 'Invalid CSRF token') {
+      _csrfToken = null;
+      response = await performFetch(path, init);
+    }
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers, credentials: 'include' });
+  return response;
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await apiFetch(path, init);
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string };

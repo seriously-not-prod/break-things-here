@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import { pathToFileURL } from 'url';
 import { initializeDatabase } from './db/database.js';
 import { sanitizeRequestBody } from './middleware/sanitize-input.js';
-import { apiLimiter, createAuthLimiter } from './middleware/rate-limit.js';
+import { apiLimiter, csrfLimiter } from './middleware/rate-limit.js';
 import apiRoutes from './routes/api-routes.js';
 
 const port = parseInt(process.env.PORT || '4000', 10);
@@ -15,7 +15,22 @@ const DEV_ORIGINS = [
   'http://localhost:4173',
   'http://localhost:5173',
   'http://localhost:5174',
+  'http://localhost:8080',
 ];
+
+// Module-level CSRF secret — computed once per process so hot-reloads in dev
+// don't invalidate tokens already held by the frontend. Set CSRF_SECRET in the
+// environment (or .env / docker-compose) to guarantee stability across restarts.
+const CSRF_SECRET: string = (() => {
+  const s = process.env.CSRF_SECRET;
+  if (s) return s;
+  const ephemeral = crypto.randomBytes(32).toString('hex');
+  console.warn(
+    '[SECURITY] CSRF_SECRET is not set. Using an ephemeral per-startup secret — ' +
+    'tokens will not survive restarts. Set CSRF_SECRET for stable sessions.',
+  );
+  return ephemeral;
+})();
 
 function getAllowedOrigins(isDev: boolean): string[] {
   if (isDev) {
@@ -62,7 +77,7 @@ export function createApp(): express.Express {
   // CSRF Protection — HMAC-signed stateless token.
   // Works correctly through nginx reverse proxy where Double Submit Cookie
   // is unreliable (Set-Cookie headers may not propagate back to the browser).
-  const CSRF_SECRET = process.env.CSRF_SECRET ?? crypto.randomBytes(32).toString('hex');
+  // CSRF_SECRET is defined at module level to survive hot-reloads.
 
   function generateCsrfToken(): string {
     const nonce = crypto.randomBytes(16).toString('hex');
@@ -110,8 +125,9 @@ export function createApp(): express.Express {
 
   // CSRF token endpoint — called by the frontend before any state-changing request.
   // Returns an HMAC-signed token; no cookie required.
-  // Auth-rate-limited (10 req / 15 min) to prevent token-farming abuse.
-  app.get('/api/csrf-token', createAuthLimiter(), (_req, res) => {
+  // Uses a separate, higher limiter because the frontend may request a token
+  // on load and across multiple tabs before sending mutations.
+  app.get('/api/csrf-token', csrfLimiter, (_req, res) => {
     res.json({ csrfToken: generateCsrfToken() });
   });
 

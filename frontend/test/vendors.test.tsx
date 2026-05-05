@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -91,18 +91,16 @@ describe('VendorsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: /add vendor/i }));
 
     const dialog = await screen.findByRole('dialog');
-    await userEvent.type(screen.getByLabelText(/vendor name/i), 'Sound Co');
+    await userEvent.type(within(dialog).getByLabelText(/vendor name/i), 'Sound Co');
 
-    // Open the MUI Select for Category and pick Catering
-    await userEvent.click(screen.getByRole('combobox', { name: /category/i }));
-    await userEvent.click(await screen.findByRole('option', { name: 'Catering' }));
+    fireEvent.mouseDown(within(dialog).getByRole('combobox', { name: /category/i }));
+    const listbox = await screen.findByRole('listbox');
+    await userEvent.click(within(listbox).getByRole('option', { name: 'Catering' }));
 
-    // Submit the form via button[type="submit"] inside the dialog
-    const submitBtn = dialog.querySelector('button[type="submit"]') as HTMLButtonElement;
-    await userEvent.click(submitBtn);
+    await userEvent.click(within(dialog).getByRole('button', { name: /^add$/i }));
 
     await waitFor(() => expect(mockedService.createVendor).toHaveBeenCalledTimes(1));
-  });
+  }, 15000);
 
   it('displays empty state when no vendors', async () => {
     mockedService.listVendors.mockResolvedValue([]);

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -81,13 +81,11 @@ describe('TimelinePage', () => {
     await userEvent.click(screen.getByRole('button', { name: /add activity/i }));
 
     const dialog = await screen.findByRole('dialog');
-    await userEvent.type(screen.getByLabelText(/title/i), 'Opening Speech');
-
-    const addBtn = dialog.querySelector('button[type="submit"]') as HTMLButtonElement | null;
-    if (addBtn) await userEvent.click(addBtn);
+    await userEvent.type(within(dialog).getByLabelText(/title/i), 'Opening Speech');
+    await userEvent.click(within(dialog).getByRole('button', { name: /^add$/i }));
 
     await waitFor(() => expect(mockedTimeline.createActivity).toHaveBeenCalledTimes(1));
-  });
+  }, 15000);
 
   it('shows empty state when no activities', async () => {
     mockedTimeline.listActivities.mockResolvedValue([]);

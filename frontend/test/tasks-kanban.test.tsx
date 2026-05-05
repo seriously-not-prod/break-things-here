@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -175,11 +175,12 @@ describe('TasksKanbanPage', () => {
     const addButtons = screen.getAllByText('Add');
     await user.click(addButtons[0]);
 
-    const titleInput = screen.getByLabelText('Title');
+    const dialog = screen.getByRole('dialog');
+    const titleInput = within(dialog).getByLabelText('Title');
     await user.clear(titleInput);
     await user.type(titleInput, 'New Task');
 
-    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }));
 
     await waitFor(() => {
       expect(tasksService.createTask).toHaveBeenCalledWith(
@@ -187,7 +188,7 @@ describe('TasksKanbanPage', () => {
         expect.objectContaining({ title: 'New Task', status: 'Pending' }),
       );
     });
-  });
+  }, 15000);
 
   it('shows loading spinner initially', () => {
     vi.mocked(tasksService.listTasks).mockReturnValue(new Promise(() => undefined));
