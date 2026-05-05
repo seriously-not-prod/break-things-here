@@ -20,13 +20,23 @@ interface PublicRsvpEvent {
   title: string;
   description: string | null;
   location: string | null;
-  event_date: string;
+  date: string;
+  event_date?: string;
   capacity: number | null;
 }
 
 interface PublicRsvpContext {
   event: PublicRsvpEvent;
   remainingCapacity: number | null;
+}
+
+function normalizePublicEvent(event: PublicRsvpEvent): PublicRsvpEvent {
+  const eventDate = event.date ?? event.event_date ?? '';
+  return {
+    ...event,
+    date: eventDate,
+    event_date: eventDate,
+  };
 }
 
 export default function PublicRsvpPage(): JSX.Element {
@@ -49,7 +59,7 @@ export default function PublicRsvpPage(): JSX.Element {
 
       try {
         const data = await api.get<PublicRsvpContext>(`/api/public/events/${eventId}`);
-        setEvent(data.event);
+        setEvent(normalizePublicEvent(data.event));
         setRemainingCapacity(data.remainingCapacity);
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Failed to load RSVP details.');
@@ -121,7 +131,7 @@ export default function PublicRsvpPage(): JSX.Element {
           <Typography variant="overline" color="text.secondary">Public RSVP</Typography>
           <Typography variant="h4" fontWeight={800}>{event.title}</Typography>
           <Typography color="text.secondary">
-            {new Date(event.event_date).toLocaleDateString()}
+            {new Date(event.date).toLocaleDateString()}
             {event.location ? ` · ${event.location}` : ''}
           </Typography>
           {event.capacity !== null && (

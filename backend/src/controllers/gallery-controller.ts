@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { requireEventAccess } from '../utils/event-access.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -16,22 +17,16 @@ interface GalleryRow {
 
 export async function listGallery(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
-  if (!authReq.user) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
   const { eventId } = req.params;
+  const event = await requireEventAccess(authReq, res, eventId, {
+    allowMembers: true,
+    forbiddenMessage: 'Not authorised to view this event gallery.',
+  });
+  if (!event) {
+    return res as Response;
+  }
 
   const db = getDatabase();
-
-  const event = await db.get<{ id: number; deleted_at: string | null }>(
-    'SELECT id, deleted_at FROM events WHERE id = ? AND deleted_at IS NULL',
-    [eventId],
-  );
-
-  if (!event) {
-    return res.status(404).json({ error: 'Event not found.' });
-  }
 
   const rows = await db.all<GalleryRow>(
     `SELECT id, original_name, file_name, mime_type, file_size, created_at

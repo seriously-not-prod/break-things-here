@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner PORT=4000 tsx watch src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "dev:local": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner PORT=4000 tsx watch src/index.ts",
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
+    "db:up": "docker compose -f ../docker-compose.yml up -d db",
+    "db:test:up": "docker compose -f ../docker-compose.yml up -d db-test",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit"
   },

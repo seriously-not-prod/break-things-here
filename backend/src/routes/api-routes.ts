@@ -22,6 +22,8 @@ import * as seatingController from '../controllers/seating-controller.js';
 import * as communicationController from '../controllers/guest-communication-controller.js';
 import * as budgetController from '../controllers/budget-controller.js';
 import * as galleryController from '../controllers/gallery-controller.js';
+import * as aiController from '../controllers/ai-controller.js';
+import * as messagesController from '../controllers/messages-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
 import multer from 'multer';
@@ -131,6 +133,7 @@ router.post('/auth/verify-email', authController.verifyEmail);
 router.post('/auth/login', createAuthLimiter(), authController.login);
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
+router.post('/ai/suggest', authenticateToken, aiController.getSuggestion);
 
 
 // ============ PUBLIC RSVP ROUTES ==========
@@ -181,6 +184,7 @@ router.put('/profile', authenticateToken, profileController.updateUserProfile);
 router.post('/profile/photo', authenticateToken, upload.single('photo'), profileController.uploadProfilePhoto);
 router.delete('/profile/photo', authenticateToken, profileController.deleteProfilePhoto);
 router.get('/uploads/profile-photos/:filename', authenticateToken, profileController.getProfilePhoto);
+router.get('/uploads/event-documents/:filename', authenticateToken, eventDocumentsController.getEventDocumentFile);
 router.post('/profile/change-email', authenticateToken, profileController.changeEmail);
 
 // ============ RBAC ROUTES ============
@@ -223,6 +227,7 @@ router.get('/events', authenticateToken, eventController.getAllEvents);
 router.get('/events/:id', authenticateToken, eventController.getEventById);
 router.post('/events', authenticateToken, eventController.createEvent);
 router.put('/events/:id', authenticateToken, eventController.updateEvent);
+router.patch('/events/:id', authenticateToken, eventController.updateEvent);
 router.delete('/events/:id', authenticateToken, eventController.deleteEvent);
 router.post('/events/:id/clone', authenticateToken, eventController.cloneEvent);
 router.patch('/events/:id/cover', authenticateToken, eventController.setCoverImage);
@@ -237,6 +242,8 @@ router.get('/events/:eventId/gallery', authenticateToken, galleryController.list
 // ============ ADMIN ROUTES — issues #260 #279 ============
 // All admin routes require authentication + Admin role
 router.get('/admin/users', authenticateToken, authorizeRole(['Admin']), adminController.listUsers);
+router.post('/admin/users', authenticateToken, authorizeRole(['Admin']), adminController.createUser);
+router.put('/admin/users/:id', authenticateToken, authorizeRole(['Admin']), adminController.updateUser);
 router.patch('/admin/users/:id/role', authenticateToken, authorizeRole(['Admin']), adminController.changeUserRole);
 router.patch('/admin/users/:id/lock', authenticateToken, authorizeRole(['Admin']), adminController.toggleLock);
 router.delete('/admin/users/:id', authenticateToken, authorizeRole(['Admin']), adminController.deleteUser);
@@ -255,6 +262,7 @@ router.post('/tasks/:id/toggle', authenticateToken, taskController.toggleTaskSta
 router.get('/events/:eventId/tasks', authenticateToken, tasksController.listTasks);
 router.post('/events/:eventId/tasks', authenticateToken, tasksController.createTask);
 router.put('/events/:eventId/tasks/:id', authenticateToken, tasksController.updateTask);
+router.patch('/events/:eventId/tasks/:id', authenticateToken, tasksController.updateTask);
 router.delete('/events/:eventId/tasks/:id', authenticateToken, tasksController.deleteTask);
 router.get('/events/:eventId/tasks/:taskId/comments', authenticateToken, tasksController.listComments);
 router.post('/events/:eventId/tasks/:taskId/comments', authenticateToken, tasksController.addComment);
@@ -301,6 +309,12 @@ router.post('/events/:eventId/seating/tables', authenticateToken, seatingControl
 router.delete('/events/:eventId/seating/tables/:tableId', authenticateToken, seatingController.deleteTable);
 router.post('/events/:eventId/seating/tables/:tableId/assign/:rsvpId', authenticateToken, seatingController.assignGuest);
 router.delete('/events/:eventId/seating/tables/:tableId/assign/:rsvpId', authenticateToken, seatingController.unassignGuest);
+
+// ============ MESSAGES ROUTES — team conversation per event ============
+router.get('/events/:eventId/messages', authenticateToken, messagesController.listMessages);
+router.post('/events/:eventId/messages', authenticateToken, messagesController.postMessage);
+router.patch('/events/:eventId/messages/:id', authenticateToken, messagesController.editMessage);
+router.delete('/events/:eventId/messages/:id', authenticateToken, messagesController.deleteMessage);
 
 // ============ BUDGET ROUTES — BRD 3.4, issue #374 ============
 router.get('/events/:eventId/budget/categories', authenticateToken, budgetController.listCategories);

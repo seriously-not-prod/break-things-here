@@ -33,31 +33,30 @@ interface PlannerEvent {
   id: number;
   title: string;
   location: string | null;
-  event_date: string;
+  date: string;
   capacity: number | null;
   status: string;
   creator_name: string | null;
   event_type?: string | null;
 }
 
-const STATUS_OPTIONS = ['Draft', 'Active', 'Completed', 'Cancelled'];
+const STATUS_OPTIONS = ['Draft', 'Active', 'Completed'];
 const STATUS_COLORS: Record<string, 'default' | 'primary' | 'success' | 'error'> = {
   Draft: 'default',
   Active: 'primary',
   Completed: 'success',
-  Cancelled: 'error',
 };
 
 interface EventForm {
   title: string;
   description: string;
   location: string;
-  event_date: string;
+  date: string;
   capacity: string;
   status: string;
 }
 
-const EMPTY_FORM: EventForm = { title: '', description: '', location: '', event_date: '', capacity: '', status: 'Draft' };
+const EMPTY_FORM: EventForm = { title: '', description: '', location: '', date: '', capacity: '', status: 'Draft' };
 
 interface EventsPageProps {
   initialView?: 'list' | 'calendar';
@@ -82,8 +81,10 @@ export default function EventsPage({ initialView = 'list' }: EventsPageProps): J
   async function loadEvents(): Promise<void> {
     setLoading(true);
     try {
-      const data = await api.get<{ events: PlannerEvent[] }>('/api/events');
-      setEvents(data.events);
+      const data = await api.get<PlannerEvent[] | { events: PlannerEvent[] }>('/api/events');
+      // Backend may return array or { events: [] } shape
+      const list: PlannerEvent[] = Array.isArray(data) ? data : (data as any).events ?? [];
+      setEvents(list);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load events.');
     } finally {
@@ -117,7 +118,7 @@ export default function EventsPage({ initialView = 'list' }: EventsPageProps): J
       title: event.title,
       description: '',
       location: event.location ?? '',
-      event_date: event.event_date,
+      date: event.date,
       capacity: event.capacity === null || event.capacity === undefined ? '' : String(event.capacity),
       status: event.status,
     });
@@ -133,14 +134,14 @@ export default function EventsPage({ initialView = 'list' }: EventsPageProps): J
       setSaveError('Title is required.');
       return;
     }
-    if (!form.event_date) {
+    if (!form.date) {
       setSaveError('Event Date is required.');
       return;
     }
     setSaving(true);
     try {
       if (editingId) {
-        await api.patch(`/api/events/${editingId}`, { ...form, capacity: form.capacity ? Number(form.capacity) : null });
+        await api.put(`/api/events/${editingId}`, { ...form, capacity: form.capacity ? Number(form.capacity) : null });
       } else {
         await api.post('/api/events', { ...form, capacity: form.capacity ? Number(form.capacity) : null });
       }
@@ -240,7 +241,7 @@ export default function EventsPage({ initialView = 'list' }: EventsPageProps): J
                       <Chip label={event.event_type} size="small" variant="outlined" sx={{ ml: 1 }} />
                     )}
                   </TableCell>
-                  <TableCell>{new Date(event.event_date).toLocaleDateString()}</TableCell>
+                  <TableCell>{new Date(event.date).toLocaleDateString()}</TableCell>
                   <TableCell>{event.location ?? '—'}</TableCell>
                   <TableCell>{event.capacity ?? '—'}</TableCell>
                   <TableCell>
@@ -298,8 +299,8 @@ export default function EventsPage({ initialView = 'list' }: EventsPageProps): J
               <TextField
                 label="Event Date"
                 type="date"
-                value={form.event_date}
-                onChange={handleField('event_date')}
+                value={form.date}
+                onChange={handleField('date')}
                 required
                 fullWidth
                 InputLabelProps={{ shrink: true }}

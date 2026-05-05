@@ -8,6 +8,7 @@ import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { logActivity } from './activity-feed-controller.js';
 import { createBudgetAlert } from './notifications-controller.js';
+import { requireEventAccess } from '../utils/event-access.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -69,6 +70,9 @@ export async function listCategories(req: AuthRequest, res: Response): Promise<v
     const db = getDatabase();
     const { eventId } = req.params;
 
+    const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!event) return;
+
     const categories = await db.all<{
       id: number;
       event_id: number;
@@ -108,6 +112,10 @@ export async function createCategory(req: AuthRequest, res: Response): Promise<v
   try {
     const db = getDatabase();
     const { eventId } = req.params;
+
+    const event = await requireEventAccess(req, res, eventId, { ownerOnly: true });
+    if (!event) return;
+
     const { name, allocated_amount, color } = req.body as {
       name?: unknown;
       allocated_amount?: unknown;
@@ -153,6 +161,10 @@ export async function updateCategory(req: AuthRequest, res: Response): Promise<v
   try {
     const db = getDatabase();
     const { eventId, id } = req.params;
+
+    const event = await requireEventAccess(req, res, eventId, { ownerOnly: true });
+    if (!event) return;
+
     const { name, allocated_amount, color } = req.body as {
       name?: unknown;
       allocated_amount?: unknown;
@@ -209,6 +221,9 @@ export async function deleteCategory(req: AuthRequest, res: Response): Promise<v
     const db = getDatabase();
     const { eventId, id } = req.params;
 
+    const event = await requireEventAccess(req, res, eventId, { ownerOnly: true });
+    if (!event) return;
+
     const existing = await db.get(
       'SELECT id FROM budget_categories WHERE id = ? AND event_id = ?',
       [id, eventId],
@@ -239,6 +254,9 @@ export async function listExpenses(req: AuthRequest, res: Response): Promise<voi
     const db = getDatabase();
     const { eventId } = req.params;
 
+    const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!event) return;
+
     const expenses = await db.all(
       `SELECT e.*, bc.name AS category_name
        FROM expenses e
@@ -266,6 +284,10 @@ export async function createExpense(req: AuthRequest, res: Response): Promise<vo
   try {
     const db = getDatabase();
     const { eventId } = req.params;
+
+    const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!event) return;
+
     const { title, amount, category_id, payment_status, vendor_name, notes } = req.body as {
       title?: unknown;
       amount?: unknown;
@@ -336,6 +358,10 @@ export async function updateExpense(req: AuthRequest, res: Response): Promise<vo
   try {
     const db = getDatabase();
     const { eventId, id } = req.params;
+
+    const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!event) return;
+
     const { title, amount, category_id, payment_status, vendor_name, notes } = req.body as {
       title?: unknown;
       amount?: unknown;
@@ -407,6 +433,9 @@ export async function deleteExpense(req: AuthRequest, res: Response): Promise<vo
   try {
     const db = getDatabase();
     const { eventId, id } = req.params;
+
+    const event = await requireEventAccess(req, res, eventId, { ownerOnly: true });
+    if (!event) return;
 
     const existing = await db.get(
       'SELECT id FROM expenses WHERE id = ? AND event_id = ?',

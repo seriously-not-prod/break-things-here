@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { logActivity } from './activity-feed-controller.js';
+import { requireEventAccess } from '../utils/event-access.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -20,8 +21,11 @@ async function getTaskTeamMemberIds(db: ReturnType<typeof getDatabase>, eventId:
 
 /** GET /api/events/:eventId/tasks */
 export async function listTasks(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
   const { eventId } = req.params;
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
   const rows = await db.all(
     `SELECT t.*, COALESCE(u.display_name, t.assignee_name) AS assignee_name
      FROM tasks t
@@ -52,8 +56,8 @@ export async function createTask(req: AuthRequest, res: Response): Promise<Respo
 
   const db = getDatabase();
 
-  const event = await db.get('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
-  if (!event) return res.status(404).json({ error: 'Event not found.' });
+  const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
 
   let assignedUserId: number | null = null;
   let derivedAssigneeName = assignee_name?.trim() || null;
@@ -99,10 +103,14 @@ export async function createTask(req: AuthRequest, res: Response): Promise<Respo
 
 /** PATCH /api/events/:eventId/tasks/:id */
 export async function updateTask(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
-  const { id } = req.params;
+  const { id, eventId } = req.params;
 
-  const task = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+
+  const task = await db.get('SELECT * FROM tasks WHERE id = ? AND event_id = ?', [id, eventId]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const { title, notes, assignee_name, assigned_user_id, due_date, status, priority } = req.body as Record<string, string>;
@@ -169,10 +177,14 @@ export async function updateTask(req: Request, res: Response): Promise<Response>
 
 /** DELETE /api/events/:eventId/tasks/:id */
 export async function deleteTask(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
-  const { id } = req.params;
+  const { id, eventId } = req.params;
 
-  const task = await db.get('SELECT id FROM tasks WHERE id = ?', [id]);
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+
+  const task = await db.get('SELECT id FROM tasks WHERE id = ? AND event_id = ?', [id, eventId]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   await db.run('DELETE FROM tasks WHERE id = ?', [id]);
@@ -183,10 +195,14 @@ export async function deleteTask(req: Request, res: Response): Promise<Response>
 
 /** GET /api/events/:eventId/tasks/:taskId/comments */
 export async function listComments(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
-  const { taskId } = req.params;
+  const { taskId, eventId } = req.params;
 
-  const task = await db.get('SELECT id FROM tasks WHERE id = ?', [taskId]);
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+
+  const task = await db.get('SELECT id FROM tasks WHERE id = ? AND event_id = ?', [taskId, eventId]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const comments = await db.all(
@@ -203,12 +219,15 @@ export async function listComments(req: Request, res: Response): Promise<Respons
 /** POST /api/events/:eventId/tasks/:taskId/comments */
 export async function addComment(req: AuthRequest, res: Response): Promise<Response> {
   const db = getDatabase();
-  const { taskId } = req.params;
+  const { taskId, eventId } = req.params;
   const { body } = req.body as { body?: string };
 
   if (!body?.trim()) return res.status(400).json({ error: 'Comment body is required.' });
 
-  const task = await db.get('SELECT id FROM tasks WHERE id = ?', [taskId]);
+  const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+
+  const task = await db.get('SELECT id FROM tasks WHERE id = ? AND event_id = ?', [taskId, eventId]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const result = await db.run(
@@ -230,13 +249,17 @@ export async function addComment(req: AuthRequest, res: Response): Promise<Respo
 
 /** POST /api/events/:eventId/tasks/:taskId/subtasks */
 export async function addSubtask(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
-  const { taskId } = req.params;
+  const { taskId, eventId } = req.params;
   const { title } = req.body as { title?: string };
 
   if (!title?.trim()) return res.status(400).json({ error: 'Subtask title is required.' });
 
-  const task = await db.get('SELECT id FROM tasks WHERE id = ?', [taskId]);
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+
+  const task = await db.get('SELECT id FROM tasks WHERE id = ? AND event_id = ?', [taskId, eventId]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const result = await db.run(
@@ -250,10 +273,19 @@ export async function addSubtask(req: Request, res: Response): Promise<Response>
 
 /** PATCH /api/events/:eventId/tasks/:taskId/subtasks/:id */
 export async function toggleSubtask(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
-  const { id } = req.params;
+  const { id, eventId } = req.params;
 
-  const subtask = await db.get('SELECT * FROM task_subtasks WHERE id = ?', [id]);
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+
+  const subtask = await db.get(
+    `SELECT ts.* FROM task_subtasks ts
+     JOIN tasks t ON t.id = ts.task_id
+     WHERE ts.id = ? AND t.event_id = ?`,
+    [id, eventId],
+  );
   if (!subtask) return res.status(404).json({ error: 'Subtask not found.' });
 
   await db.run('UPDATE task_subtasks SET completed = NOT completed WHERE id = ?', [id]);
@@ -263,10 +295,19 @@ export async function toggleSubtask(req: Request, res: Response): Promise<Respon
 
 /** DELETE /api/events/:eventId/tasks/:taskId/subtasks/:id */
 export async function deleteSubtask(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
-  const { id } = req.params;
+  const { id, eventId } = req.params;
 
-  const subtask = await db.get('SELECT id FROM task_subtasks WHERE id = ?', [id]);
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+
+  const subtask = await db.get(
+    `SELECT ts.id FROM task_subtasks ts
+     JOIN tasks t ON t.id = ts.task_id
+     WHERE ts.id = ? AND t.event_id = ?`,
+    [id, eventId],
+  );
   if (!subtask) return res.status(404).json({ error: 'Subtask not found.' });
 
   await db.run('DELETE FROM task_subtasks WHERE id = ?', [id]);

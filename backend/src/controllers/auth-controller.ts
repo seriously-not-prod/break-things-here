@@ -294,8 +294,17 @@ export async function getCurrentUser(req: AuthRequest, res: Response): Promise<R
 
   const db = getDatabase();
   const user = await db.get(
-    `SELECT id, email, display_name, email_verified, role_id, created_at, updated_at
-     FROM users WHERE id = ? AND deleted_at IS NULL`,
+    `SELECT u.id,
+            u.email,
+            u.display_name,
+            u.email_verified,
+            u.role_id,
+            r.name AS role_name,
+            u.created_at,
+            u.updated_at
+     FROM users u
+     LEFT JOIN roles r ON r.id = u.role_id
+     WHERE u.id = ? AND u.deleted_at IS NULL`,
     [req.user.id],
   );
 

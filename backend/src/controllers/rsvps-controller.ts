@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { createRsvpNotification } from './notifications-controller.js';
 import { logActivity } from './activity-feed-controller.js';
+import { requireEventAccess } from '../utils/event-access.js';
 
 interface RsvpRow {
   id: number;
@@ -49,8 +50,11 @@ function csvEscape(value: unknown): string {
 
 /** GET /api/events/:eventId/rsvps */
 export async function listRsvps(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
   const { eventId } = req.params;
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
   const rows = await db.all(
     'SELECT * FROM rsvps WHERE event_id = ? ORDER BY created_at DESC',
     [eventId],
@@ -62,8 +66,8 @@ export async function listRsvps(req: Request, res: Response): Promise<Response> 
 export async function getPublicRsvpContext(req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
   const { eventId } = req.params;
-  const event = await db.get<{ id: number; title: string; description: string | null; location: string | null; event_date: string; capacity: number | null }>(
-    'SELECT id, title, description, location, event_date, capacity FROM events WHERE id = ? AND deleted_at IS NULL',
+  const event = await db.get<{ id: number; title: string; description: string | null; location: string | null; date: string; event_date: string; capacity: number | null }>(
+    'SELECT id, title, description, location, date, date AS event_date, capacity FROM events WHERE id = ? AND deleted_at IS NULL',
     [eventId],
   );
   if (!event) return res.status(404).json({ error: 'Event not found.' });
@@ -175,9 +179,12 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
 
 /** PATCH /api/events/:eventId/rsvps/:id */
 export async function updateRsvp(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
-  const { id } = req.params;
-  const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ?', [id]);
+  const { id, eventId } = req.params;
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+  const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ? AND event_id = ?', [id, eventId]);
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
   const {
@@ -250,7 +257,6 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
   const updated = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ?', [id]);
 
   if (nextStatus === 'Going') {
-    const authReq = req as AuthRequest;
     await logActivity(
       rsvp.event_id,
       authReq.user?.id ?? null,
@@ -274,10 +280,12 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
 
 /** DELETE /api/events/:eventId/rsvps/:id */
 export async function deleteRsvp(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
-  const { id } = req.params;
-
-  const rsvp = await db.get<Pick<RsvpRow, 'id'>>('SELECT id FROM rsvps WHERE id = ?', [id]);
+  const { id, eventId } = req.params;
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+  const rsvp = await db.get<Pick<RsvpRow, 'id'>>('SELECT id FROM rsvps WHERE id = ? AND event_id = ?', [id, eventId]);
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
   await db.run('DELETE FROM rsvps WHERE id = ?', [id]);
@@ -295,15 +303,8 @@ export async function exportRsvpsCsv(req: Request, res: Response): Promise<Respo
   }
 
   const authReq = req as AuthRequest;
-  if (!authReq.user) {
-    return res.status(401).json({ error: 'Authentication required.' });
-  }
-
-  const event = await db.get<{ created_by: number }>('SELECT created_by FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
-  if (!event) return res.status(404).json({ error: 'Event not found.' });
-  if (authReq.user.role_id < 3 && event.created_by !== authReq.user.id) {
-    return res.status(403).json({ error: 'Not authorised to export this event.' });
-  }
+  const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
+  if (!event) return res as Response;
 
   const rows = await db.all<{
     name: string;
@@ -357,8 +358,12 @@ export async function exportRsvpsCsv(req: Request, res: Response): Promise<Respo
 
 /** PATCH /api/events/:eventId/rsvps/:id/checkin */
 export async function checkInGuest(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
   const db = getDatabase();
   const { id, eventId } = req.params;
+
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
 
   const rsvp = await db.get<RsvpRow & { checked_in: boolean; checked_in_at: string | null }>(
     'SELECT * FROM rsvps WHERE id = ? AND event_id = ?',
@@ -378,7 +383,6 @@ export async function checkInGuest(req: Request, res: Response): Promise<Respons
 
   const updated = await db.get<RsvpRow & { name?: string }>('SELECT * FROM rsvps WHERE id = ?', [id]);
 
-  const authReq = req as AuthRequest;
   await logActivity(
     eventId,
     authReq.user?.id ?? null,
@@ -400,11 +404,8 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
   if (!file) return res.status(400).json({ error: 'No CSV file uploaded.' });
 
   const db = getDatabase();
-  const event = await db.get<{ id: number }>(
-    'SELECT id FROM events WHERE id = ? AND deleted_at IS NULL',
-    [eventId],
-  );
-  if (!event) return res.status(404).json({ error: 'Event not found.' });
+  const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
+  if (!event) return res as Response;
 
   const MAX_CSV_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
   const MAX_CSV_LINE_CHARS = 10_000;

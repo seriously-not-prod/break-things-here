@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { hashPassword, validateEmailFormat } from '../utils/auth-helpers.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -103,4 +104,79 @@ export async function listRoles(_req: Request, res: Response): Promise<Response>
   const db = getDatabase();
   const roles = await db.all('SELECT * FROM roles ORDER BY id ASC');
   return res.json({ roles });
+}
+
+/** POST /api/admin/users — create a new user */
+export async function createUser(req: AuthRequest, res: Response): Promise<Response> {
+  const { email, password, display_name, role_id, email_verified } = req.body as {
+    email?: string;
+    password?: string;
+    display_name?: string;
+    role_id?: number;
+    email_verified?: boolean;
+  };
+
+  if (!email || !password || !display_name || !role_id) {
+    return res.status(400).json({ error: 'email, password, display_name and role_id are required.' });
+  }
+  if (!validateEmailFormat(email)) {
+    return res.status(400).json({ error: 'Invalid email format.' });
+  }
+
+  const db = getDatabase();
+  const normalizedEmail = email.trim().toLowerCase();
+  const existing = await db.get('SELECT id FROM users WHERE LOWER(email) = ?', [normalizedEmail]);
+  if (existing) {
+    return res.status(409).json({ error: 'User with this email already exists.' });
+  }
+
+  const passwordHash = await hashPassword(password);
+  const result = await db.run(
+    `INSERT INTO users (email, password_hash, display_name, email_verified, role_id, account_locked, login_attempts, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [normalizedEmail, passwordHash, display_name.trim(), email_verified ? 1 : 0, role_id],
+  );
+
+  return res.status(201).json({ message: 'User created.', userId: result.lastID });
+}
+
+/** PUT /api/admin/users/:id — update a user */
+export async function updateUser(req: AuthRequest, res: Response): Promise<Response> {
+  const { id } = req.params;
+  const { email, password, display_name, role_id, email_verified, account_locked } = req.body as {
+    email?: string;
+    password?: string;
+    display_name?: string;
+    role_id?: number;
+    email_verified?: boolean;
+    account_locked?: boolean;
+  };
+
+  if (!email || !display_name || !role_id) {
+    return res.status(400).json({ error: 'email, display_name and role_id are required.' });
+  }
+  if (!validateEmailFormat(email)) {
+    return res.status(400).json({ error: 'Invalid email format.' });
+  }
+
+  const db = getDatabase();
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await db.get('SELECT id, deleted_at FROM users WHERE id = ?', [id]);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+  if (user.deleted_at) return res.status(400).json({ error: 'Cannot update a deleted user.' });
+
+  const updateValues: unknown[] = [normalizedEmail, display_name.trim(), role_id, email_verified ? 1 : 0, account_locked ? 1 : 0];
+  let query = `UPDATE users SET email = ?, display_name = ?, role_id = ?, email_verified = ?, account_locked = ?, updated_at = CURRENT_TIMESTAMP`;
+
+  if (password) {
+    const passwordHash = await hashPassword(password);
+    query += ', password_hash = ?';
+    updateValues.push(passwordHash);
+  }
+
+  query += ' WHERE id = ?';
+  updateValues.push(id);
+
+  await db.run(query, updateValues);
+  return res.json({ message: 'User updated.' });
 }
