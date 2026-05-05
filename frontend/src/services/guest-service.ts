@@ -6,7 +6,7 @@
  *
  * Issues #387 (check-in) and #386 (seating).
  */
-import { api, getAuthHeaders } from '../lib/api-client';
+import { api, apiFetch } from '../lib/api-client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -188,11 +188,8 @@ export async function importCsv(
 ): Promise<CsvImportResult> {
   const formData = new FormData();
   formData.append('file', file);
-  const headers = getAuthHeaders();
-  const res = await fetch(`/api/events/${eventId}/rsvps/import`, {
+  const res = await apiFetch(`/api/events/${eventId}/rsvps/import`, {
     method: 'POST',
-    headers,
-    credentials: 'include',
     body: formData,
   });
   if (!res.ok) {

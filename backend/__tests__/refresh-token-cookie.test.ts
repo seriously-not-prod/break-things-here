@@ -36,7 +36,8 @@ function makeRes() {
 }
 
 function makeReq(body: any = {}, cookies: Record<string, string> = {}, ip = '127.0.0.1') {
-  return { body, cookies, ip, headers: {} } as any;
+  const cookieHeader = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ');
+  return { body, cookies, ip, headers: cookieHeader ? { cookie: cookieHeader } : {} } as any;
 }
 
 async function seedVerifiedUser(email: string, password: string): Promise<number> {

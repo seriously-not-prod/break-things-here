@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Fixed frontend CSRF handling so login, password reset, uploads, and other mutating module actions reuse a valid token instead of refetching one per request, preventing proxy-path 403/429 failures in local Docker runs
 - Local backend startup now auto-loads `backend/.env` or repo `.env`, and falls back to the standard local PostgreSQL URL when no development `DATABASE_URL` is set
 - Added a dedicated `db-test` PostgreSQL Docker service on port `5433` so backend integration tests match the documented local test setup
 - Added helper npm scripts for starting the main and test databases and for running backend build/test flows from the repo root

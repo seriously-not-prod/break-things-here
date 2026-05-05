@@ -26,7 +26,7 @@ import {
 } from '@mui/material';
 import { AddRounded, ArrowBackRounded, AttachMoneyRounded, CameraAltRounded, DeleteRounded, EditRounded, ViewKanbanRounded } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, ApiError, getAuthHeaders } from '../../lib/api-client';
+import { api, apiFetch, ApiError, getAuthHeaders } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
 import { ActivityFeedPanel } from './activity-feed-panel';
 
@@ -330,10 +330,8 @@ export default function EventDetailPage(): JSX.Element {
     try {
       const formData = new FormData();
       formData.append('document', file);
-      const res = await fetch(`${API_BASE}/api/events/${id}/documents`, {
+      const res = await apiFetch(`/api/events/${id}/documents`, {
         method: 'POST',
-        headers: getAuthHeaders(),
-        credentials: 'include',
         body: formData,
       });
 
@@ -391,10 +389,8 @@ export default function EventDetailPage(): JSX.Element {
       // Step 1: upload the file via the existing documents endpoint
       const formData = new FormData();
       formData.append('document', file);
-      const uploadRes = await fetch(`${API_BASE}/api/events/${id}/documents`, {
+      const uploadRes = await apiFetch(`/api/events/${id}/documents`, {
         method: 'POST',
-        headers: getAuthHeaders(),
-        credentials: 'include',
         body: formData,
       });
       if (!uploadRes.ok) {

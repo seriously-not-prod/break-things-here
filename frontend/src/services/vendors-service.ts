@@ -1,4 +1,4 @@
-import { api } from '../lib/api-client';
+import { api, apiFetch } from '../lib/api-client';
 
 export type VendorStatus = 'Contacted' | 'Quote Received' | 'Booked' | 'Confirmed' | 'Cancelled';
 
@@ -56,17 +56,8 @@ export async function deleteVendor(eventId: number, vendorId: number): Promise<v
 export async function uploadVendorContract(eventId: number, vendorId: number, file: File): Promise<Vendor> {
   const formData = new FormData();
   formData.append('file', file);
-
-  const { getToken } = await import('../lib/api-client');
-  const token = getToken();
-  const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  const API_BASE = import.meta.env.VITE_API_URL ?? '';
-  const res = await fetch(`${API_BASE}/api/events/${eventId}/vendors/${vendorId}/contract`, {
+  const res = await apiFetch(`/api/events/${eventId}/vendors/${vendorId}/contract`, {
     method: 'POST',
-    headers,
-    credentials: 'include',
     body: formData,
   });
 
