@@ -14,6 +14,11 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api-client';
 
+interface CreatedEventResponse {
+  id?: number;
+  event?: { id: number };
+}
+
 const EVENT_TYPES = ['Birthday', 'Wedding', 'Corporate', 'Festival', 'Conference', 'Other'];
 // Must match DB check constraint: Draft | Active | Completed
 const STATUS_OPTIONS = ['Draft', 'Active', 'Completed'];
@@ -61,8 +66,8 @@ export default function EventFormPage(): JSX.Element {
         is_public: form.is_public,
         tags: form.tags.trim() || null,
       };
-      const res = await api.post('/api/events', payload);
-      const newId = (res as any)?.id ?? (res as any)?.event?.id;
+      const res = await api.post<CreatedEventResponse>('/api/events', payload);
+      const newId = res.id ?? res.event?.id;
       if (newId) navigate(`/events/${newId}`);
       else navigate('/events');
     } catch (err) {

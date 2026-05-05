@@ -32,7 +32,7 @@ export default function CalendarPage(): JSX.Element {
     setLoading(true);
     try {
       const data = await api.get<PlannerEvent[] | { events: PlannerEvent[] }>('/api/events');
-      const list: PlannerEvent[] = Array.isArray(data) ? data : (data as any).events ?? [];
+      const list: PlannerEvent[] = Array.isArray(data) ? data : data.events ?? [];
       setEvents(list);
     } catch (err) {
       console.error('Calendar load failed', err instanceof ApiError ? err.message : err);
@@ -46,7 +46,8 @@ export default function CalendarPage(): JSX.Element {
   const grouped = useMemo(() => {
     const m = new Map<string, PlannerEvent[]>();
     for (const e of events) {
-      const d = new Date(e.date).toISOString().slice(0, 10);
+      // Slice directly to avoid UTC conversion shifting the displayed day.
+      const d = e.date.slice(0, 10);
       const arr = m.get(d) ?? [];
       arr.push(e);
       m.set(d, arr);

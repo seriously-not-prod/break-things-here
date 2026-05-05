@@ -83,7 +83,7 @@ export default function EventsPage({ initialView = 'list' }: EventsPageProps): J
     try {
       const data = await api.get<PlannerEvent[] | { events: PlannerEvent[] }>('/api/events');
       // Backend may return array or { events: [] } shape
-      const list: PlannerEvent[] = Array.isArray(data) ? data : (data as any).events ?? [];
+      const list: PlannerEvent[] = Array.isArray(data) ? data : data.events ?? [];
       setEvents(list);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load events.');

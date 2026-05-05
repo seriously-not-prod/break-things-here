@@ -122,6 +122,7 @@ function AppShell(): JSX.Element {
           <Route path="/events" element={<EventsPage />} />
           <Route path="/events/new" element={<EventFormPage />} />
           <Route path="/events/calendar" element={<CalendarPage />} />
+          {/* /events/my redirects to /events — no separate filter is implemented yet */}
           <Route path="/events/my" element={<EventsPage />} />
           <Route path="/events/:id" element={<EventDetailPage />} />
           <Route path="/events/:id/analytics" element={<AnalyticsPage />} />

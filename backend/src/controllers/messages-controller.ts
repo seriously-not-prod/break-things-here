@@ -47,7 +47,9 @@ export async function listMessages(req: Request, res: Response): Promise<Respons
   const rawBefore = req.query.before;
   const rawLimit  = req.query.limit;
 
-  const limit = Math.min(Number.isFinite(Number(rawLimit)) ? Number(rawLimit) : 50, 100);
+  // Reject fractional values so the error message ("positive integer") is accurate.
+  const parsedLimit = rawLimit !== undefined ? parseInt(String(rawLimit), 10) : 50;
+  const limit = Math.min(Number.isInteger(parsedLimit) ? parsedLimit : 50, 100);
   if (limit < 1) return res.status(400).json({ error: 'limit must be a positive integer.' });
 
   let messages: unknown[];

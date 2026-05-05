@@ -165,7 +165,7 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
       INSERT INTO events (title, date, location, description, capacity, status, event_type, is_public, tags, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING id
-    `, [title, date, location, description || '', capacity ?? null, status || 'Draft',
+    `, [title, date, location, description ?? null, capacity ?? null, status || 'Draft',
         event_type ?? 'Other', is_public ?? false, tags ?? null, userId]);
     
     const newEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = ?`, [result.lastID]);
