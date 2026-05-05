@@ -86,7 +86,12 @@ export async function getSuggestion(req: Request, res: Response): Promise<Respon
     return res.status(400).json({ error: 'prompt is required.' });
   }
 
-  const ctx: SuggestBody['context'] = context ?? 'general';
+  // Validate that context is one of the four known keys before indexing into
+  // SYSTEM_PROMPTS, preventing untrusted input from being used as an object key.
+  const VALID_CONTEXTS = new Set<SuggestBody['context']>(['event', 'task', 'rsvp', 'general']);
+  const ctx: SuggestBody['context'] = VALID_CONTEXTS.has(context as SuggestBody['context'])
+    ? (context as SuggestBody['context'])
+    : 'general';
 
   if (!OPENAI_API_KEY) {
     return res.status(503).json({
