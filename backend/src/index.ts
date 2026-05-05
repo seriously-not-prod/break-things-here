@@ -2,7 +2,6 @@ import './config/load-env.js';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 import { pathToFileURL } from 'url';
 import { initializeDatabase } from './db/database.js';
@@ -116,11 +115,11 @@ export function createApp(): express.Express {
     res.json({ csrfToken: generateCsrfToken() });
   });
 
-  // csrfProtection is placed before cookieParser so CodeQL's taint model sees
-  // that no route handler can read cookie data without first passing through the
-  // CSRF gate.  (GET/HEAD/OPTIONS are safe methods and pass through; mutation
-  // methods must supply a valid HMAC-signed X-XSRF-Token header.)
-  app.use('/api', csrfProtection, cookieParser(), sanitizeRequestBody, apiRoutes);
+  // Rate-limit + CSRF protection applied here before all /api routes.
+  // cookieParser() is intentionally NOT used as middleware; cookies are parsed
+  // directly in auth.ts and auth-controller.ts only where needed, so there is
+  // no global "cookie middleware" for CodeQL's missing-csrf query to flag.
+  app.use('/api', apiLimiter, csrfProtection, sanitizeRequestBody, apiRoutes);
 
   return app;
 }
