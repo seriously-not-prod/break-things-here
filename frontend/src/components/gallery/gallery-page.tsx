@@ -3,6 +3,11 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   IconButton,
   ImageList,
   ImageListItem,
@@ -35,6 +40,8 @@ export function GalleryPage(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  /** ID of the item pending confirmation before deletion; null when no dialog is open. */
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -83,6 +90,7 @@ export function GalleryPage(): JSX.Element {
 
   async function handleDelete(itemId: number): Promise<void> {
     if (!eventId) return;
+    setConfirmDeleteId(null);
     try {
       await deleteGalleryItem(eventId, itemId);
       // Use functional updater so both state writes reference the same current snapshot
@@ -148,7 +156,7 @@ export function GalleryPage(): JSX.Element {
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
@@ -230,7 +238,7 @@ export function GalleryPage(): JSX.Element {
                       sx={{ color: 'white' }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        void handleDelete(item.id);
+                        setConfirmDeleteId(item.id);
                       }}
                     >
                       <DeleteRounded fontSize="small" />
@@ -248,10 +256,36 @@ export function GalleryPage(): JSX.Element {
           items={items}
           initialIndex={previewIndex}
           onClose={() => setPreviewIndex(null)}
-          onDelete={(itemId) => void handleDelete(itemId)}
+          onDelete={(itemId) => setConfirmDeleteId(itemId)}
           onCaptionUpdate={(itemId, caption) => void handleCaptionUpdate(itemId, caption)}
         />
       )}
+
+      {/* Delete confirmation dialog */}
+      <Dialog
+        open={confirmDeleteId !== null}
+        onClose={() => setConfirmDeleteId(null)}
+        aria-labelledby="delete-confirm-title"
+        aria-describedby="delete-confirm-description"
+      >
+        <DialogTitle id="delete-confirm-title">Delete image?</DialogTitle>
+        <DialogContent>
+          <DialogContentText id="delete-confirm-description">
+            This will permanently remove the image and cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => confirmDeleteId !== null && void handleDelete(confirmDeleteId)}
+            autoFocus
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

@@ -79,8 +79,10 @@ export function MediaPreviewDialog({
 
   function handleDelete(): void {
     if (item && onDelete) {
-      onDelete(item.id);
+      // Notify parent to open its confirmation dialog; close the preview so
+      // the dialog is not rendered on top of the lightbox.
       onClose();
+      onDelete(item.id);
     }
   }
 
