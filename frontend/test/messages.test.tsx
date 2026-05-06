@@ -6,6 +6,14 @@ import type { Conversation, Message } from '../src/types/message';
 
 vi.mock('../src/services/messages-service');
 
+// Mock useAuth so MessagesInbox can render without a real AuthProvider.
+vi.mock('../src/contexts/auth-context', () => ({
+  useAuth: () => ({ user: { id: 42, email: 'test@example.com', displayName: 'Test', roleId: 1 }, loading: false }),
+}));
+
+/** currentUserId used by the mocked useAuth above. */
+const CURRENT_USER_ID = 42;
+
 const mockedListConversations = vi.mocked(messagesService.listConversations);
 const mockedGetMessages = vi.mocked(messagesService.getMessages);
 const mockedSendMessage = vi.mocked(messagesService.sendMessage);
@@ -13,6 +21,7 @@ const mockedSendMessage = vi.mocked(messagesService.sendMessage);
 const MOCK_CONVERSATIONS: Conversation[] = [
   {
     id: 'conv-1',
+    eventId: 1,
     participantName: 'Alice Johnson',
     participantAvatar: 'AJ',
     lastMessage: 'Can you confirm the stage times?',
@@ -22,6 +31,7 @@ const MOCK_CONVERSATIONS: Conversation[] = [
   },
   {
     id: 'conv-2',
+    eventId: 2,
     participantName: 'Bob Martinez',
     participantAvatar: 'BM',
     lastMessage: 'Vendor list updated.',
@@ -92,7 +102,7 @@ describe('MessagesInbox (#385)', () => {
     renderInbox();
     await waitFor(() => screen.getByText('Alice Johnson'));
 
-    await waitFor(() => expect(mockedGetMessages).toHaveBeenCalledWith('conv-1'));
+    await waitFor(() => expect(mockedGetMessages).toHaveBeenCalledWith('conv-1', CURRENT_USER_ID));
     await waitFor(() => expect(screen.getByText('Hi, can you confirm stage times?')).toBeInTheDocument());
   });
 
@@ -107,7 +117,7 @@ describe('MessagesInbox (#385)', () => {
 
     fireEvent.click(screen.getAllByText('Bob Martinez')[0]);
 
-    await waitFor(() => expect(mockedGetMessages).toHaveBeenCalledWith('conv-2'));
+    await waitFor(() => expect(mockedGetMessages).toHaveBeenCalledWith('conv-2', CURRENT_USER_ID));
   });
 
   it('sends a message via send button', async () => {
@@ -130,9 +140,9 @@ describe('MessagesInbox (#385)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
 
     await waitFor(() =>
-      expect(mockedSendMessage).toHaveBeenCalledWith('conv-1', 'Hello there!'),
+      expect(mockedSendMessage).toHaveBeenCalledWith('conv-1', 'Hello there!', CURRENT_USER_ID),
     );
-    await waitFor(() => expect(screen.getByText('Hello there!')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText('Hello there!').length).toBeGreaterThan(0));
   });
 
   it('sends a message via Enter key', async () => {
@@ -156,7 +166,7 @@ describe('MessagesInbox (#385)', () => {
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', charCode: 13 });
 
     await waitFor(() =>
-      expect(mockedSendMessage).toHaveBeenCalledWith('conv-1', 'Sent by Enter'),
+      expect(mockedSendMessage).toHaveBeenCalledWith('conv-1', 'Sent by Enter', CURRENT_USER_ID),
     );
   });
 
@@ -180,6 +190,6 @@ describe('MessagesInbox (#385)', () => {
     firstItem.focus();
     fireEvent.keyDown(firstItem, { key: 'ArrowDown', code: 'ArrowDown' });
 
-    await waitFor(() => expect(mockedGetMessages).toHaveBeenCalledWith('conv-2'));
+    await waitFor(() => expect(mockedGetMessages).toHaveBeenCalledWith('conv-2', CURRENT_USER_ID));
   });
 });
