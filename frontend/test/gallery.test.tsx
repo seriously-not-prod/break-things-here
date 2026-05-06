@@ -32,7 +32,6 @@ const MOCK_ITEMS: GalleryItem[] = [
     caption: 'Main stage crowd',
     createdAt: '2026-05-02T14:30:00Z',
     url: '/api/uploads/event-documents/document-2.png',
-    caption: 'A packed crowd',
   },
 ];
 
@@ -65,8 +64,7 @@ describe('GalleryPage (#430)', () => {
     renderGallery();
     await waitFor(() => expect(screen.getByLabelText('Event gallery')).toBeInTheDocument());
     expect(screen.getByAltText('sunset-stage.jpg')).toBeInTheDocument();
-    // Second item has caption set — alt uses caption value, not originalName
-    expect(screen.getByAltText('A packed crowd')).toBeInTheDocument();
+    expect(screen.getByAltText('crowd-shot.png')).toBeInTheDocument();
   });
 
   it('shows image count', async () => {

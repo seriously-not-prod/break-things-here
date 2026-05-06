@@ -9,6 +9,7 @@ import {
   DialogContentText,
   DialogTitle,
   IconButton,
+  TextField,
   ImageList,
   ImageListItem,
   ImageListItemBar,
@@ -19,6 +20,7 @@ import {
 import {
   AddPhotoAlternateRounded,
   DeleteRounded,
+  EditRounded,
   PhotoLibraryRounded,
 } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
@@ -42,6 +44,11 @@ export function GalleryPage(): JSX.Element {
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   /** ID of the item pending confirmation before deletion; null when no dialog is open. */
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  /** Original name of the item pending deletion (for display in the confirmation dialog). */
+  const [confirmDeleteName, setConfirmDeleteName] = useState<string>('');
+  /** ID of the item whose caption is being edited; null when no editor is open. */
+  const [captionEditId, setCaptionEditId] = useState<number | null>(null);
+  const [captionDraft, setCaptionDraft] = useState<string>('');
   const uploadRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -216,7 +223,7 @@ export function GalleryPage(): JSX.Element {
             >
               <img
                 src={`${API_BASE}${item.url}`}
-                alt={item.caption ?? item.originalName}
+                alt={item.originalName}
                 loading="lazy"
                 style={{ display: 'block', width: '100%', borderRadius: 4 }}
               />
@@ -231,19 +238,36 @@ export function GalleryPage(): JSX.Element {
                   background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)',
                 }}
                 actionIcon={
-                  <Tooltip title="Delete image">
-                    <IconButton
-                      size="small"
-                      aria-label={`Delete ${item.originalName}`}
-                      sx={{ color: 'white' }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmDeleteId(item.id);
-                      }}
-                    >
-                      <DeleteRounded fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                  <Box sx={{ display: 'flex' }}>
+                    <Tooltip title="Edit caption">
+                      <IconButton
+                        size="small"
+                        aria-label={`Edit caption for ${item.originalName}`}
+                        sx={{ color: 'white' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCaptionEditId(item.id);
+                          setCaptionDraft(item.caption ?? '');
+                        }}
+                      >
+                        <EditRounded fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete image">
+                      <IconButton
+                        size="small"
+                        aria-label={`Delete ${item.originalName}`}
+                        sx={{ color: 'white' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDeleteId(item.id);
+                          setConfirmDeleteName(item.originalName);
+                        }}
+                      >
+                        <DeleteRounded fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                 }
               />
             </ImageListItem>
@@ -261,6 +285,41 @@ export function GalleryPage(): JSX.Element {
         />
       )}
 
+      {/* Caption edit dialog */}
+      <Dialog
+        open={captionEditId !== null}
+        onClose={() => setCaptionEditId(null)}
+        aria-labelledby="caption-edit-title"
+      >
+        <DialogTitle id="caption-edit-title">Edit caption</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            multiline
+            minRows={2}
+            label="Caption text"
+            value={captionDraft}
+            onChange={(e) => setCaptionDraft(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCaptionEditId(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              if (captionEditId !== null) {
+                void handleCaptionUpdate(captionEditId, captionDraft);
+              }
+              setCaptionEditId(null);
+            }}
+          >
+            Save caption
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Delete confirmation dialog */}
       <Dialog
         open={confirmDeleteId !== null}
@@ -271,7 +330,8 @@ export function GalleryPage(): JSX.Element {
         <DialogTitle id="delete-confirm-title">Delete image?</DialogTitle>
         <DialogContent>
           <DialogContentText id="delete-confirm-description">
-            This will permanently remove the image and cannot be undone.
+            Are you sure you want to delete{' '}
+            <strong>{confirmDeleteName}</strong>? This action cannot be undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
@@ -282,7 +342,7 @@ export function GalleryPage(): JSX.Element {
             onClick={() => confirmDeleteId !== null && void handleDelete(confirmDeleteId)}
             autoFocus
           >
-            Delete
+            Confirm delete
           </Button>
         </DialogActions>
       </Dialog>

@@ -114,11 +114,6 @@ export function MediaPreviewDialog({
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
             Uploaded {formattedDate}
           </Typography>
-          {item.caption && (
-            <Typography variant="body2" color="text.primary" sx={{ mt: 0.5, fontStyle: 'italic' }}>
-              {item.caption}
-            </Typography>
-          )}
         </Box>
 
         <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -165,7 +160,7 @@ export function MediaPreviewDialog({
 
         <img
           src={`${API_BASE}${item.url}`}
-          alt={item.caption ?? item.originalName}
+          alt={item.originalName}
           style={{
             maxWidth: '100%',
             maxHeight: '70vh',
