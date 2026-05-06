@@ -1,135 +1,101 @@
 /**
- * Messages Service — typed mock adapter (#385)
- * All functions can be swapped for real fetch calls without changing callers.
+ * Messages Service — live backend adapter for event-scoped team conversations.
+ *
+ * Each event is treated as a conversation thread. Messages are scoped to the
+ * event and delivered via the backend message API.
+ *
+ * Endpoints:
+ *   GET    /api/events                            – list accessible events (threads)
+ *   GET    /api/events/:eventId/messages          – fetch messages for a thread
+ *   POST   /api/events/:eventId/messages          – send a message to a thread
  */
 
+import { api } from '../lib/api-client';
 import type { Conversation, Message } from '../types/message';
 
-const MOCK_CONVERSATIONS: Conversation[] = [
-  {
-    id: 'conv-1',
-    participantName: 'Alice Johnson',
-    participantAvatar: 'AJ',
-    lastMessage: 'Can you confirm the stage times for Saturday?',
-    lastMessageAt: '2026-05-04T09:30:00Z',
-    unreadCount: 2,
-    isRead: false,
-  },
-  {
-    id: 'conv-2',
-    participantName: 'Bob Martinez',
-    participantAvatar: 'BM',
-    lastMessage: 'Vendor list has been updated, please review.',
-    lastMessageAt: '2026-05-03T16:45:00Z',
-    unreadCount: 0,
-    isRead: true,
-  },
-  {
-    id: 'conv-3',
-    participantName: 'Carol Chen',
-    participantAvatar: 'CC',
-    lastMessage: 'Great, looking forward to the opening ceremony!',
-    lastMessageAt: '2026-05-02T11:00:00Z',
-    unreadCount: 0,
-    isRead: true,
-  },
-];
-
-const MOCK_MESSAGES: Record<string, Message[]> = {
-  'conv-1': [
-    {
-      id: 'msg-1',
-      conversationId: 'conv-1',
-      senderName: 'Alice Johnson',
-      body: 'Hi! I wanted to check in about the festival schedule.',
-      sentAt: '2026-05-04T09:15:00Z',
-      isOwn: false,
-    },
-    {
-      id: 'msg-2',
-      conversationId: 'conv-1',
-      senderName: 'You',
-      body: 'Sure, the schedule is being finalised now.',
-      sentAt: '2026-05-04T09:20:00Z',
-      isOwn: true,
-    },
-    {
-      id: 'msg-3',
-      conversationId: 'conv-1',
-      senderName: 'Alice Johnson',
-      body: 'Can you confirm the stage times for Saturday?',
-      sentAt: '2026-05-04T09:30:00Z',
-      isOwn: false,
-    },
-  ],
-  'conv-2': [
-    {
-      id: 'msg-4',
-      conversationId: 'conv-2',
-      senderName: 'Bob Martinez',
-      body: 'Vendor list has been updated, please review.',
-      sentAt: '2026-05-03T16:45:00Z',
-      isOwn: false,
-    },
-  ],
-  'conv-3': [
-    {
-      id: 'msg-5',
-      conversationId: 'conv-3',
-      senderName: 'You',
-      body: 'Looking forward to the opening ceremony!',
-      sentAt: '2026-05-02T10:55:00Z',
-      isOwn: true,
-    },
-    {
-      id: 'msg-6',
-      conversationId: 'conv-3',
-      senderName: 'Carol Chen',
-      body: 'Great, looking forward to the opening ceremony!',
-      sentAt: '2026-05-02T11:00:00Z',
-      isOwn: false,
-    },
-  ],
-};
-
-let conversationStore: Conversation[] = [...MOCK_CONVERSATIONS];
-const messageStore: Record<string, Message[]> = Object.fromEntries(
-  Object.entries(MOCK_MESSAGES).map(([k, v]) => [k, [...v]]),
-);
-
-export async function listConversations(): Promise<Conversation[]> {
-  return [...conversationStore];
+/** Shape of a message object returned by the backend. */
+interface BackendMessage {
+  id: number;
+  event_id: number;
+  sender_id: number;
+  body: string;
+  created_at: string;
+  updated_at: string;
+  sender_name: string;
 }
 
-export async function getMessages(conversationId: string): Promise<Message[]> {
-  return messageStore[conversationId] ? [...messageStore[conversationId]] : [];
+/** Minimal event shape required to build conversation threads. */
+interface BackendEvent {
+  id: number;
+  title: string;
+  event_date: string;
+  status: string;
 }
 
-export async function sendMessage(conversationId: string, body: string): Promise<Message> {
-  const newMessage: Message = {
-    id: `msg-${Date.now()}`,
-    conversationId,
-    senderName: 'You',
-    body,
-    sentAt: new Date().toISOString(),
-    isOwn: true,
+/**
+ * Maps a backend message row to the UI Message shape.
+ * @param msg          - Raw backend message object.
+ * @param currentUserId - ID of the currently authenticated user (for isOwn flag).
+ */
+function mapMessage(msg: BackendMessage, currentUserId: number): Message {
+  return {
+    id: String(msg.id),
+    conversationId: String(msg.event_id),
+    senderName: msg.sender_name,
+    body: msg.body,
+    sentAt: msg.created_at,
+    isOwn: msg.sender_id === currentUserId,
   };
-
-  if (!messageStore[conversationId]) {
-    messageStore[conversationId] = [];
-  }
-  messageStore[conversationId].push(newMessage);
-
-  conversationStore = conversationStore.map((conv) =>
-    conv.id === conversationId
-      ? {
-          ...conv,
-          lastMessage: `You: ${body}`,
-          lastMessageAt: newMessage.sentAt,
-          isRead: true,
-        }
-      : conv,
-  );
-
-  return newMessage;
 }
+
+/**
+ * Returns all events the current user can access, represented as conversation threads.
+ * The event title is used as the thread display name.
+ */
+export async function listConversations(): Promise<Conversation[]> {
+  const result = await api.get<{ events: BackendEvent[] }>('/api/events');
+  return (result?.events ?? []).map((e) => ({
+    id: String(e.id),
+    eventId: e.id,
+    participantName: e.title,
+    participantAvatar: e.title.substring(0, 2).toUpperCase(),
+    lastMessage: '',
+    lastMessageAt: e.event_date,
+    unreadCount: 0,
+    isRead: true,
+  }));
+}
+
+/**
+ * Fetches all messages for the given event thread.
+ * @param conversationId - String form of the numeric event ID.
+ * @param currentUserId  - ID of the authenticated user (needed for isOwn flag).
+ */
+export async function getMessages(
+  conversationId: string,
+  currentUserId: number,
+): Promise<Message[]> {
+  const result = await api.get<{ messages: BackendMessage[] }>(
+    `/api/events/${conversationId}/messages`,
+  );
+  return (result?.messages ?? []).map((m) => mapMessage(m, currentUserId));
+}
+
+/**
+ * Posts a new message to the given event thread and returns the persisted message.
+ * @param conversationId - String form of the numeric event ID.
+ * @param body           - Message text (max 4 000 characters).
+ * @param currentUserId  - ID of the authenticated user (needed for isOwn flag).
+ */
+export async function sendMessage(
+  conversationId: string,
+  body: string,
+  currentUserId: number,
+): Promise<Message> {
+  const result = await api.post<{ message: BackendMessage }>(
+    `/api/events/${conversationId}/messages`,
+    { body },
+  );
+  return mapMessage(result.message, currentUserId);
+}
+
