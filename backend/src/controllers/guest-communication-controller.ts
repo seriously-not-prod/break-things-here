@@ -96,9 +96,9 @@ async function bulkSend(
       });
 
       await db.run(
-        `INSERT INTO communication_log (event_id, rsvp_id, type, subject, body, sent_by)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [eventId, rsvp.id, type, subject, body, authReq.user.id],
+        `INSERT INTO communication_log (event_id, guest_email, communication_type, subject, content, sent_by, sent_at)
+         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [eventId, rsvp.email, type, subject, personalised, authReq.user.id],
       );
 
       sent++;
@@ -128,10 +128,11 @@ export async function listCommunicationLog(req: Request, res: Response): Promise
     `SELECT
        cl.id,
        cl.event_id,
-       cl.rsvp_id,
-       cl.type,
+       cl.guest_email,
+       cl.communication_type,
        cl.subject,
-       cl.body,
+       cl.content,
+       cl.status,
        cl.sent_by,
        u.display_name AS sent_by_name,
        cl.sent_at

@@ -25,7 +25,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/auth-context';
 import { NotificationBell } from '../notifications/notification-bell';
 
-const DRAWER_WIDTH = 220;
+const DRAWER_WIDTH = 260;
 
 interface NavItem {
   label: string;
@@ -71,20 +71,27 @@ export function AppNav(): JSX.Element {
         '& .MuiDrawer-paper': {
           width: DRAWER_WIDTH,
           boxSizing: 'border-box',
-          backgroundColor: '#1A0E3C',   // Eventora sidebar bg
+          backgroundColor: '#1A0E3C',
           color: theme.palette.common.white,
         },
       })}
     >
-      <Toolbar sx={{ justifyContent: 'space-between' }}>
-        <Typography variant="h6" noWrap fontWeight={700} sx={{ color: 'common.white' }}>
-          🗓 Eventora
+      {/* Top-left: app name — Top-right: notification bell */}
+      <Toolbar sx={{ justifyContent: 'space-between', gap: 1 }}>
+        <Typography
+          variant="subtitle1"
+          fontWeight={700}
+          sx={{ color: 'common.white', lineHeight: 1.2, flexShrink: 1, minWidth: 0 }}
+        >
+          🗓 eQuip Fest Planner
         </Typography>
-        <Stack direction="row" alignItems="center">
+        <Stack direction="row" alignItems="center" sx={{ flexShrink: 0 }}>
           <NotificationBell />
         </Stack>
       </Toolbar>
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+
+      {/* Middle: scrollable nav items */}
       <Box sx={{ overflow: 'auto', flexGrow: 1 }}>
         <List
           dense
@@ -139,6 +146,8 @@ export function AppNav(): JSX.Element {
           ))}
         </List>
       </Box>
+
+      {/* Bottom: logout */}
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
       {user && (
         <List dense>
