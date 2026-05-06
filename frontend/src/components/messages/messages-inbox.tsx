@@ -41,6 +41,9 @@ export function MessagesInbox(): JSX.Element {
       setMessages([]);
       return;
     }
+    // Clear previous thread's messages immediately so there is no flash of
+    // stale content while the new thread loads.
+    setMessages([]);
     let cancelled = false;
     setLoadingMessages(true);
     getMessages(selectedId, currentUserId)
@@ -102,7 +105,7 @@ export function MessagesInbox(): JSX.Element {
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
@@ -157,7 +160,7 @@ export function MessagesInbox(): JSX.Element {
             {selectedConversation ? (
               <ThreadView
                 conversationId={selectedConversation.id}
-                participantName={selectedConversation.participantName}
+                threadName={selectedConversation.participantName}
                 messages={messages}
                 loading={loadingMessages}
                 onSend={handleSend}
