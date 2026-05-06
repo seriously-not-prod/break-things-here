@@ -46,9 +46,9 @@ export default function Dashboard(): JSX.Element {
   const firstName = user?.displayName?.split(' ')[0] ?? 'there';
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1400 }}>
+    <Box sx={{ pt: 2, pr: 2, pb: 2, pl: 0, maxWidth: 1400 }}>
       {/* Greeting */}
-      <Box sx={{ mb: 3 }}>
+      <Box sx={{ mb: 2 }}>
         <Typography component="h1" variant="h5" fontWeight={800}>
           Welcome back, {firstName} 👋
         </Typography>
@@ -61,7 +61,7 @@ export default function Dashboard(): JSX.Element {
       {error !== null && (
         <Alert
           severity="error"
-          sx={{ mb: 3 }}
+          sx={{ mb: 2 }}
           onClose={() => setError(null)}
           data-testid="dashboard-error-alert"
         >
@@ -70,15 +70,15 @@ export default function Dashboard(): JSX.Element {
       )}
 
       {/* KPI row */}
-      <Box sx={{ mb: 3 }}>
+      <Box sx={{ mb: 2 }}>
         <KpiCards data={data} loading={loading} />
       </Box>
 
       {/* Main panels row */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
+      <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid item xs={12} md={6}>
           <Paper elevation={2} sx={{ p: 2, height: '100%' }}>
-            <Typography component="h2" variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
+            <Typography component="h2" variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
               Upcoming Events
             </Typography>
             <UpcomingEventsList events={data?.events ?? []} loading={loading} />
@@ -87,7 +87,7 @@ export default function Dashboard(): JSX.Element {
 
         <Grid item xs={12} sm={6} md={3}>
           <Paper elevation={2} sx={{ p: 2, height: '100%' }}>
-            <Typography component="h2" variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
+            <Typography component="h2" variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
               RSVP Breakdown
             </Typography>
             <RsvpSummaryPanel rsvps={data?.rsvps ?? []} loading={loading} />
@@ -96,7 +96,7 @@ export default function Dashboard(): JSX.Element {
 
         <Grid item xs={12} sm={6} md={3}>
           <Paper elevation={2} sx={{ p: 2, height: '100%' }}>
-            <Typography component="h2" variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
+            <Typography component="h2" variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
               Task Summary
             </Typography>
             <TaskSummaryPanel tasks={data?.tasks ?? []} loading={loading} />
@@ -105,10 +105,10 @@ export default function Dashboard(): JSX.Element {
       </Grid>
 
       {/* Budget, analytics, and quick access row */}
-      <Grid container spacing={3}>
+      <Grid container spacing={2}>
         <Grid item xs={12} lg={4}>
           <Paper elevation={2} sx={{ p: 2 }}>
-            <Typography component="h2" variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
+            <Typography component="h2" variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
               Budget Overview
             </Typography>
             <BudgetOverviewPanel />
@@ -121,7 +121,7 @@ export default function Dashboard(): JSX.Element {
 
         <Grid item xs={12} lg={4}>
           <Paper elevation={2} sx={{ p: 2 }}>
-            <Typography component="h2" variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
+            <Typography component="h2" variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
               Quick Access
             </Typography>
             <QuickAccessGrid user={user} />

@@ -61,10 +61,27 @@ function normalizeEvent(event: EventApiRecord): Event {
 
 // ── Events CRUD ───────────────────────────────────────────────────────────────
 
-export async function listEvents(): Promise<Event[]> {
-  const data = await api.get<EventApiRecord[] | { events: EventApiRecord[] }>('/api/events');
+export interface EventListFilters {
+  owner?: 'me';
+  tags?: string[];
+  status?: string;
+  q?: string;
+}
+
+export async function listEvents(filters?: EventListFilters): Promise<Event[]> {
+  const params = new URLSearchParams();
+  if (filters?.owner) params.set('owner', filters.owner);
+  if (filters?.tags?.length) params.set('tags', filters.tags.join(','));
+  if (filters?.status) params.set('status', filters.status);
+  if (filters?.q) params.set('q', filters.q);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const data = await api.get<EventApiRecord[] | { events: EventApiRecord[] }>(`/api/events${qs}`);
   const events = Array.isArray(data) ? data : data.events ?? [];
   return events.map(normalizeEvent);
+}
+
+export async function listMyEvents(): Promise<Event[]> {
+  return listEvents({ owner: 'me' });
 }
 
 export async function getEvent(id: number | string): Promise<Event> {
