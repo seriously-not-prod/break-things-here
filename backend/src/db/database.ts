@@ -324,6 +324,15 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMP`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS capacity INTEGER`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
+  // Rename legacy event_date column to date if the old schema is still present
+  {
+    const col = await db.get<{ exists: boolean }>(
+      `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='events' AND column_name='event_date') AS exists`,
+    );
+    if (col?.exists) await db.exec(`ALTER TABLE events RENAME COLUMN event_date TO date`);
+  }
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS activity_feed (
@@ -558,6 +567,32 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   // ── Task enhancements (BRD 3.5, issues #373 #374) ────────────────────────
   await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS description TEXT`);
   await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS estimated_hours NUMERIC(5,2)`);
+  // Schema drift fix: tasks created before full migration were missing these columns
+  await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'Medium'`);
+  await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+
+  // ── Vendors schema drift fix ──────────────────────────────────────────────
+  // Older DB had company_name/booking_status; current code expects name/status
+  {
+    const col = await db.get<{ exists: boolean }>(
+      `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='vendors' AND column_name='company_name') AS exists`,
+    );
+    if (col?.exists) await db.exec(`ALTER TABLE vendors RENAME COLUMN company_name TO name`);
+  }
+  {
+    const col = await db.get<{ exists: boolean }>(
+      `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='vendors' AND column_name='booking_status') AS exists`,
+    );
+    if (col?.exists) await db.exec(`ALTER TABLE vendors RENAME COLUMN booking_status TO status`);
+  }
+  await db.exec(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS website TEXT`);
+  await db.exec(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS contract_file TEXT`);
+  await db.exec(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS rating INTEGER`);
+
+  // ── Expenses schema drift fix ─────────────────────────────────────────────
+  // Older DB stored vendor FK; current code stores vendor_name as free text
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS vendor_name TEXT`);
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS task_comments (
@@ -597,4 +632,42 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_messages_event_id ON event_messages(event_id)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_messages_sender_id ON event_messages(sender_id)`);
+
+  // ── Multi-day events: add end_date column (#217) ──────────────────────────
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS end_date TEXT`);
+
+  // ── Event Categories — lookup table + junction table (#217) ───────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id          SERIAL PRIMARY KEY,
+      name        TEXT UNIQUE NOT NULL,
+      description TEXT,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    INSERT INTO categories (name) VALUES
+    ('Music'),
+    ('Food & Beverage'),
+    ('Entertainment'),
+    ('Sports'),
+    ('Art & Culture'),
+    ('Business'),
+    ('Technology'),
+    ('Education'),
+    ('Charity'),
+    ('Other')
+    ON CONFLICT (name) DO NOTHING
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_categories (
+      event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+      PRIMARY KEY (event_id, category_id)
+    )
+  `);
+
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_categories_event_id ON event_categories(event_id)`);
 }

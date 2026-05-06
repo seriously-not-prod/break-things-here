@@ -46,19 +46,57 @@ async function recordEventAudit(
 }
 
 /**
- * Get all events
+ * Get all events — supports ?owner=me, ?tags=tag1,tag2, ?status=, ?q= filters
  */
 export async function getAllEvents(req: Request, res: Response): Promise<void> {
   try {
     const db = getDatabase();
-    const events = await db.all(`
+    const authReq = req as AuthRequest;
+    const { owner, tags, status, q } = req.query as {
+      owner?: string;
+      tags?: string;
+      status?: string;
+      q?: string;
+    };
+
+    let query = `
       SELECT ${EVENT_SELECT_COLUMNS}
       FROM events e
       LEFT JOIN users u ON e.created_by = u.id
       WHERE e.deleted_at IS NULL
-      ORDER BY e.date DESC
-    `);
-    
+    `;
+    const params: (string | number)[] = [];
+
+    if (owner === 'me' && authReq.user?.id) {
+      query += ' AND e.created_by = ?';
+      params.push(authReq.user.id);
+    }
+
+    if (status) {
+      query += ' AND e.status = ?';
+      params.push(status);
+    }
+
+    if (q) {
+      query += ' AND (e.title ILIKE ? OR e.description ILIKE ? OR e.location ILIKE ?)';
+      const like = `%${q}%`;
+      params.push(like, like, like);
+    }
+
+    if (tags) {
+      const tagList = tags.split(',').map((t) => t.trim()).filter(Boolean);
+      if (tagList.length > 0) {
+        const tagConditions = tagList
+          .map(() => "(',' || COALESCE(e.tags, '') || ',') ILIKE ?")
+          .join(' OR ');
+        query += ` AND (${tagConditions})`;
+        tagList.forEach((tag) => params.push(`%,${tag},%`));
+      }
+    }
+
+    query += ' ORDER BY e.date DESC';
+
+    const events = await db.all(query, params);
     res.json(events);
   } catch (error) {
     console.error('Error fetching events:', error);

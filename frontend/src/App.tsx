@@ -1,4 +1,4 @@
-import { Box, CircularProgress, CssBaseline, Paper, Typography } from '@mui/material';
+import { Box, CircularProgress, Paper, Typography } from '@mui/material';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/auth-context';
 import { LoginForm } from './components/login-form/login-form';
@@ -49,7 +49,10 @@ function AuthShell(): JSX.Element {
         display: 'grid',
         placeItems: 'center',
         px: 2,
-    background: 'linear-gradient(135deg, #EEE9FD 0%, #F4F5FA 60%, #fff 100%)',
+        background: (theme) =>
+          theme.palette.mode === 'dark'
+            ? 'linear-gradient(160deg, #0D1117 0%, #111827 100%)'
+            : 'linear-gradient(160deg, #EEF2FF 0%, #F8F9FC 60%, #FFFFFF 100%)',
       }}
     >
       <Paper
@@ -65,7 +68,7 @@ function AuthShell(): JSX.Element {
         }}
       >
         <Typography component="h1" variant="h5" fontWeight={800} color="primary.main" sx={{ mb: 2 }}>
-          Eventora
+          eQuip Fest Planner
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
           {TITLES[view]}
@@ -95,7 +98,7 @@ function AuthShell(): JSX.Element {
   );
 }
 
-const DRAWER_WIDTH = 220;
+const DRAWER_WIDTH = 260;
 
 /** App shell with sidebar nav — only shown when authenticated */
 function AppShell(): JSX.Element {
@@ -122,8 +125,7 @@ function AppShell(): JSX.Element {
           <Route path="/events" element={<EventsPage />} />
           <Route path="/events/new" element={<EventFormPage />} />
           <Route path="/events/calendar" element={<CalendarPage />} />
-          {/* /events/my redirects to /events — no separate filter is implemented yet */}
-          <Route path="/events/my" element={<EventsPage />} />
+          <Route path="/events/my" element={<EventsPage ownerOnly />} />
           <Route path="/events/:id" element={<EventDetailPage />} />
           <Route path="/events/:id/analytics" element={<AnalyticsPage />} />
           <Route path="/events/:id/vendors" element={<VendorsPage />} />
@@ -172,7 +174,6 @@ function RootRouter(): JSX.Element {
 function App(): JSX.Element {
   return (
     <BrowserRouter>
-      <CssBaseline />
       <AuthProvider>
         <RootRouter />
       </AuthProvider>
