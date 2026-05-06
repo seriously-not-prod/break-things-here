@@ -239,7 +239,7 @@ router.get('/events/:eventId/documents/:id', authenticateToken, eventDocumentsCo
 router.delete('/events/:eventId/documents/:id', authenticateToken, eventDocumentsController.deleteEventDocument);
 router.get('/events/:eventId/gallery', authenticateToken, galleryController.listGallery);
 router.delete('/events/:eventId/gallery/:id', authenticateToken, galleryController.deleteGalleryItem);
-router.patch('/events/:eventId/gallery/:id/caption', authenticateToken, galleryController.updateGalleryCaption);
+router.patch('/events/:eventId/gallery/:id', authenticateToken, galleryController.updateCaption);
 
 // ============ ADMIN ROUTES — issues #260 #279 ============
 // All admin routes require authentication + Admin role
