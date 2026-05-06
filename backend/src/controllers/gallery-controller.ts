@@ -149,6 +149,9 @@ export async function updateCaption(req: Request, res: Response): Promise<Respon
     [sanitizedCaption, id],
   );
 
+  // Re-fetch the full row so the response includes all fields the client needs.
+  // Using a separate SELECT (rather than RETURNING) keeps compatibility with the
+  // SQLite adapter used in this project, which does not expose RETURNING rows via db.run.
   const row = await db.get<GalleryRow>(
     `SELECT id, original_name, file_name, mime_type, file_size, created_at, caption
      FROM event_documents WHERE id = ?`,
