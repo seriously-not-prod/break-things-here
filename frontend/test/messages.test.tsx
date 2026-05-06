@@ -85,8 +85,8 @@ describe('MessagesInbox (#385)', () => {
     mockedListConversations.mockResolvedValue(MOCK_CONVERSATIONS);
     mockedGetMessages.mockResolvedValue(MOCK_MESSAGES_CONV1);
     renderInbox();
-    await waitFor(() => expect(screen.getByText('Alice Johnson')).toBeInTheDocument());
-    expect(screen.getByText('Bob Martinez')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText('Alice Johnson').length).toBeGreaterThan(0));
+    expect(screen.getAllByText('Bob Martinez').length).toBeGreaterThan(0);
   });
 
   it('renders empty inbox state when no conversations', async () => {
@@ -100,7 +100,7 @@ describe('MessagesInbox (#385)', () => {
     mockedListConversations.mockResolvedValue(MOCK_CONVERSATIONS);
     mockedGetMessages.mockResolvedValue(MOCK_MESSAGES_CONV1);
     renderInbox();
-    await waitFor(() => screen.getByText('Alice Johnson'));
+    await waitFor(() => screen.getAllByText('Alice Johnson')[0]);
 
     await waitFor(() => expect(mockedGetMessages).toHaveBeenCalledWith('conv-1', CURRENT_USER_ID));
     await waitFor(() => expect(screen.getByText('Hi, can you confirm stage times?')).toBeInTheDocument());
@@ -113,7 +113,7 @@ describe('MessagesInbox (#385)', () => {
       .mockResolvedValueOnce(MOCK_MESSAGES_CONV2);
 
     renderInbox();
-    await waitFor(() => screen.getByText('Bob Martinez'));
+    await waitFor(() => screen.getAllByText('Bob Martinez')[0]);
 
     fireEvent.click(screen.getAllByText('Bob Martinez')[0]);
 
@@ -184,9 +184,10 @@ describe('MessagesInbox (#385)', () => {
       .mockResolvedValueOnce(MOCK_MESSAGES_CONV2);
 
     renderInbox();
-    await waitFor(() => screen.getByText('Alice Johnson'));
+    await waitFor(() => screen.getAllByText('Alice Johnson')[0]);
 
-    const firstItem = screen.getByRole('button', { name: /Alice Johnson/i });
+    // Use the list item button (sidebar) for keyboard navigation
+    const firstItem = screen.getAllByRole('button', { name: /Alice Johnson/i })[0];
     firstItem.focus();
     fireEvent.keyDown(firstItem, { key: 'ArrowDown', code: 'ArrowDown' });
 
