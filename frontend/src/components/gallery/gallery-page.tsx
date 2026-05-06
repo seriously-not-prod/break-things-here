@@ -122,8 +122,11 @@ export function GalleryPage(): JSX.Element {
   async function handleCaptionUpdate(itemId: number, caption: string): Promise<void> {
     if (!eventId) return;
     try {
-      const updated = await updateGalleryCaption(eventId, itemId, caption);
-      setItems((prev) => prev.map((item) => (item.id === itemId ? updated : item)));
+      const { caption: saved } = await updateGalleryCaption(eventId, itemId, caption);
+      // Apply the server-confirmed caption locally (avoids a full gallery re-fetch).
+      setItems((prev) =>
+        prev.map((item) => (item.id === itemId ? { ...item, caption: saved } : item)),
+      );
       setError(null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Caption update failed');

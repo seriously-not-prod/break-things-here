@@ -29,16 +29,15 @@ export async function deleteGalleryItem(eventId: string, itemId: number): Promis
 /**
  * Updates the caption of a gallery image.
  * Pass an empty string to clear the caption.
- * @returns The updated gallery item.
+ * @returns The id and new caption value from the server.
  */
 export async function updateGalleryCaption(
   eventId: string,
   itemId: number,
   caption: string,
-): Promise<GalleryItem> {
-  const result = await api.patch<{ item: GalleryItem }>(
+): Promise<{ id: number; caption: string | null }> {
+  return api.patch<{ id: number; caption: string | null }>(
     `/api/events/${eventId}/gallery/${itemId}`,
     { caption },
   );
-  return result.item;
 }

@@ -117,7 +117,7 @@ export async function deleteGalleryItem(req: Request, res: Response): Promise<Re
  * SQLite adapter used in this project, which does not expose RETURNING rows
  * via db.run.
  */
-export async function updateCaption(req: Request, res: Response): Promise<Response> {
+export async function updateGalleryCaption(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
   const { eventId, id } = req.params;
 
@@ -126,50 +126,30 @@ export async function updateCaption(req: Request, res: Response): Promise<Respon
 
   const { caption } = req.body as { caption?: unknown };
 
-  if (caption !== undefined && typeof caption !== 'string') {
+  if (typeof caption !== 'string') {
     return res.status(400).json({ error: 'caption must be a string.' });
   }
 
-  const sanitizedCaption = typeof caption === 'string' ? caption.trim() || null : null;
-
-  if (sanitizedCaption !== null && sanitizedCaption.length > MAX_CAPTION_LENGTH) {
-    return res.status(400).json({ error: `Caption cannot exceed ${MAX_CAPTION_LENGTH} characters.` });
-  }
+  // Trim whitespace and silently truncate to the maximum allowed length.
+  const sanitizedCaption = caption.trim().substring(0, MAX_CAPTION_LENGTH) || null;
 
   const db = getDatabase();
 
-  const existing = await db.get<{ id: number }>(
-    `SELECT id FROM event_documents WHERE id = ? AND event_id = ? AND mime_type LIKE 'image/%'`,
+  // Fetch without MIME filter so we can distinguish 404 from 400.
+  const existing = await db.get<{ id: number; mime_type: string }>(
+    `SELECT id, mime_type FROM event_documents WHERE id = ? AND event_id = ?`,
     [id, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Gallery item not found.' });
 
+  if (!existing.mime_type.startsWith('image/')) {
+    return res.status(400).json({ error: 'Item is not an image.' });
+  }
+
   await db.run(
-    `UPDATE event_documents SET caption = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-    [sanitizedCaption, id],
+    `UPDATE event_documents SET caption = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?`,
+    [sanitizedCaption, id, eventId],
   );
 
-  // Re-fetch the full row so the response includes all fields the client needs.
-  // Using a separate SELECT (rather than RETURNING) keeps compatibility with the
-  // SQLite adapter used in this project, which does not expose RETURNING rows via db.run.
-  const row = await db.get<GalleryRow>(
-    `SELECT id, original_name, file_name, mime_type, file_size, created_at, caption
-     FROM event_documents WHERE id = ?`,
-    [id],
-  );
-
-  if (!row) return res.status(404).json({ error: 'Gallery item not found.' });
-
-  return res.json({
-    item: {
-      id: row.id,
-      fileName: row.file_name,
-      originalName: row.original_name,
-      mimeType: row.mime_type,
-      fileSize: row.file_size,
-      createdAt: row.created_at,
-      url: safeDocumentUrl(row.file_name),
-      caption: row.caption ?? null,
-    },
-  });
+  return res.json({ id: Number(id), caption: sanitizedCaption });
 }
