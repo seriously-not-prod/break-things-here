@@ -101,6 +101,7 @@ export function GalleryPage(): JSX.Element {
   async function handleDeleteConfirm(): Promise<void> {
     if (!deleteTarget || !eventId) return;
     setDeleting(true);
+    setError(null);
     try {
       await deleteGalleryItem(eventId, deleteTarget.id);
       setItems((prev) => prev.filter((i) => i.id !== deleteTarget.id));
@@ -120,6 +121,7 @@ export function GalleryPage(): JSX.Element {
   async function handleCaptionSave(): Promise<void> {
     if (!captionTarget || !eventId) return;
     setSavingCaption(true);
+    setError(null);
     try {
       const updated = await updateGalleryCaption(eventId, captionTarget.id, captionDraft);
       setItems((prev) =>
