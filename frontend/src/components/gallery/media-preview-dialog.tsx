@@ -78,6 +78,11 @@ export function MediaPreviewDialog({
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
             Uploaded {formattedDate}
           </Typography>
+          {item.caption && (
+            <Typography variant="body2" color="text.primary" sx={{ mt: 0.5, fontStyle: 'italic' }}>
+              {item.caption}
+            </Typography>
+          )}
         </Box>
         <IconButton onClick={onClose} aria-label="Close preview" size="small">
           <CloseRounded />
