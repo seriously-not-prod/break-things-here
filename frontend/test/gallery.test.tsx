@@ -18,10 +18,9 @@ const MOCK_ITEMS: GalleryItem[] = [
     originalName: 'sunset-stage.jpg',
     mimeType: 'image/jpeg',
     fileSize: 120000,
-    caption: '',
+    caption: null,
     createdAt: '2026-05-01T10:00:00Z',
     url: '/api/uploads/event-documents/document-1.jpg',
-    caption: null,
   },
   {
     id: 2,
