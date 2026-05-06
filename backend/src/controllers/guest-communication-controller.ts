@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { requireEventAccess } from '../utils/event-access.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -37,9 +38,12 @@ async function bulkSend(
   type: 'invitation' | 'reminder',
 ): Promise<Response> {
   const authReq = req as AuthRequest;
-  if (!authReq.user) return res.status(401).json({ error: 'Authentication required.' });
-
   const { eventId } = req.params;
+
+  const authorizedEvent = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
+  if (!authorizedEvent) return res as Response;
+  const senderUserId = authReq.user!.id;
+
   const { rsvpIds, subject, body } = req.body as {
     rsvpIds?: number[];
     subject?: string;
@@ -98,7 +102,7 @@ async function bulkSend(
       await db.run(
         `INSERT INTO communication_log (event_id, rsvp_id, type, subject, body, sent_by)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [eventId, rsvp.id, type, subject, body, authReq.user.id],
+        [eventId, rsvp.id, type, subject, body, senderUserId],
       );
 
       sent++;
@@ -113,16 +117,12 @@ async function bulkSend(
 /** GET /api/events/:eventId/communication */
 export async function listCommunicationLog(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
-  if (!authReq.user) return res.status(401).json({ error: 'Authentication required.' });
-
   const { eventId } = req.params;
-  const db = getDatabase();
 
-  const event = await db.get<{ id: number }>(
-    'SELECT id FROM events WHERE id = ? AND deleted_at IS NULL',
-    [eventId],
-  );
-  if (!event) return res.status(404).json({ error: 'Event not found.' });
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+
+  const db = getDatabase();
 
   const log = await db.all(
     `SELECT

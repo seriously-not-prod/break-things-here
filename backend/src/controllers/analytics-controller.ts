@@ -10,6 +10,7 @@
 
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { requireEventAccess } from '../utils/event-access.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -23,8 +24,12 @@ interface AuthRequest extends Request {
  */
 export async function getEventSummary(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const db = getDatabase();
     const { eventId } = req.params;
+
+    const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!event) return;
+
+    const db = getDatabase();
 
     // ── RSVPs ──────────────────────────────────────────────────────────────────
     const rsvpStats = await db.get<{
@@ -236,7 +241,6 @@ export async function getGlobalAnalytics(req: AuthRequest, res: Response): Promi
  */
 export async function exportEventReport(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const db = getDatabase();
     const { eventId } = req.params;
     const { format } = req.query as { format?: string };
 
@@ -245,6 +249,10 @@ export async function exportEventReport(req: AuthRequest, res: Response): Promis
       return;
     }
 
+    const accessEvent = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!accessEvent) return;
+
+    const db = getDatabase();
     const event = await db.get<{ title: string }>(
       'SELECT title FROM events WHERE id = ? AND deleted_at IS NULL',
       [eventId],

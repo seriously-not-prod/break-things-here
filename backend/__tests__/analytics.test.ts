@@ -135,7 +135,10 @@ afterAll(async (): Promise<void> => {
 
 describe('analytics controller', () => {
   it('returns the expected analytics shape for an event', async () => {
-    const req = { params: { eventId: String(eventId) } } as unknown as Request;
+    const req = {
+      params: { eventId: String(eventId) },
+      user: { id: ownerId, email: 'analytics-owner@example.com', role_id: 2 },
+    } as unknown as Request;
     const res = makeResponse();
 
     await getEventSummary(req, res as Response);
@@ -163,6 +166,7 @@ describe('analytics controller', () => {
     const req = {
       params: { eventId: String(eventId) },
       query: { format: 'csv' },
+      user: { id: ownerId, email: 'analytics-owner@example.com', role_id: 2 },
     } as unknown as Request;
     const res = makeResponse();
 
