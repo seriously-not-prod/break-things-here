@@ -5,7 +5,8 @@ import type { Message } from '../../types/message';
 
 interface ThreadViewProps {
   conversationId: string;
-  participantName: string;
+  /** Display name for the thread — for event-based threads this is the event title. */
+  threadName: string;
   messages: Message[];
   loading: boolean;
   onSend: (body: string) => Promise<void>;
@@ -13,7 +14,7 @@ interface ThreadViewProps {
 
 export function ThreadView({
   conversationId,
-  participantName,
+  threadName,
   messages,
   loading,
   onSend,
@@ -71,14 +72,14 @@ export function ThreadView({
         }}
       >
         <Typography variant="subtitle1" fontWeight={600}>
-          Chat with {participantName}
+          {threadName}
         </Typography>
       </Box>
 
       {/* Messages */}
       <Box
         sx={{ flex: 1, overflowY: 'auto', p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}
-        aria-label={`Thread with ${participantName}`}
+        aria-label={`Thread: ${threadName}`}
       >
         {loading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}>
