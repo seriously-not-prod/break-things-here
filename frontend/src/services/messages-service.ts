@@ -76,8 +76,11 @@ function buildAvatar(title: string): string {
  * per event" endpoint, so resolving them up front would be N+1 fan-out.
  */
 export async function listConversations(): Promise<Conversation[]> {
-  const result = await api.get<{ events: unknown[] }>('/api/events');
-  const events = (result?.events ?? []).filter(isBackendEvent);
+  // Backend returns either a bare array (current shape) or `{ events: [...] }`
+  // (older callers). Accept both so this adapter survives either contract.
+  const result = await api.get<unknown[] | { events: unknown[] }>('/api/events');
+  const raw = Array.isArray(result) ? result : (result?.events ?? []);
+  const events = raw.filter(isBackendEvent);
   return events.map((e) => ({
     id: String(e.id),
     eventId: e.id,
