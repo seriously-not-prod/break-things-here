@@ -22,6 +22,7 @@ export interface DatabaseAdapter {
   run(sql: string, params?: QueryParams): Promise<RunResult>;
   exec(sql: string): Promise<void>;
   close?(): Promise<void>;
+  withUserContext?<T>(userId: number, fn: (db: DatabaseAdapter) => Promise<T>): Promise<T>;
 }
 
 function convertPlaceholders(sql: string): string {
@@ -63,6 +64,41 @@ class PgWrapper {
 
   async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  async withUserContext<T>(userId: number, fn: (db: DatabaseAdapter) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT set_config($1, $2, true)', ['app.current_user_id', String(userId)]);
+      const contextDb: DatabaseAdapter = {
+        async get<R = DatabaseRow>(sql: string, params?: QueryParams): Promise<R | undefined> {
+          const res = await client.query<DatabaseRow>(convertPlaceholders(sql), params ?? []);
+          return res.rows[0] as R | undefined;
+        },
+        async all<R = DatabaseRow>(sql: string, params?: QueryParams): Promise<R[]> {
+          const res = await client.query<DatabaseRow>(convertPlaceholders(sql), params ?? []);
+          return res.rows as R[];
+        },
+        async run(sql: string, params?: QueryParams): Promise<RunResult> {
+          const upper = sql.trim().toUpperCase();
+          const res = await client.query<{ id?: number }>(convertPlaceholders(sql), params ?? []);
+          const lastID = /\bRETURNING\b/.test(upper) ? res.rows[0]?.id : undefined;
+          return { lastID, changes: res.rowCount ?? 0 };
+        },
+        async exec(sql: string): Promise<void> {
+          await client.query(sql);
+        },
+      };
+      const result = await fn(contextDb);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 }
 
@@ -146,6 +182,11 @@ export async function initializeDatabase(): Promise<DatabaseAdapter> {
 export function getDatabase(): DatabaseAdapter {
   if (!dbWrapper) throw new Error('Database not initialized. Call initializeDatabase() first.');
   return dbWrapper;
+}
+
+export function getPool(): pg.Pool {
+  if (!pool) throw new Error('Database pool not initialized. Call initializeDatabase() first.');
+  return pool;
 }
 
 export async function closeDatabase(): Promise<void> {
@@ -673,4 +714,110 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
   // ── Gallery caption support (#409, #430) ─────────────────────────────────
   await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS caption TEXT`);
+
+  // ── RLS pilot: schema alignment (#475) ───────────────────────────────────
+  // Ensure tables missing from the bootstrap init.sql are present at runtime.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_documents (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      original_name TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      caption TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_messages (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id SERIAL PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      description TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_categories (
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+      PRIMARY KEY (event_id, category_id)
+    )
+  `);
+
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS end_date TEXT`);
+
+  // ── RLS pilot: enable row-level security (#472) ───────────────────────────
+  if (process.env.RLS_PILOT_ENABLED === 'true') {
+    console.log('[RLS] Applying RLS pilot policies on events and event_members…');
+
+    // Enable RLS — safe to run repeatedly
+    await db.exec(`ALTER TABLE events ENABLE ROW LEVEL SECURITY`);
+    await db.exec(`ALTER TABLE events FORCE ROW LEVEL SECURITY`);
+    await db.exec(`ALTER TABLE event_members ENABLE ROW LEVEL SECURITY`);
+    await db.exec(`ALTER TABLE event_members FORCE ROW LEVEL SECURITY`);
+
+    // Owner policy: event creator can see and modify their own events
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'events' AND policyname = 'rls_events_owner'
+        ) THEN
+          CREATE POLICY rls_events_owner ON events
+            USING (
+              created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+            );
+        END IF;
+      END $$;
+    `);
+
+    // Member policy: event members can see events they belong to
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'events' AND policyname = 'rls_events_member'
+        ) THEN
+          CREATE POLICY rls_events_member ON events
+            USING (
+              id IN (
+                SELECT event_id FROM event_members
+                WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+              )
+            );
+        END IF;
+      END $$;
+    `);
+
+    // Event members policy: users see only their own membership rows
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'event_members' AND policyname = 'rls_event_members_self'
+        ) THEN
+          CREATE POLICY rls_event_members_self ON event_members
+            USING (
+              user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+            );
+        END IF;
+      END $$;
+    `);
+
+    console.log('[RLS] RLS pilot policies applied.');
+  }
 }
