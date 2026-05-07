@@ -30,12 +30,26 @@ interface RlsTestContext {
   close: () => Promise<void>;
 }
 
+// PostgreSQL superusers bypass RLS. We create a dedicated non-superuser role
+// for each test context and use SET LOCAL ROLE inside each query transaction so
+// that RLS policies actually apply.
+const RLS_TEST_ROLE = 'equip_rls_test_role';
+
 async function createRlsTestContext(): Promise<RlsTestContext> {
   const schema = `rls_test_${randomUUID().replace(/-/g, '_')}`;
   const pool = new pg.Pool({ connectionString: CONNECTION_STRING });
 
+  // Ensure the non-superuser test role exists (once per DB lifetime)
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${RLS_TEST_ROLE}') THEN
+        CREATE ROLE ${RLS_TEST_ROLE} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
+      END IF;
+    END $$;
+  `);
+
   await pool.query(`CREATE SCHEMA "${schema}"`);
-  await pool.query(`SET search_path TO "${schema}", public`);
+  await pool.query(`GRANT USAGE ON SCHEMA "${schema}" TO ${RLS_TEST_ROLE}`);
 
   await pool.query(`
     CREATE TABLE "${schema}".users (
@@ -60,6 +74,9 @@ async function createRlsTestContext(): Promise<RlsTestContext> {
       PRIMARY KEY (event_id, user_id)
     )
   `);
+
+  await pool.query(`GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA "${schema}" TO ${RLS_TEST_ROLE}`);
+  await pool.query(`GRANT USAGE ON ALL SEQUENCES IN SCHEMA "${schema}" TO ${RLS_TEST_ROLE}`);
 
   // Enable RLS on pilot tables
   await pool.query(`ALTER TABLE "${schema}".events ENABLE ROW LEVEL SECURITY`);
@@ -116,7 +133,9 @@ async function queryAsUser<T extends pg.QueryResultRow = pg.QueryResultRow>(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query(`SET search_path TO "${schema}", public`);
+    await client.query(`SET LOCAL search_path TO "${schema}", public`);
+    // Switch to non-superuser role so RLS policies are enforced
+    await client.query(`SET LOCAL ROLE ${RLS_TEST_ROLE}`);
     await client.query('SELECT set_config($1, $2, true)', ['app.current_user_id', String(userId)]);
     const result = await client.query<T>(sql, params);
     await client.query('COMMIT');
@@ -257,9 +276,16 @@ describe('RLS pilot — no context set', () => {
 
     const client = await ctx.pool.connect();
     try {
-      await client.query(`SET search_path TO "${ctx.schema}", public`);
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL search_path TO "${ctx.schema}", public`);
+      await client.query(`SET LOCAL ROLE ${RLS_TEST_ROLE}`);
+      // No app.current_user_id set — policy uses NULLIF which returns NULL → no match
       const result = await client.query(`SELECT id FROM "${ctx.schema}".events`);
+      await client.query('COMMIT');
       expect(result.rows).toHaveLength(0);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
     } finally {
       client.release();
     }
