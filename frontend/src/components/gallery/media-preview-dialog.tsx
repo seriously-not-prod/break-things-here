@@ -26,9 +26,9 @@ interface MediaPreviewDialogProps {
   initialIndex: number;
   onClose: () => void;
   /** Called when the user confirms a delete action inside the dialog. */
-  onDelete?: (itemId: number) => void;
+  onDelete?: (_id: number) => void;
   /** Called when the user saves an updated caption. */
-  onCaptionUpdate?: (itemId: number, caption: string) => void;
+  onCaptionUpdate?: (_id: number, _caption: string) => void;
 }
 
 export function MediaPreviewDialog({

@@ -4,7 +4,7 @@ import type { Conversation } from '../../types/message';
 interface ConversationListProps {
   conversations: Conversation[];
   selectedId: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (_id: string) => void;
 }
 
 function formatRelativeTime(isoString: string): string {

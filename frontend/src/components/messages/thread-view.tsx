@@ -9,7 +9,7 @@ interface ThreadViewProps {
   threadName: string;
   messages: Message[];
   loading: boolean;
-  onSend: (body: string) => Promise<void>;
+  onSend: (_body: string) => Promise<void>;
 }
 
 export function ThreadView({
