@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Seating chart drag-and-drop editor: new "Chart Editor" tab on the Seating page lets planners drag unassigned guests onto table cards and drag assigned guests between tables; assignments persist via existing API (#457)
+- `SeatingChartEditor` component (`seating-chart-editor.tsx`) built on `@dnd-kit/core` with `DragOverlay` ghost, capacity enforcement, and full ARIA labels (#457)
+- 9 tests for `SeatingChartEditor` covering rendering, unassign button, delete table, error alert, empty states, drag aria-labels, and seat count labels (`seating-chart-editor.test.tsx`) (#457)
 - Expense summary PDF export: "Export PDF" button on Budget Management page generates a downloadable A4 report with KPI summary, category breakdown table, and expense details table (`expense-pdf-export.ts`, `BudgetPage`) (#453)
 - 18 tests for PDF export utility and `BudgetPage` integration (`expense-pdf-export.test.tsx`) covering file naming, table rows, currency formatting, error handling, and button states (#453)
 - Gallery image delete: hover overlay with delete button on gallery grid; delete button in preview dialog (`GalleryPage`, `MediaPreviewDialog`) (#409)

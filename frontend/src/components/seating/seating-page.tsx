@@ -6,6 +6,11 @@
  * Left panel: seating tables with assigned guest chips.
  * Right panel: unassigned RSVPs eligible for assignment.
  */
+/**
+ * Updated for issue #457 (story #417): added drag-and-drop chart editor tab.
+ * The original list view is preserved as "List" tab; a new "Chart Editor" tab
+ * exposes SeatingChartEditor powered by @dnd-kit.
+ */
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
@@ -26,15 +31,18 @@ import {
   SelectChangeEvent,
   Skeleton,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
-import { AddRounded, DeleteRounded, PersonRemoveRounded } from '@mui/icons-material';
+import { AddRounded, DeleteRounded, PersonRemoveRounded, TableChartRounded, ViewListRounded } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
 import * as guestService from '../../services/guest-service';
 import type { Rsvp, SeatingTable } from '../../services/guest-service';
 import { ApiError } from '../../lib/api-client';
+import { SeatingChartEditor } from './seating-chart-editor';
 
 interface CreateTableForm {
   name: string;
@@ -54,6 +62,7 @@ export function SeatingPage(): JSX.Element {
   const [form, setForm] = useState<CreateTableForm>(FORM_DEFAULT);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'chart'>('list');
 
   const loadAll = useCallback(async () => {
     if (!eventId) return;
@@ -194,7 +203,52 @@ export function SeatingPage(): JSX.Element {
         </Alert>
       )}
 
-      <Grid container spacing={3}>
+      {/* View-mode tab strip */}
+      <Tabs
+        value={viewMode}
+        onChange={(_e, v: 'list' | 'chart') => setViewMode(v)}
+        sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+        aria-label="Seating view mode"
+      >
+        <Tab
+          value="list"
+          label="List View"
+          icon={<ViewListRounded fontSize="small" />}
+          iconPosition="start"
+          aria-label="Switch to list view"
+        />
+        <Tab
+          value="chart"
+          label="Chart Editor"
+          icon={<TableChartRounded fontSize="small" />}
+          iconPosition="start"
+          aria-label="Switch to chart editor"
+        />
+      </Tabs>
+
+      {/* ── Chart Editor tab ─────────────────────────────────────────────── */}
+      {viewMode === 'chart' && !loading && (
+        <SeatingChartEditor
+          tables={tables}
+          rsvps={rsvps}
+          error={error}
+          onAssign={handleAssign}
+          onUnassign={handleUnassign}
+          onDeleteTable={handleDeleteTable}
+          onClearError={() => setError(null)}
+        />
+      )}
+
+      {viewMode === 'chart' && loading && (
+        <Stack spacing={2}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} variant="rectangular" height={120} sx={{ borderRadius: 2 }} />
+          ))}
+        </Stack>
+      )}
+
+      {/* ── List View tab ────────────────────────────────────────────────── */}
+      {viewMode === 'list' && <Grid container spacing={3}>
         {/* Left panel — Tables */}
         <Grid item xs={12} md={8}>
           <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1.5 }}>
@@ -365,6 +419,7 @@ export function SeatingPage(): JSX.Element {
           )}
         </Grid>
       </Grid>
+      }
 
       {/* Create Table Dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>
