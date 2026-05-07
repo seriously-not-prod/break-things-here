@@ -163,8 +163,16 @@ describe('TimelinePage', () => {
     await screen.findByText('Doors Open');
     await userEvent.click(screen.getByRole('tab', { name: /planned vs actual/i }));
     await screen.findByRole('table');
-    // +5 minutes variance
-    expect(screen.getByText('+5m')).toBeInTheDocument();
+    expect(screen.getAllByText('+5m')).toHaveLength(2);
+  }, 15000);
+
+  it('comparison table shows end variance column', async () => {
+    renderPage();
+    await screen.findByText('Doors Open');
+    await userEvent.click(screen.getByRole('tab', { name: /planned vs actual/i }));
+    const table = await screen.findByRole('table');
+
+    expect(within(table).getByText('End Variance')).toBeInTheDocument();
   }, 15000);
 
   it('comparison tab shows summary chips', async () => {

@@ -17,6 +17,7 @@ const mockedListModerationQueue = vi.mocked(galleryService.listModerationQueue);
 const mockedModerateItem = vi.mocked(galleryService.moderateItem);
 const mockedListSlideshows = vi.mocked(galleryService.listSlideshows);
 const mockedCreateSlideshow = vi.mocked(galleryService.createSlideshow);
+const mockedUpdateSlideshow = vi.mocked(galleryService.updateSlideshow);
 const mockedDeleteSlideshow = vi.mocked(galleryService.deleteSlideshow);
 const mockedGetSlideshowItems = vi.mocked(galleryService.getSlideshowItems);
 
@@ -101,12 +102,14 @@ describe('GalleryPage (#430)', () => {
     mockedDeleteGalleryItem.mockReset();
     mockedUpdateGalleryCaption.mockReset();
     mockedListAlbums.mockReset();
+    mockedListAlbums.mockResolvedValue([]);
     mockedCreateAlbum.mockReset();
     mockedDeleteAlbum.mockReset();
     mockedListModerationQueue.mockReset();
     mockedModerateItem.mockReset();
     mockedListSlideshows.mockReset();
     mockedCreateSlideshow.mockReset();
+    mockedUpdateSlideshow.mockReset();
     mockedDeleteSlideshow.mockReset();
     mockedGetSlideshowItems.mockReset();
   });
@@ -302,6 +305,15 @@ describe('GalleryPage (#430)', () => {
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByText('Main stage crowd')).toBeInTheDocument();
   });
+
+  it('loads album filters on the main gallery tab', async () => {
+    mockedListGallery.mockResolvedValue(MOCK_ITEMS);
+    mockedListAlbums.mockResolvedValue(MOCK_ALBUMS);
+    renderGallery();
+
+    await waitFor(() => expect(mockedListAlbums).toHaveBeenCalledWith('42'));
+    expect(await screen.findByText('Stage Photos')).toBeInTheDocument();
+  });
 });
 
 // ─── Albums tab (#459) ────────────────────────────────────────────────────────
@@ -310,6 +322,7 @@ describe('GalleryPage Albums tab (#459)', () => {
   beforeEach(() => {
     mockedListGallery.mockResolvedValue(MOCK_ITEMS);
     mockedListAlbums.mockReset();
+    mockedListAlbums.mockResolvedValue([]);
     mockedCreateAlbum.mockReset();
     mockedDeleteAlbum.mockReset();
   });
@@ -382,6 +395,7 @@ describe('GalleryPage Albums tab (#459)', () => {
 describe('GalleryPage Moderation tab (#459)', () => {
   beforeEach(() => {
     mockedListGallery.mockResolvedValue(MOCK_ITEMS);
+    mockedListAlbums.mockResolvedValue([]);
     mockedListModerationQueue.mockReset();
     mockedModerateItem.mockReset();
   });
@@ -448,8 +462,10 @@ describe('GalleryPage Moderation tab (#459)', () => {
 describe('GalleryPage Slideshows tab (#459)', () => {
   beforeEach(() => {
     mockedListGallery.mockResolvedValue(MOCK_ITEMS);
+    mockedListAlbums.mockResolvedValue([]);
     mockedListSlideshows.mockReset();
     mockedCreateSlideshow.mockReset();
+    mockedUpdateSlideshow.mockReset();
     mockedDeleteSlideshow.mockReset();
     mockedGetSlideshowItems.mockReset();
   });
@@ -532,6 +548,43 @@ describe('GalleryPage Slideshows tab (#459)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete slideshow' }));
 
     await waitFor(() => expect(mockedDeleteSlideshow).toHaveBeenCalledWith('42', 20));
+  });
+
+  it('preserves existing slideshow items when editing', async () => {
+    mockedListSlideshows.mockResolvedValue(MOCK_SLIDESHOWS);
+    mockedGetSlideshowItems.mockResolvedValue([
+      {
+        id: 1,
+        slideshowId: 20,
+        documentId: 1,
+        sortOrder: 0,
+        fileName: 'document-1.jpg',
+        originalName: 'sunset-stage.jpg',
+        mimeType: 'image/jpeg',
+        caption: null,
+        url: '/api/uploads/event-documents/document-1.jpg',
+      },
+    ]);
+    mockedUpdateSlideshow.mockResolvedValue(MOCK_SLIDESHOWS[0]);
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Slideshows tab/i }));
+    await waitFor(() => screen.getByLabelText('Edit slideshow Highlights 2026'));
+
+    fireEvent.click(screen.getByLabelText('Edit slideshow Highlights 2026'));
+    await waitFor(() => expect(mockedGetSlideshowItems).toHaveBeenCalledWith('42', 20));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByDisplayValue('Highlights 2026')).toBeInTheDocument();
+    expect(within(dialog).getByText('1 image(s) selected')).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(mockedUpdateSlideshow).toHaveBeenCalledWith('42', 20, {
+        name: 'Highlights 2026',
+        itemIds: [1],
+      }),
+    );
   });
 
   it('shows error on slideshow load failure', async () => {

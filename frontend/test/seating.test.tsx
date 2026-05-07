@@ -263,6 +263,29 @@ describe('SeatingPage (#386)', () => {
     });
   });
 
+  it('supports keyboard nudging for table layout edits', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /move table a/i })).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(screen.getByRole('button', { name: /move table a/i }), {
+      key: 'ArrowRight',
+    });
+
+    await waitFor(() => {
+      expect(mockedService.updateTableLayout).toHaveBeenCalledWith(
+        '10',
+        1,
+        expect.objectContaining({
+          layout_x: 56,
+          layout_y: 32,
+        }),
+      );
+    });
+  });
+
   it('exports seating name tags with table assignments', async () => {
     renderPage();
 
