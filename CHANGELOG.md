@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Event templates: persistence (`event_templates` table) and `/api/event-templates` CRUD + apply endpoints; organizer-scoped permissions, admin-wide visibility (#410 #432)
+- Bulk event actions: `POST /api/events/bulk` with `archive`, `delete`, `export` actions, partial-success per-event reporting and CSV export (#410 #433)
+- Templates dialog and bulk-selection toolbar on the events list (`event-templates-dialog.tsx`, `events-page.tsx`) with archive / export CSV / delete-many buttons (#410 #434)
+- Event location map widget (`event-location-map.tsx`) using OpenStreetMap embed; `latitude`/`longitude` columns added to events; coordinate inputs in event create form and edit dialog with graceful fallback when coordinates are missing (#414 #446)
+- Capacity and waitlist indicators across list (`X/Y · N left` / `waitlist N` chips), calendar (chip label + tooltip with overflow), and detail page (capacity chip + waitlist chip); `waitlist_enabled` column added to events; aggregated `going_count`/`pending_count` returned by `GET /api/events` (#414 #447)
+- Event compatibility tests covering list rendering with new metadata, calendar capacity surfacing, and the location map widget (#414 #448)
+- Advanced event search: `title_q`, `location_q`, `date_from`, `date_to`, `capacity_min`, `capacity_max`, `event_type`, `has_waitlist` query parameters on `GET /api/events`; collapsible advanced search panel on the list page (#416 #455)
+- Saved filter presets: `event_filter_presets` table and `/api/event-filter-presets` CRUD; saved-filter dropdown / save-as / delete UI on the events list (#416 #454)
 - Budget templates: create reusable budget templates with line-item categories and apply them to any event, with conflict-safe idempotent migrations (#438)
 - Shopping-to-budget sync: purchased shopping list items can be synced as budget expense entries; duplicate syncs are handled safely (amount updates if cost changed) (#439)
 - Shopping-to-budget sync: one-click sync of purchased shopping items into event expenses; duplicate-safe via source-tag in notes field (#439)

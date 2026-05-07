@@ -157,6 +157,64 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMP;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS end_date TEXT;
+-- Story #414: map-backed location + waitlist indicators
+ALTER TABLE events ADD COLUMN IF NOT EXISTS latitude  DOUBLE PRECISION;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS waitlist_enabled BOOLEAN DEFAULT FALSE;
+
+-- Story #410, task #433: bulk-archive uses 'Cancelled' as a soft-archive marker.
+-- Existing databases were created with status CHECK IN ('Draft','Active','Completed');
+-- widen the constraint to include 'Cancelled' so archive UPDATEs don't violate it.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'events_status_check'
+  ) THEN
+    ALTER TABLE events DROP CONSTRAINT events_status_check;
+  END IF;
+END$$;
+ALTER TABLE events ADD CONSTRAINT events_status_check
+  CHECK (status IN ('Draft', 'Active', 'Completed', 'Cancelled'));
+
+-- ============================================================
+-- Event templates — story #410, task #432
+-- Reusable seed data for new events. Templates are owned by a user
+-- (created_by) and visible to that owner; admins (role_id=3) can see all.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS event_templates (
+  id           SERIAL PRIMARY KEY,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  default_title TEXT,
+  default_location TEXT,
+  default_capacity INTEGER,
+  default_event_type TEXT,
+  default_status   TEXT CHECK(default_status IN ('Draft', 'Active', 'Completed')) DEFAULT 'Draft',
+  default_tags TEXT,
+  default_is_public BOOLEAN DEFAULT FALSE,
+  default_waitlist_enabled BOOLEAN DEFAULT FALSE,
+  created_by   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  deleted_at   TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_event_templates_created_by ON event_templates(created_by);
+
+-- ============================================================
+-- Saved event filter presets — story #416, task #454
+-- A power-user named filter preset stored as JSON for compatibility
+-- with future filter additions.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS event_filter_presets (
+  id          SERIAL PRIMARY KEY,
+  name        TEXT NOT NULL,
+  filters     TEXT NOT NULL,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_event_filter_presets_user ON event_filter_presets(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_event_filter_presets_user_name ON event_filter_presets(user_id, name);
 
 CREATE TABLE IF NOT EXISTS activity_feed (
   id SERIAL PRIMARY KEY,

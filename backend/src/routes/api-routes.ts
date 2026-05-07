@@ -24,6 +24,9 @@ import * as budgetController from '../controllers/budget-controller.js';
 import * as galleryController from '../controllers/gallery-controller.js';
 import * as aiController from '../controllers/ai-controller.js';
 import * as messagesController from '../controllers/messages-controller.js';
+import * as eventTemplatesController from '../controllers/event-templates-controller.js';
+import * as eventBulkController from '../controllers/event-bulk-controller.js';
+import * as eventFilterPresetsController from '../controllers/event-filter-presets-controller.js';
 import * as budgetTemplatesController from '../controllers/budget-templates-controller.js';
 import * as taskDepsController from '../controllers/task-dependencies-controller.js';
 import * as taskTemplatesController from '../controllers/task-templates-controller.js';
@@ -283,8 +286,25 @@ router.get(
 
 router.get('/user/role-permissions', authenticateToken, rbacController.getUserRoleAndPermissions);
 
+// ============ EVENT TEMPLATES ROUTES — story #410, task #432 ============
+// Registered before /:id parameterized routes so they take precedence
+router.get('/event-templates', authenticateToken, eventTemplatesController.listTemplates);
+router.post('/event-templates', authenticateToken, eventTemplatesController.createTemplate);
+router.get('/event-templates/:id', authenticateToken, eventTemplatesController.getTemplate);
+router.patch('/event-templates/:id', authenticateToken, eventTemplatesController.updateTemplate);
+router.delete('/event-templates/:id', authenticateToken, eventTemplatesController.deleteTemplate);
+router.post('/event-templates/:id/apply', authenticateToken, eventTemplatesController.applyTemplate);
+
+// ============ EVENT FILTER PRESETS — story #416, task #454 ============
+router.get('/event-filter-presets', authenticateToken, eventFilterPresetsController.listPresets);
+router.post('/event-filter-presets', authenticateToken, eventFilterPresetsController.createPreset);
+router.put('/event-filter-presets/:id', authenticateToken, eventFilterPresetsController.updatePreset);
+router.delete('/event-filter-presets/:id', authenticateToken, eventFilterPresetsController.deletePreset);
+
 // ============ EVENT ROUTES ============
 router.get('/events', authenticateToken, eventController.getAllEvents);
+// Bulk action route — must be registered before /:id parameterized routes — task #433
+router.post('/events/bulk', authenticateToken, eventBulkController.bulkEventAction);
 router.get('/events/:id', authenticateToken, eventController.getEventById);
 router.post('/events', authenticateToken, eventController.createEvent);
 router.put('/events/:id', authenticateToken, eventController.updateEvent);

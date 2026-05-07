@@ -12,26 +12,65 @@ export interface EventData {
   location: string;
   description?: string;
   capacity?: number | null;
-  status?: 'Draft' | 'Active' | 'Completed';
+  status?: 'Draft' | 'Active' | 'Completed' | 'Cancelled';
   event_type?: string | null;
   is_public?: boolean;
   tags?: string | null;
+  // Story #414 — map and waitlist
+  latitude?: number | null;
+  longitude?: number | null;
+  waitlist_enabled?: boolean | null;
 }
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
 }
 
+// Note on going_count/pending_count: scalar subqueries run once per event row.
+// For typical event counts (<1k) this is fine; if a future workload exposes a
+// hot list, swap to a single LEFT JOIN rsvps … GROUP BY e.id with conditional
+// SUM-CASE so the aggregate is computed in one pass.
 const EVENT_SELECT_COLUMNS = `
   e.*,
   e.date AS event_date,
-  u.display_name as created_by_name
+  u.display_name as created_by_name,
+  u.display_name as creator_name,
+  (
+    SELECT COALESCE(SUM(COALESCE(r.guests, 1)), 0)::int
+      FROM rsvps r
+     WHERE r.event_id = e.id AND r.status = 'Going'
+  ) AS going_count,
+  (
+    SELECT COALESCE(SUM(COALESCE(r.guests, 1)), 0)::int
+      FROM rsvps r
+     WHERE r.event_id = e.id AND r.status = 'Pending'
+  ) AS pending_count
 `;
 
 const EVENT_BY_ID_SELECT_COLUMNS = `
   *,
   date AS event_date
 `;
+
+/**
+ * Normalize an optional coordinate value.
+ *
+ * Returns:
+ *   - the numeric value when valid and in range,
+ *   - null when the input is null/undefined/empty (to clear the column),
+ *   - 'invalid' when out of range or non-numeric (caller should reject the request).
+ */
+function normalizeCoordinate(
+  value: unknown,
+  min: number,
+  max: number,
+): number | null | 'invalid' {
+  if (value === null || value === undefined || value === '') return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return 'invalid';
+  if (n < min || n > max) return 'invalid';
+  return n;
+}
 
 async function recordEventAudit(
   db: ReturnType<typeof getDatabase>,
@@ -46,17 +85,54 @@ async function recordEventAudit(
 }
 
 /**
- * Get all events — supports ?owner=me, ?tags=tag1,tag2, ?status=, ?q= filters
+ * Get all events
+ *
+ * Filters:
+ *   ?owner=me                          — events created by the authenticated user
+ *   ?status=Draft|Active|Completed     — single status
+ *   ?q=keyword                         — quick search across title/description/location
+ *   ?tags=tag1,tag2                    — comma-separated tag match (any-of)
+ *
+ * Advanced search — story #416, task #455:
+ *   ?title_q=...                       — case-insensitive substring match on title
+ *   ?location_q=...                    — case-insensitive substring match on location
+ *   ?date_from=YYYY-MM-DD              — events on/after this date
+ *   ?date_to=YYYY-MM-DD                — events on/before this date
+ *   ?capacity_min=N                    — capacity >= N (or capacity IS NULL excluded)
+ *   ?capacity_max=N                    — capacity <= N
+ *   ?event_type=Concert                — exact event_type match
+ *   ?has_waitlist=true|false           — waitlist_enabled flag
  */
 export async function getAllEvents(req: Request, res: Response): Promise<void> {
   try {
     const db = getDatabase();
     const authReq = req as AuthRequest;
-    const { owner, tags, status, q } = req.query as {
+    const {
+      owner,
+      tags,
+      status,
+      q,
+      title_q,
+      location_q,
+      date_from,
+      date_to,
+      capacity_min,
+      capacity_max,
+      event_type,
+      has_waitlist,
+    } = req.query as {
       owner?: string;
       tags?: string;
       status?: string;
       q?: string;
+      title_q?: string;
+      location_q?: string;
+      date_from?: string;
+      date_to?: string;
+      capacity_min?: string;
+      capacity_max?: string;
+      event_type?: string;
+      has_waitlist?: string;
     };
 
     let query = `
@@ -65,7 +141,7 @@ export async function getAllEvents(req: Request, res: Response): Promise<void> {
       LEFT JOIN users u ON e.created_by = u.id
       WHERE e.deleted_at IS NULL
     `;
-    const params: (string | number)[] = [];
+    const params: (string | number | boolean)[] = [];
 
     if (owner === 'me' && authReq.user?.id) {
       query += ' AND e.created_by = ?';
@@ -92,6 +168,47 @@ export async function getAllEvents(req: Request, res: Response): Promise<void> {
         query += ` AND (${tagConditions})`;
         tagList.forEach((tag) => params.push(`%,${tag},%`));
       }
+    }
+
+    // Advanced search filters (issue #455)
+    if (title_q) {
+      query += ' AND e.title ILIKE ?';
+      params.push(`%${title_q}%`);
+    }
+    if (location_q) {
+      query += ' AND e.location ILIKE ?';
+      params.push(`%${location_q}%`);
+    }
+    if (date_from) {
+      query += ' AND e.date >= ?';
+      params.push(date_from);
+    }
+    if (date_to) {
+      query += ' AND e.date <= ?';
+      params.push(date_to);
+    }
+    if (capacity_min !== undefined && capacity_min !== '') {
+      const min = Number(capacity_min);
+      if (Number.isFinite(min)) {
+        query += ' AND e.capacity IS NOT NULL AND e.capacity >= ?';
+        params.push(min);
+      }
+    }
+    if (capacity_max !== undefined && capacity_max !== '') {
+      const max = Number(capacity_max);
+      if (Number.isFinite(max)) {
+        query += ' AND e.capacity IS NOT NULL AND e.capacity <= ?';
+        params.push(max);
+      }
+    }
+    if (event_type) {
+      query += ' AND e.event_type = ?';
+      params.push(event_type);
+    }
+    if (has_waitlist === 'true') {
+      query += ' AND e.waitlist_enabled = TRUE';
+    } else if (has_waitlist === 'false') {
+      query += ' AND COALESCE(e.waitlist_enabled, FALSE) = FALSE';
     }
 
     query += ' ORDER BY e.date DESC';
@@ -183,6 +300,9 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
       event_type,
       is_public,
       tags,
+      latitude,
+      longitude,
+      waitlist_enabled,
     } = req.body as EventData & { start_date?: string; venue_name?: string };
 
     const date = _date || start_date;
@@ -194,17 +314,31 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (status && !['Draft', 'Active', 'Completed'].includes(status)) {
-      res.status(400).json({ error: 'Invalid status. Must be Draft, Active or Completed' });
+    if (status && !['Draft', 'Active', 'Completed', 'Cancelled'].includes(status)) {
+      res.status(400).json({ error: 'Invalid status. Must be Draft, Active, Completed, or Cancelled' });
+      return;
+    }
+
+    const lat = normalizeCoordinate(latitude, -90, 90);
+    if (lat === 'invalid') {
+      res.status(400).json({ error: 'latitude must be between -90 and 90' });
+      return;
+    }
+    const lng = normalizeCoordinate(longitude, -180, 180);
+    if (lng === 'invalid') {
+      res.status(400).json({ error: 'longitude must be between -180 and 180' });
       return;
     }
 
     const result = await db.run(`
-      INSERT INTO events (title, date, location, description, capacity, status, event_type, is_public, tags, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO events (title, date, location, description, capacity, status, event_type, is_public, tags,
+                          latitude, longitude, waitlist_enabled, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING id
     `, [title, date, location, description ?? null, capacity ?? null, status || 'Draft',
-        event_type ?? 'Other', is_public ?? false, tags ?? null, userId]);
+        event_type ?? 'Other', is_public ?? false, tags ?? null,
+        lat, lng, waitlist_enabled ?? false,
+        userId]);
     
     const newEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = ?`, [result.lastID]);
     await db.run(
@@ -244,6 +378,9 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       event_type,
       is_public,
       tags,
+      latitude,
+      longitude,
+      waitlist_enabled,
     } = req.body as EventData & { start_date?: string; venue_name?: string };
 
     const date = _date || start_date;
@@ -261,15 +398,35 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (status && !['Draft', 'Active', 'Completed'].includes(status)) {
-      res.status(400).json({ error: 'Invalid status. Must be Draft, Active or Completed' });
+    if (status && !['Draft', 'Active', 'Completed', 'Cancelled'].includes(status)) {
+      res.status(400).json({ error: 'Invalid status. Must be Draft, Active, Completed, or Cancelled' });
       return;
+    }
+
+    let nextLat: number | null | undefined = existingEvent['latitude'] as number | null;
+    if (latitude !== undefined) {
+      const result = normalizeCoordinate(latitude, -90, 90);
+      if (result === 'invalid') {
+        res.status(400).json({ error: 'latitude must be between -90 and 90' });
+        return;
+      }
+      nextLat = result;
+    }
+    let nextLng: number | null | undefined = existingEvent['longitude'] as number | null;
+    if (longitude !== undefined) {
+      const result = normalizeCoordinate(longitude, -180, 180);
+      if (result === 'invalid') {
+        res.status(400).json({ error: 'longitude must be between -180 and 180' });
+        return;
+      }
+      nextLng = result;
     }
 
     await db.run(`
       UPDATE events
       SET title = ?, date = ?, location = ?, description = ?, capacity = ?, status = ?,
-          event_type = ?, is_public = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+          event_type = ?, is_public = ?, tags = ?, latitude = ?, longitude = ?, waitlist_enabled = ?,
+          updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [
       title || existingEvent.title,
@@ -281,6 +438,9 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       event_type !== undefined ? event_type : existingEvent.event_type,
       is_public !== undefined ? is_public : existingEvent.is_public,
       tags !== undefined ? tags : existingEvent.tags,
+      nextLat,
+      nextLng,
+      waitlist_enabled !== undefined ? waitlist_enabled : existingEvent['waitlist_enabled'],
       id,
     ]);
     
