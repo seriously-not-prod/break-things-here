@@ -994,4 +994,99 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
     console.log('[RLS] RLS pilot policies applied.');
   }
+
+  // ── Guest merge audit (#411, #435) ───────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS guest_merge_audit (
+      id                 SERIAL PRIMARY KEY,
+      event_id           INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      surviving_rsvp_id  INTEGER REFERENCES rsvps(id) ON DELETE SET NULL,
+      merged_rsvp_id     INTEGER NOT NULL,
+      merged_email       TEXT NOT NULL,
+      merged_name        TEXT NOT NULL,
+      merged_snapshot    JSONB NOT NULL,
+      merged_by          INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      merged_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      notes              TEXT
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_guest_merge_audit_event_id ON guest_merge_audit(event_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_guest_merge_audit_surviving ON guest_merge_audit(surviving_rsvp_id)`,
+  );
+
+  // ── RSVP access tokens for QR codes (#411, #437) ──────────────────────────
+  // A stable per-RSVP token used to render QR codes that link to the guest
+  // RSVP page. Tokens are opaque and can be rotated independently.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS rsvp_access_tokens (
+      rsvp_id      INTEGER PRIMARY KEY REFERENCES rsvps(id) ON DELETE CASCADE,
+      token        TEXT NOT NULL UNIQUE,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      revoked_at   TIMESTAMP
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_rsvp_access_tokens_token ON rsvp_access_tokens(token) WHERE revoked_at IS NULL`,
+  );
+
+  // ── Waitlist columns on rsvps (#413, #442) ────────────────────────────────
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS waitlist_position INTEGER`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS waitlisted_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS promoted_at TIMESTAMP`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_rsvps_event_waitlist ON rsvps(event_id, waitlist_position) WHERE waitlist_position IS NOT NULL`,
+  );
+
+  // ── Custom RSVP questions (#413, #443) ────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS rsvp_questions (
+      id            SERIAL PRIMARY KEY,
+      event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      prompt        TEXT NOT NULL,
+      question_type TEXT NOT NULL CHECK (question_type IN ('short_text','long_text','single_choice','multi_choice','number','boolean')),
+      options       JSONB,
+      required      BOOLEAN DEFAULT FALSE,
+      sort_order    INTEGER DEFAULT 0,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_rsvp_questions_event_id ON rsvp_questions(event_id)`,
+  );
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS rsvp_question_responses (
+      id          SERIAL PRIMARY KEY,
+      rsvp_id     INTEGER NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
+      question_id INTEGER NOT NULL REFERENCES rsvp_questions(id) ON DELETE CASCADE,
+      response    TEXT,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (rsvp_id, question_id)
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_rsvp_question_responses_rsvp ON rsvp_question_responses(rsvp_id)`,
+  );
+
+  // ── Currency & exchange rates (#418, #461) ────────────────────────────────
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'USD'`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_base NUMERIC(14,4)`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(18,8)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS exchange_rates (
+      base_currency  TEXT NOT NULL,
+      quote_currency TEXT NOT NULL,
+      rate           NUMERIC(18,8) NOT NULL CHECK (rate > 0),
+      source         TEXT NOT NULL DEFAULT 'manual',
+      fetched_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (base_currency, quote_currency)
+    )
+  `);
 }
