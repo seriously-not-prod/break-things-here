@@ -148,3 +148,55 @@ export async function deleteActivity(req: Request, res: Response): Promise<Respo
   await db.run('DELETE FROM timeline_activities WHERE id = ? AND event_id = ?', [id, eventId]);
   return res.status(204).send('');
 }
+
+/**
+ * GET /api/events/:eventId/timeline/conflicts (#441)
+ * Returns pairs of timeline activities whose time windows overlap.
+ * Two activities conflict when:
+ *   A.start_time < B.end_time  AND  A.end_time > B.start_time
+ * Activities without both start and end times are excluded.
+ */
+export async function detectConflicts(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId } = req.params;
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
+
+  const db = getDatabase();
+
+  const conflicts = await db.all<{
+    activity_a_id: number;
+    activity_a_title: string;
+    activity_a_start: string;
+    activity_a_end: string;
+    activity_b_id: number;
+    activity_b_title: string;
+    activity_b_start: string;
+    activity_b_end: string;
+  }>(
+    `SELECT
+       a.id    AS activity_a_id,
+       a.title AS activity_a_title,
+       a.start_time::text AS activity_a_start,
+       a.end_time::text   AS activity_a_end,
+       b.id    AS activity_b_id,
+       b.title AS activity_b_title,
+       b.start_time::text AS activity_b_start,
+       b.end_time::text   AS activity_b_end
+     FROM timeline_activities a
+     JOIN timeline_activities b
+       ON a.event_id = b.event_id
+      AND a.id < b.id
+      AND a.start_time IS NOT NULL
+      AND a.end_time   IS NOT NULL
+      AND b.start_time IS NOT NULL
+      AND b.end_time   IS NOT NULL
+      AND a.start_time < b.end_time
+      AND a.end_time   > b.start_time
+     WHERE a.event_id = ?
+     ORDER BY a.start_time ASC`,
+    [eventId],
+  );
+
+  return res.json({ conflicts, count: conflicts.length });
+}

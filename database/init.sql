@@ -156,6 +156,7 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS event_type TEXT DEFAULT 'Other';
 ALTER TABLE events ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMP;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS end_date TEXT;
 
 CREATE TABLE IF NOT EXISTS activity_feed (
   id SERIAL PRIMARY KEY,
@@ -426,3 +427,203 @@ INSERT INTO permissions (name, description) VALUES
   ('roles.view',    'View roles'),
   ('roles.manage',  'Manage roles and permissions')
 ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================
+-- Budget Templates (#438)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS budget_templates (
+  id          SERIAL PRIMARY KEY,
+  name        TEXT NOT NULL,
+  description TEXT,
+  created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS budget_template_items (
+  id               SERIAL PRIMARY KEY,
+  template_id      INTEGER NOT NULL REFERENCES budget_templates(id) ON DELETE CASCADE,
+  name             TEXT NOT NULL,
+  allocated_amount NUMERIC(10,2) DEFAULT 0,
+  color            TEXT DEFAULT '#6366f1',
+  created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_budget_template_items_template_id ON budget_template_items(template_id);
+
+-- ============================================================
+-- Task Dependencies (#440)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS task_dependencies (
+  id              SERIAL PRIMARY KEY,
+  task_id         INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  depends_on_id   INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(task_id, depends_on_id),
+  CONSTRAINT task_dependencies_no_self_ref CHECK(task_id <> depends_on_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_dependencies_task_id ON task_dependencies(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on_id ON task_dependencies(depends_on_id);
+
+-- ============================================================
+-- Task Templates & Time Entries (#450)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS task_templates (
+  id              SERIAL PRIMARY KEY,
+  event_id        INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name            TEXT NOT NULL,
+  description     TEXT,
+  priority        TEXT CHECK(priority IN ('Low','Medium','High')) DEFAULT 'Medium',
+  estimated_hours NUMERIC(5,2),
+  created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_templates_event_id ON task_templates(event_id);
+
+CREATE TABLE IF NOT EXISTS task_time_entries (
+  id          SERIAL PRIMARY KEY,
+  task_id     INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  hours_spent NUMERIC(5,2) NOT NULL CHECK(hours_spent > 0),
+  notes       TEXT,
+  logged_at   DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_time_entries_task_id ON task_time_entries(task_id);
+
+-- Extend tasks for recurrence and template linkage (#450)
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_recurring       BOOLEAN DEFAULT FALSE;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_pattern TEXT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_end_date TEXT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS template_id         INTEGER REFERENCES task_templates(id) ON DELETE SET NULL;
+
+-- ============================================================
+-- Recurring Expenses (#449)
+-- ============================================================
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS is_recurring        BOOLEAN DEFAULT FALSE;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_pattern  TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_end_date DATE;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS is_installment      BOOLEAN DEFAULT FALSE;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS installment_total   INTEGER;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS installment_number  INTEGER;
+
+-- Named constraint — idempotent via DO block
+DO $$
+BEGIN
+  ALTER TABLE expenses
+    ADD CONSTRAINT expenses_recurrence_pattern_valid
+    CHECK (recurrence_pattern IS NULL OR recurrence_pattern IN ('weekly','monthly','quarterly','annually'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- ============================================================
+-- Vendor Communication Log (#452)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS vendor_communication_log (
+  id         SERIAL PRIMARY KEY,
+  event_id   INTEGER NOT NULL REFERENCES events(id)   ON DELETE CASCADE,
+  vendor_id  INTEGER NOT NULL REFERENCES vendors(id)  ON DELETE CASCADE,
+  type       TEXT NOT NULL CHECK(type IN ('email','call','meeting','quote','follow_up','other')),
+  subject    TEXT NOT NULL,
+  body       TEXT,
+  sent_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_vendor_id ON vendor_communication_log(vendor_id);
+CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_event_id  ON vendor_communication_log(event_id);
+
+-- ============================================================
+-- Store Suggestions (#464)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS store_suggestions (
+  id           SERIAL PRIMARY KEY,
+  event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name         TEXT NOT NULL,
+  website      TEXT,
+  notes        TEXT,
+  category     TEXT,
+  suggested_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  status       TEXT CHECK(status IN ('pending','approved','rejected')) DEFAULT 'pending',
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_store_suggestions_event_id ON store_suggestions(event_id);
+
+-- Case-insensitive unique store name per event
+CREATE UNIQUE INDEX IF NOT EXISTS idx_store_suggestions_unique
+  ON store_suggestions(event_id, lower(name));
+
+-- Event Documents (#476)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS event_documents (
+  id            SERIAL PRIMARY KEY,
+  event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  original_name TEXT NOT NULL,
+  file_name     TEXT NOT NULL,
+  mime_type     TEXT NOT NULL,
+  file_size     INTEGER NOT NULL,
+  caption       TEXT,
+  created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_documents_event_id ON event_documents(event_id);
+
+-- ============================================================
+-- Event Messages / Team Conversation
+-- ============================================================
+CREATE TABLE IF NOT EXISTS event_messages (
+  id         SERIAL PRIMARY KEY,
+  event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  sender_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body       TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  deleted_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_messages_event_id   ON event_messages(event_id);
+CREATE INDEX IF NOT EXISTS idx_event_messages_sender_id  ON event_messages(sender_id);
+
+-- ============================================================
+-- Event Categories (#217)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS categories (
+  id          SERIAL PRIMARY KEY,
+  name        TEXT UNIQUE NOT NULL,
+  description TEXT,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO categories (name) VALUES
+  ('Music'), ('Food & Beverage'), ('Entertainment'), ('Sports'),
+  ('Art & Culture'), ('Business'), ('Technology'), ('Education'),
+  ('Charity'), ('Other')
+ON CONFLICT (name) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS event_categories (
+  event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  PRIMARY KEY (event_id, category_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_categories_event_id ON event_categories(event_id);
+
+-- ============================================================
+-- Entra ID identity columns (#468, #470)
+-- ============================================================
+ALTER TABLE users ADD COLUMN IF NOT EXISTS entra_oid    TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT DEFAULT 'local';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_entra_oid ON users(entra_oid) WHERE entra_oid IS NOT NULL;
+
+-- ============================================================
+-- RLS pilot: row-level security on events and event_members (#472)
+-- Applied only when RLS_PILOT_ENABLED=true at bootstrap time.
+-- The application runtime migration also handles this.
+-- ============================================================

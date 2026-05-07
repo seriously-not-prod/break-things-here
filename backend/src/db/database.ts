@@ -22,6 +22,7 @@ export interface DatabaseAdapter {
   run(sql: string, params?: QueryParams): Promise<RunResult>;
   exec(sql: string): Promise<void>;
   close?(): Promise<void>;
+  withUserContext?<T>(userId: number, fn: (db: DatabaseAdapter) => Promise<T>): Promise<T>;
 }
 
 function convertPlaceholders(sql: string): string {
@@ -63,6 +64,41 @@ class PgWrapper {
 
   async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  async withUserContext<T>(userId: number, fn: (db: DatabaseAdapter) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT set_config($1, $2, true)', ['app.current_user_id', String(userId)]);
+      const contextDb: DatabaseAdapter = {
+        async get<R = DatabaseRow>(sql: string, params?: QueryParams): Promise<R | undefined> {
+          const res = await client.query<DatabaseRow>(convertPlaceholders(sql), params ?? []);
+          return res.rows[0] as R | undefined;
+        },
+        async all<R = DatabaseRow>(sql: string, params?: QueryParams): Promise<R[]> {
+          const res = await client.query<DatabaseRow>(convertPlaceholders(sql), params ?? []);
+          return res.rows as R[];
+        },
+        async run(sql: string, params?: QueryParams): Promise<RunResult> {
+          const upper = sql.trim().toUpperCase();
+          const res = await client.query<{ id?: number }>(convertPlaceholders(sql), params ?? []);
+          const lastID = /\bRETURNING\b/.test(upper) ? res.rows[0]?.id : undefined;
+          return { lastID, changes: res.rowCount ?? 0 };
+        },
+        async exec(sql: string): Promise<void> {
+          await client.query(sql);
+        },
+      };
+      const result = await fn(contextDb);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 }
 
@@ -146,6 +182,11 @@ export async function initializeDatabase(): Promise<DatabaseAdapter> {
 export function getDatabase(): DatabaseAdapter {
   if (!dbWrapper) throw new Error('Database not initialized. Call initializeDatabase() first.');
   return dbWrapper;
+}
+
+export function getPool(): pg.Pool {
+  if (!pool) throw new Error('Database pool not initialized. Call initializeDatabase() first.');
+  return pool;
 }
 
 export async function closeDatabase(): Promise<void> {
@@ -705,10 +746,252 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   // ── Gallery caption support (#409, #430) ─────────────────────────────────
   await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS caption TEXT`);
 
+  // ── Task dependencies (#440) ──────────────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_dependencies (
+      id              SERIAL PRIMARY KEY,
+      task_id         INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      depends_on_id   INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(task_id, depends_on_id),
+      CONSTRAINT task_dependencies_no_self_ref CHECK(task_id <> depends_on_id)
+    )
+  `);
+  // Idempotent: add named self-ref constraint if table pre-existed without it
+  await db.exec(`
+    DO $$
+    BEGIN
+      ALTER TABLE task_dependencies
+        ADD CONSTRAINT task_dependencies_no_self_ref CHECK(task_id <> depends_on_id);
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_dependencies_task_id ON task_dependencies(task_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on_id ON task_dependencies(depends_on_id)`);
+
+  // ── Budget templates (#438) ───────────────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS budget_templates (
+      id          SERIAL PRIMARY KEY,
+      name        TEXT NOT NULL,
+      description TEXT,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS budget_template_items (
+      id               SERIAL PRIMARY KEY,
+      template_id      INTEGER NOT NULL REFERENCES budget_templates(id) ON DELETE CASCADE,
+      name             TEXT NOT NULL,
+      allocated_amount NUMERIC(10,2) DEFAULT 0,
+      color            TEXT DEFAULT '#6366f1',
+      created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_budget_template_items_template_id ON budget_template_items(template_id)`);
+
+  // ── Task templates & time entries (#450) ─────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_templates (
+      id              SERIAL PRIMARY KEY,
+      event_id        INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name            TEXT NOT NULL,
+      description     TEXT,
+      priority        TEXT CHECK(priority IN ('Low','Medium','High')) DEFAULT 'Medium',
+      estimated_hours NUMERIC(5,2),
+      created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_templates_event_id ON task_templates(event_id)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_time_entries (
+      id          SERIAL PRIMARY KEY,
+      task_id     INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      hours_spent NUMERIC(5,2) NOT NULL CHECK(hours_spent > 0),
+      notes       TEXT,
+      logged_at   DATE NOT NULL DEFAULT CURRENT_DATE,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_time_entries_task_id ON task_time_entries(task_id)`);
+
+  // Recurring task support columns
+  await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT FALSE`);
+  await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_pattern TEXT`);
+  await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_end_date TEXT`);
+  // Guard: only add FK column once task_templates is confirmed to exist
+  {
+    const tmplExists = await db.get<{ exists: boolean }>(
+      `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='task_templates') AS exists`,
+    );
+    if (tmplExists?.exists) {
+      await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS template_id INTEGER REFERENCES task_templates(id) ON DELETE SET NULL`);
+    }
+  }
+
+  // ── Recurring expenses (#449) ─────────────────────────────────────────────
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT FALSE`);
+  // Add column without inline CHECK first (idempotent), then add named constraint separately
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_pattern TEXT`);
+  await db.exec(`
+    DO $$
+    BEGIN
+      ALTER TABLE expenses
+        ADD CONSTRAINT expenses_recurrence_pattern_valid
+        CHECK (recurrence_pattern IS NULL OR recurrence_pattern IN ('weekly','monthly','quarterly','annually'));
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$
+  `);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_end_date DATE`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS is_installment BOOLEAN DEFAULT FALSE`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS installment_total INTEGER`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS installment_number INTEGER`);
+
+  // ── Vendor communication log (#452) ──────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS vendor_communication_log (
+      id         SERIAL PRIMARY KEY,
+      event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      vendor_id  INTEGER NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+      type       TEXT NOT NULL CHECK(type IN ('email','call','meeting','quote','follow_up','other')),
+      subject    TEXT NOT NULL,
+      body       TEXT,
+      sent_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_vendor_id ON vendor_communication_log(vendor_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_event_id ON vendor_communication_log(event_id)`);
+
+  // ── Store suggestions (#464) ──────────────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS store_suggestions (
+      id           SERIAL PRIMARY KEY,
+      event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name         TEXT NOT NULL,
+      website      TEXT,
+      notes        TEXT,
+      category     TEXT,
+      suggested_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      status       TEXT CHECK(status IN ('pending','approved','rejected')) DEFAULT 'pending',
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_store_suggestions_event_id ON store_suggestions(event_id)`);
+  await db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_store_suggestions_unique
+    ON store_suggestions(event_id, lower(name))
+  `);
+
+  // ── RLS pilot: schema alignment (#475) ───────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_documents (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      original_name TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      caption TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_messages (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id SERIAL PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      description TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_categories (
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+      PRIMARY KEY (event_id, category_id)
+    )
+  `);
+
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS end_date TEXT`);
+
   // ── Entra ID identity linking (#468, #470) ────────────────────────────────
-  // entra_oid: Azure object ID — unique per Entra tenant identity
-  // auth_provider: 'local' | 'entra' — tracks how the account was created
   await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS entra_oid TEXT`);
   await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT DEFAULT 'local'`);
   await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_entra_oid ON users(entra_oid) WHERE entra_oid IS NOT NULL`);
+
+  // ── RLS pilot: enable row-level security (#472) ───────────────────────────
+  if (process.env.RLS_PILOT_ENABLED === 'true') {
+    console.log('[RLS] Applying RLS pilot policies on events and event_members…');
+
+    await db.exec(`ALTER TABLE events ENABLE ROW LEVEL SECURITY`);
+    await db.exec(`ALTER TABLE events FORCE ROW LEVEL SECURITY`);
+    await db.exec(`ALTER TABLE event_members ENABLE ROW LEVEL SECURITY`);
+    await db.exec(`ALTER TABLE event_members FORCE ROW LEVEL SECURITY`);
+
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'events' AND policyname = 'rls_events_owner'
+        ) THEN
+          CREATE POLICY rls_events_owner ON events
+            USING (
+              created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+            );
+        END IF;
+      END $$;
+    `);
+
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'events' AND policyname = 'rls_events_member'
+        ) THEN
+          CREATE POLICY rls_events_member ON events
+            USING (
+              id IN (
+                SELECT event_id FROM event_members
+                WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+              )
+            );
+        END IF;
+      END $$;
+    `);
+
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'event_members' AND policyname = 'rls_event_members_self'
+        ) THEN
+          CREATE POLICY rls_event_members_self ON event_members
+            USING (
+              user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+            );
+        END IF;
+      END $$;
+    `);
+
+    console.log('[RLS] RLS pilot policies applied.');
+  }
 }

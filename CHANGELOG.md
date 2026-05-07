@@ -12,8 +12,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Budget templates: create reusable budget templates with line-item categories and apply them to any event, with conflict-safe idempotent migrations (#438)
+- Shopping-to-budget sync: purchased shopping list items can be synced as budget expense entries; duplicate syncs are handled safely (amount updates if cost changed) (#439)
+- Shopping-to-budget sync: one-click sync of purchased shopping items into event expenses; duplicate-safe via source-tag in notes field (#439)
+- Task dependencies: blocking/blocked-by relationships with BFS cycle detection to prevent circular chains (#440)
+- Gantt view: SVG-based task scheduling chart with colour-coded status bars, today marker, and no external library dependency (#441)
+- Recurring expense model: `is_recurring`, `recurrence_pattern`, `recurrence_end_date`, `is_installment`, `installment_total`, `installment_number` columns on `expenses` table (#449)
+- Recurring task, template, and time-entry support: `task_templates` table, apply-template action, and per-task actual time logging via `task_time_entries` (#450)
+- Workload dashboard: per-user task-count and estimated-vs-actual hours table with over-capacity warning (>40 h threshold) (#451)
+- Vendor communication log: chronological comm history per vendor (email/call/meeting/quote/follow-up) with add and delete actions (#452)
+- Vendor quote comparison: side-by-side comparison of 2–5 vendors on price, rating, contract, and communication recency (#452)
+- Vendor performance metrics: composite performance score (0–100) derived from rating, communication count, contract status, expenses, and timeline items (#463)
+- Store suggestions workflow: submit/approve/reject curated store entries per event, with case-insensitive duplicate prevention (#464)
+- `vendor-compare-page.tsx`: MUI table with best-value highlighting per metric column (#452)
+- All new backend controllers, API routes, frontend services, and UI components follow existing RBAC patterns with `authenticateToken` + `requireEventAccess` guards
 - Expense summary PDF export: "Export PDF" button on Budget Management page generates a downloadable A4 report with KPI summary, category breakdown table, and expense details table (`expense-pdf-export.ts`, `BudgetPage`) (#453)
 - 18 tests for PDF export utility and `BudgetPage` integration (`expense-pdf-export.test.tsx`) covering file naming, table rows, currency formatting, error handling, and button states (#453)
+
+### Changed
+- API route ordering fixed: static sub-paths (`/vendors/compare`, `/vendors/performance`, `/timeline/conflicts`) now registered before parameterised `/:id` routes to prevent shadowing
+
 - Gallery image delete: hover overlay with delete button on gallery grid; delete button in preview dialog (`GalleryPage`, `MediaPreviewDialog`) (#409)
 - Gallery caption edit: inline caption editor in `MediaPreviewDialog` with save/cancel and keyboard support (#409)
 - `deleteGalleryItem()` and `updateGalleryCaption()` in `gallery-service.ts`; `PATCH /api/events/:eventId/gallery/:id` backend endpoint (#409)

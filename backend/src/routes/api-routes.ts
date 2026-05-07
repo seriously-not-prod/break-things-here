@@ -24,6 +24,14 @@ import * as budgetController from '../controllers/budget-controller.js';
 import * as galleryController from '../controllers/gallery-controller.js';
 import * as aiController from '../controllers/ai-controller.js';
 import * as messagesController from '../controllers/messages-controller.js';
+import * as budgetTemplatesController from '../controllers/budget-templates-controller.js';
+import * as taskDepsController from '../controllers/task-dependencies-controller.js';
+import * as taskTemplatesController from '../controllers/task-templates-controller.js';
+import * as workloadController from '../controllers/workload-controller.js';
+import * as shoppingBudgetSyncController from '../controllers/shopping-budget-sync-controller.js';
+import * as vendorCommController from '../controllers/vendor-communication-controller.js';
+import * as vendorPerfController from '../controllers/vendor-performance-controller.js';
+import * as storeSuggestionsController from '../controllers/store-suggestions-controller.js';
 import * as entraAuthController from '../controllers/entra-auth-controller.js';
 import * as trackingController from '../controllers/tracking-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
@@ -298,11 +306,18 @@ router.post('/notifications/mark-all-read', authenticateToken, notificationsCont
 router.get('/notifications/digest', authenticateToken, notificationsController.getDueTaskAlerts);
 
 // ============ VENDOR ROUTES — BRD 3.6 ============
+// Static sub-paths must be registered BEFORE parameterised /:id routes
 router.get('/events/:eventId/vendors', authenticateToken, vendorsController.listVendors);
 router.post('/events/:eventId/vendors', authenticateToken, vendorsController.createVendor);
+router.get('/events/:eventId/vendors/compare', authenticateToken, vendorCommController.compareVendors);
+router.get('/events/:eventId/vendors/performance', authenticateToken, vendorPerfController.listVendorPerformance);
 router.put('/events/:eventId/vendors/:id', authenticateToken, vendorsController.updateVendor);
 router.delete('/events/:eventId/vendors/:id', authenticateToken, vendorsController.deleteVendor);
 router.post('/events/:eventId/vendors/:id/contract', authenticateToken, contractUpload.single('file'), vendorsController.uploadContract);
+router.get('/events/:eventId/vendors/:vendorId/communication', authenticateToken, vendorCommController.listVendorCommunication);
+router.post('/events/:eventId/vendors/:vendorId/communication', authenticateToken, vendorCommController.addVendorCommunication);
+router.delete('/events/:eventId/vendors/:vendorId/communication/:logId', authenticateToken, vendorCommController.deleteVendorCommunication);
+router.get('/events/:eventId/vendors/:vendorId/performance', authenticateToken, vendorPerfController.getVendorPerformance);
 
 // ============ SHOPPING LIST ROUTES — BRD 3.7 ============
 router.get('/events/:eventId/shopping-lists', authenticateToken, shoppingController.listLists);
@@ -314,6 +329,8 @@ router.put('/events/:eventId/shopping-lists/:listId/items/:itemId', authenticate
 router.delete('/events/:eventId/shopping-lists/:listId/items/:itemId', authenticateToken, shoppingController.deleteItem);
 
 // ============ TIMELINE ROUTES — BRD 3.8 ============
+// /conflicts must be before /:id to avoid being swallowed by a future parameterised GET
+router.get('/events/:eventId/timeline/conflicts', authenticateToken, timelineController.detectConflicts);
 router.get('/events/:eventId/timeline', authenticateToken, timelineController.listActivities);
 router.post('/events/:eventId/timeline', authenticateToken, timelineController.createActivity);
 router.put('/events/:eventId/timeline/:id', authenticateToken, timelineController.updateActivity);
@@ -341,6 +358,49 @@ router.get('/events/:eventId/expenses', authenticateToken, budgetController.list
 router.post('/events/:eventId/expenses', authenticateToken, budgetController.createExpense);
 router.put('/events/:eventId/expenses/:id', authenticateToken, budgetController.updateExpense);
 router.delete('/events/:eventId/expenses/:id', authenticateToken, budgetController.deleteExpense);
+
+// ============ BUDGET TEMPLATES — #438 ============
+router.get('/budget-templates', authenticateToken, budgetTemplatesController.listTemplates);
+router.get('/budget-templates/:id', authenticateToken, budgetTemplatesController.getTemplate);
+router.post('/budget-templates', authenticateToken, budgetTemplatesController.createTemplate);
+router.delete('/budget-templates/:id', authenticateToken, budgetTemplatesController.deleteTemplate);
+router.post('/events/:eventId/budget/apply-template', authenticateToken, budgetTemplatesController.applyTemplate);
+
+// ============ TASK DEPENDENCIES — #440 ============
+router.get('/events/:eventId/tasks/:taskId/dependencies', authenticateToken, taskDepsController.listDependencies);
+router.post('/events/:eventId/tasks/:taskId/dependencies', authenticateToken, taskDepsController.addDependency);
+router.delete('/events/:eventId/tasks/:taskId/dependencies/:depId', authenticateToken, taskDepsController.removeDependency);
+
+// ============ TASK TEMPLATES & TIME ENTRIES — #450 ============
+router.get('/events/:eventId/task-templates', authenticateToken, taskTemplatesController.listTaskTemplates);
+router.post('/events/:eventId/task-templates', authenticateToken, taskTemplatesController.createTaskTemplate);
+router.delete('/events/:eventId/task-templates/:id', authenticateToken, taskTemplatesController.deleteTaskTemplate);
+router.post('/events/:eventId/task-templates/:id/apply', authenticateToken, taskTemplatesController.applyTaskTemplate);
+router.get('/events/:eventId/tasks/:taskId/time-entries', authenticateToken, taskTemplatesController.listTimeEntries);
+router.post('/events/:eventId/tasks/:taskId/time-entries', authenticateToken, taskTemplatesController.addTimeEntry);
+router.delete('/events/:eventId/tasks/:taskId/time-entries/:id', authenticateToken, taskTemplatesController.deleteTimeEntry);
+
+// ============ WORKLOAD DASHBOARD — #451 ============
+router.get('/events/:eventId/workload', authenticateToken, workloadController.getWorkload);
+
+// ============ SHOPPING → BUDGET SYNC — #439 ============
+router.post(
+  '/events/:eventId/shopping-lists/:listId/items/:itemId/sync-to-budget',
+  authenticateToken,
+  shoppingBudgetSyncController.syncItemToBudget,
+);
+
+// ============ VENDOR COMMUNICATION LOG & COMPARE — #452 (registered in vendor section above)
+
+// ============ VENDOR PERFORMANCE METRICS — #463 (registered in vendor section above)
+
+// ============ STORE SUGGESTIONS — #464
+router.get('/events/:eventId/store-suggestions', authenticateToken, storeSuggestionsController.listStoreSuggestions);
+router.post('/events/:eventId/store-suggestions', authenticateToken, storeSuggestionsController.createStoreSuggestion);
+router.patch('/events/:eventId/store-suggestions/:id', authenticateToken, storeSuggestionsController.updateStoreSuggestionStatus);
+router.delete('/events/:eventId/store-suggestions/:id', authenticateToken, storeSuggestionsController.deleteStoreSuggestion);
+
+// ============ TIMELINE CONFLICT DETECTION — #441 (registered in timeline section above)
 
 export default router;
 
