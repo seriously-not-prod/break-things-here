@@ -381,6 +381,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     if (legacyCol?.exists && !dateCol?.exists) {
       await db.exec(`ALTER TABLE events RENAME COLUMN event_date TO date`);
     } else if (legacyCol?.exists && dateCol?.exists) {
+      // Both columns exist — drop the legacy one to resolve the drift
       await db.exec(`ALTER TABLE events DROP COLUMN IF EXISTS event_date`);
     }
   }
@@ -726,7 +727,6 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS caption TEXT`);
 
   // ── RLS pilot: schema alignment (#475) ───────────────────────────────────
-  // Ensure tables missing from the bootstrap init.sql are present at runtime.
   await db.exec(`
     CREATE TABLE IF NOT EXISTS event_documents (
       id SERIAL PRIMARY KEY,
@@ -773,17 +773,20 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS end_date TEXT`);
 
+  // ── Entra ID identity linking (#468, #470) ────────────────────────────────
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS entra_oid TEXT`);
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT DEFAULT 'local'`);
+  await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_entra_oid ON users(entra_oid) WHERE entra_oid IS NOT NULL`);
+
   // ── RLS pilot: enable row-level security (#472) ───────────────────────────
   if (process.env.RLS_PILOT_ENABLED === 'true') {
     console.log('[RLS] Applying RLS pilot policies on events and event_members…');
 
-    // Enable RLS — safe to run repeatedly
     await db.exec(`ALTER TABLE events ENABLE ROW LEVEL SECURITY`);
     await db.exec(`ALTER TABLE events FORCE ROW LEVEL SECURITY`);
     await db.exec(`ALTER TABLE event_members ENABLE ROW LEVEL SECURITY`);
     await db.exec(`ALTER TABLE event_members FORCE ROW LEVEL SECURITY`);
 
-    // Owner policy: event creator can see and modify their own events
     await db.exec(`
       DO $$ BEGIN
         IF NOT EXISTS (
@@ -797,7 +800,6 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       END $$;
     `);
 
-    // Member policy: event members can see events they belong to
     await db.exec(`
       DO $$ BEGIN
         IF NOT EXISTS (
@@ -814,7 +816,6 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       END $$;
     `);
 
-    // Event members policy: users see only their own membership rows
     await db.exec(`
       DO $$ BEGIN
         IF NOT EXISTS (
