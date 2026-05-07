@@ -283,3 +283,207 @@ export async function unassignGuest(
     `/api/events/${eventId}/seating/tables/${tableId}/assign/${rsvpId}`,
   );
 }
+
+// ─── Duplicate detection & merge (#411, #435) ───────────────────────────────
+
+export interface DuplicateClusterEntry {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  status: string;
+  guests: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DuplicateCluster {
+  reason: 'same_phone' | 'same_name_and_email_domain' | 'same_normalized_name';
+  rsvps: DuplicateClusterEntry[];
+  recommendedPrimaryId: number;
+}
+
+export async function listDuplicates(eventId: number | string): Promise<DuplicateCluster[]> {
+  const data = await api.get<{ clusters: DuplicateCluster[] }>(
+    `/api/events/${eventId}/rsvps/duplicates`,
+  );
+  return data.clusters;
+}
+
+export interface MergeResult {
+  rsvp: RsvpGuest;
+  mergedSourceIds: number[];
+}
+
+export async function mergeRsvps(
+  eventId: number | string,
+  survivorId: number,
+  sourceRsvpIds: number[],
+  notes?: string,
+): Promise<MergeResult> {
+  return api.post<MergeResult>(`/api/events/${eventId}/rsvps/${survivorId}/merge`, {
+    sourceRsvpIds,
+    notes,
+  });
+}
+
+// ─── RSVP confirmation, QR, token (#436, #437) ──────────────────────────────
+
+export async function sendRsvpConfirmation(
+  eventId: number | string,
+  rsvpId: number | string,
+): Promise<{ sent: boolean; accessToken: string; rsvpLink: string }> {
+  return api.post(`/api/events/${eventId}/rsvps/${rsvpId}/send-confirmation`);
+}
+
+export function rsvpIcsUrl(eventId: number | string, rsvpId: number | string): string {
+  return `/api/events/${eventId}/rsvps/${rsvpId}/ics`;
+}
+
+export function rsvpQrUrl(eventId: number | string, rsvpId: number | string): string {
+  return `/api/events/${eventId}/rsvps/${rsvpId}/qr.svg`;
+}
+
+export async function issueRsvpToken(
+  eventId: number | string,
+  rsvpId: number | string,
+  rotate = false,
+): Promise<{ token: string }> {
+  return api.post<{ token: string }>(
+    `/api/events/${eventId}/rsvps/${rsvpId}/token`,
+    { rotate },
+  );
+}
+
+// ─── Waitlist (#442) ────────────────────────────────────────────────────────
+
+export interface WaitlistEntry {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  guests: number;
+  status: string;
+  waitlist_position: number;
+  waitlisted_at: string;
+  created_at: string;
+}
+
+export interface WaitlistSummary {
+  waitlist: WaitlistEntry[];
+  capacity: number | null;
+  confirmedGuests: number;
+  remainingCapacity: number | null;
+}
+
+export async function listWaitlist(eventId: number | string): Promise<WaitlistSummary> {
+  return api.get<WaitlistSummary>(`/api/events/${eventId}/waitlist`);
+}
+
+export async function addRsvpToWaitlist(
+  eventId: number | string,
+  rsvpId: number,
+): Promise<{ position: number }> {
+  return api.post<{ position: number }>(`/api/events/${eventId}/waitlist`, { rsvpId });
+}
+
+export async function promoteWaitlist(eventId: number | string): Promise<{
+  promoted: Array<{ id: number; name: string; email: string; guests: number }>;
+  remainingCapacity: number | null;
+  waitlistSize: number;
+}> {
+  return api.post(`/api/events/${eventId}/waitlist/promote`);
+}
+
+export async function removeFromWaitlist(
+  eventId: number | string,
+  rsvpId: number | string,
+): Promise<void> {
+  await api.delete(`/api/events/${eventId}/waitlist/${rsvpId}`);
+}
+
+// ─── Custom RSVP questions (#443) ───────────────────────────────────────────
+
+export type RsvpQuestionType =
+  | 'short_text'
+  | 'long_text'
+  | 'single_choice'
+  | 'multi_choice'
+  | 'number'
+  | 'boolean';
+
+export interface RsvpQuestion {
+  id: number;
+  event_id: number;
+  prompt: string;
+  question_type: RsvpQuestionType;
+  options: string[] | null;
+  required: boolean;
+  sort_order: number;
+}
+
+export interface RsvpQuestionInput {
+  prompt: string;
+  question_type: RsvpQuestionType;
+  options?: string[];
+  required?: boolean;
+  sort_order?: number;
+}
+
+export async function listRsvpQuestions(eventId: number | string): Promise<RsvpQuestion[]> {
+  const data = await api.get<{ questions: RsvpQuestion[] }>(
+    `/api/events/${eventId}/rsvp-questions`,
+  );
+  return data.questions;
+}
+
+export async function createRsvpQuestion(
+  eventId: number | string,
+  input: RsvpQuestionInput,
+): Promise<RsvpQuestion> {
+  const data = await api.post<{ question: RsvpQuestion }>(
+    `/api/events/${eventId}/rsvp-questions`,
+    input,
+  );
+  return data.question;
+}
+
+export async function updateRsvpQuestion(
+  eventId: number | string,
+  questionId: number,
+  input: Partial<RsvpQuestionInput>,
+): Promise<RsvpQuestion> {
+  const data = await api.patch<{ question: RsvpQuestion }>(
+    `/api/events/${eventId}/rsvp-questions/${questionId}`,
+    input,
+  );
+  return data.question;
+}
+
+export async function deleteRsvpQuestion(
+  eventId: number | string,
+  questionId: number,
+): Promise<void> {
+  await api.delete(`/api/events/${eventId}/rsvp-questions/${questionId}`);
+}
+
+export interface RsvpResponseRow {
+  id: number;
+  rsvp_id: number;
+  question_id: number;
+  response: string | null;
+  prompt: string;
+  question_type: RsvpQuestionType;
+  guest_name: string;
+  guest_email: string;
+  updated_at: string;
+}
+
+export async function listRsvpQuestionResponses(
+  eventId: number | string,
+): Promise<RsvpResponseRow[]> {
+  const data = await api.get<{ responses: RsvpResponseRow[] }>(
+    `/api/events/${eventId}/rsvp-questions/responses`,
+  );
+  return data.responses;
+}
