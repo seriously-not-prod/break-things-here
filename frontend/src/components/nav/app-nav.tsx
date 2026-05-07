@@ -1,12 +1,15 @@
 import {
+  AccountBalanceWalletRounded,
   AddRounded,
   AdminPanelSettingsRounded,
   CalendarMonthRounded,
   CalendarTodayRounded,
   DashboardRounded,
+  GroupsRounded,
   LogoutRounded,
   MailRounded,
   PersonRounded,
+  TaskAltRounded,
 } from '@mui/icons-material';
 import {
   Box,
@@ -48,6 +51,12 @@ const EVENT_HUB_ITEMS: NavItem[] = [
   { label: 'My Events', to: '/events/my', icon: <PersonRounded /> },
 ];
 
+const MODULE_ITEMS: NavItem[] = [
+  { label: 'Guests', to: '/events?module=guests', icon: <GroupsRounded /> },
+  { label: 'Tasks', to: '/events?module=tasks', icon: <TaskAltRounded /> },
+  { label: 'Budget', to: '/events?module=budget', icon: <AccountBalanceWalletRounded /> },
+];
+
 export function AppNav(): JSX.Element {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -83,7 +92,7 @@ export function AppNav(): JSX.Element {
           fontWeight={700}
           sx={{ color: 'common.white', lineHeight: 1.2, flexShrink: 1, minWidth: 0 }}
         >
-          Festival Planner
+            Eventora
         </Typography>
         <Stack direction="row" alignItems="center" sx={{ flexShrink: 0 }}>
           <NotificationBell />
@@ -102,6 +111,37 @@ export function AppNav(): JSX.Element {
           }
         >
           {EVENT_HUB_ITEMS.map(({ label, to, icon }) => (
+            <ListItemButton
+              key={to}
+              component={NavLink}
+              to={to}
+              sx={(theme) => ({
+                color: theme.palette.common.white,
+                '&.active': {
+                  backgroundColor: theme.palette.action.selected,
+                  fontWeight: 700,
+                  color: theme.palette.primary.main,
+                },
+                '&.active .MuiListItemIcon-root, & .MuiListItemIcon-root': { color: 'inherit' },
+              })}
+            >
+              <ListItemIcon sx={{ color: 'inherit' }}>{icon}</ListItemIcon>
+              <ListItemText primary={label} />
+            </ListItemButton>
+          ))}
+        </List>
+
+        <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />
+
+        <List
+          dense
+          subheader={
+            <ListSubheader sx={{ color: 'rgba(255,255,255,0.9)', bgcolor: 'transparent' }}>
+              Modules
+            </ListSubheader>
+          }
+        >
+          {MODULE_ITEMS.map(({ label, to, icon }) => (
             <ListItemButton
               key={to}
               component={NavLink}

@@ -114,7 +114,7 @@ export function KpiCards({ data, loading }: KpiCardsProps): JSX.Element {
         <KpiCard
           label="Total Budget"
           value="—"
-          sub="Budget module coming soon"
+          sub="Open an event to manage its budget"
           icon={<AttachMoneyIcon />}
           color="#06b6d4"
         />

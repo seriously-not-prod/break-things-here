@@ -24,7 +24,23 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { AddRounded, ArrowBackRounded, AttachMoneyRounded, CameraAltRounded, DeleteRounded, EditRounded, ViewKanbanRounded } from '@mui/icons-material';
+import {
+  AddRounded,
+  ArrowBackRounded,
+  AttachMoneyRounded,
+  CameraAltRounded,
+  DeleteRounded,
+  EditRounded,
+  EventSeatRounded,
+  GroupsRounded,
+  InsightsRounded,
+  HowToRegRounded,
+  PhotoLibraryRounded,
+  ShoppingCartRounded,
+  StorefrontRounded,
+  TimelineRounded,
+  ViewKanbanRounded,
+} from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, apiFetch, ApiError, getAuthHeaders } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
@@ -169,6 +185,59 @@ export default function EventDetailPage(): JSX.Element {
     event?.capacity == null
       ? 0
       : Math.max(goingHeadcount - event.capacity, 0);
+
+  const moduleLinks = [
+    {
+      label: 'Guests',
+      icon: <GroupsRounded />,
+      path: `/events/${id}/guests`,
+    },
+    {
+      label: 'Check-In',
+      icon: <HowToRegRounded />,
+      path: `/events/${id}/checkin`,
+    },
+    {
+      label: 'Seating',
+      icon: <EventSeatRounded />,
+      path: `/events/${id}/seating`,
+    },
+    {
+      label: 'Budget',
+      icon: <AttachMoneyRounded />,
+      path: `/events/${id}/budget`,
+    },
+    {
+      label: 'Tasks',
+      icon: <ViewKanbanRounded />,
+      path: `/events/${id}/tasks`,
+    },
+    {
+      label: 'Timeline',
+      icon: <TimelineRounded />,
+      path: `/events/${id}/timeline`,
+    },
+    {
+      label: 'Vendors',
+      icon: <StorefrontRounded />,
+      path: `/events/${id}/vendors`,
+    },
+    {
+      label: 'Shopping',
+      icon: <ShoppingCartRounded />,
+      path: `/events/${id}/shopping`,
+    },
+    {
+      label: 'Analytics',
+      icon: <InsightsRounded />,
+      path: `/events/${id}/analytics`,
+    },
+    {
+      label: 'Gallery',
+      icon: <PhotoLibraryRounded />,
+      path: `/events/${id}/gallery`,
+    },
+  ];
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -555,16 +624,27 @@ export default function EventDetailPage(): JSX.Element {
         />
       </Box>
 
-      <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<AttachMoneyRounded />}
-          onClick={() => navigate(`/events/${id}/budget`)}
-        >
-          Manage Budget
-        </Button>
-      </Stack>
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.5 }}>
+          Event Workspace
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Open every module for this event from one place. Seeded demo data is available in development so these screens are not empty.
+        </Typography>
+        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+          {moduleLinks.map((moduleLink) => (
+            <Button
+              key={moduleLink.path}
+              size="small"
+              variant="outlined"
+              startIcon={moduleLink.icon}
+              onClick={() => navigate(moduleLink.path)}
+            >
+              {moduleLink.label}
+            </Button>
+          ))}
+        </Stack>
+      </Paper>
 
       <Tabs value={tab} onChange={(_, v: number) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label={`Tasks (${tasks.length})`} />

@@ -78,10 +78,10 @@ function AuthShell(): JSX.Element {
               letterSpacing: '-0.5px',
             }}
           >
-            FE
+              EV
           </Avatar>
           <Typography component="h1" variant="h5" fontWeight={700} color="text.primary">
-            Festival Planner
+              Eventora
           </Typography>
         </Box>
 
