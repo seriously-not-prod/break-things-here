@@ -29,6 +29,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix session lookup in auth middleware to use `hashToken` (scrypt) instead of raw SHA-256, ensuring consistency with stored session hashes
 
 ### Added
+- Budget templates: create reusable budget templates with line-item categories and apply them to any event, with conflict-safe idempotent migrations (#438)
+- Shopping-to-budget sync: one-click sync of purchased shopping items into event expenses; duplicate-safe via source-tag in notes field (#439)
+- Task dependencies: blocking/blocked-by relationships with BFS cycle detection to prevent circular chains (#440)
+- Gantt view: SVG-based task scheduling chart with colour-coded status bars, today marker, and no external library dependency (#441)
+- Recurring expense model: `is_recurring`, `recurrence_pattern`, `recurrence_end_date`, `is_installment`, `installment_total`, `installment_number` columns on `expenses` table (#449)
+- Recurring task, template, and time-entry support: `task_templates` table, apply-template action, and per-task actual time logging via `task_time_entries` (#450)
+- Workload dashboard: per-user task-count and estimated-vs-actual hours table with over-capacity warning (>40 h threshold) (#451)
+- Vendor communication log: chronological comm history per vendor (email/call/meeting/quote/follow-up) with add and delete actions (#452)
+- Vendor quote comparison: side-by-side comparison of 2–5 vendors on price, rating, contract, and communication recency (#452)
+- Vendor performance metrics: composite performance score (0–100) derived from rating, communication count, contract status, expenses, and timeline items (#463)
+- Store suggestions workflow: submit/approve/reject curated store entries per event, with case-insensitive duplicate prevention (#464)
+- `vendor-compare-page.tsx`: MUI table with best-value highlighting per metric column (#452)
+- All new backend controllers, API routes, frontend services, and UI components follow existing RBAC patterns with `authenticateToken` + `requireEventAccess` guards
+- Expense summary PDF export: "Export PDF" button on Budget Management page generates a downloadable A4 report with KPI summary, category breakdown table, and expense details table (`expense-pdf-export.ts`, `BudgetPage`) (#453)
+- 18 tests for PDF export utility and `BudgetPage` integration (`expense-pdf-export.test.tsx`) covering file naming, table rows, currency formatting, error handling, and button states (#453)
+
+### Changed
+- API route ordering fixed: static sub-paths (`/vendors/compare`, `/vendors/performance`, `/timeline/conflicts`) now registered before parameterised `/:id` routes to prevent shadowing
+
+- Gallery image delete: hover overlay with delete button on gallery grid; delete button in preview dialog (`GalleryPage`, `MediaPreviewDialog`) (#409)
+- Gallery caption edit: inline caption editor in `MediaPreviewDialog` with save/cancel and keyboard support (#409)
+- `deleteGalleryItem()` and `updateGalleryCaption()` in `gallery-service.ts`; `PATCH /api/events/:eventId/gallery/:id` backend endpoint (#409)
+- `caption` column added to `event_documents` table via additive `ALTER TABLE … ADD COLUMN IF NOT EXISTS` migration (#409)
+- Messages service rewritten to use live backend APIs: `GET /api/events` for threads, `GET /api/events/:id/messages` for thread content, `POST /api/events/:id/messages` for sending — all mock data removed (#409)
+- My Events view at `/events/my` now returns only events owned by the authenticated user via `?owner=me` API filter (#408 #425)
+- Tag-based filtering on the events listing page via chip selectors; tags and My Events filter can be combined (#408 #426)
+- Global search field on the events listing page filters by title, location, status, tags, event type, and organiser name (#408 #427)
+- `GET /api/events` backend endpoint now accepts `?owner=me`, `?tags=`, `?status=`, `?q=` query parameters with parameterised queries (#408)
+- `EventListFilters` interface and `listMyEvents()` helper added to `events-service.ts`
+- `backend/__tests__/events-list-filter.test.ts` — 7 unit tests covering owner filter, tag filter, combined filters, no-auth guard, and error path
+
+### Fixed
+- Fixed frontend CSRF handling so login, password reset, uploads, and other mutating module actions reuse a valid token instead of refetching one per request, preventing proxy-path 403/429 failures in local Docker runs
+- Local backend startup now auto-loads `backend/.env` or repo `.env`, and falls back to the standard local PostgreSQL URL when no development `DATABASE_URL` is set
+- Added a dedicated `db-test` PostgreSQL Docker service on port `5433` so backend integration tests match the documented local test setup
+- Added helper npm scripts for starting the main and test databases and for running backend build/test flows from the repo root
+- Corrected setup documentation to use the active backend port `4000` and to document the required database startup steps for local runs and backend tests
+- Fixed `docker-compose.yml` frontend service to build from `frontend/Dockerfile` (the full BRD feature app) instead of the root `Dockerfile.frontend` (stub app), so the new dashboard is served correctly
+- Fixed `analytics-controller.ts` query using non-existent column `e.event_date`; corrected to `e.date` to match the events table schema
+- Restored event date compatibility across backend and frontend event flows by returning both `date` and `event_date`, fixing calendar chips, event detail, and public RSVP pages
+
+### Added
+- Gallery and messages route wiring is now complete: backend `GET /api/events/:eventId/gallery`, frontend `/events/:id/gallery`, and frontend `/messages`
+- Event analytics reporting endpoints and frontend analytics UI, including CSV export and dashboard global analytics widget (BRD 3.10, 3.11)
+- Notifications controller helpers, due-task digest endpoint, and frontend notification bell/panel components (BRD 3.11)
+- Tasks Kanban Board at `/events/:id/tasks` with 4 columns: Pending, In Progress, Blocked, Complete (#373 #374)
+- `frontend/src/services/tasks-service.ts` — typed API adapter for tasks, comments, and subtasks
+- `frontend/src/components/tasks/tasks-kanban-page.tsx` — full Kanban board with drag-and-drop via `@dnd-kit/core` and `@dnd-kit/sortable`
+- `frontend/src/components/tasks/task-card.tsx` — individual task card with priority chip, due date (overdue red highlight), assignee avatar, subtask progress
+- `frontend/src/components/tasks/task-detail-drawer.tsx` — right-side MUI Drawer for inline task editing, subtask checklist, and comment thread
+- Extended `backend/src/controllers/tasks-controller.ts` with `listComments`, `addComment`, `addSubtask`, `toggleSubtask`, `deleteSubtask`
+- `frontend/test/tasks-kanban.test.tsx` — 8 tests covering column render, task count, add-task dialog, createTask call, loading/error states
+- npm packages: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@testing-library/user-event`
+
+### Migration
+- Migrated backend database from SQLite to PostgreSQL (`pg` v8)
+- Replaced `sqlite` / `sqlite3` npm packages with `pg` and `@types/pg`
+- Rewrote `backend/src/db/database.ts`: PostgreSQL connection pool with a SQLite-compatible wrapper (`get`, `all`, `run`, `exec`) that auto-converts `?` placeholders to `$N` positional parameters
+- Converted all DDL: `INTEGER PRIMARY KEY AUTOINCREMENT` → `SERIAL PRIMARY KEY`, `DATETIME` → `TIMESTAMP`, seeded reference data uses `ON CONFLICT … DO NOTHING`
+- Migrated backend utility scripts and SQLite-backed test scaffolding to PostgreSQL-backed helpers so local tooling, CI, and application runtime all execute against PostgreSQL-only code paths
+- Fixed SQLite-only `INSERT OR IGNORE` → `INSERT … ON CONFLICT (col) DO NOTHING` in `profile-controller.ts`
+- Fixed SQLite integer-string concatenation `|| id ||` → `|| id::text ||` in `users-controller.ts`
+- Fixed SQLite `INSERT OR REPLACE` → `INSERT … ON CONFLICT (email) DO UPDATE SET …` in dev-seed route
+- Added `RETURNING id` to INSERT statements whose results are used via `result.lastID` (auth, event, task, rsvp, rbac controllers)
+- Removed duplicate / conflicting `app-network` key from `docker-compose.yml`; added `db` (PostgreSQL 16-alpine) service with health-check dependency chain; removed `sqlite-data` volume; added `postgres-data` named volume
+- Replaced `DATABASE_URL` SQLite file path with `postgresql://…` connection string in both `docker-compose.yml` and `backend/package.json` dev script
+- Updated `database/init.sql` to full PostgreSQL application schema (all tables, indexes, reference data)
+
+### Security
+- Replace SHA-256 token hashing with scrypt KDF in `hashToken` (auth-helpers.ts) to address CodeQL high-severity "insufficient computational effort" alert (#77)
+- Fix session lookup in auth middleware to use `hashToken` (scrypt) instead of raw SHA-256, ensuring consistency with stored session hashes
+
+### Added
 - Responsive event planner workspace with dashboard, sidebar navigation, event CRUD screens, task tracking, RSVP management, calendar view, and admin overview
 - Public RSVP route at `/rsvp/:eventId` backed by seeded local planner data
 - Root app planner store, validation helpers, and regression tests for dashboard rendering and public RSVP submission
@@ -51,6 +124,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tests for JWT token refresh, session timeout, remember-me sessions, forgot/reset password, admin user management
 
 ### Fixed
+- Seed default `role_permissions` rows during backend migrations for Admin, Organizer, and Attendee roles, and add coverage that verifies `authorizePermission` succeeds with Postgres-backed seeded permissions (#265, #287)
 - Backend entry point (`index.ts`) rewritten from PostgreSQL to SQLite for consistency with rest of codebase
 - `AuthRequest` interface in profile-controller.ts no longer conflicts with multer file types (#102)
 - `authenticateToken` middleware converted to async with database session validation and timeout checking
