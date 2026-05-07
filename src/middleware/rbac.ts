@@ -1,6 +1,7 @@
 import { UserRole } from '../types/user-role';
 import { ApiRequest, ApiResponse, ApiHandler } from '../types/api';
 import { HTTP_STATUS, AUTH_ERRORS } from '../utils/http-errors';
+import { getTokenVersion } from '../data/user-store';
 
 /**
  * RBAC middleware that restricts access to users with the required role(s).
@@ -27,6 +28,14 @@ export function requireRole(
       return res.status(HTTP_STATUS.FORBIDDEN).json(AUTH_ERRORS.FORBIDDEN);
     }
 
+    // Token version check: reject tokens issued before a role change
+    if (req.user.tokenVersion !== undefined) {
+      const currentVersion = getTokenVersion(req.user.id);
+      if (req.user.tokenVersion !== currentVersion) {
+        return res.status(HTTP_STATUS.UNAUTHORIZED).json(AUTH_ERRORS.TOKEN_EXPIRED);
+      }
+    }
+
     return handler(req, res);
   };
 }
@@ -38,6 +47,14 @@ export function requireAuth(handler: ApiHandler): ApiHandler {
   return (req: ApiRequest, res: ApiResponse) => {
     if (!req.user) {
       return res.status(HTTP_STATUS.UNAUTHORIZED).json(AUTH_ERRORS.UNAUTHENTICATED);
+    }
+
+    // Token version check: reject tokens issued before a role change
+    if (req.user.tokenVersion !== undefined) {
+      const currentVersion = getTokenVersion(req.user.id);
+      if (req.user.tokenVersion !== currentVersion) {
+        return res.status(HTTP_STATUS.UNAUTHORIZED).json(AUTH_ERRORS.TOKEN_EXPIRED);
+      }
     }
 
     return handler(req, res);

@@ -8,8 +8,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+import { apiFetch } from '../../lib/api-client';
 
 const PASSWORD_REQUIREMENTS = [
   { label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
@@ -100,9 +99,8 @@ export function ResetPasswordForm({ onBackToLogin }: ResetPasswordFormProps): JS
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+      const response = await apiFetch('/api/auth/reset-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword }),
       });
 
