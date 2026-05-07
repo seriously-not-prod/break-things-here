@@ -3,6 +3,7 @@ import { getDatabase } from '../db/database.js';
 import { createRsvpNotification } from './notifications-controller.js';
 import { logActivity } from './activity-feed-controller.js';
 import { requireEventAccess } from '../utils/event-access.js';
+import { addToWaitlist, runPromotion } from './waitlist-controller.js';
 
 interface RsvpRow {
   id: number;
@@ -34,10 +35,12 @@ async function getEventCapacity(db: ReturnType<typeof getDatabase>, eventId: str
 }
 
 async function getGoingGuestsTotal(db: ReturnType<typeof getDatabase>, eventId: string, excludeRsvpId?: string): Promise<number> {
+  // Waitlisted entries keep status='Going' but are not occupying a confirmed
+  // seat — exclude them so capacity checks measure actual confirmed guests.
   const rows = await db.all<{ total_guests: number }>(
     `SELECT COALESCE(SUM(guests), 0) AS total_guests
      FROM rsvps
-     WHERE event_id = ? AND status = 'Going'${excludeRsvpId ? ' AND id <> ?' : ''}`,
+     WHERE event_id = ? AND status = 'Going' AND waitlist_position IS NULL${excludeRsvpId ? ' AND id <> ?' : ''}`,
     excludeRsvpId ? [eventId, excludeRsvpId] : [eventId],
   );
   return rows[0]?.total_guests ?? 0;
@@ -94,6 +97,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
     plus_one_name,
     guest_group,
     rsvp_deadline,
+    waitlist,
   } = req.body as {
     name?: string;
     email?: string;
@@ -107,6 +111,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
     plus_one_name?: string;
     guest_group?: string;
     rsvp_deadline?: string;
+    waitlist?: boolean;
   };
 
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required.' });
@@ -123,11 +128,18 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   const event = await db.get<{ id: number }>('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
+  // Capacity handling (#442): when full, opt-in waitlisting puts the guest in
+  // the queue with status preserved so promotion is a one-step move.
   const capacity = await getEventCapacity(db, eventId);
+  let queueOnCreate = false;
   if (capacity !== null && isGoing(status || 'Pending')) {
     const currentGoing = await getGoingGuestsTotal(db, eventId);
     if (currentGoing + guestCount > capacity) {
-      return res.status(409).json({ error: 'Event capacity exceeded.' });
+      if (waitlist === true) {
+        queueOnCreate = true;
+      } else {
+        return res.status(409).json({ error: 'Event capacity exceeded.', waitlistAvailable: true });
+      }
     }
   }
 
@@ -161,10 +173,14 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
     ],
   );
 
+  if (queueOnCreate && result.lastID) {
+    await addToWaitlist(db, result.lastID, Number(eventId));
+  }
+
   const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ?', [result.lastID]);
 
   // Fire notification to event owner when a new RSVP is confirmed
-  if ((status || 'Pending') === 'Going') {
+  if ((status || 'Pending') === 'Going' && !queueOnCreate) {
     const ev = await db.get<{ created_by: number }>(
       'SELECT created_by FROM events WHERE id = ?',
       [eventId],
@@ -174,7 +190,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
     }
   }
 
-  return res.status(201).json({ rsvp });
+  return res.status(201).json({ rsvp, waitlisted: queueOnCreate });
 }
 
 /** PATCH /api/events/:eventId/rsvps/:id */
@@ -289,6 +305,10 @@ export async function deleteRsvp(req: Request, res: Response): Promise<Response>
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
   await db.run('DELETE FROM rsvps WHERE id = ?', [id]);
+  // Free capacity may have opened a slot — promote the next waitlisted guest.
+  void runPromotion(Number(eventId)).catch((err) =>
+    console.error('Waitlist promotion failed after RSVP delete:', err),
+  );
   return res.json({ message: 'RSVP deleted.' });
 }
 
