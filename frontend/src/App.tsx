@@ -27,7 +27,9 @@ import TasksKanbanPage from './components/tasks/tasks-kanban-page';
 import { GalleryPage } from './components/gallery/gallery-page';
 import { MessagesInbox } from './components/messages/messages-inbox';
 import { EntraCallbackPage } from './components/auth/entra-callback';
-import { useState } from 'react';
+import { useKeyboardShortcuts, type ShortcutDefinition } from './hooks/use-keyboard-shortcuts';
+import { KeyboardShortcutsOverlay } from './components/keyboard-shortcuts/keyboard-shortcuts-overlay';
+import { useState, useMemo } from 'react';
 
 type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password';
 
@@ -120,9 +122,103 @@ function AuthShell(): JSX.Element {
 
 const DRAWER_WIDTH = 260;
 
+/**
+ * Inner component that registers all application-wide keyboard shortcuts.
+ * Must be rendered inside React Router so it can call `useNavigate`.
+ */
+function GlobalShortcuts({
+  onToggleHelp,
+  onCloseHelp,
+  onOpenHelp,
+}: {
+  onToggleHelp: () => void;
+  onCloseHelp: () => void;
+  onOpenHelp: () => void;
+}): null {
+  const navigate = useNavigate();
+
+  const shortcuts: ShortcutDefinition[] = useMemo(
+    () => [
+      {
+        id: 'help-toggle',
+        keys: '?',
+        label: 'Show / hide this help overlay',
+        category: 'Global',
+        action: onToggleHelp,
+      },
+      {
+        id: 'help-close',
+        keys: 'Escape',
+        label: 'Close overlay',
+        category: 'Global',
+        action: onCloseHelp,
+      },
+      {
+        id: 'nav-dashboard',
+        keys: ['g', 'd'],
+        label: 'Go to Dashboard',
+        category: 'Navigation',
+        action: () => navigate('/dashboard'),
+      },
+      {
+        id: 'nav-events',
+        keys: ['g', 'e'],
+        label: 'Go to Events',
+        category: 'Navigation',
+        action: () => navigate('/events'),
+      },
+      {
+        id: 'nav-calendar',
+        keys: ['g', 'c'],
+        label: 'Go to Calendar',
+        category: 'Navigation',
+        action: () => navigate('/events/calendar'),
+      },
+      {
+        id: 'nav-messages',
+        keys: ['g', 'm'],
+        label: 'Go to Messages',
+        category: 'Navigation',
+        action: () => navigate('/messages'),
+      },
+      {
+        id: 'nav-profile',
+        keys: ['g', 'p'],
+        label: 'Go to Profile',
+        category: 'Navigation',
+        action: () => navigate('/profile'),
+      },
+      {
+        id: 'nav-new-event',
+        keys: ['g', 'n'],
+        label: 'Create new event',
+        category: 'Navigation',
+        action: () => navigate('/events/new'),
+      },
+      {
+        id: 'help-open',
+        keys: 'F1',
+        label: 'Show keyboard shortcuts help',
+        category: 'Global',
+        action: onOpenHelp,
+      },
+    ],
+    [navigate, onToggleHelp, onCloseHelp, onOpenHelp],
+  );
+
+  useKeyboardShortcuts(shortcuts);
+
+  return null;
+}
+
 /** App shell with sidebar nav — only shown when authenticated */
 function AppShell(): JSX.Element {
   const { user, loading } = useAuth();
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  const handleToggleHelp = useMemo(() => () => setHelpOpen((v) => !v), []);
+  const handleOpenHelp = useMemo(() => () => setHelpOpen(true), []);
+  const handleCloseHelp = useMemo(() => () => setHelpOpen(false), []);
 
   if (loading) {
     return (
@@ -135,6 +231,72 @@ function AppShell(): JSX.Element {
   if (!user) {
     return <Navigate to="/login" replace />;
   }
+
+  const shortcuts: ShortcutDefinition[] = [
+    {
+      id: 'help-toggle',
+      keys: '?',
+      label: 'Show / hide this help overlay',
+      category: 'Global',
+      action: handleToggleHelp,
+    },
+    {
+      id: 'help-close',
+      keys: 'Escape',
+      label: 'Close overlay',
+      category: 'Global',
+      action: handleCloseHelp,
+    },
+    {
+      id: 'help-open',
+      keys: 'F1',
+      label: 'Show keyboard shortcuts help',
+      category: 'Global',
+      action: handleOpenHelp,
+    },
+    {
+      id: 'nav-dashboard',
+      keys: ['g', 'd'] as [string, string],
+      label: 'Go to Dashboard',
+      category: 'Navigation',
+      action: () => undefined,
+    },
+    {
+      id: 'nav-events',
+      keys: ['g', 'e'] as [string, string],
+      label: 'Go to Events',
+      category: 'Navigation',
+      action: () => undefined,
+    },
+    {
+      id: 'nav-calendar',
+      keys: ['g', 'c'] as [string, string],
+      label: 'Go to Calendar',
+      category: 'Navigation',
+      action: () => undefined,
+    },
+    {
+      id: 'nav-messages',
+      keys: ['g', 'm'] as [string, string],
+      label: 'Go to Messages',
+      category: 'Navigation',
+      action: () => undefined,
+    },
+    {
+      id: 'nav-profile',
+      keys: ['g', 'p'] as [string, string],
+      label: 'Go to Profile',
+      category: 'Navigation',
+      action: () => undefined,
+    },
+    {
+      id: 'nav-new-event',
+      keys: ['g', 'n'] as [string, string],
+      label: 'Create new event',
+      category: 'Navigation',
+      action: () => undefined,
+    },
+  ];
 
   return (
     <Box sx={{ display: 'flex' }}>
@@ -164,6 +326,16 @@ function AppShell(): JSX.Element {
         </Routes>
       </Box>
       <AiAssistant />
+      <GlobalShortcuts
+        onToggleHelp={handleToggleHelp}
+        onOpenHelp={handleOpenHelp}
+        onCloseHelp={handleCloseHelp}
+      />
+      <KeyboardShortcutsOverlay
+        open={helpOpen}
+        onClose={handleCloseHelp}
+        shortcuts={shortcuts}
+      />
     </Box>
   );
 }
