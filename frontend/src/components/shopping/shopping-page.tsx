@@ -14,6 +14,7 @@ import {
   DialogTitle,
   Divider,
   IconButton,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -29,6 +30,7 @@ import AddRounded from '@mui/icons-material/AddRounded';
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import DeleteRounded from '@mui/icons-material/DeleteRounded';
 import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded';
+import SyncAltRounded from '@mui/icons-material/SyncAltRounded';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   type CreateItemInput,
@@ -41,6 +43,7 @@ import {
   deleteShoppingList,
   listShoppingItems,
   listShoppingLists,
+  syncItemToBudget,
   updateShoppingItem,
 } from '../../services/shopping-service';
 
@@ -73,6 +76,11 @@ export default function ShoppingPage(): JSX.Element {
 
   const [deleteListTarget, setDeleteListTarget] = useState<ShoppingList | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [syncingItemId, setSyncingItemId] = useState<number | null>(null);
+  const [syncSnackbar, setSyncSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
+    { open: false, message: '', severity: 'success' },
+  );
 
   useEffect(() => {
     void loadAll();
@@ -126,6 +134,22 @@ export default function ShoppingPage(): JSX.Element {
       setError('Failed to delete list.');
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleSyncToBudget(listId: number, item: ShoppingItem): Promise<void> {
+    setSyncingItemId(item.id);
+    try {
+      const result = await syncItemToBudget(eventId, listId, item.id);
+      const msg = result.updated
+        ? `Updated budget expense for "${item.name}" ($${Number(result.expense.amount).toFixed(2)}).`
+        : `Synced "${item.name}" to budget as a $${Number(result.expense.amount).toFixed(2)} expense.`;
+      setSyncSnackbar({ open: true, message: msg, severity: 'success' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to sync to budget.';
+      setSyncSnackbar({ open: true, message: msg, severity: 'error' });
+    } finally {
+      setSyncingItemId(null);
     }
   }
 
@@ -301,7 +325,33 @@ export default function ShoppingPage(): JSX.Element {
                           <TableCell align="right">
                             {item.actual_cost !== null ? `$${Number(item.actual_cost).toFixed(2)}` : '—'}
                           </TableCell>
-                          <TableCell align="right" padding="none">
+                          <TableCell align="right" padding="none" sx={{ whiteSpace: 'nowrap' }}>
+                            <Tooltip
+                              title={
+                                item.status !== 'Purchased'
+                                  ? 'Mark as Purchased to sync'
+                                  : !(item.actual_cost ?? item.estimated_cost)
+                                    ? 'Set a cost before syncing'
+                                    : 'Sync cost to budget'
+                              }
+                            >
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  aria-label={`Sync ${item.name} to budget`}
+                                  disabled={
+                                    item.status !== 'Purchased' ||
+                                    !(item.actual_cost ?? item.estimated_cost) ||
+                                    syncingItemId === item.id
+                                  }
+                                  onClick={() => void handleSyncToBudget(list.id, item)}
+                                >
+                                  {syncingItemId === item.id
+                                    ? <CircularProgress size={16} />
+                                    : <SyncAltRounded fontSize="small" />}
+                                </IconButton>
+                              </span>
+                            </Tooltip>
                             <IconButton
                               size="small"
                               aria-label={`Delete ${item.name}`}
@@ -440,6 +490,22 @@ export default function ShoppingPage(): JSX.Element {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Sync feedback */}
+      <Snackbar
+        open={syncSnackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSyncSnackbar(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          severity={syncSnackbar.severity}
+          onClose={() => setSyncSnackbar(prev => ({ ...prev, open: false }))}
+          sx={{ width: '100%' }}
+        >
+          {syncSnackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

@@ -1,6 +1,13 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
+import { embedTracking } from '../utils/embed-tracking.js';
+
+function getTrackingBaseUrl(): string | null {
+  const explicit = process.env.PUBLIC_BASE_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, '');
+  return null;
+}
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -86,10 +93,34 @@ async function bulkSend(
   const fromAddress =
     process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@festival-planner.local';
 
+  const trackingBaseUrl = getTrackingBaseUrl();
+
   for (const rsvp of recipients) {
     const personalised = body
       .replace(/\{name\}/gi, rsvp.name)
       .replace(/\{event\}/gi, event.title);
+
+    // Insert the log row first so we have a stable id to embed in tracking
+    // links/pixels. The row is created with status='pending' and is flipped
+    // to 'sent' or 'failed' once the SMTP call returns — without this, a
+    // crash between insert and send would leave the row eternally claiming
+    // delivery and skew the metrics aggregates.
+    let logId: number | undefined;
+    try {
+      const logResult = await db.run(
+        `INSERT INTO communication_log (event_id, guest_email, communication_type, subject, content, status, sent_by, sent_at)
+         VALUES (?, ?, ?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP) RETURNING id`,
+        [eventId, rsvp.email, type, subject, personalised, senderUserId],
+      );
+      logId = logResult.lastID;
+    } catch {
+      failed++;
+      continue;
+    }
+
+    const htmlBody = trackingBaseUrl && logId
+      ? embedTracking(personalised, trackingBaseUrl, logId)
+      : null;
 
     try {
       await transport.sendMail({
@@ -97,16 +128,24 @@ async function bulkSend(
         to: rsvp.email,
         subject: subject.replace(/\{event\}/gi, event.title),
         text: personalised,
+        ...(htmlBody ? { html: htmlBody } : {}),
       });
-
-      await db.run(
-        `INSERT INTO communication_log (event_id, guest_email, communication_type, subject, content, sent_by, sent_at)
-         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-        [eventId, rsvp.email, type, subject, personalised, senderUserId],
-      );
-
       sent++;
+      if (logId) {
+        try {
+          await db.run('UPDATE communication_log SET status = ? WHERE id = ?', ['sent', logId]);
+        } catch {
+          /* swallow — best-effort, send already succeeded */
+        }
+      }
     } catch {
+      if (logId) {
+        try {
+          await db.run('UPDATE communication_log SET status = ? WHERE id = ?', ['failed', logId]);
+        } catch {
+          /* swallow — original failure already counted */
+        }
+      }
       failed++;
     }
   }

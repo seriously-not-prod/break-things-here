@@ -48,6 +48,7 @@ import { BudgetSummaryCards } from './budget-summary-cards';
 import { BudgetChart } from './budget-chart';
 import { AddCategoryDialog } from './add-category-dialog';
 import { AddExpenseDialog } from './add-expense-dialog';
+import { BudgetForecastCard } from './budget-forecast-card';
 import { generateExpenseSummaryPdf } from '../../utils/expense-pdf-export';
 
 const fmt = (n: number): string =>
@@ -384,6 +385,13 @@ export default function BudgetPage(): JSX.Element {
               </CardContent>
             </Card>
           </Grid>
+
+          {/* Forecast card (#462) */}
+          {eventId && (
+            <Grid item xs={12}>
+              <BudgetForecastCard eventId={eventId} />
+            </Grid>
+          )}
 
           {/* Expenses table */}
           <Grid item xs={12}>

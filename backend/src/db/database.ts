@@ -462,6 +462,26 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
   await db.exec('CREATE INDEX IF NOT EXISTS idx_communication_log_event_id ON communication_log(event_id)');
 
+  // ── Communication tracking (#419, #465, #466) ───────────────────────────
+  // Append-only event log for email opens (pixel) and clicks (redirect).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS communication_tracking_events (
+      id SERIAL PRIMARY KEY,
+      communication_log_id INTEGER NOT NULL REFERENCES communication_log(id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL CHECK (event_type IN ('open','click')),
+      target_url TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      occurred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_comm_tracking_log_id ON communication_tracking_events(communication_log_id)',
+  );
+  await db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_comm_tracking_type ON communication_tracking_events(event_type)',
+  );
+
   await db.exec(`
     CREATE TABLE IF NOT EXISTS budget_categories (
       id SERIAL PRIMARY KEY,
@@ -726,6 +746,149 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   // ── Gallery caption support (#409, #430) ─────────────────────────────────
   await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS caption TEXT`);
 
+  // ── Task dependencies (#440) ──────────────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_dependencies (
+      id              SERIAL PRIMARY KEY,
+      task_id         INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      depends_on_id   INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(task_id, depends_on_id),
+      CONSTRAINT task_dependencies_no_self_ref CHECK(task_id <> depends_on_id)
+    )
+  `);
+  // Idempotent: add named self-ref constraint if table pre-existed without it
+  await db.exec(`
+    DO $$
+    BEGIN
+      ALTER TABLE task_dependencies
+        ADD CONSTRAINT task_dependencies_no_self_ref CHECK(task_id <> depends_on_id);
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_dependencies_task_id ON task_dependencies(task_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on_id ON task_dependencies(depends_on_id)`);
+
+  // ── Budget templates (#438) ───────────────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS budget_templates (
+      id          SERIAL PRIMARY KEY,
+      name        TEXT NOT NULL,
+      description TEXT,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS budget_template_items (
+      id               SERIAL PRIMARY KEY,
+      template_id      INTEGER NOT NULL REFERENCES budget_templates(id) ON DELETE CASCADE,
+      name             TEXT NOT NULL,
+      allocated_amount NUMERIC(10,2) DEFAULT 0,
+      color            TEXT DEFAULT '#6366f1',
+      created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_budget_template_items_template_id ON budget_template_items(template_id)`);
+
+  // ── Task templates & time entries (#450) ─────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_templates (
+      id              SERIAL PRIMARY KEY,
+      event_id        INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name            TEXT NOT NULL,
+      description     TEXT,
+      priority        TEXT CHECK(priority IN ('Low','Medium','High')) DEFAULT 'Medium',
+      estimated_hours NUMERIC(5,2),
+      created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_templates_event_id ON task_templates(event_id)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_time_entries (
+      id          SERIAL PRIMARY KEY,
+      task_id     INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      hours_spent NUMERIC(5,2) NOT NULL CHECK(hours_spent > 0),
+      notes       TEXT,
+      logged_at   DATE NOT NULL DEFAULT CURRENT_DATE,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_time_entries_task_id ON task_time_entries(task_id)`);
+
+  // Recurring task support columns
+  await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT FALSE`);
+  await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_pattern TEXT`);
+  await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_end_date TEXT`);
+  // Guard: only add FK column once task_templates is confirmed to exist
+  {
+    const tmplExists = await db.get<{ exists: boolean }>(
+      `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='task_templates') AS exists`,
+    );
+    if (tmplExists?.exists) {
+      await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS template_id INTEGER REFERENCES task_templates(id) ON DELETE SET NULL`);
+    }
+  }
+
+  // ── Recurring expenses (#449) ─────────────────────────────────────────────
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT FALSE`);
+  // Add column without inline CHECK first (idempotent), then add named constraint separately
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_pattern TEXT`);
+  await db.exec(`
+    DO $$
+    BEGIN
+      ALTER TABLE expenses
+        ADD CONSTRAINT expenses_recurrence_pattern_valid
+        CHECK (recurrence_pattern IS NULL OR recurrence_pattern IN ('weekly','monthly','quarterly','annually'));
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$
+  `);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_end_date DATE`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS is_installment BOOLEAN DEFAULT FALSE`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS installment_total INTEGER`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS installment_number INTEGER`);
+
+  // ── Vendor communication log (#452) ──────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS vendor_communication_log (
+      id         SERIAL PRIMARY KEY,
+      event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      vendor_id  INTEGER NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+      type       TEXT NOT NULL CHECK(type IN ('email','call','meeting','quote','follow_up','other')),
+      subject    TEXT NOT NULL,
+      body       TEXT,
+      sent_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_vendor_id ON vendor_communication_log(vendor_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_event_id ON vendor_communication_log(event_id)`);
+
+  // ── Store suggestions (#464) ──────────────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS store_suggestions (
+      id           SERIAL PRIMARY KEY,
+      event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name         TEXT NOT NULL,
+      website      TEXT,
+      notes        TEXT,
+      category     TEXT,
+      suggested_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      status       TEXT CHECK(status IN ('pending','approved','rejected')) DEFAULT 'pending',
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_store_suggestions_event_id ON store_suggestions(event_id)`);
+  await db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_store_suggestions_unique
+    ON store_suggestions(event_id, lower(name))
+  `);
+
   // ── RLS pilot: schema alignment (#475) ───────────────────────────────────
   await db.exec(`
     CREATE TABLE IF NOT EXISTS event_documents (
@@ -831,4 +994,99 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
     console.log('[RLS] RLS pilot policies applied.');
   }
+
+  // ── Guest merge audit (#411, #435) ───────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS guest_merge_audit (
+      id                 SERIAL PRIMARY KEY,
+      event_id           INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      surviving_rsvp_id  INTEGER REFERENCES rsvps(id) ON DELETE SET NULL,
+      merged_rsvp_id     INTEGER NOT NULL,
+      merged_email       TEXT NOT NULL,
+      merged_name        TEXT NOT NULL,
+      merged_snapshot    JSONB NOT NULL,
+      merged_by          INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      merged_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      notes              TEXT
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_guest_merge_audit_event_id ON guest_merge_audit(event_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_guest_merge_audit_surviving ON guest_merge_audit(surviving_rsvp_id)`,
+  );
+
+  // ── RSVP access tokens for QR codes (#411, #437) ──────────────────────────
+  // A stable per-RSVP token used to render QR codes that link to the guest
+  // RSVP page. Tokens are opaque and can be rotated independently.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS rsvp_access_tokens (
+      rsvp_id      INTEGER PRIMARY KEY REFERENCES rsvps(id) ON DELETE CASCADE,
+      token        TEXT NOT NULL UNIQUE,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      revoked_at   TIMESTAMP
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_rsvp_access_tokens_token ON rsvp_access_tokens(token) WHERE revoked_at IS NULL`,
+  );
+
+  // ── Waitlist columns on rsvps (#413, #442) ────────────────────────────────
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS waitlist_position INTEGER`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS waitlisted_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS promoted_at TIMESTAMP`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_rsvps_event_waitlist ON rsvps(event_id, waitlist_position) WHERE waitlist_position IS NOT NULL`,
+  );
+
+  // ── Custom RSVP questions (#413, #443) ────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS rsvp_questions (
+      id            SERIAL PRIMARY KEY,
+      event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      prompt        TEXT NOT NULL,
+      question_type TEXT NOT NULL CHECK (question_type IN ('short_text','long_text','single_choice','multi_choice','number','boolean')),
+      options       JSONB,
+      required      BOOLEAN DEFAULT FALSE,
+      sort_order    INTEGER DEFAULT 0,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_rsvp_questions_event_id ON rsvp_questions(event_id)`,
+  );
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS rsvp_question_responses (
+      id          SERIAL PRIMARY KEY,
+      rsvp_id     INTEGER NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
+      question_id INTEGER NOT NULL REFERENCES rsvp_questions(id) ON DELETE CASCADE,
+      response    TEXT,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (rsvp_id, question_id)
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_rsvp_question_responses_rsvp ON rsvp_question_responses(rsvp_id)`,
+  );
+
+  // ── Currency & exchange rates (#418, #461) ────────────────────────────────
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'USD'`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_base NUMERIC(14,4)`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(18,8)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS exchange_rates (
+      base_currency  TEXT NOT NULL,
+      quote_currency TEXT NOT NULL,
+      rate           NUMERIC(18,8) NOT NULL CHECK (rate > 0),
+      source         TEXT NOT NULL DEFAULT 'manual',
+      fetched_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (base_currency, quote_currency)
+    )
+  `);
 }
