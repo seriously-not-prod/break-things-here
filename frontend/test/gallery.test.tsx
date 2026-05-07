@@ -3,13 +3,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { GalleryPage } from '../src/components/gallery/gallery-page';
 import * as galleryService from '../src/services/gallery-service';
-import type { GalleryItem } from '../src/services/gallery-service';
+import type { GalleryAlbum, GalleryItem, GallerySlideshow } from '../src/services/gallery-service';
 
 vi.mock('../src/services/gallery-service');
 
 const mockedListGallery = vi.mocked(galleryService.listGallery);
 const mockedDeleteGalleryItem = vi.mocked(galleryService.deleteGalleryItem);
 const mockedUpdateGalleryCaption = vi.mocked(galleryService.updateGalleryCaption);
+const mockedListAlbums = vi.mocked(galleryService.listAlbums);
+const mockedCreateAlbum = vi.mocked(galleryService.createAlbum);
+const mockedDeleteAlbum = vi.mocked(galleryService.deleteAlbum);
+const mockedListModerationQueue = vi.mocked(galleryService.listModerationQueue);
+const mockedModerateItem = vi.mocked(galleryService.moderateItem);
+const mockedListSlideshows = vi.mocked(galleryService.listSlideshows);
+const mockedCreateSlideshow = vi.mocked(galleryService.createSlideshow);
+const mockedDeleteSlideshow = vi.mocked(galleryService.deleteSlideshow);
+const mockedGetSlideshowItems = vi.mocked(galleryService.getSlideshowItems);
 
 const MOCK_ITEMS: GalleryItem[] = [
   {
@@ -21,6 +30,8 @@ const MOCK_ITEMS: GalleryItem[] = [
     caption: null,
     createdAt: '2026-05-01T10:00:00Z',
     url: '/api/uploads/event-documents/document-1.jpg',
+    albumId: null,
+    moderationStatus: 'approved',
   },
   {
     id: 2,
@@ -31,6 +42,46 @@ const MOCK_ITEMS: GalleryItem[] = [
     caption: 'Main stage crowd',
     createdAt: '2026-05-02T14:30:00Z',
     url: '/api/uploads/event-documents/document-2.png',
+    albumId: null,
+    moderationStatus: 'approved',
+  },
+];
+
+const MOCK_ALBUMS: GalleryAlbum[] = [
+  {
+    id: 10,
+    eventId: 42,
+    name: 'Stage Photos',
+    description: 'Photos from the main stage',
+    createdBy: 1,
+    createdAt: '2026-05-01T10:00:00Z',
+    updatedAt: '2026-05-01T10:00:00Z',
+  },
+];
+
+const MOCK_SLIDESHOWS: GallerySlideshow[] = [
+  {
+    id: 20,
+    eventId: 42,
+    name: 'Highlights 2026',
+    createdBy: 1,
+    createdAt: '2026-05-01T10:00:00Z',
+    updatedAt: '2026-05-01T10:00:00Z',
+  },
+];
+
+const MOCK_MODERATION_QUEUE: GalleryItem[] = [
+  {
+    id: 5,
+    fileName: 'sub.jpg',
+    originalName: 'submitted.jpg',
+    mimeType: 'image/jpeg',
+    fileSize: 50000,
+    caption: null,
+    createdAt: '2026-05-01T10:00:00Z',
+    url: '/api/uploads/event-documents/sub.jpg',
+    albumId: null,
+    moderationStatus: 'pending',
   },
 ];
 
@@ -49,14 +100,24 @@ describe('GalleryPage (#430)', () => {
     mockedListGallery.mockReset();
     mockedDeleteGalleryItem.mockReset();
     mockedUpdateGalleryCaption.mockReset();
+    mockedListAlbums.mockReset();
+    mockedCreateAlbum.mockReset();
+    mockedDeleteAlbum.mockReset();
+    mockedListModerationQueue.mockReset();
+    mockedModerateItem.mockReset();
+    mockedListSlideshows.mockReset();
+    mockedCreateSlideshow.mockReset();
+    mockedDeleteSlideshow.mockReset();
+    mockedGetSlideshowItems.mockReset();
   });
 
   it('renders loading skeletons while fetching', () => {
     mockedListGallery.mockReturnValue(new Promise(() => undefined));
     renderGallery();
     // Skeletons are rendered — check heading still shows
-    expect(screen.getByText('Gallery')).toBeInTheDocument();
+    expect(screen.getAllByText('Gallery').length).toBeGreaterThan(0);
   });
+
 
   it('renders a grid of image thumbnails', async () => {
     mockedListGallery.mockResolvedValue(MOCK_ITEMS);
@@ -240,5 +301,243 @@ describe('GalleryPage (#430)', () => {
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByText('Main stage crowd')).toBeInTheDocument();
+  });
+});
+
+// ─── Albums tab (#459) ────────────────────────────────────────────────────────
+
+describe('GalleryPage Albums tab (#459)', () => {
+  beforeEach(() => {
+    mockedListGallery.mockResolvedValue(MOCK_ITEMS);
+    mockedListAlbums.mockReset();
+    mockedCreateAlbum.mockReset();
+    mockedDeleteAlbum.mockReset();
+  });
+
+  it('shows Albums tab', () => {
+    mockedListGallery.mockReturnValue(new Promise(() => undefined));
+    renderGallery();
+    expect(screen.getByRole('tab', { name: /Albums tab/i })).toBeInTheDocument();
+  });
+
+  it('renders album list when Albums tab is active', async () => {
+    mockedListAlbums.mockResolvedValue(MOCK_ALBUMS);
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Albums tab/i }));
+    await waitFor(() => expect(screen.getByLabelText('Albums list')).toBeInTheDocument());
+    expect(screen.getByText('Stage Photos')).toBeInTheDocument();
+  });
+
+  it('shows empty state when no albums exist', async () => {
+    mockedListAlbums.mockResolvedValue([]);
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Albums tab/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'No albums' })).toBeInTheDocument(),
+    );
+    expect(screen.getByText('No albums yet')).toBeInTheDocument();
+  });
+
+  it('creates a new album', async () => {
+    mockedListAlbums.mockResolvedValue([]);
+    mockedCreateAlbum.mockResolvedValue(MOCK_ALBUMS[0]);
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Albums tab/i }));
+    await waitFor(() => screen.getByLabelText('Album name'));
+
+    fireEvent.change(screen.getByLabelText('Album name'), {
+      target: { value: 'Stage Photos' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create album' }));
+
+    await waitFor(() =>
+      expect(mockedCreateAlbum).toHaveBeenCalledWith('42', 'Stage Photos', undefined),
+    );
+  });
+
+  it('shows error on album load failure', async () => {
+    mockedListAlbums.mockRejectedValue(new Error('Load failed'));
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Albums tab/i }));
+    await waitFor(() => expect(screen.getByText('Load failed')).toBeInTheDocument());
+  });
+
+  it('deletes an album after confirmation', async () => {
+    mockedListAlbums.mockResolvedValue(MOCK_ALBUMS);
+    mockedDeleteAlbum.mockResolvedValue(undefined);
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Albums tab/i }));
+    await waitFor(() => screen.getByLabelText('Delete album Stage Photos'));
+
+    fireEvent.click(screen.getByLabelText('Delete album Stage Photos'));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete album' }));
+
+    await waitFor(() => expect(mockedDeleteAlbum).toHaveBeenCalledWith('42', 10));
+  });
+});
+
+// ─── Moderation tab (#459) ────────────────────────────────────────────────────
+
+describe('GalleryPage Moderation tab (#459)', () => {
+  beforeEach(() => {
+    mockedListGallery.mockResolvedValue(MOCK_ITEMS);
+    mockedListModerationQueue.mockReset();
+    mockedModerateItem.mockReset();
+  });
+
+  it('shows Moderation tab', () => {
+    mockedListGallery.mockReturnValue(new Promise(() => undefined));
+    renderGallery();
+    expect(screen.getByRole('tab', { name: /Moderation tab/i })).toBeInTheDocument();
+  });
+
+  it('renders moderation queue when Moderation tab is active', async () => {
+    mockedListModerationQueue.mockResolvedValue(MOCK_MODERATION_QUEUE);
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Moderation tab/i }));
+    await waitFor(() => expect(screen.getByLabelText('Moderation queue')).toBeInTheDocument());
+    expect(screen.getByText('submitted.jpg')).toBeInTheDocument();
+  });
+
+  it('shows empty moderation queue state', async () => {
+    mockedListModerationQueue.mockResolvedValue([]);
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Moderation tab/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'Empty moderation queue' })).toBeInTheDocument(),
+    );
+    expect(screen.getByText('Moderation queue is empty')).toBeInTheDocument();
+  });
+
+  it('approves a submission from the moderation queue', async () => {
+    mockedListModerationQueue.mockResolvedValue(MOCK_MODERATION_QUEUE);
+    mockedModerateItem.mockResolvedValue({ id: 5, moderationStatus: 'approved' });
+    mockedListGallery.mockResolvedValue(MOCK_ITEMS);
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Moderation tab/i }));
+    await waitFor(() => screen.getByLabelText('Approve submitted.jpg'));
+
+    fireEvent.click(screen.getByLabelText('Approve submitted.jpg'));
+
+    await waitFor(() => expect(mockedModerateItem).toHaveBeenCalledWith('42', 5, 'approved'));
+  });
+
+  it('rejects a submission from the moderation queue', async () => {
+    mockedListModerationQueue.mockResolvedValue(MOCK_MODERATION_QUEUE);
+    mockedModerateItem.mockResolvedValue({ id: 5, moderationStatus: 'rejected' });
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Moderation tab/i }));
+    await waitFor(() => screen.getByLabelText('Reject submitted.jpg'));
+
+    fireEvent.click(screen.getByLabelText('Reject submitted.jpg'));
+
+    await waitFor(() => expect(mockedModerateItem).toHaveBeenCalledWith('42', 5, 'rejected'));
+  });
+
+  it('shows error on moderation load failure', async () => {
+    mockedListModerationQueue.mockRejectedValue(new Error('Queue load failed'));
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Moderation tab/i }));
+    await waitFor(() => expect(screen.getByText('Queue load failed')).toBeInTheDocument());
+  });
+});
+
+// ─── Slideshows tab (#459) ────────────────────────────────────────────────────
+
+describe('GalleryPage Slideshows tab (#459)', () => {
+  beforeEach(() => {
+    mockedListGallery.mockResolvedValue(MOCK_ITEMS);
+    mockedListSlideshows.mockReset();
+    mockedCreateSlideshow.mockReset();
+    mockedDeleteSlideshow.mockReset();
+    mockedGetSlideshowItems.mockReset();
+  });
+
+  it('shows Slideshows tab', () => {
+    mockedListGallery.mockReturnValue(new Promise(() => undefined));
+    renderGallery();
+    expect(screen.getByRole('tab', { name: /Slideshows tab/i })).toBeInTheDocument();
+  });
+
+  it('renders slideshow list when Slideshows tab is active', async () => {
+    mockedListSlideshows.mockResolvedValue(MOCK_SLIDESHOWS);
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Slideshows tab/i }));
+    await waitFor(() => expect(screen.getByLabelText('Slideshows list')).toBeInTheDocument());
+    expect(screen.getByText('Highlights 2026')).toBeInTheDocument();
+  });
+
+  it('shows empty state when no slideshows', async () => {
+    mockedListSlideshows.mockResolvedValue([]);
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Slideshows tab/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'No slideshows' })).toBeInTheDocument(),
+    );
+    expect(screen.getByText('No slideshows yet')).toBeInTheDocument();
+  });
+
+  it('creates a new slideshow', async () => {
+    mockedListSlideshows.mockResolvedValue([]);
+    mockedCreateSlideshow.mockResolvedValue(MOCK_SLIDESHOWS[0]);
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Slideshows tab/i }));
+    await waitFor(() => screen.getByLabelText('Slideshow name'));
+
+    fireEvent.change(screen.getByLabelText('Slideshow name'), {
+      target: { value: 'Highlights 2026' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create slideshow' }));
+
+    await waitFor(() =>
+      expect(mockedCreateSlideshow).toHaveBeenCalledWith('42', 'Highlights 2026', []),
+    );
+  });
+
+  it('runs a slideshow', async () => {
+    mockedListSlideshows.mockResolvedValue(MOCK_SLIDESHOWS);
+    mockedGetSlideshowItems.mockResolvedValue([
+      {
+        id: 1,
+        slideshowId: 20,
+        documentId: 1,
+        sortOrder: 0,
+        fileName: 'document-1.jpg',
+        originalName: 'sunset-stage.jpg',
+        mimeType: 'image/jpeg',
+        caption: null,
+        url: '/api/uploads/event-documents/document-1.jpg',
+      },
+    ]);
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Slideshows tab/i }));
+    await waitFor(() => screen.getByLabelText('Run slideshow Highlights 2026'));
+
+    fireEvent.click(screen.getByLabelText('Run slideshow Highlights 2026'));
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+    expect(screen.getByText('sunset-stage.jpg')).toBeInTheDocument();
+  });
+
+  it('deletes a slideshow after confirmation', async () => {
+    mockedListSlideshows.mockResolvedValue(MOCK_SLIDESHOWS);
+    mockedDeleteSlideshow.mockResolvedValue(undefined);
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Slideshows tab/i }));
+    await waitFor(() => screen.getByLabelText('Delete slideshow Highlights 2026'));
+
+    fireEvent.click(screen.getByLabelText('Delete slideshow Highlights 2026'));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete slideshow' }));
+
+    await waitFor(() => expect(mockedDeleteSlideshow).toHaveBeenCalledWith('42', 20));
+  });
+
+  it('shows error on slideshow load failure', async () => {
+    mockedListSlideshows.mockRejectedValue(new Error('Slideshow load failed'));
+    renderGallery();
+    fireEvent.click(screen.getByRole('tab', { name: /Slideshows tab/i }));
+    await waitFor(() => expect(screen.getByText('Slideshow load failed')).toBeInTheDocument());
   });
 });
