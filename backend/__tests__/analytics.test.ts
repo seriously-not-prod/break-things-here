@@ -124,6 +124,11 @@ afterAll(async (): Promise<void> => {
     await db.run('DELETE FROM users WHERE id = ?', [ownerId]);
   }
 
+  // Drop the legacy column we added in beforeAll. Without this, subsequent
+  // test files that re-run runMigrations hit a column-collision when the
+  // migration tries to rename event_date → date (which already exists).
+  await db.exec('ALTER TABLE events DROP COLUMN IF EXISTS event_date');
+
   await closeDatabase();
 
   if (originalDatabaseUrl) {
@@ -135,7 +140,10 @@ afterAll(async (): Promise<void> => {
 
 describe('analytics controller', () => {
   it('returns the expected analytics shape for an event', async () => {
-    const req = { params: { eventId: String(eventId) } } as unknown as Request;
+    const req = {
+      params: { eventId: String(eventId) },
+      user: { id: ownerId, email: 'analytics-owner@example.com', role_id: 2 },
+    } as unknown as Request;
     const res = makeResponse();
 
     await getEventSummary(req, res as Response);
@@ -163,6 +171,7 @@ describe('analytics controller', () => {
     const req = {
       params: { eventId: String(eventId) },
       query: { format: 'csv' },
+      user: { id: ownerId, email: 'analytics-owner@example.com', role_id: 2 },
     } as unknown as Request;
     const res = makeResponse();
 
