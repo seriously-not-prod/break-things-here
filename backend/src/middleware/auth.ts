@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { parse as parseCookies } from 'cookie';
 import { Request, Response, NextFunction } from 'express';
 import { getDatabase } from '../db/database.js';
 import { hashToken } from '../utils/auth-helpers.js';
@@ -76,11 +77,14 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
   }
   
   // If no Authorization header, try to get from cookie
-  if (!token && req.cookies?.accessToken) {
-    try {
-      token = decryptToken(req.cookies.accessToken);
-    } catch (error) {
-      console.error('Failed to decrypt access token from cookie:', error);
+  if (!token) {
+    const cookies = parseCookies(req.headers.cookie ?? '');
+    if (cookies.accessToken) {
+      try {
+        token = decryptToken(cookies.accessToken);
+      } catch (error) {
+        console.error('Failed to decrypt access token from cookie:', error);
+      }
     }
   }
 

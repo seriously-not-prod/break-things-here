@@ -31,8 +31,12 @@ npm run build
 # Build backend
 cd backend && npm run build && cd ..
 
-# Run tests
+# Run frontend tests
 npm test
+
+# Run backend tests
+docker compose up -d db-test
+cd backend && npm test && cd ..
 ```
 
 All builds should succeed and all tests should pass.
@@ -41,10 +45,11 @@ All builds should succeed and all tests should pass.
 
 **Terminal 1 - Backend API:**
 ```bash
+docker compose up -d db
 cd backend
 npm run dev
 ```
-Backend runs on `http://localhost:3001`
+Backend runs on `http://localhost:4000`
 
 **Terminal 2 - Frontend:**
 ```bash
@@ -84,7 +89,7 @@ cd backend && npm run build && cd ..
 ### What's New in Latest Develop
 
 **✅ Database Integration (PR #185 - Merged)**
-- SQLite database replaced localStorage
+- PostgreSQL database replaced localStorage
 - Cookie-based JWT authentication
 - Session timeout and token refresh
 - CSRF protection enabled
@@ -114,11 +119,27 @@ Expected output: **3 tests passed**
 
 ### Development Database
 
-The backend uses SQLite with automatic initialization:
+The backend uses **PostgreSQL**. Start the database with Docker before running the backend:
 
-- **Location**: `backend/database/dev.sqlite` (auto-created on first run)
+```bash
+docker compose up -d db
+```
+
+- **Connection**: `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/festival_planner`
 - **Schema**: See `database/init.sql`
-- **Reset**: Delete `backend/database/dev.sqlite` and restart backend
+- **Reset**: Drop and recreate the database, then restart the backend (migrations run automatically on startup)
+
+### Test Database
+
+Backend integration tests use a separate PostgreSQL instance on port `5433`.
+
+```bash
+docker compose up -d db-test
+cd backend && npm test
+```
+
+- **Connection**: `TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5433/festival_planner_test`
+- **Override**: Set `TEST_DATABASE_URL` explicitly if you need a different host or port
 
 ### Check Database Contents
 
@@ -139,8 +160,9 @@ A default admin user is created automatically:
 ## Common Issues and Solutions
 
 ### "Cannot connect to backend"
-- Ensure backend is running on port 3001: `cd backend && npm run dev`
-- Check if another process is using port 3001: `lsof -i :3001`
+- Ensure the main database is running: `docker compose up -d db`
+- Ensure backend is running on port 4000: `cd backend && npm run dev`
+- Check if another process is using port 4000: `lsof -i :4000`
 
 ### "Authentication failed"
 - Database may not be initialized - restart backend to trigger auto-init
@@ -155,6 +177,9 @@ cd backend && npm install && cd ..
 
 # Clear build cache
 rm -rf dist backend/dist
+
+# Start the dedicated backend test database
+docker compose up -d db-test
 
 # Rebuild
 npm run build
@@ -192,7 +217,7 @@ cd backend && npm run build && cd ..
 
 # Set production environment
 export NODE_ENV=production
-export DATABASE_URL=./database/production.sqlite
+export DATABASE_URL=postgresql://postgres:password@your-db-host:5432/festival_planner
 
 # Run backend
 cd backend && node dist/index.js
