@@ -1,0 +1,7 @@
+# Local WSL2 override: removes the init.sql bind mount that fails in WSL2
+# The postgres volume (festival-postgres-data) already contains the initialized
+# database, so init.sql will not run again regardless.
+services:
+  db:
+    volumes: !reset
+      - postgres-data:/var/lib/postgresql/data
