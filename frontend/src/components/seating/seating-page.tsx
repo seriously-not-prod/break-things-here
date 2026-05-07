@@ -120,6 +120,8 @@ export function SeatingPage(): JSX.Element {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<ActiveTableDrag | null>(null);
   const latestTablesRef = useRef<SeatingTable[]>([]);
+  const pendingDragPositionRef = useRef<TablePosition | null>(null);
+  const dragFrameRef = useRef<number | null>(null);
 
   const [tables, setTables] = useState<SeatingTable[]>([]);
   const [rsvps, setRsvps] = useState<Rsvp[]>([]);
@@ -251,6 +253,18 @@ export function SeatingPage(): JSX.Element {
     }
   };
 
+  const updateDraggedTablePosition = useCallback((tableId: number, position: TablePosition) => {
+    setTables((prev) => {
+      const next = prev.map((table) =>
+        table.id === tableId
+          ? { ...table, layout_x: position.x, layout_y: position.y }
+          : table,
+      );
+      latestTablesRef.current = next;
+      return next;
+    });
+  }, []);
+
   const persistTableLayout = useCallback(async (tableId: number) => {
     if (!eventId) return;
 
@@ -279,34 +293,45 @@ export function SeatingPage(): JSX.Element {
   useEffect(() => {
     if (draggingTableId == null) return;
 
+    const flushPendingDragPosition = () => {
+      const dragState = dragStateRef.current;
+      const pendingPosition = pendingDragPositionRef.current;
+      dragFrameRef.current = null;
+      if (!dragState || !pendingPosition) return;
+      updateDraggedTablePosition(dragState.tableId, pendingPosition);
+      pendingDragPositionRef.current = null;
+    };
+
     const handlePointerMove = (event: PointerEvent) => {
       const dragState = dragStateRef.current;
       const canvas = canvasRef.current;
       if (!dragState || !canvas) return;
 
       const canvasRect = canvas.getBoundingClientRect();
-      const nextX = clamp(
-        Math.round(event.clientX - canvasRect.left - dragState.offsetX),
-        0,
-        canvasRect.width - TABLE_WIDTH,
-      );
-      const nextY = clamp(
-        Math.round(event.clientY - canvasRect.top - dragState.offsetY),
-        0,
-        canvasRect.height - TABLE_HEIGHT,
-      );
-
-      setTables((prev) =>
-        prev.map((table) =>
-          table.id === dragState.tableId
-            ? { ...table, layout_x: nextX, layout_y: nextY }
-            : table,
+      pendingDragPositionRef.current = {
+        x: clamp(
+          Math.round(event.clientX - canvasRect.left - dragState.offsetX),
+          0,
+          canvasRect.width - TABLE_WIDTH,
         ),
-      );
+        y: clamp(
+          Math.round(event.clientY - canvasRect.top - dragState.offsetY),
+          0,
+          canvasRect.height - TABLE_HEIGHT,
+        ),
+      };
+
+      if (dragFrameRef.current == null) {
+        dragFrameRef.current = window.requestAnimationFrame(flushPendingDragPosition);
+      }
     };
 
     const handlePointerUp = () => {
       const dragState = dragStateRef.current;
+      if (dragFrameRef.current != null) {
+        window.cancelAnimationFrame(dragFrameRef.current);
+        flushPendingDragPosition();
+      }
       dragStateRef.current = null;
       setDraggingTableId(null);
       if (dragState) {
@@ -320,8 +345,13 @@ export function SeatingPage(): JSX.Element {
     return () => {
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
+      if (dragFrameRef.current != null) {
+        window.cancelAnimationFrame(dragFrameRef.current);
+        dragFrameRef.current = null;
+      }
+      pendingDragPositionRef.current = null;
     };
-  }, [draggingTableId, persistTableLayout]);
+  }, [draggingTableId, persistTableLayout, updateDraggedTablePosition]);
 
   const handleTablePointerDown = (tableId: number) => (event: React.PointerEvent<HTMLButtonElement>) => {
     const canvas = canvasRef.current;
@@ -485,7 +515,7 @@ export function SeatingPage(): JSX.Element {
                 <Box
                   ref={canvasRef}
                   data-testid="seating-layout-canvas"
-                  role="application"
+                  role="region"
                   aria-label="Seating layout editor"
                   sx={{
                     position: 'relative',

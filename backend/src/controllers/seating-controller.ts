@@ -93,8 +93,8 @@ export async function createTable(req: Request, res: Response): Promise<Response
     [eventId],
   );
   const existingCount = layoutSeed?.count ?? 0;
-  const layoutX = 32 + (existingCount % 3) * 240;
-  const layoutY = 32 + Math.floor(existingCount / 3) * 180;
+  const layoutX = 32 + (existingCount % 3) * 300;
+  const layoutY = 32 + Math.floor(existingCount / 3) * 210;
 
   const result = await db.run(
     `INSERT INTO seating_tables (event_id, name, capacity, layout_x, layout_y)
