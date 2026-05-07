@@ -202,7 +202,10 @@ export async function bulkEventAction(req: Request, res: Response): Promise<void
         results.push({ event_id: id, status: 'ok' });
         successCount += 1;
       } catch (err) {
-        console.error(`Bulk ${action} failed for event #${id}:`, err);
+        // Pass user-controlled values as separate console.error arguments rather
+        // than interpolating them into the format string — keeps codeQL's
+        // js/tainted-format-string scanner satisfied.
+        console.error('Bulk action failed for event:', { action, id, err });
         results.push({
           event_id: id,
           status: 'error',
