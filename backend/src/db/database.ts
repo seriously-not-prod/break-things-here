@@ -326,12 +326,23 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS capacity INTEGER`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
-  // Rename legacy event_date column to date if the old schema is still present
+  // Rename legacy event_date column to date if the old schema is still present.
+  // Guard: skip rename if date already exists (handles DB state where both columns coexist).
   {
-    const col = await db.get<{ exists: boolean }>(
-      `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='events' AND column_name='event_date') AS exists`,
-    );
-    if (col?.exists) await db.exec(`ALTER TABLE events RENAME COLUMN event_date TO date`);
+    const [legacyCol, dateCol] = await Promise.all([
+      db.get<{ exists: boolean }>(
+        `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='events' AND column_name='event_date') AS exists`,
+      ),
+      db.get<{ exists: boolean }>(
+        `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='events' AND column_name='date') AS exists`,
+      ),
+    ]);
+    if (legacyCol?.exists && !dateCol?.exists) {
+      await db.exec(`ALTER TABLE events RENAME COLUMN event_date TO date`);
+    } else if (legacyCol?.exists && dateCol?.exists) {
+      // Both columns exist — drop the legacy one to resolve the drift
+      await db.exec(`ALTER TABLE events DROP COLUMN IF EXISTS event_date`);
+    }
   }
 
   await db.exec(`
