@@ -322,6 +322,25 @@ router.get('/events/:eventId/gallery', authenticateToken, galleryController.list
 router.delete('/events/:eventId/gallery/:id', authenticateToken, galleryController.deleteGalleryItem);
 router.patch('/events/:eventId/gallery/:id', authenticateToken, galleryController.updateGalleryCaption);
 
+// Gallery albums — #417, #459
+router.get('/events/:eventId/gallery/albums', authenticateToken, galleryController.listAlbums);
+router.post('/events/:eventId/gallery/albums', authenticateToken, galleryController.createAlbum);
+router.patch('/events/:eventId/gallery/albums/:albumId', authenticateToken, galleryController.updateAlbum);
+router.delete('/events/:eventId/gallery/albums/:albumId', authenticateToken, galleryController.deleteAlbum);
+router.patch('/events/:eventId/gallery/:id/album', authenticateToken, galleryController.assignItemToAlbum);
+
+// Gallery moderation queue — #417, #459
+router.get('/events/:eventId/gallery/moderation', authenticateToken, galleryController.listModerationQueue);
+router.patch('/events/:eventId/gallery/:id/moderate', authenticateToken, galleryController.moderateItem);
+router.patch('/events/:eventId/gallery/:id/submit', authenticateToken, galleryController.submitGuestPhoto);
+
+// Gallery slideshows — #417, #459
+router.get('/events/:eventId/gallery/slideshows', authenticateToken, galleryController.listSlideshows);
+router.post('/events/:eventId/gallery/slideshows', authenticateToken, galleryController.createSlideshow);
+router.get('/events/:eventId/gallery/slideshows/:slideshowId/items', authenticateToken, galleryController.getSlideshowItems);
+router.patch('/events/:eventId/gallery/slideshows/:slideshowId', authenticateToken, galleryController.updateSlideshow);
+router.delete('/events/:eventId/gallery/slideshows/:slideshowId', authenticateToken, galleryController.deleteSlideshow);
+
 // ============ ADMIN ROUTES — issues #260 #279 ============
 // All admin routes require authentication + Admin role
 router.get('/admin/users', authenticateToken, authorizeRole(['Admin']), adminController.listUsers);
