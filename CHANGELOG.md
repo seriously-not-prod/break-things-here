@@ -66,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `backend/__tests__/events-list-filter.test.ts` — 7 unit tests covering owner filter, tag filter, combined filters, no-auth guard, and error path
 
 ### Fixed
+- Story #417 UX polish: gallery now loads albums on initial render so filter chips and album assignment are available without visiting the Albums tab first, slideshow edits preserve existing selected items, seating tables support keyboard repositioning, and timeline comparison now shows end variance; regression tests added for each path (#417)
 - Frontend suite stability: analytics page tests now mock communication metrics consistently, and slower page smoke tests have explicit time budgets so the full Vitest run completes reliably under suite-wide load
 - Fixed frontend CSRF handling so login, password reset, uploads, and other mutating module actions reuse a valid token instead of refetching one per request, preventing proxy-path 403/429 failures in local Docker runs
 - Frontend API requests now resolve against an absolute origin in browser and test environments, and the budget forecast card falls back to a non-blocking unavailable state instead of surfacing raw fetch/URL errors (#458)

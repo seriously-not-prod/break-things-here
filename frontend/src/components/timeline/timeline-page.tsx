@@ -567,6 +567,7 @@ export default function TimelinePage(): JSX.Element {
                           <TableCell><strong>Planned Start</strong></TableCell>
                           <TableCell><strong>Actual Start</strong></TableCell>
                           <TableCell><strong>Start Variance</strong></TableCell>
+                          <TableCell><strong>End Variance</strong></TableCell>
                           <TableCell><strong>Planned Duration</strong></TableCell>
                           <TableCell><strong>Actual Duration</strong></TableCell>
                         </TableRow>
@@ -595,6 +596,14 @@ export default function TimelinePage(): JSX.Element {
                                 sx={{ color: varianceColor(item.start_variance_minutes), fontWeight: item.start_variance_minutes !== null ? 600 : 400 }}
                               >
                                 {formatVariance(item.start_variance_minutes)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography
+                                variant="body2"
+                                sx={{ color: varianceColor(item.end_variance_minutes), fontWeight: item.end_variance_minutes !== null ? 600 : 400 }}
+                              >
+                                {formatVariance(item.end_variance_minutes)}
                               </Typography>
                             </TableCell>
                             <TableCell>

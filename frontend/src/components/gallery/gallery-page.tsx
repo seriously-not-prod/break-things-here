@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  CircularProgress,
   Chip,
   Dialog,
   DialogActions,
@@ -179,6 +180,7 @@ export function GalleryPage(): JSX.Element {
   const [newSlideshowName, setNewSlideshowName] = useState('');
   const [newSlideshowIds, setNewSlideshowIds] = useState<number[]>([]);
   const [editSlideshow, setEditSlideshow] = useState<GallerySlideshow | null>(null);
+  const [editSlideshowLoading, setEditSlideshowLoading] = useState(false);
   const [editSlideshowName, setEditSlideshowName] = useState('');
   const [editSlideshowIds, setEditSlideshowIds] = useState<number[]>([]);
   const [confirmDeleteSlideshowId, setConfirmDeleteSlideshowId] = useState<number | null>(null);
@@ -201,9 +203,9 @@ export function GalleryPage(): JSX.Element {
       .finally(() => setLoading(false));
   }, [eventId]);
 
-  // ── Load albums when Albums tab is active ──
+  // ── Load albums for gallery filters, assignment, and Albums tab ──
   useEffect(() => {
-    if (tab !== 1 || !eventId) return;
+    if (!eventId) return;
     setAlbumsLoading(true);
     setAlbumError(null);
     listAlbums(eventId)
@@ -212,7 +214,7 @@ export function GalleryPage(): JSX.Element {
         setAlbumError(err instanceof Error ? err.message : 'Failed to load albums'),
       )
       .finally(() => setAlbumsLoading(false));
-  }, [tab, eventId]);
+  }, [eventId]);
 
   // ── Load moderation queue when Moderation tab is active ──
   useEffect(() => {
@@ -345,6 +347,7 @@ export function GalleryPage(): JSX.Element {
     try {
       await deleteAlbum(eventId, albumId);
       setAlbums((prev) => prev.filter((a) => a.id !== albumId));
+      setSelectedAlbumFilter((prev) => (prev === albumId ? 'all' : prev));
       // Unassign items that belonged to this album
       setItems((prev) => prev.map((item) => (item.albumId === albumId ? { ...item, albumId: null } : item)));
     } catch (err: unknown) {
@@ -365,6 +368,26 @@ export function GalleryPage(): JSX.Element {
       setAssignAlbumTarget('');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to assign album');
+    }
+  }
+
+  async function handleOpenEditSlideshow(slideshow: GallerySlideshow): Promise<void> {
+    if (!eventId) return;
+
+    setSlideshowError(null);
+    setEditSlideshow(slideshow);
+    setEditSlideshowName(slideshow.name);
+    setEditSlideshowIds([]);
+    setEditSlideshowLoading(true);
+
+    try {
+      const currentItems = await getSlideshowItems(eventId, slideshow.id);
+      setEditSlideshowIds(currentItems.map((item) => item.documentId));
+    } catch (err: unknown) {
+      setSlideshowError(err instanceof Error ? err.message : 'Failed to load slideshow items');
+      setEditSlideshow(null);
+    } finally {
+      setEditSlideshowLoading(false);
     }
   }
 
@@ -1012,11 +1035,7 @@ export function GalleryPage(): JSX.Element {
                         <IconButton
                           size="small"
                           aria-label={`Edit slideshow ${slideshow.name}`}
-                          onClick={() => {
-                            setEditSlideshow(slideshow);
-                            setEditSlideshowName(slideshow.name);
-                            setEditSlideshowIds([]);
-                          }}
+                          onClick={() => void handleOpenEditSlideshow(slideshow)}
                         >
                           <EditRounded fontSize="small" />
                         </IconButton>
@@ -1201,38 +1220,46 @@ export function GalleryPage(): JSX.Element {
       >
         <DialogTitle id="edit-slideshow-title">Edit slideshow</DialogTitle>
         <DialogContent sx={{ minWidth: 360, pt: 2 }}>
-          <TextField
-            autoFocus
-            fullWidth
-            label="Slideshow name"
-            value={editSlideshowName}
-            onChange={(e) => setEditSlideshowName(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          <FormControl fullWidth size="small">
-            <InputLabel id="edit-slideshow-items-label">Select images</InputLabel>
-            <Select
-              labelId="edit-slideshow-items-label"
-              label="Select images"
-              multiple
-              value={editSlideshowIds}
-              onChange={(e) => setEditSlideshowIds(e.target.value as number[])}
-              renderValue={(selected) => `${(selected as number[]).length} image(s) selected`}
-            >
-              {items.map((item) => (
-                <MenuItem key={item.id} value={item.id}>
-                  {item.originalName}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          {editSlideshowLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress size={28} aria-label="Loading slideshow items" />
+            </Box>
+          ) : (
+            <>
+              <TextField
+                autoFocus
+                fullWidth
+                label="Slideshow name"
+                value={editSlideshowName}
+                onChange={(e) => setEditSlideshowName(e.target.value)}
+                sx={{ mb: 2 }}
+              />
+              <FormControl fullWidth size="small">
+                <InputLabel id="edit-slideshow-items-label">Select images</InputLabel>
+                <Select
+                  labelId="edit-slideshow-items-label"
+                  label="Select images"
+                  multiple
+                  value={editSlideshowIds}
+                  onChange={(e) => setEditSlideshowIds(e.target.value as number[])}
+                  renderValue={(selected) => `${(selected as number[]).length} image(s) selected`}
+                >
+                  {items.map((item) => (
+                    <MenuItem key={item.id} value={item.id}>
+                      {item.originalName}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditSlideshow(null)}>Cancel</Button>
           <Button
             variant="contained"
             onClick={() => void handleUpdateSlideshow()}
-            disabled={!editSlideshowName.trim()}
+            disabled={editSlideshowLoading || !editSlideshowName.trim()}
           >
             Save
           </Button>

@@ -325,6 +325,21 @@ export function SeatingPage(): JSX.Element {
     }
   }, [eventId, loadAll]);
 
+  const moveTableByKeyboard = useCallback((tableId: number, deltaX: number, deltaY: number) => {
+    const tableIndex = latestTablesRef.current.findIndex((table) => table.id === tableId);
+    const table = latestTablesRef.current[tableIndex];
+    if (!table) return;
+
+    const currentPosition = getTablePosition(table, tableIndex);
+    const nextPosition = {
+      x: clamp(currentPosition.x + deltaX, 0, LAYOUT_WIDTH - TABLE_WIDTH),
+      y: clamp(currentPosition.y + deltaY, 0, LAYOUT_HEIGHT - TABLE_HEIGHT),
+    };
+
+    updateDraggedTablePosition(tableId, nextPosition);
+    void persistTableLayout(tableId);
+  }, [persistTableLayout, updateDraggedTablePosition]);
+
   useEffect(() => {
     if (draggingTableId == null) return;
 
@@ -623,6 +638,26 @@ export function SeatingPage(): JSX.Element {
                                 <IconButton
                                   size="small"
                                   onPointerDown={handleTablePointerDown(table.id)}
+                                  onKeyDown={(event) => {
+                                    const keyboardStep = event.shiftKey ? 48 : 24;
+
+                                    if (event.key === 'ArrowLeft') {
+                                      event.preventDefault();
+                                      moveTableByKeyboard(table.id, -keyboardStep, 0);
+                                    }
+                                    if (event.key === 'ArrowRight') {
+                                      event.preventDefault();
+                                      moveTableByKeyboard(table.id, keyboardStep, 0);
+                                    }
+                                    if (event.key === 'ArrowUp') {
+                                      event.preventDefault();
+                                      moveTableByKeyboard(table.id, 0, -keyboardStep);
+                                    }
+                                    if (event.key === 'ArrowDown') {
+                                      event.preventDefault();
+                                      moveTableByKeyboard(table.id, 0, keyboardStep);
+                                    }
+                                  }}
                                   aria-label={`Move ${table.name}`}
                                 >
                                   <DragIndicatorRounded fontSize="small" />
@@ -758,6 +793,9 @@ export function SeatingPage(): JSX.Element {
               <Stack spacing={0.75}>
                 <Typography variant="body2" color="text.secondary">
                   Drag a table handle to reposition it on the room layout.
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Focus a table handle and use the arrow keys to nudge its position without dragging.
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Drag a guest onto a table to seat them or onto the unassigned list to remove them.
