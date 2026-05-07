@@ -158,6 +158,7 @@ describe('GET /api/auth/entra/config', () => {
 
 describe('POST /api/auth/entra/callback — identity mapping', () => {
   beforeEach(() => {
+    vi.resetModules();
     process.env.ENTRA_AUTH_ENABLED = 'true';
     process.env.AZURE_TENANT_ID = 'test-tenant';
     process.env.AZURE_CLIENT_ID = 'test-client';
@@ -173,19 +174,6 @@ describe('POST /api/auth/entra/callback — identity mapping', () => {
   });
 
   it('provisions a new local user from Entra claims', async () => {
-    const { validateEntraIdToken } = await import('../src/utils/entra-token.js');
-    vi.spyOn({ validateEntraIdToken }, 'validateEntraIdToken').mockResolvedValue({
-      oid: 'entra-oid-new',
-      email: 'newuser@example.com',
-      name: 'New User',
-      tid: 'test-tenant',
-      aud: 'test-client',
-      iss: 'https://login.microsoftonline.com/test-tenant/v2.0',
-      exp: Math.floor(Date.now() / 1000) + 3600,
-      iat: Math.floor(Date.now() / 1000),
-    });
-
-    // Mock validateEntraIdToken at module level
     vi.doMock('../src/utils/entra-token.js', () => ({
       validateEntraIdToken: vi.fn().mockResolvedValue({
         oid: 'entra-oid-new',
