@@ -83,7 +83,7 @@ describe('VendorsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: /add vendor/i }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(screen.getByLabelText(/vendor name/i)).toBeInTheDocument();
-  });
+  }, 15000);
 
   it('submits a new vendor', async () => {
     renderPage();

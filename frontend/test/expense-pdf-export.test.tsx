@@ -361,7 +361,7 @@ describe('BudgetPage — Export PDF button', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /export expense summary as pdf/i })).toBeInTheDocument();
     });
-  });
+  }, 15000);
 
   it('Export PDF button is disabled when both categories and expenses are empty', async () => {
     mockedService.listCategories.mockResolvedValue([]);

@@ -339,6 +339,7 @@ router.delete('/events/:eventId/timeline/:id', authenticateToken, timelineContro
 // ============ SEATING ROUTES — issues #386 #387 ============
 router.get('/events/:eventId/seating/tables', authenticateToken, seatingController.listTables);
 router.post('/events/:eventId/seating/tables', authenticateToken, seatingController.createTable);
+router.patch('/events/:eventId/seating/tables/:tableId/layout', authenticateToken, seatingController.updateTableLayout);
 router.delete('/events/:eventId/seating/tables/:tableId', authenticateToken, seatingController.deleteTable);
 router.post('/events/:eventId/seating/tables/:tableId/assign/:rsvpId', authenticateToken, seatingController.assignGuest);
 router.delete('/events/:eventId/seating/tables/:tableId/assign/:rsvpId', authenticateToken, seatingController.unassignGuest);

@@ -22,6 +22,7 @@ window.ResizeObserver = ResizeObserver;
 vi.mock('../src/services/analytics-service', () => ({
   getEventAnalytics: vi.fn(),
   getGlobalAnalytics: vi.fn(),
+  getCommunicationMetrics: vi.fn(),
   exportEventReport: vi.fn(),
 }));
 
@@ -56,6 +57,28 @@ const MOCK_ANALYTICS: analyticsService.EventAnalytics = {
   ],
 };
 
+const MOCK_COMMUNICATION_METRICS: analyticsService.CommunicationMetrics = {
+  totals: {
+    sent: 42,
+    failed: 2,
+    delivered: 40,
+    uniqueOpens: 25,
+    totalOpens: 31,
+    uniqueClicks: 8,
+    totalClicks: 11,
+    openRate: 0.625,
+    clickRate: 0.2,
+  },
+  byCampaign: [
+    {
+      campaignType: 'Invitation',
+      sent: 24,
+      opens: 18,
+      clicks: 6,
+    },
+  ],
+};
+
 function renderPage(eventId = '42'): ReturnType<typeof render> {
   return render(
     <MemoryRouter initialEntries={[`/events/${eventId}/analytics`]}>
@@ -69,6 +92,7 @@ function renderPage(eventId = '42'): ReturnType<typeof render> {
 describe('AnalyticsPage', () => {
   beforeEach(() => {
     mockedService.getEventAnalytics.mockResolvedValue(MOCK_ANALYTICS);
+    mockedService.getCommunicationMetrics.mockResolvedValue(MOCK_COMMUNICATION_METRICS);
     mockedService.exportEventReport.mockResolvedValue(undefined);
   });
 
