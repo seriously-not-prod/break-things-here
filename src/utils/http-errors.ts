@@ -25,6 +25,7 @@ export const AUTH_ERRORS = {
   INVALID_ROLE: { error: 'Invalid role. Must be one of: Admin, Organizer, Attendee' },
   USER_NOT_FOUND: { error: 'User not found' },
   SELF_ROLE_CHANGE: { error: 'Cannot change your own role' },
+  TOKEN_EXPIRED: { error: 'Token expired — role changed, please re-authenticate' },
 } as const;
 
 /**

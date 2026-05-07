@@ -1,14 +1,31 @@
 import { UserProfile, UpdateProfileRequest } from '../types/user';
 import { API_BASE_URL } from './config';
 
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function isStateChangingMethod(method?: string): boolean {
+  return !method || !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
+}
+
 async function request<T>(path: string, options: RequestInit): Promise<T> {
+  const headers = new Headers(options.headers);
+  const csrfToken = getCsrfToken();
+
+  if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  if (isStateChangingMethod(options.method) && csrfToken) {
+    headers.set('X-XSRF-TOKEN', csrfToken);
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   });
 
   if (response.status === 401) {
@@ -55,21 +72,10 @@ export async function uploadProfilePhoto(file: File): Promise<{ photoUrl: string
   const formData = new FormData();
   formData.append('photo', file);
 
-  const response = await fetch(`${API_BASE_URL}/users/me/photo`, {
+  return request<{ photoUrl: string }>('/profile/photo', {
     method: 'POST',
-    credentials: 'include',
     body: formData,
   });
-
-  if (response.status === 401) throw new Error('Unauthorized');
-  if (response.status === 403) throw new Error('Forbidden');
-  if (response.status === 400) {
-    const body = await response.json().catch(() => ({ message: 'Invalid file' }));
-    throw new Error(body.message ?? 'Invalid file');
-  }
-  if (!response.ok) throw new Error('Photo upload failed');
-
-  return response.json() as Promise<{ photoUrl: string }>;
 }
 
 /**
