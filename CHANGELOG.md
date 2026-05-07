@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Keyboard shortcut handler and discoverable help overlay: global `useKeyboardShortcuts` hook registers single-key (`?`, `Escape`, `F1`) and chord (`g→d`, `g→e`, `g→c`, `g→m`, `g→p`, `g→n`) shortcuts; all shortcuts are silenced when focus is inside `<input>`, `<textarea>`, `<select>`, or `[contenteditable]`; pressing `?` or `F1` opens a categorised `KeyboardShortcutsOverlay` dialog that lists every registered shortcut with accessible key chips; 25 new tests cover all three acceptance criteria (#456)
 - Planned-vs-actual timeline workflow: `timeline_activities` now stores `planned_start_time`, `planned_end_time`, `actual_start_time`, `actual_end_time`, and `status` (`planned`/`in-progress`/`completed`/`skipped`) fields; `GET /api/events/:eventId/timeline/comparison` returns per-activity variance in minutes and a status summary; timeline UI adds a "Planned vs Actual" comparison tab and status chips on activity cards; form updated with planned/actual time fields and a status selector; all existing CRUD behaviour preserved (#460)
 - Fixed pre-existing test timeout instability in `seating.test.tsx` and `events-page-compatibility.test.tsx` by adding explicit 15 s timeout per test
 
