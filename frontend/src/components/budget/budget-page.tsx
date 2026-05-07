@@ -25,6 +25,7 @@ import AddRounded from '@mui/icons-material/AddRounded';
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import DeleteRounded from '@mui/icons-material/DeleteRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
+import PictureAsPdfRounded from '@mui/icons-material/PictureAsPdfRounded';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../../lib/api-client';
 import {
@@ -47,6 +48,7 @@ import { BudgetSummaryCards } from './budget-summary-cards';
 import { BudgetChart } from './budget-chart';
 import { AddCategoryDialog } from './add-category-dialog';
 import { AddExpenseDialog } from './add-expense-dialog';
+import { generateExpenseSummaryPdf } from '../../utils/expense-pdf-export';
 
 const fmt = (n: number): string =>
   new Intl.NumberFormat('en-US', {
@@ -75,6 +77,7 @@ export default function BudgetPage(): JSX.Element {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // Dialog state
   const [catDialogOpen, setCatDialogOpen] = useState(false);
@@ -181,6 +184,18 @@ export default function BudgetPage(): JSX.Element {
     setExpDialogOpen(true);
   }
 
+  async function handleExportPdf(): Promise<void> {
+    setExporting(true);
+    setError(null);
+    try {
+      generateExpenseSummaryPdf({ categories, expenses, summary });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export PDF.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function openEditExpense(exp: Expense): void {
     setEditingExpense(exp);
     setExpDialogOpen(true);
@@ -218,6 +233,15 @@ export default function BudgetPage(): JSX.Element {
           </Typography>
         </Stack>
         <Stack direction="row" gap={1}>
+          <Button
+            variant="outlined"
+            startIcon={<PictureAsPdfRounded />}
+            onClick={() => void handleExportPdf()}
+            disabled={exporting || (categories.length === 0 && expenses.length === 0)}
+            aria-label="Export expense summary as PDF"
+          >
+            {exporting ? 'Exporting…' : 'Export PDF'}
+          </Button>
           <Button
             variant="outlined"
             startIcon={<AddRounded />}

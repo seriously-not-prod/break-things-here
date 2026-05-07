@@ -156,6 +156,7 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS event_type TEXT DEFAULT 'Other';
 ALTER TABLE events ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMP;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS end_date TEXT;
 
 CREATE TABLE IF NOT EXISTS activity_feed (
   id SERIAL PRIMARY KEY,
@@ -534,3 +535,73 @@ CREATE INDEX IF NOT EXISTS idx_store_suggestions_event_id ON store_suggestions(e
 -- Case-insensitive unique store name per event
 CREATE UNIQUE INDEX IF NOT EXISTS idx_store_suggestions_unique
   ON store_suggestions(event_id, lower(name));
+
+-- Event Documents (#476)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS event_documents (
+  id            SERIAL PRIMARY KEY,
+  event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  original_name TEXT NOT NULL,
+  file_name     TEXT NOT NULL,
+  mime_type     TEXT NOT NULL,
+  file_size     INTEGER NOT NULL,
+  caption       TEXT,
+  created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_documents_event_id ON event_documents(event_id);
+
+-- ============================================================
+-- Event Messages / Team Conversation
+-- ============================================================
+CREATE TABLE IF NOT EXISTS event_messages (
+  id         SERIAL PRIMARY KEY,
+  event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  sender_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body       TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  deleted_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_messages_event_id   ON event_messages(event_id);
+CREATE INDEX IF NOT EXISTS idx_event_messages_sender_id  ON event_messages(sender_id);
+
+-- ============================================================
+-- Event Categories (#217)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS categories (
+  id          SERIAL PRIMARY KEY,
+  name        TEXT UNIQUE NOT NULL,
+  description TEXT,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO categories (name) VALUES
+  ('Music'), ('Food & Beverage'), ('Entertainment'), ('Sports'),
+  ('Art & Culture'), ('Business'), ('Technology'), ('Education'),
+  ('Charity'), ('Other')
+ON CONFLICT (name) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS event_categories (
+  event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  PRIMARY KEY (event_id, category_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_categories_event_id ON event_categories(event_id);
+
+-- ============================================================
+-- Entra ID identity columns (#468, #470)
+-- ============================================================
+ALTER TABLE users ADD COLUMN IF NOT EXISTS entra_oid    TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT DEFAULT 'local';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_entra_oid ON users(entra_oid) WHERE entra_oid IS NOT NULL;
+
+-- ============================================================
+-- RLS pilot: row-level security on events and event_members (#472)
+-- Applied only when RLS_PILOT_ENABLED=true at bootstrap time.
+-- The application runtime migration also handles this.
+-- ============================================================

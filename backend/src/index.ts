@@ -1,4 +1,5 @@
 import './config/load-env.js';
+import { validateEntraConfigAtStartup } from './config/entra.js';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -141,6 +142,7 @@ export function createApp(): express.Express {
 }
 
 async function start(): Promise<void> {
+  validateEntraConfigAtStartup();
   await initializeDatabase();
   const app = createApp();
   app.listen(port, '0.0.0.0', () => {
