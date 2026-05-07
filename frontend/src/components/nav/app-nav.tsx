@@ -1,9 +1,15 @@
 import {
+  AccountBalanceWalletRounded,
+  AddRounded,
   AdminPanelSettingsRounded,
   CalendarMonthRounded,
+  CalendarTodayRounded,
   DashboardRounded,
+  GroupsRounded,
   LogoutRounded,
+  MailRounded,
   PersonRounded,
+  TaskAltRounded,
 } from '@mui/icons-material';
 import {
   Box,
@@ -13,13 +19,16 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  ListSubheader,
+  Stack,
   Toolbar,
   Typography,
 } from '@mui/material';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/auth-context';
+import { NotificationBell } from '../notifications/notification-bell';
 
-const DRAWER_WIDTH = 220;
+const DRAWER_WIDTH = 260;
 
 interface NavItem {
   label: string;
@@ -30,9 +39,22 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/dashboard', icon: <DashboardRounded /> },
-  { label: 'Events', to: '/events', icon: <CalendarMonthRounded /> },
   { label: 'Profile', to: '/profile', icon: <PersonRounded /> },
+  { label: 'Messages', to: '/messages', icon: <MailRounded /> },
   { label: 'Admin', to: '/admin', icon: <AdminPanelSettingsRounded />, adminOnly: true },
+];
+
+const EVENT_HUB_ITEMS: NavItem[] = [
+  { label: 'All Events', to: '/events', icon: <CalendarMonthRounded /> },
+  { label: 'Create Event', to: '/events/new', icon: <AddRounded /> },
+  { label: 'Calendar View', to: '/events/calendar', icon: <CalendarTodayRounded /> },
+  { label: 'My Events', to: '/events/my', icon: <PersonRounded /> },
+];
+
+const MODULE_ITEMS: NavItem[] = [
+  { label: 'Guests', to: '/events?module=guests', icon: <GroupsRounded /> },
+  { label: 'Tasks', to: '/events?module=tasks', icon: <TaskAltRounded /> },
+  { label: 'Budget', to: '/events?module=budget', icon: <AccountBalanceWalletRounded /> },
 ];
 
 export function AppNav(): JSX.Element {
@@ -52,42 +74,135 @@ export function AppNav(): JSX.Element {
   return (
     <Drawer
       variant="permanent"
-      sx={{
+      sx={(theme) => ({
         width: DRAWER_WIDTH,
         flexShrink: 0,
-        '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box' },
-      }}
+        '& .MuiDrawer-paper': {
+          width: DRAWER_WIDTH,
+          boxSizing: 'border-box',
+          backgroundColor: '#1A0E3C',
+          color: theme.palette.common.white,
+        },
+      })}
     >
-      <Toolbar>
-        <Typography variant="h6" noWrap fontWeight={700} color="primary">
-          🎪 FestPlanner
+      {/* Top-left: app name — Top-right: notification bell */}
+      <Toolbar sx={{ justifyContent: 'space-between', gap: 1 }}>
+        <Typography
+          variant="subtitle1"
+          fontWeight={700}
+          sx={{ color: 'common.white', lineHeight: 1.2, flexShrink: 1, minWidth: 0 }}
+        >
+            Eventora
         </Typography>
+        <Stack direction="row" alignItems="center" sx={{ flexShrink: 0 }}>
+          <NotificationBell />
+        </Stack>
       </Toolbar>
-      <Divider />
+      <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+
+      {/* Middle: scrollable nav items */}
       <Box sx={{ overflow: 'auto', flexGrow: 1 }}>
+        <List
+          dense
+          subheader={
+            <ListSubheader sx={{ color: 'rgba(255,255,255,0.9)', bgcolor: 'transparent' }}>
+              Event Hub
+            </ListSubheader>
+          }
+        >
+          {EVENT_HUB_ITEMS.map(({ label, to, icon }) => (
+            <ListItemButton
+              key={to}
+              component={NavLink}
+              to={to}
+              sx={(theme) => ({
+                color: theme.palette.common.white,
+                '&.active': {
+                  backgroundColor: theme.palette.action.selected,
+                  fontWeight: 700,
+                  color: theme.palette.primary.main,
+                },
+                '&.active .MuiListItemIcon-root, & .MuiListItemIcon-root': { color: 'inherit' },
+              })}
+            >
+              <ListItemIcon sx={{ color: 'inherit' }}>{icon}</ListItemIcon>
+              <ListItemText primary={label} />
+            </ListItemButton>
+          ))}
+        </List>
+
+        <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />
+
+        <List
+          dense
+          subheader={
+            <ListSubheader sx={{ color: 'rgba(255,255,255,0.9)', bgcolor: 'transparent' }}>
+              Modules
+            </ListSubheader>
+          }
+        >
+          {MODULE_ITEMS.map(({ label, to, icon }) => (
+            <ListItemButton
+              key={to}
+              component={NavLink}
+              to={to}
+              sx={(theme) => ({
+                color: theme.palette.common.white,
+                '&.active': {
+                  backgroundColor: theme.palette.action.selected,
+                  fontWeight: 700,
+                  color: theme.palette.primary.main,
+                },
+                '&.active .MuiListItemIcon-root, & .MuiListItemIcon-root': { color: 'inherit' },
+              })}
+            >
+              <ListItemIcon sx={{ color: 'inherit' }}>{icon}</ListItemIcon>
+              <ListItemText primary={label} />
+            </ListItemButton>
+          ))}
+        </List>
+
+        <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />
+
         <List dense>
           {items.map(({ label, to, icon }) => (
             <ListItemButton
               key={to}
               component={NavLink}
               to={to}
-              sx={{
-                '&.active': { backgroundColor: 'action.selected', fontWeight: 700 },
-              }}
+              sx={(theme) => ({
+                color: theme.palette.common.white,
+                '&.active': {
+                  backgroundColor: theme.palette.action.selected,
+                  fontWeight: 700,
+                  color: theme.palette.primary.main,
+                },
+                '&.active .MuiListItemIcon-root, & .MuiListItemIcon-root': { color: 'inherit' },
+              })}
             >
-              <ListItemIcon>{icon}</ListItemIcon>
+              <ListItemIcon sx={{ color: 'inherit' }}>{icon}</ListItemIcon>
               <ListItemText primary={label} />
             </ListItemButton>
           ))}
         </List>
       </Box>
-      <Divider />
-      <List dense>
-        <ListItemButton onClick={handleLogout}>
-          <ListItemIcon><LogoutRounded /></ListItemIcon>
-          <ListItemText primary="Log out" />
-        </ListItemButton>
-      </List>
+
+      {/* Bottom: logout */}
+      <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+      {user && (
+        <List dense>
+          <ListItemButton
+            onClick={handleLogout}
+            sx={(theme) => ({
+              color: theme.palette.common.white,
+              '& .MuiListItemIcon-root': { color: theme.palette.common.white },
+            })}
+          >
+            <ListItemIcon><LogoutRounded /></ListItemIcon>
+            <ListItemText primary="Log out" />
+          </ListItemButton>
+        </List>
+      )}
     </Drawer>
   );
 }

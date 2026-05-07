@@ -74,7 +74,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<Permission>> = {
 
 /**
  * Check whether a given role has a specific permission.
+ *
+ * Returns false if the role is not a valid UserRole.
  */
 export function hasPermission(role: UserRole, permission: Permission): boolean {
-  return ROLE_PERMISSIONS[role].has(permission);
+  const perms = ROLE_PERMISSIONS[role];
+  if (!perms) return false;
+  return perms.has(permission);
 }

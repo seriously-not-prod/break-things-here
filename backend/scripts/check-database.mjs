@@ -1,18 +1,25 @@
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
+import pg from 'pg';
+
+const { Pool } = pg;
 
 (async () => {
-  try {
-    const dbPath = './database/dev.sqlite';
-    const db = await open({ filename: dbPath, driver: sqlite3.Database });
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    console.error('DATABASE_URL environment variable is required.');
+    process.exitCode = 1;
+    return;
+  }
 
+  const pool = new Pool({ connectionString });
+
+  try {
     console.log('\n📊 DATABASE CONTENTS\n');
     console.log('='.repeat(80));
 
     // Query Users
     console.log('\n👥 USERS:');
     console.log('-'.repeat(80));
-    const users = await db.all('SELECT id, email, display_name, role_id, account_locked FROM users');
+    const { rows: users } = await pool.query('SELECT id, email, display_name, role_id, account_locked FROM users');
     if (users.length === 0) {
       console.log('  (no users found)');
     } else {
@@ -24,7 +31,7 @@ import { open } from 'sqlite';
     // Query Events
     console.log('\n🎪 EVENTS:');
     console.log('-'.repeat(80));
-    const events = await db.all('SELECT * FROM events');
+    const { rows: events } = await pool.query('SELECT * FROM events');
     if (events.length === 0) {
       console.log('  (no events found)');
     } else {
@@ -43,15 +50,15 @@ import { open } from 'sqlite';
     // Query Tasks
     console.log('✅ TASKS:');
     console.log('-'.repeat(80));
-    const tasks = await db.all('SELECT * FROM tasks');
+    const { rows: tasks } = await pool.query('SELECT * FROM tasks');
     if (tasks.length === 0) {
       console.log('  (no tasks found)');
     } else {
       tasks.forEach(row => {
         console.log(`  ID: ${row.id} | Event ID: ${row.event_id}`);
         console.log(`    Title: ${row.title}`);
-        console.log(`    Description: ${row.description || '(none)'}`);
-        console.log(`    Assignee: ${row.assignee || '(unassigned)'}`);
+        console.log(`    Notes: ${row.notes || '(none)'}`);
+        console.log(`    Assignee: ${row.assignee_name || '(unassigned)'}`);
         console.log(`    Status: ${row.status}`);
         console.log(`    Due Date: ${row.due_date || '(no due date)'}`);
         console.log('');
@@ -61,27 +68,27 @@ import { open } from 'sqlite';
     // Query RSVPs
     console.log('💌 RSVPS:');
     console.log('-'.repeat(80));
-    const rsvps = await db.all('SELECT * FROM rsvps');
+    const { rows: rsvps } = await pool.query('SELECT * FROM rsvps');
     if (rsvps.length === 0) {
       console.log('  (no RSVPs found)');
     } else {
       rsvps.forEach(row => {
         console.log(`  ID: ${row.id} | Event ID: ${row.event_id}`);
-        console.log(`    Name: ${row.guest_name}`);
+        console.log(`    Name: ${row.name}`);
         console.log(`    Email: ${row.email}`);
         console.log(`    Status: ${row.status}`);
-        console.log(`    Party Size: ${row.party_size || 1}`);
-        console.log(`    RSVP Date: ${row.rsvp_date}`);
+        console.log(`    Guests: ${row.guests || 1}`);
+        console.log(`    Created At: ${row.created_at}`);
         console.log('');
       });
     }
 
     console.log('='.repeat(80));
     console.log('\n✨ Database check complete!\n');
-    
-    await db.close();
   } catch (err) {
     console.error('Database check failed:', err);
-    process.exit(1);
+    process.exitCode = 1;
+  } finally {
+    await pool.end();
   }
 })();
