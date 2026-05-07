@@ -124,6 +124,11 @@ afterAll(async (): Promise<void> => {
     await db.run('DELETE FROM users WHERE id = ?', [ownerId]);
   }
 
+  // Drop the legacy column we added in beforeAll. Without this, subsequent
+  // test files that re-run runMigrations hit a column-collision when the
+  // migration tries to rename event_date → date (which already exists).
+  await db.exec('ALTER TABLE events DROP COLUMN IF EXISTS event_date');
+
   await closeDatabase();
 
   if (originalDatabaseUrl) {
