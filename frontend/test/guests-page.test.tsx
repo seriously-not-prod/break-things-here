@@ -4,12 +4,14 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GuestsPage from '../src/components/guests/guests-page';
 import * as guestService from '../src/services/guest-service';
+import * as nameTagPdf from '../src/utils/name-tag-pdf-export';
 import type { RsvpGuest } from '../src/services/guest-service';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 vi.mock('../src/services/guest-service', () => ({
   listRsvpGuests: vi.fn(),
+  listTables: vi.fn(),
   createRsvp: vi.fn(),
   updateRsvp: vi.fn(),
   deleteRsvp: vi.fn(),
@@ -19,6 +21,10 @@ vi.mock('../src/services/guest-service', () => ({
   sendInvitation: vi.fn(),
   sendReminder: vi.fn(),
   listCommunicationLog: vi.fn(),
+}));
+
+vi.mock('../src/utils/name-tag-pdf-export', () => ({
+  generateNameTagPdf: vi.fn(),
 }));
 
 const mockGuests: RsvpGuest[] = [
@@ -66,6 +72,19 @@ const mockGuests: RsvpGuest[] = [
   },
 ];
 
+const mockTables = [
+  {
+    id: 10,
+    event_id: 1,
+    name: 'VIP Table',
+    capacity: 4,
+    layout_x: 40,
+    layout_y: 40,
+    created_at: '2026-01-01T00:00:00Z',
+    guests: [{ rsvp_id: 2, name: 'Bob Jones', email: 'bob@example.com', status: 'Pending' }],
+  },
+];
+
 function renderGuests(): ReturnType<typeof render> {
   return render(
     <MemoryRouter initialEntries={['/events/1/guests']}>
@@ -81,9 +100,11 @@ function renderGuests(): ReturnType<typeof render> {
 describe('GuestsPage', () => {
   beforeEach(() => {
     vi.mocked(guestService.listRsvpGuests).mockResolvedValue(mockGuests);
+    vi.mocked(guestService.listTables).mockResolvedValue(mockTables);
     vi.mocked(guestService.listCommunicationLog).mockResolvedValue([]);
     vi.mocked(guestService.createRsvp).mockResolvedValue(mockGuests[0]);
     vi.mocked(guestService.deleteRsvp).mockResolvedValue(undefined);
+    vi.mocked(nameTagPdf.generateNameTagPdf).mockReturnValue({} as never);
   });
 
   it('renders the guest list heading', async () => {
@@ -164,12 +185,30 @@ describe('GuestsPage', () => {
     expect(screen.getByRole('button', { name: /delete selected/i })).toBeInTheDocument();
   });
 
-  it('shows Import CSV and Export CSV buttons', async () => {
+  it('shows Import CSV and Export buttons', async () => {
     renderGuests();
     await screen.findByText('Alice Smith');
 
     expect(screen.getByRole('button', { name: /import csv/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /export guest name tags as pdf/i })).toBeInTheDocument();
+  });
+
+  it('exports name tags with seating metadata from the toolbar', async () => {
+    renderGuests();
+    await screen.findByText('Alice Smith');
+
+    await userEvent.click(screen.getByRole('button', { name: /export guest name tags as pdf/i }));
+
+    expect(nameTagPdf.generateNameTagPdf).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: 'event-1',
+        guests: expect.arrayContaining([
+          expect.objectContaining({ name: 'Alice Smith', tableName: null }),
+          expect.objectContaining({ name: 'Bob Jones', tableName: 'VIP Table' }),
+        ]),
+      }),
+    );
   });
 
   it('opens Import CSV dialog on button click', async () => {
