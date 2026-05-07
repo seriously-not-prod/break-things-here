@@ -83,7 +83,7 @@ export function AppNav(): JSX.Element {
           fontWeight={700}
           sx={{ color: 'common.white', lineHeight: 1.2, flexShrink: 1, minWidth: 0 }}
         >
-          🗓 eQuip Fest Planner
+          Festival Planner
         </Typography>
         <Stack direction="row" alignItems="center" sx={{ flexShrink: 0 }}>
           <NotificationBell />
