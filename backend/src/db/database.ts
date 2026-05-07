@@ -326,12 +326,23 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS capacity INTEGER`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
-  // Rename legacy event_date column to date if the old schema is still present
+  // Rename legacy event_date column to date if the old schema is still present.
+  // Guard: skip rename if date already exists (handles DB state where both columns coexist).
   {
-    const col = await db.get<{ exists: boolean }>(
-      `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='events' AND column_name='event_date') AS exists`,
-    );
-    if (col?.exists) await db.exec(`ALTER TABLE events RENAME COLUMN event_date TO date`);
+    const [legacyCol, dateCol] = await Promise.all([
+      db.get<{ exists: boolean }>(
+        `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='events' AND column_name='event_date') AS exists`,
+      ),
+      db.get<{ exists: boolean }>(
+        `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='events' AND column_name='date') AS exists`,
+      ),
+    ]);
+    if (legacyCol?.exists && !dateCol?.exists) {
+      await db.exec(`ALTER TABLE events RENAME COLUMN event_date TO date`);
+    } else if (legacyCol?.exists && dateCol?.exists) {
+      // Both columns exist — drop the legacy one to resolve the drift
+      await db.exec(`ALTER TABLE events DROP COLUMN IF EXISTS event_date`);
+    }
   }
 
   await db.exec(`
@@ -673,4 +684,11 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
   // ── Gallery caption support (#409, #430) ─────────────────────────────────
   await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS caption TEXT`);
+
+  // ── Entra ID identity linking (#468, #470) ────────────────────────────────
+  // entra_oid: Azure object ID — unique per Entra tenant identity
+  // auth_provider: 'local' | 'entra' — tracks how the account was created
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS entra_oid TEXT`);
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT DEFAULT 'local'`);
+  await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_entra_oid ON users(entra_oid) WHERE entra_oid IS NOT NULL`);
 }
