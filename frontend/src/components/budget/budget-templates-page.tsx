@@ -27,7 +27,6 @@ import DeleteRounded from '@mui/icons-material/DeleteRounded';
 import ApplyIcon from '@mui/icons-material/PlaylistAddCheckRounded';
 import {
   BudgetTemplate,
-  BudgetTemplateItem,
   CreateTemplatePayload,
   applyBudgetTemplate,
   createBudgetTemplate,

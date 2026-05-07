@@ -52,7 +52,7 @@ export default function GanttView({ eventId }: Props): JSX.Element {
     [tasks],
   );
 
-  const { minDate, maxDate, totalDays } = useMemo(() => {
+  const { minDate, totalDays } = useMemo(() => {
     if (scheduledTasks.length === 0) return { minDate: new Date(), maxDate: new Date(), totalDays: 1 };
     const dates = scheduledTasks.map((t) => new Date(t.due_date!).getTime());
     const min = new Date(Math.min(...dates));
@@ -61,7 +61,7 @@ export default function GanttView({ eventId }: Props): JSX.Element {
     min.setDate(min.getDate() - 1);
     max.setDate(max.getDate() + 2);
     const total = Math.max(1, Math.round((max.getTime() - min.getTime()) / 86_400_000));
-    return { minDate: min, maxDate: max, totalDays: total };
+    return { minDate: min, totalDays: total };
   }, [scheduledTasks]);
 
   const CHART_WIDTH = Math.max(600, totalDays * 24);
@@ -101,7 +101,7 @@ export default function GanttView({ eventId }: Props): JSX.Element {
         <Box sx={{ display: 'flex', minWidth: LABEL_WIDTH + CHART_WIDTH + CHART_PADDING * 2 }}>
           {/* Task label column */}
           <Box sx={{ width: LABEL_WIDTH, flexShrink: 0, pt: '40px' }}>
-            {scheduledTasks.map((task, idx) => (
+            {scheduledTasks.map((task, _idx) => (
               <Box
                 key={task.id}
                 sx={{
