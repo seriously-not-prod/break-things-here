@@ -105,6 +105,10 @@ describe('hasPermission helper', () => {
   it('returns false for an invalid role-permission pair', () => {
     expect(hasPermission(UserRole.Attendee, Permission.ManageUsers)).toBe(false);
   });
+
+  it('returns false for an unknown/invalid role without crashing', () => {
+    expect(hasPermission('InvalidRole' as UserRole, Permission.ManageUsers)).toBe(false);
+  });
 });
 
 describe('User schema', () => {
