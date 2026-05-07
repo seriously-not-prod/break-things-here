@@ -515,9 +515,14 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
       capacity INTEGER DEFAULT 8,
+      layout_x INTEGER,
+      layout_y INTEGER,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await db.exec(`ALTER TABLE seating_tables ADD COLUMN IF NOT EXISTS layout_x INTEGER`);
+  await db.exec(`ALTER TABLE seating_tables ADD COLUMN IF NOT EXISTS layout_y INTEGER`);
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS seating_assignments (

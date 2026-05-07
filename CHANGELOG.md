@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Seating chart editor: tables now persist visual layout coordinates, can be dragged around the room canvas, and support visual guest reassignment by dragging guests between tables or back to the unassigned pool (#457)
 - Event templates: persistence (`event_templates` table) and `/api/event-templates` CRUD + apply endpoints; organizer-scoped permissions, admin-wide visibility (#410 #432)
 - Bulk event actions: `POST /api/events/bulk` with `archive`, `delete`, `export` actions, partial-success per-event reporting and CSV export (#410 #433)
 - Templates dialog and bulk-selection toolbar on the events list (`event-templates-dialog.tsx`, `events-page.tsx`) with archive / export CSV / delete-many buttons (#410 #434)
@@ -53,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `backend/__tests__/events-list-filter.test.ts` — 7 unit tests covering owner filter, tag filter, combined filters, no-auth guard, and error path
 
 ### Fixed
+- Frontend suite stability: analytics page tests now mock communication metrics consistently, and slower page smoke tests have explicit time budgets so the full Vitest run completes reliably under suite-wide load
 - Fixed frontend CSRF handling so login, password reset, uploads, and other mutating module actions reuse a valid token instead of refetching one per request, preventing proxy-path 403/429 failures in local Docker runs
 - Local backend startup now auto-loads `backend/.env` or repo `.env`, and falls back to the standard local PostgreSQL URL when no development `DATABASE_URL` is set
 - Added a dedicated `db-test` PostgreSQL Docker service on port `5433` so backend integration tests match the documented local test setup

@@ -7,6 +7,8 @@ interface SeatingTable {
   event_id: number;
   name: string;
   capacity: number;
+  layout_x: number | null;
+  layout_y: number | null;
   created_at: string;
 }
 
@@ -86,9 +88,18 @@ export async function createTable(req: Request, res: Response): Promise<Response
   );
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
+  const layoutSeed = await db.get<{ count: number }>(
+    'SELECT COUNT(*) AS count FROM seating_tables WHERE event_id = ?',
+    [eventId],
+  );
+  const existingCount = layoutSeed?.count ?? 0;
+  const layoutX = 32 + (existingCount % 3) * 300;
+  const layoutY = 32 + Math.floor(existingCount / 3) * 210;
+
   const result = await db.run(
-    `INSERT INTO seating_tables (event_id, name, capacity) VALUES (?, ?, ?) RETURNING id`,
-    [eventId, name.trim(), cap],
+    `INSERT INTO seating_tables (event_id, name, capacity, layout_x, layout_y)
+     VALUES (?, ?, ?, ?, ?) RETURNING id`,
+    [eventId, name.trim(), cap, layoutX, layoutY],
   );
 
   const table = await db.get<SeatingTable>(
@@ -97,6 +108,44 @@ export async function createTable(req: Request, res: Response): Promise<Response
   );
 
   return res.status(201).json({ table });
+}
+
+/** PATCH /api/events/:eventId/seating/tables/:tableId/layout */
+export async function updateTableLayout(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const db = getDatabase();
+  const { tableId, eventId } = req.params;
+  const { layout_x, layout_y } = req.body as {
+    layout_x?: number | string;
+    layout_y?: number | string;
+  };
+
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
+
+  const nextX = Number(layout_x);
+  const nextY = Number(layout_y);
+  if (!Number.isFinite(nextX) || !Number.isFinite(nextY) || nextX < 0 || nextY < 0) {
+    return res.status(400).json({ error: 'Layout coordinates must be non-negative numbers.' });
+  }
+
+  const table = await db.get<Pick<SeatingTable, 'id'>>(
+    'SELECT id FROM seating_tables WHERE id = ? AND event_id = ?',
+    [tableId, eventId],
+  );
+  if (!table) return res.status(404).json({ error: 'Table not found.' });
+
+  await db.run(
+    'UPDATE seating_tables SET layout_x = ?, layout_y = ? WHERE id = ?',
+    [Math.round(nextX), Math.round(nextY), tableId],
+  );
+
+  const updatedTable = await db.get<SeatingTable>(
+    'SELECT * FROM seating_tables WHERE id = ?',
+    [tableId],
+  );
+
+  return res.json({ table: updatedTable });
 }
 
 /** DELETE /api/events/:eventId/seating/tables/:tableId */

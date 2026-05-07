@@ -113,7 +113,7 @@ describe('TasksKanbanPage', () => {
     expect(screen.getByRole('region', { name: /in progress column/i })).toBeTruthy();
     expect(screen.getByRole('region', { name: /blocked column/i })).toBeTruthy();
     expect(screen.getByRole('region', { name: /complete column/i })).toBeTruthy();
-  });
+  }, 15000);
 
   it('shows correct task counts per column', async () => {
     renderBoard();

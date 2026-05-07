@@ -118,6 +118,8 @@ export interface SeatingTable {
   event_id: number;
   name: string;
   capacity: number;
+  layout_x: number | null;
+  layout_y: number | null;
   created_at: string;
   guests: AssignedRsvp[];
 }
@@ -249,6 +251,19 @@ export async function createTable(
 ): Promise<SeatingTable> {
   const data = await api.post<{ table: SeatingTable }>(
     `/api/events/${eventId}/seating/tables`,
+    payload,
+  );
+  return data.table;
+}
+
+/** PATCH /api/events/:eventId/seating/tables/:tableId/layout */
+export async function updateTableLayout(
+  eventId: number | string,
+  tableId: number | string,
+  payload: { layout_x: number; layout_y: number },
+): Promise<SeatingTable> {
+  const data = await api.patch<{ table: SeatingTable }>(
+    `/api/events/${eventId}/seating/tables/${tableId}/layout`,
     payload,
   );
   return data.table;

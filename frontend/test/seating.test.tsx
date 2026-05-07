@@ -23,6 +23,8 @@ const TABLES: SeatingTable[] = [
     event_id: 10,
     name: 'Table A',
     capacity: 4,
+    layout_x: 32,
+    layout_y: 32,
     created_at: '2026-01-01T00:00:00Z',
     guests: [{ rsvp_id: 2, name: 'Bob Jones', email: 'bob@test.com', status: 'Going' }],
   },
@@ -31,6 +33,8 @@ const TABLES: SeatingTable[] = [
     event_id: 10,
     name: 'Table B',
     capacity: 6,
+    layout_x: 332,
+    layout_y: 32,
     created_at: '2026-01-01T00:00:00Z',
     guests: [],
   },
@@ -77,6 +81,29 @@ function renderPage(eventId = '10') {
   );
 }
 
+function createDataTransfer(): DataTransfer {
+  const data = new Map<string, string>();
+  return {
+    dropEffect: 'move',
+    effectAllowed: 'all',
+    files: [] as unknown as FileList,
+    items: [] as unknown as DataTransferItemList,
+    types: [],
+    clearData: (format?: string) => {
+      if (format) {
+        data.delete(format);
+        return;
+      }
+      data.clear();
+    },
+    getData: (format: string) => data.get(format) ?? '',
+    setData: (format: string, value: string) => {
+      data.set(format, value);
+    },
+    setDragImage: () => undefined,
+  } as DataTransfer;
+}
+
 describe('SeatingPage (#386)', () => {
   beforeEach(() => {
     mockedService.listTables.mockResolvedValue(TABLES);
@@ -88,10 +115,17 @@ describe('SeatingPage (#386)', () => {
       event_id: 10,
       name: 'Table C',
       capacity: 8,
+      layout_x: 32,
+      layout_y: 242,
       created_at: '2026-05-04T00:00:00Z',
       guests: [],
     });
     mockedService.deleteTable.mockResolvedValue(undefined);
+    mockedService.updateTableLayout.mockImplementation(async (_eventId, tableId, payload) => ({
+      ...(TABLES.find((table) => table.id === Number(tableId)) ?? TABLES[0]),
+      layout_x: payload.layout_x,
+      layout_y: payload.layout_y,
+    }));
   });
 
   it('renders table cards', async () => {
@@ -111,7 +145,7 @@ describe('SeatingPage (#386)', () => {
       expect(screen.getByText('Bob Jones')).toBeInTheDocument();
     });
 
-    // The chip should be inside the Table A card
+    // The draggable guest card should be inside the Table A card
     const tableACard = screen.getByText('Table A').closest('.MuiCard-root') ?? document.body;
     expect(tableACard).toHaveTextContent('Bob Jones');
   });
@@ -123,8 +157,8 @@ describe('SeatingPage (#386)', () => {
       expect(screen.getByText('Alice Smith')).toBeInTheDocument();
     });
 
-    // Alice is not in any table.guests so she appears in the unassigned panel
-    expect(screen.getByText('Unassigned (1)')).toBeInTheDocument();
+    expect(screen.getByText('Unassigned Guests')).toBeInTheDocument();
+    expect(screen.getByText('1 guests waiting for a seat')).toBeInTheDocument();
   });
 
   it('unassign button calls unassignGuest service', async () => {
@@ -164,6 +198,63 @@ describe('SeatingPage (#386)', () => {
 
     await waitFor(() => {
       expect(mockedService.createTable).toHaveBeenCalledWith('10', { name: 'Table C', capacity: 8 });
+    });
+  });
+
+  it('supports visually reassigning a guest by dropping them on another table', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('draggable-guest-1')).toBeInTheDocument();
+    });
+
+    const dataTransfer = createDataTransfer();
+    fireEvent.dragStart(screen.getByTestId('draggable-guest-1'), { dataTransfer });
+    fireEvent.dragOver(screen.getByTestId('table-card-2'), { dataTransfer });
+    fireEvent.drop(screen.getByTestId('table-card-2'), { dataTransfer });
+
+    await waitFor(() => {
+      expect(mockedService.assignGuest).toHaveBeenCalledWith('10', 2, 1);
+    });
+  });
+
+  it('persists table layout after dragging a table handle', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /move table a/i })).toBeInTheDocument();
+    });
+
+    const canvas = screen.getByTestId('seating-layout-canvas');
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 960,
+      bottom: 560,
+      width: 960,
+      height: 560,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: /move table a/i }), {
+      pointerId: 1,
+      clientX: 72,
+      clientY: 72,
+    });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 360, clientY: 240 });
+    fireEvent.pointerUp(window, { pointerId: 1 });
+
+    await waitFor(() => {
+      expect(mockedService.updateTableLayout).toHaveBeenCalledWith(
+        '10',
+        1,
+        expect.objectContaining({
+          layout_x: expect.any(Number),
+          layout_y: expect.any(Number),
+        }),
+      );
     });
   });
 });
