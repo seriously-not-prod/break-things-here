@@ -43,6 +43,16 @@ const STATUS_LABEL: Record<CategoryForecast['status'], string> = {
   over: 'Over',
 };
 
+function getForecastErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : 'Failed to load forecast.';
+
+  if (/failed to parse url|fetch failed/i.test(message)) {
+    return 'Budget forecast is unavailable right now.';
+  }
+
+  return message;
+}
+
 function pctOfAllocated(value: number, allocated: number): number {
   if (allocated <= 0) return value > 0 ? 100 : 0;
   return Math.min(100, Math.max(0, (value / allocated) * 100));
@@ -61,7 +71,7 @@ export function BudgetForecastCard({ eventId }: Props): JSX.Element {
         setError(null);
       })
       .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : 'Failed to load forecast.'),
+        setError(getForecastErrorMessage(err)),
       )
       .finally(() => setLoading(false));
   }, [eventId]);
@@ -84,7 +94,17 @@ export function BudgetForecastCard({ eventId }: Props): JSX.Element {
     return (
       <Card variant="outlined">
         <CardContent>
-          {error && <Alert severity="error">{error}</Alert>}
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+            <Typography variant="subtitle1" fontWeight={700}>
+              Budget forecast
+            </Typography>
+            <IconButton size="small" onClick={load} aria-label="Refresh forecast">
+              <RefreshRounded fontSize="small" />
+            </IconButton>
+          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            {error ?? 'Budget forecast is unavailable right now.'}
+          </Typography>
         </CardContent>
       </Card>
     );

@@ -9,6 +9,20 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 let accessToken: string | null = null;
 
+function resolveApiUrl(path: string): string {
+  const target = `${API_BASE}${path}`;
+
+  if (/^https?:\/\//.test(target)) {
+    return target;
+  }
+
+  const baseOrigin = typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : 'http://localhost';
+
+  return new URL(target, baseOrigin).toString();
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -28,7 +42,7 @@ let _csrfToken: string | null = null;
 async function ensureCsrfToken(): Promise<void> {
   if (_csrfToken) return;
   try {
-    const res = await fetch(`${API_BASE}/api/csrf-token`, { credentials: 'include' });
+    const res = await fetch(resolveApiUrl('/api/csrf-token'), { credentials: 'include' });
     if (res.ok) {
       const data = await res.json() as { csrfToken: string };
       _csrfToken = data.csrfToken;
@@ -59,7 +73,7 @@ async function performFetch(path: string, init: RequestInit = {}): Promise<Respo
     headers.set('Content-Type', 'application/json');
   }
 
-  return fetch(`${API_BASE}${path}`, { ...init, headers, credentials: 'include' });
+  return fetch(resolveApiUrl(path), { ...init, headers, credentials: 'include' });
 }
 
 export function setToken(token: string | null): void {

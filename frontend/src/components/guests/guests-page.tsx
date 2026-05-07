@@ -33,6 +33,7 @@ import {
   FileDownloadRounded,
   FileUploadRounded,
   HowToRegRounded,
+  PictureAsPdfRounded,
   QrCode2Rounded,
   SearchRounded,
   SendRounded,
@@ -44,11 +45,13 @@ import {
   deleteRsvp,
   exportCsvUrl,
   listRsvpGuests,
+  listTables,
   type GuestGroup,
   type RsvpGuest,
   type RsvpGuestInput,
   type RsvpStatus,
 } from '../../services/guest-service';
+import { generateNameTagPdf } from '../../utils/name-tag-pdf-export';
 import { AddGuestDialog } from './add-guest-dialog';
 import { CsvImportDialog } from './csv-import-dialog';
 import { GuestCommunicationPanel } from './guest-communication-panel';
@@ -96,6 +99,7 @@ export default function GuestsPage(): JSX.Element {
 
   // Tab: 0 = Guest List, 1 = Communication, 2 = Duplicates, 3 = Waitlist, 4 = Questions
   const [tab, setTab] = useState(0);
+  const [exportingNameTags, setExportingNameTags] = useState(false);
 
   // QR/confirmation dialog
   const [qrTarget, setQrTarget] = useState<RsvpGuest | null>(null);
@@ -190,10 +194,48 @@ export default function GuestsPage(): JSX.Element {
     window.location.href = exportCsvUrl(eventId);
   }
 
-  function handleExportSelected(): void {
-    // For selected export we still use the full export endpoint;
-    // a future enhancement can pass IDs as query params.
-    handleExport();
+  async function handleExportNameTags(selectedGuestIds?: Set<number>): Promise<void> {
+    if (!eventId) return;
+
+    const exportGuests = selectedGuestIds
+      ? guests.filter((guest) => selectedGuestIds.has(guest.id))
+      : filtered;
+
+    if (exportGuests.length === 0) {
+      return;
+    }
+
+    setExportingNameTags(true);
+    try {
+      const tables = await listTables(eventId).catch(() => []);
+      const tableLookup = new Map<number, string>();
+
+      tables.forEach((table) => {
+        table.guests.forEach((guest) => {
+          tableLookup.set(guest.rsvp_id, table.name);
+        });
+      });
+
+      generateNameTagPdf({
+        guests: exportGuests.map((guest) => ({
+          id: guest.id,
+          name: guest.name,
+          email: guest.email,
+          groupLabel: guest.guest_group,
+          status: guest.status,
+          tableName: tableLookup.get(guest.id) ?? null,
+          companionName: guest.plus_one ? guest.plus_one_name : null,
+          partySize: guest.guests,
+          checkedIn: guest.checked_in,
+        })),
+        eventName: `event-${eventId}`,
+      });
+      setToast(`Exported ${exportGuests.length} name tag(s).`);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Failed to export name tags.');
+    } finally {
+      setExportingNameTags(false);
+    }
   }
 
   function handleImported(imported: number, skipped: number): void {
@@ -296,6 +338,17 @@ export default function GuestsPage(): JSX.Element {
             </Button>
 
             <Button
+              variant="outlined"
+              size="small"
+              startIcon={<PictureAsPdfRounded />}
+              onClick={() => void handleExportNameTags()}
+              disabled={exportingNameTags || filtered.length === 0}
+              aria-label="Export guest name tags as PDF"
+            >
+              {exportingNameTags ? 'Exporting…' : 'Name Tags PDF'}
+            </Button>
+
+            <Button
               variant="contained"
               size="small"
               startIcon={<AddRounded />}
@@ -329,8 +382,14 @@ export default function GuestsPage(): JSX.Element {
               >
                 Send Invitation
               </Button>
-              <Button size="small" startIcon={<FileDownloadRounded />} onClick={handleExportSelected}>
-                Export Selected
+              <Button
+                size="small"
+                startIcon={<PictureAsPdfRounded />}
+                onClick={() => void handleExportNameTags(new Set(selected))}
+                disabled={exportingNameTags}
+                aria-label="Export selected guest name tags as PDF"
+              >
+                Export Selected Tags
               </Button>
               <Button
                 size="small"

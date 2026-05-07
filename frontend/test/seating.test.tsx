@@ -12,9 +12,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { SeatingPage } from '../src/components/seating/seating-page';
 import * as guestService from '../src/services/guest-service';
+import * as nameTagPdf from '../src/utils/name-tag-pdf-export';
 import type { Rsvp, SeatingTable } from '../src/services/guest-service';
 
 vi.mock('../src/services/guest-service');
+vi.mock('../src/utils/name-tag-pdf-export', () => ({
+  generateNameTagPdf: vi.fn(),
+}));
 const mockedService = vi.mocked(guestService);
 
 const TABLES: SeatingTable[] = [
@@ -126,6 +130,7 @@ describe('SeatingPage (#386)', () => {
       layout_x: payload.layout_x,
       layout_y: payload.layout_y,
     }));
+    vi.mocked(nameTagPdf.generateNameTagPdf).mockReturnValue({} as never);
   });
 
   it('renders table cards', async () => {
@@ -253,6 +258,28 @@ describe('SeatingPage (#386)', () => {
         expect.objectContaining({
           layout_x: expect.any(Number),
           layout_y: expect.any(Number),
+        }),
+      );
+    });
+  });
+
+  it('exports seating name tags with table assignments', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /export seating name tags as pdf/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /export seating name tags as pdf/i }));
+
+    await waitFor(() => {
+      expect(nameTagPdf.generateNameTagPdf).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventName: 'event-10-seating',
+          guests: expect.arrayContaining([
+            expect.objectContaining({ name: 'Alice Smith', tableName: null }),
+            expect.objectContaining({ name: 'Bob Jones', tableName: 'Table A' }),
+          ]),
         }),
       );
     });

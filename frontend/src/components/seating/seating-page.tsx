@@ -37,11 +37,13 @@ import {
   DeleteRounded,
   DragIndicatorRounded,
   PersonRemoveRounded,
+  PictureAsPdfRounded,
 } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
 import * as guestService from '../../services/guest-service';
 import type { Rsvp, SeatingTable } from '../../services/guest-service';
 import { ApiError } from '../../lib/api-client';
+import { generateNameTagPdf } from '../../utils/name-tag-pdf-export';
 
 interface CreateTableForm {
   name: string;
@@ -131,6 +133,7 @@ export function SeatingPage(): JSX.Element {
   const [form, setForm] = useState<CreateTableForm>(FORM_DEFAULT);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [exportingNameTags, setExportingNameTags] = useState(false);
   const [draggingTableId, setDraggingTableId] = useState<number | null>(null);
   const [savingLayoutTableId, setSavingLayoutTableId] = useState<number | null>(null);
 
@@ -166,6 +169,38 @@ export function SeatingPage(): JSX.Element {
   );
 
   const unassigned = rsvps.filter((r) => !assignedIds.has(r.id));
+
+  const handleExportNameTags = async () => {
+    if (!eventId || rsvps.length === 0) return;
+
+    setExportingNameTags(true);
+    setError(null);
+    try {
+      const tableLookup = new Map<number, string>();
+      tables.forEach((table) => {
+        table.guests.forEach((guest) => {
+          tableLookup.set(guest.rsvp_id, table.name);
+        });
+      });
+
+      generateNameTagPdf({
+        guests: rsvps.map((guest) => ({
+          id: guest.id,
+          name: guest.name,
+          email: guest.email,
+          status: guest.status,
+          tableName: tableLookup.get(guest.id) ?? null,
+          partySize: guest.guests,
+          checkedIn: guest.checked_in,
+        })),
+        eventName: `event-${eventId}-seating`,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export name tags.');
+    } finally {
+      setExportingNameTags(false);
+    }
+  };
 
   // ── Create table ────────────────────────────────────────────────────────
 
@@ -467,14 +502,25 @@ export function SeatingPage(): JSX.Element {
             Drag tables to arrange the room, then drag guests between tables or back to the unassigned list.
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddRounded />}
-          onClick={handleOpenCreate}
-          aria-label="Create new table"
-        >
-          New Table
-        </Button>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+          <Button
+            variant="outlined"
+            startIcon={<PictureAsPdfRounded />}
+            onClick={() => void handleExportNameTags()}
+            disabled={loading || exportingNameTags || rsvps.length === 0}
+            aria-label="Export seating name tags as PDF"
+          >
+            {exportingNameTags ? 'Exporting…' : 'Name Tags PDF'}
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddRounded />}
+            onClick={handleOpenCreate}
+            aria-label="Create new table"
+          >
+            New Table
+          </Button>
+        </Stack>
       </Stack>
 
       {error && (
