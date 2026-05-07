@@ -408,8 +408,9 @@ router.put('/events/:eventId/shopping-lists/:listId/items/:itemId', authenticate
 router.delete('/events/:eventId/shopping-lists/:listId/items/:itemId', authenticateToken, shoppingController.deleteItem);
 
 // ============ TIMELINE ROUTES — BRD 3.8 ============
-// /conflicts must be before /:id to avoid being swallowed by a future parameterised GET
+// /conflicts and /comparison must be before /:id to avoid being swallowed by a future parameterised GET
 router.get('/events/:eventId/timeline/conflicts', authenticateToken, timelineController.detectConflicts);
+router.get('/events/:eventId/timeline/comparison', authenticateToken, timelineController.getTimelineComparison);
 router.get('/events/:eventId/timeline', authenticateToken, timelineController.listActivities);
 router.post('/events/:eventId/timeline', authenticateToken, timelineController.createActivity);
 router.put('/events/:eventId/timeline/:id', authenticateToken, timelineController.updateActivity);

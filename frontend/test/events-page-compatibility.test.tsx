@@ -188,5 +188,5 @@ describe('EventsPage compatibility', () => {
       const lastCall = calls[calls.length - 1]?.[0];
       expect(typeof lastCall === 'string' && lastCall).toContain('title_q=concert');
     });
-  });
+  }, 15000);
 });

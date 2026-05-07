@@ -6,6 +6,10 @@ interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
 }
 
+type ActivityStatus = 'planned' | 'in-progress' | 'completed' | 'skipped';
+
+const VALID_STATUSES: ActivityStatus[] = ['planned', 'in-progress', 'completed', 'skipped'];
+
 interface TimelineActivityRow {
   id: number;
   event_id: number;
@@ -13,6 +17,11 @@ interface TimelineActivityRow {
   description: string | null;
   start_time: string | null;
   end_time: string | null;
+  planned_start_time: string | null;
+  planned_end_time: string | null;
+  actual_start_time: string | null;
+  actual_end_time: string | null;
+  status: ActivityStatus;
   location: string | null;
   vendor_id: number | null;
   sort_order: number;
@@ -51,11 +60,29 @@ export async function createActivity(req: Request, res: Response): Promise<Respo
   const ok = await assertEventAccess(authReq, res, eventId);
   if (!ok) return res as Response;
 
-  const { title, description, start_time, end_time, location, vendor_id, sort_order } = req.body as {
+  const {
+    title,
+    description,
+    start_time,
+    end_time,
+    planned_start_time,
+    planned_end_time,
+    actual_start_time,
+    actual_end_time,
+    status,
+    location,
+    vendor_id,
+    sort_order,
+  } = req.body as {
     title?: string;
     description?: string;
     start_time?: string;
     end_time?: string;
+    planned_start_time?: string;
+    planned_end_time?: string;
+    actual_start_time?: string;
+    actual_end_time?: string;
+    status?: string;
     location?: string;
     vendor_id?: number | string;
     sort_order?: number | string;
@@ -63,13 +90,21 @@ export async function createActivity(req: Request, res: Response): Promise<Respo
 
   if (!title?.trim()) return res.status(400).json({ error: 'Activity title is required.' });
 
+  const parsedStatus: ActivityStatus =
+    status && (VALID_STATUSES as string[]).includes(status)
+      ? (status as ActivityStatus)
+      : 'planned';
   const parsedVendorId = vendor_id !== undefined && vendor_id !== '' ? Number(vendor_id) : null;
   const parsedSortOrder = sort_order !== undefined && sort_order !== '' ? Number(sort_order) : 0;
 
   const db = getDatabase();
   const result = await db.run(
-    `INSERT INTO timeline_activities (event_id, title, description, start_time, end_time, location, vendor_id, sort_order, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO timeline_activities (
+       event_id, title, description, start_time, end_time,
+       planned_start_time, planned_end_time,
+       actual_start_time, actual_end_time,
+       status, location, vendor_id, sort_order, created_by
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      RETURNING id`,
     [
       eventId,
@@ -77,6 +112,11 @@ export async function createActivity(req: Request, res: Response): Promise<Respo
       description?.trim() || null,
       start_time || null,
       end_time || null,
+      planned_start_time || null,
+      planned_end_time || null,
+      actual_start_time || null,
+      actual_end_time || null,
+      parsedStatus,
       location?.trim() || null,
       parsedVendorId,
       parsedSortOrder,
@@ -84,7 +124,10 @@ export async function createActivity(req: Request, res: Response): Promise<Respo
     ],
   );
 
-  const activity = await db.get<TimelineActivityRow>('SELECT * FROM timeline_activities WHERE id = ?', [result.lastID]);
+  const activity = await db.get<TimelineActivityRow>(
+    'SELECT * FROM timeline_activities WHERE id = ?',
+    [result.lastID],
+  );
   return res.status(201).json({ activity });
 }
 
@@ -96,32 +139,67 @@ export async function updateActivity(req: Request, res: Response): Promise<Respo
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const existing = await db.get<TimelineActivityRow>('SELECT * FROM timeline_activities WHERE id = ? AND event_id = ?', [id, eventId]);
+  const existing = await db.get<TimelineActivityRow>(
+    'SELECT * FROM timeline_activities WHERE id = ? AND event_id = ?',
+    [id, eventId],
+  );
   if (!existing) return res.status(404).json({ error: 'Timeline activity not found.' });
 
-  const { title, description, start_time, end_time, location, vendor_id, sort_order } = req.body as {
+  const {
+    title,
+    description,
+    start_time,
+    end_time,
+    planned_start_time,
+    planned_end_time,
+    actual_start_time,
+    actual_end_time,
+    status,
+    location,
+    vendor_id,
+    sort_order,
+  } = req.body as {
     title?: string;
     description?: string;
     start_time?: string;
     end_time?: string;
+    planned_start_time?: string;
+    planned_end_time?: string;
+    actual_start_time?: string;
+    actual_end_time?: string;
+    status?: string;
     location?: string;
     vendor_id?: number | string;
     sort_order?: number | string;
   };
 
-  const parsedVendorId = vendor_id !== undefined ? (vendor_id !== '' ? Number(vendor_id) : null) : existing.vendor_id;
-  const parsedSortOrder = sort_order !== undefined && sort_order !== '' ? Number(sort_order) : existing.sort_order;
+  const parsedStatus: ActivityStatus =
+    status && (VALID_STATUSES as string[]).includes(status)
+      ? (status as ActivityStatus)
+      : existing.status ?? 'planned';
+  const parsedVendorId =
+    vendor_id !== undefined ? (vendor_id !== '' ? Number(vendor_id) : null) : existing.vendor_id;
+  const parsedSortOrder =
+    sort_order !== undefined && sort_order !== '' ? Number(sort_order) : existing.sort_order;
 
   await db.run(
     `UPDATE timeline_activities SET
        title = ?, description = ?, start_time = ?, end_time = ?,
-       location = ?, vendor_id = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP
+       planned_start_time = ?, planned_end_time = ?,
+       actual_start_time = ?, actual_end_time = ?,
+       status = ?, location = ?, vendor_id = ?, sort_order = ?,
+       updated_at = CURRENT_TIMESTAMP
      WHERE id = ? AND event_id = ?`,
     [
       title?.trim() ?? existing.title,
       description !== undefined ? (description.trim() || null) : existing.description,
       start_time !== undefined ? (start_time || null) : existing.start_time,
       end_time !== undefined ? (end_time || null) : existing.end_time,
+      planned_start_time !== undefined ? (planned_start_time || null) : existing.planned_start_time,
+      planned_end_time !== undefined ? (planned_end_time || null) : existing.planned_end_time,
+      actual_start_time !== undefined ? (actual_start_time || null) : existing.actual_start_time,
+      actual_end_time !== undefined ? (actual_end_time || null) : existing.actual_end_time,
+      parsedStatus,
       location !== undefined ? (location.trim() || null) : existing.location,
       parsedVendorId,
       parsedSortOrder,
@@ -130,7 +208,10 @@ export async function updateActivity(req: Request, res: Response): Promise<Respo
     ],
   );
 
-  const activity = await db.get<TimelineActivityRow>('SELECT * FROM timeline_activities WHERE id = ?', [id]);
+  const activity = await db.get<TimelineActivityRow>(
+    'SELECT * FROM timeline_activities WHERE id = ?',
+    [id],
+  );
   return res.json({ activity });
 }
 
@@ -199,4 +280,73 @@ export async function detectConflicts(req: Request, res: Response): Promise<Resp
   );
 
   return res.json({ conflicts, count: conflicts.length });
+}
+
+/**
+ * GET /api/events/:eventId/timeline/comparison (#460)
+ * Returns all activities with their planned and actual times side-by-side,
+ * including a computed variance in minutes and a summary of status counts.
+ */
+export async function getTimelineComparison(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId } = req.params;
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
+
+  const db = getDatabase();
+  const activities = await db.all<TimelineActivityRow>(
+    `SELECT * FROM timeline_activities WHERE event_id = ? ORDER BY sort_order ASC, start_time ASC NULLS LAST`,
+    [eventId],
+  );
+
+  const comparisonItems = activities.map(a => {
+    const plannedStart = a.planned_start_time ? new Date(a.planned_start_time).getTime() : null;
+    const plannedEnd = a.planned_end_time ? new Date(a.planned_end_time).getTime() : null;
+    const actualStart = a.actual_start_time ? new Date(a.actual_start_time).getTime() : null;
+    const actualEnd = a.actual_end_time ? new Date(a.actual_end_time).getTime() : null;
+
+    const startVarianceMinutes =
+      plannedStart !== null && actualStart !== null
+        ? Math.round((actualStart - plannedStart) / 60000)
+        : null;
+    const endVarianceMinutes =
+      plannedEnd !== null && actualEnd !== null
+        ? Math.round((actualEnd - plannedEnd) / 60000)
+        : null;
+    const plannedDurationMinutes =
+      plannedStart !== null && plannedEnd !== null
+        ? Math.round((plannedEnd - plannedStart) / 60000)
+        : null;
+    const actualDurationMinutes =
+      actualStart !== null && actualEnd !== null
+        ? Math.round((actualEnd - actualStart) / 60000)
+        : null;
+
+    return {
+      id: a.id,
+      title: a.title,
+      status: a.status ?? 'planned',
+      location: a.location,
+      vendor_id: a.vendor_id,
+      sort_order: a.sort_order,
+      planned_start_time: a.planned_start_time,
+      planned_end_time: a.planned_end_time,
+      actual_start_time: a.actual_start_time,
+      actual_end_time: a.actual_end_time,
+      start_variance_minutes: startVarianceMinutes,
+      end_variance_minutes: endVarianceMinutes,
+      planned_duration_minutes: plannedDurationMinutes,
+      actual_duration_minutes: actualDurationMinutes,
+    };
+  });
+
+  const summary = {
+    total: activities.length,
+    planned: activities.filter(a => (a.status ?? 'planned') === 'planned').length,
+    in_progress: activities.filter(a => a.status === 'in-progress').length,
+    completed: activities.filter(a => a.status === 'completed').length,
+    skipped: activities.filter(a => a.status === 'skipped').length,
+  };
+
+  return res.json({ comparison: comparisonItems, summary });
 }
