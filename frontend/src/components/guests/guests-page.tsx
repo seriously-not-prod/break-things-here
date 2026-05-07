@@ -33,6 +33,7 @@ import {
   FileDownloadRounded,
   FileUploadRounded,
   HowToRegRounded,
+  QrCode2Rounded,
   SearchRounded,
   SendRounded,
 } from '@mui/icons-material';
@@ -51,6 +52,10 @@ import {
 import { AddGuestDialog } from './add-guest-dialog';
 import { CsvImportDialog } from './csv-import-dialog';
 import { GuestCommunicationPanel } from './guest-communication-panel';
+import { DuplicatesPanel } from './duplicates-panel';
+import { WaitlistPanel } from './waitlist-panel';
+import { RsvpQuestionsPanel } from './rsvp-questions-panel';
+import { RsvpQrDialog } from './rsvp-qr-dialog';
 
 // ─── Status chip colours ──────────────────────────────────────────────────────
 
@@ -89,8 +94,11 @@ export default function GuestsPage(): JSX.Element {
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
 
-  // Tab: 0 = Guest List, 1 = Communication
+  // Tab: 0 = Guest List, 1 = Communication, 2 = Duplicates, 3 = Waitlist, 4 = Questions
   const [tab, setTab] = useState(0);
+
+  // QR/confirmation dialog
+  const [qrTarget, setQrTarget] = useState<RsvpGuest | null>(null);
 
   // Toast
   const [toast, setToast] = useState<string | null>(null);
@@ -206,7 +214,18 @@ export default function GuestsPage(): JSX.Element {
       <Tabs value={tab} onChange={(_, v: number) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label="Guests" aria-label="Guests tab" />
         <Tab label="Communication" aria-label="Communication tab" />
+        <Tab label="Duplicates" aria-label="Duplicate guests tab" />
+        <Tab label="Waitlist" aria-label="Waitlist tab" />
+        <Tab label="Custom questions" aria-label="Custom RSVP questions tab" />
       </Tabs>
+
+      {tab === 2 && eventId && (
+        <DuplicatesPanel eventId={eventId} onChanged={load} />
+      )}
+      {tab === 3 && eventId && (
+        <WaitlistPanel eventId={eventId} onChanged={load} />
+      )}
+      {tab === 4 && eventId && <RsvpQuestionsPanel eventId={eventId} />}
 
       {tab === 0 && (
         <>
@@ -407,6 +426,15 @@ export default function GuestsPage(): JSX.Element {
                                 </IconButton>
                               </Tooltip>
                             )}
+                            <Tooltip title="QR / confirmation">
+                              <IconButton
+                                size="small"
+                                aria-label={`Show QR for ${guest.name}`}
+                                onClick={() => setQrTarget(guest)}
+                              >
+                                <QrCode2Rounded fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                             <Tooltip title="Delete">
                               <IconButton
                                 size="small"
@@ -453,6 +481,16 @@ export default function GuestsPage(): JSX.Element {
           eventId={eventId}
           onClose={() => setImportOpen(false)}
           onImported={handleImported}
+        />
+      )}
+
+      {qrTarget && eventId && (
+        <RsvpQrDialog
+          eventId={eventId}
+          rsvpId={qrTarget.id}
+          guestName={qrTarget.name}
+          open={!!qrTarget}
+          onClose={() => setQrTarget(null)}
         />
       )}
 
