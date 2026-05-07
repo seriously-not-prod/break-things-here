@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Gallery image delete: hover overlay with delete button on gallery grid; delete button in preview dialog (`GalleryPage`, `MediaPreviewDialog`) (#409)
+- Gallery caption edit: inline caption editor in `MediaPreviewDialog` with save/cancel and keyboard support (#409)
+- `deleteGalleryItem()` and `updateGalleryCaption()` in `gallery-service.ts`; `PATCH /api/events/:eventId/gallery/:id` backend endpoint (#409)
+- `caption` column added to `event_documents` table via additive `ALTER TABLE … ADD COLUMN IF NOT EXISTS` migration (#409)
+- Messages service rewritten to use live backend APIs: `GET /api/events` for threads, `GET /api/events/:id/messages` for thread content, `POST /api/events/:id/messages` for sending — all mock data removed (#409)
 - My Events view at `/events/my` now returns only events owned by the authenticated user via `?owner=me` API filter (#408 #425)
 - Tag-based filtering on the events listing page via chip selectors; tags and My Events filter can be combined (#408 #426)
 - Global search field on the events listing page filters by title, location, status, tags, event type, and organiser name (#408 #427)

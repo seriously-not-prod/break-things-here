@@ -9,8 +9,13 @@ import {
   sendMessage,
 } from '../../services/messages-service';
 import type { Conversation, Message } from '../../types/message';
+import { useAuth } from '../../contexts/auth-context';
 
 export function MessagesInbox(): JSX.Element {
+  const { user } = useAuth();
+  // Guard: component should not be reachable when unauthenticated, but be explicit
+  const currentUserId = user?.id ?? null;
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -32,35 +37,52 @@ export function MessagesInbox(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (!selectedId) {
+    if (!selectedId || currentUserId === null) {
       setMessages([]);
       return;
     }
+    // Clear previous thread's messages immediately so there is no flash of
+    // stale content while the new thread loads.
+    setMessages([]);
+    let cancelled = false;
     setLoadingMessages(true);
-    getMessages(selectedId)
-      .then(setMessages)
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : 'Failed to load messages'),
-      )
-      .finally(() => setLoadingMessages(false));
-  }, [selectedId]);
+    getMessages(selectedId, currentUserId)
+      .then((data) => {
+        if (!cancelled) setMessages(data);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled)
+          setError(err instanceof Error ? err.message : 'Failed to load messages');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMessages(false);
+      });
+    // Cleanup: discard the in-flight result if selectedId changes before it resolves
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, currentUserId]);
 
   async function handleSend(body: string): Promise<void> {
-    if (!selectedId) return;
-    const newMessage = await sendMessage(selectedId, body);
-    setMessages((prev) => [...prev, newMessage]);
-    setConversations((prev) =>
-      prev.map((conv) =>
-        conv.id === selectedId
-          ? {
-              ...conv,
-              lastMessage: `You: ${body}`,
-              lastMessageAt: newMessage.sentAt,
-              isRead: true,
-            }
-          : conv,
-      ),
-    );
+    if (!selectedId || currentUserId === null) return;
+    try {
+      const newMessage = await sendMessage(selectedId, body, currentUserId);
+      setMessages((prev) => [...prev, newMessage]);
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === selectedId
+            ? {
+                ...conv,
+                lastMessage: newMessage.body,
+                lastMessageAt: newMessage.sentAt,
+                isRead: true,
+              }
+            : conv,
+        ),
+      );
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to send message');
+    }
   }
 
   const selectedConversation = conversations.find((c) => c.id === selectedId);
@@ -83,7 +105,7 @@ export function MessagesInbox(): JSX.Element {
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
@@ -138,7 +160,7 @@ export function MessagesInbox(): JSX.Element {
             {selectedConversation ? (
               <ThreadView
                 conversationId={selectedConversation.id}
-                participantName={selectedConversation.participantName}
+                threadName={selectedConversation.participantName}
                 messages={messages}
                 loading={loadingMessages}
                 onSend={handleSend}
