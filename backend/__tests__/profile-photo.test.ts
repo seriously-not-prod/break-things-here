@@ -252,7 +252,7 @@ describe('[#38] uploadProfilePhoto — stored URL path correctness', () => {
     const res = makeRes();
     await uploadProfilePhoto(req as never, res as never);
     // @ts-expect-error accessing dynamic body
-    expect(res.body?.photoUrl).toBe(path.join('uploads', 'profile-photos', 'avatar.png'));
+    expect(res.body?.photoUrl).toBe(`/api/${path.join('uploads', 'profile-photos', 'avatar.png')}`);
   });
 });
 
