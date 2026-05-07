@@ -87,3 +87,30 @@ export async function updateShoppingItem(
 export async function deleteShoppingItem(eventId: number, listId: number, itemId: number): Promise<void> {
   await api.delete(`/api/events/${eventId}/shopping-lists/${listId}/items/${itemId}`);
 }
+
+export interface SyncResult {
+  expense: {
+    id: number;
+    event_id: number;
+    category_id: number | null;
+    title: string;
+    amount: number;
+    payment_status: string;
+    notes: string | null;
+    created_at: string;
+  };
+  synced: boolean;
+  updated: boolean;
+}
+
+export async function syncItemToBudget(
+  eventId: number,
+  listId: number,
+  itemId: number,
+  categoryId?: number,
+): Promise<SyncResult> {
+  return api.post<SyncResult>(
+    `/api/events/${eventId}/shopping-lists/${listId}/items/${itemId}/sync-to-budget`,
+    categoryId !== undefined ? { category_id: categoryId } : {},
+  );
+}
