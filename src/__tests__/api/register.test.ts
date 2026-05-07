@@ -92,4 +92,49 @@ describe('POST /api/auth/register', () => {
     const stored = await inMemoryUserStore.findByEmail('unconfirmed@test.com');
     expect(stored?.emailConfirmed).toBe(false);
   });
+
+  it('should return 400 for invalid email format', async () => {
+    const res = await request(buildApp()).post('/api/auth/register').send({
+      name: 'User',
+      email: 'not-an-email',
+      password: 'pass12345',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'email' })]),
+    );
+  });
+
+  it('should return 409 when email is already registered', async () => {
+    const app = buildApp();
+    await request(app).post('/api/auth/register').send({
+      name: 'First',
+      email: 'dup@test.com',
+      password: 'SecurePass123!',
+    });
+
+    const res = await request(app).post('/api/auth/register').send({
+      name: 'Second',
+      email: 'dup@test.com',
+      password: 'SecurePass123!',
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'email' })]),
+    );
+  });
+
+  it('should not echo back user-supplied input in the registration response', async () => {
+    const res = await request(buildApp()).post('/api/auth/register').send({
+      name: '<script>alert("xss")</script>',
+      email: 'xss@test.com',
+      password: 'SecurePass123!',
+    });
+
+    // Registration succeeds but response must not reflect back the raw script tag
+    expect(res.status).toBe(201);
+    expect(JSON.stringify(res.body)).not.toContain('<script>');
+  });
 });
