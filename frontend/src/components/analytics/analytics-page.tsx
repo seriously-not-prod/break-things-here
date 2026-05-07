@@ -35,6 +35,7 @@ import {
   getEventAnalytics,
   type EventAnalytics,
 } from '../../services/analytics-service';
+import { CommunicationMetricsPanel } from './communication-metrics-panel';
 
 const RSVP_COLORS = ['#16a34a', '#f59e0b', '#dc2626'];
 const DIETARY_COLOR = '#0ea5e9';
@@ -304,6 +305,14 @@ export function AnalyticsPage(): JSX.Element {
               )}
             </SectionCard>
           </Grid>
+
+          {id !== undefined && (
+            <Grid item xs={12}>
+              <SectionCard title="Communication">
+                <CommunicationMetricsPanel eventId={id} />
+              </SectionCard>
+            </Grid>
+          )}
         </Grid>
       </Stack>
     </Box>

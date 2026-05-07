@@ -33,6 +33,7 @@ import * as vendorCommController from '../controllers/vendor-communication-contr
 import * as vendorPerfController from '../controllers/vendor-performance-controller.js';
 import * as storeSuggestionsController from '../controllers/store-suggestions-controller.js';
 import * as entraAuthController from '../controllers/entra-auth-controller.js';
+import * as trackingController from '../controllers/tracking-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
 import multer from 'multer';
@@ -153,6 +154,11 @@ router.post('/ai/suggest', authenticateToken, aiController.getSuggestion);
 
 // ============ PUBLIC RSVP ROUTES ==========
 router.get('/public/events/:eventId', rsvpController.getPublicRsvpContext);
+
+// Tracking endpoints (#465 open pixel, #466 click redirect) — intentionally unauthenticated.
+// Tokens are HMAC-signed; see backend/src/utils/tracking-token.ts.
+router.get('/tracking/open/:token', trackingController.recordOpen);
+router.get('/tracking/click/:token', trackingController.recordClick);
 // Token refresh and heartbeat
 router.post('/auth/refresh', authController.refreshTokenEndpoint);
 router.post('/auth/session/heartbeat', authenticateToken, authController.sessionHeartbeat);
@@ -291,6 +297,7 @@ router.delete('/events/:eventId/tasks/:taskId/subtasks/:id', authenticateToken, 
 router.get('/events/:eventId/analytics', authenticateToken, analyticsController.getEventSummary);
 router.get('/analytics', authenticateToken, analyticsController.getGlobalAnalytics);
 router.get('/events/:eventId/analytics/export', authenticateToken, analyticsController.exportEventReport);
+router.get('/events/:eventId/analytics/communication', authenticateToken, analyticsController.getCommunicationMetrics);
 
 // ============ NOTIFICATIONS ROUTES — BRD 3.11 ============
 router.get('/notifications', authenticateToken, notificationsController.listNotifications);
