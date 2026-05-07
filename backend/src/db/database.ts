@@ -673,4 +673,11 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
   // ── Gallery caption support (#409, #430) ─────────────────────────────────
   await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS caption TEXT`);
+
+  // ── Entra ID identity linking (#468, #470) ────────────────────────────────
+  // entra_oid: Azure object ID — unique per Entra tenant identity
+  // auth_provider: 'local' | 'entra' — tracks how the account was created
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS entra_oid TEXT`);
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT DEFAULT 'local'`);
+  await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_entra_oid ON users(entra_oid) WHERE entra_oid IS NOT NULL`);
 }

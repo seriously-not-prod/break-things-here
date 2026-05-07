@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Checkbox,
+  Divider,
   FormControlLabel,
   Stack,
   TextField,
@@ -12,7 +13,7 @@ import {
   InputAdornment,
 } from '@mui/material';
 import { useAuth } from '../../contexts/auth-context';
-import { ApiError } from '../../lib/api-client';
+import { ApiError, api } from '../../lib/api-client';
 
 
 
@@ -67,7 +68,14 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
   }, [remainingSeconds]);
 
   const isLocked = Boolean(lockoutText);
+  const [entraEnabled, setEntraEnabled] = useState(false);
   const { login } = useAuth();
+
+  useEffect(() => {
+    api.get<{ enabled: boolean }>('/api/auth/entra/config')
+      .then((data) => setEntraEnabled(data.enabled))
+      .catch(() => setEntraEnabled(false));
+  }, []);
 
   function handleEmailChange(event: ChangeEvent<HTMLInputElement>) {
     setEmail(event.target.value);
@@ -179,6 +187,21 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
         >
           Forgot password?
         </Button>
+
+        {entraEnabled && (
+          <>
+            <Divider>or</Divider>
+            <Button
+              variant="outlined"
+              fullWidth
+              href="/api/auth/entra/login"
+              aria-label="Sign in with Microsoft"
+              sx={{ py: 1.5, fontWeight: 600, textTransform: 'none' }}
+            >
+              Sign in with Microsoft
+            </Button>
+          </>
+        )}
 
         {onRegister && (
           <Typography variant="body2" align="center">

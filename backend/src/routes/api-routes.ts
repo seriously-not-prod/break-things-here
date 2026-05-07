@@ -24,6 +24,7 @@ import * as budgetController from '../controllers/budget-controller.js';
 import * as galleryController from '../controllers/gallery-controller.js';
 import * as aiController from '../controllers/ai-controller.js';
 import * as messagesController from '../controllers/messages-controller.js';
+import * as entraAuthController from '../controllers/entra-auth-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
 import multer from 'multer';
@@ -131,6 +132,12 @@ const upload = multer({
 router.post('/auth/register', createAuthLimiter(), authController.register);
 router.post('/auth/verify-email', authController.verifyEmail);
 router.post('/auth/login', createAuthLimiter(), authController.login);
+
+// ── Entra ID auth routes (#468, #469, #470) ────────────────────────────────
+// Feature-flagged: only functional when ENTRA_AUTH_ENABLED=true
+router.get('/auth/entra/config', entraAuthController.getEntraStatus);
+router.get('/auth/entra/login', entraAuthController.initiateEntraLogin);
+router.post('/auth/entra/callback', createAuthLimiter(), entraAuthController.handleEntraCallback);
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
 router.post('/ai/suggest', authenticateToken, aiController.getSuggestion);

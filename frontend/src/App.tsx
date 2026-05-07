@@ -26,6 +26,7 @@ import BudgetPage from './components/budget/budget-page';
 import TasksKanbanPage from './components/tasks/tasks-kanban-page';
 import { GalleryPage } from './components/gallery/gallery-page';
 import { MessagesInbox } from './components/messages/messages-inbox';
+import { EntraCallbackPage } from './components/auth/entra-callback';
 import { useState } from 'react';
 
 type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password';
@@ -166,6 +167,7 @@ function RootRouter(): JSX.Element {
       <Route path="/forgot-password" element={<AuthShell />} />
       <Route path="/reset-password" element={<AuthShell />} />
       <Route path="/rsvp/:eventId" element={<PublicRsvpPage />} />
+      <Route path="/auth/entra/callback" element={<EntraCallbackPage />} />
       <Route path="/*" element={<AppShell />} />
     </Routes>
   );
