@@ -46,12 +46,24 @@ export async function deleteVendorCommunication(
   await api.delete(`/api/events/${eventId}/vendors/${vendorId}/communication/${logId}`);
 }
 
+export interface VendorCompare {
+  id: number;
+  name: string;
+  category: string;
+  status: string;
+  quoted_amount: number | null;
+  rating: number | null;
+  contract_file: string | null;
+  communication_count: number;
+  last_contact_at: string | null;
+}
+
 export async function compareVendors(
   eventId: number | string,
   vendorIds: number[],
-): Promise<unknown[]> {
+): Promise<VendorCompare[]> {
   const ids = vendorIds.join(',');
-  const data = await api.get<{ vendors: unknown[] }>(
+  const data = await api.get<{ vendors: VendorCompare[] }>(
     `/api/events/${eventId}/vendors/compare?ids=${ids}`,
   );
   return data.vendors;

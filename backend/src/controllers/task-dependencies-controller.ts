@@ -63,14 +63,21 @@ export async function listDependencies(req: Request, res: Response): Promise<Res
 
   const db = getDatabase();
 
+  // Verify task belongs to this event
+  const taskCheck = await db.get<{ id: number }>(
+    `SELECT id FROM tasks WHERE id = ? AND event_id = ?`,
+    [taskId, eventId],
+  );
+  if (!taskCheck) return res.status(404).json({ error: 'Task not found in this event.' });
+
   // Tasks this task is blocked by (depends_on_id = other tasks)
   const blocking = await db.all(
     `SELECT t.id, t.title, t.status, t.priority, td.id AS dep_id
      FROM task_dependencies td
      JOIN tasks t ON t.id = td.depends_on_id
-     WHERE td.task_id = ?
+     WHERE td.task_id = ? AND t.event_id = ?
      ORDER BY t.title ASC`,
-    [taskId],
+    [taskId, eventId],
   );
 
   // Tasks blocked by this task (task_id = other tasks that depend on us)
@@ -78,9 +85,9 @@ export async function listDependencies(req: Request, res: Response): Promise<Res
     `SELECT t.id, t.title, t.status, t.priority, td.id AS dep_id
      FROM task_dependencies td
      JOIN tasks t ON t.id = td.task_id
-     WHERE td.depends_on_id = ?
+     WHERE td.depends_on_id = ? AND t.event_id = ?
      ORDER BY t.title ASC`,
-    [taskId],
+    [taskId, eventId],
   );
 
   return res.json({ blocking, blocked_by: blockedBy });
@@ -160,9 +167,18 @@ export async function removeDependency(req: Request, res: Response): Promise<Res
 
   const db = getDatabase();
 
+  // Verify the task belongs to this event before deleting its dependency
+  const taskCheck = await db.get<{ id: number }>(
+    `SELECT id FROM tasks WHERE id = ? AND event_id = ?`,
+    [taskId, eventId],
+  );
+  if (!taskCheck) return res.status(404).json({ error: 'Task not found in this event.' });
+
   const dep = await db.get<TaskDependency>(
-    `SELECT * FROM task_dependencies WHERE id = ? AND task_id = ?`,
-    [depId, taskId],
+    `SELECT td.* FROM task_dependencies td
+     JOIN tasks t ON t.id = td.task_id
+     WHERE td.id = ? AND td.task_id = ? AND t.event_id = ?`,
+    [depId, taskId, eventId],
   );
   if (!dep) return res.status(404).json({ error: 'Dependency not found.' });
 

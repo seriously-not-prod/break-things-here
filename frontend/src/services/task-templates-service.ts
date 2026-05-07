@@ -53,12 +53,27 @@ export async function deleteTaskTemplate(
   await api.delete(`/api/events/${eventId}/task-templates/${id}`);
 }
 
+export interface AppliedTask {
+  id: number;
+  event_id: number;
+  title: string;
+  description: string | null;
+  priority: 'Low' | 'Medium' | 'High';
+  estimated_hours: number | null;
+  assignee_name: string | null;
+  due_date: string | null;
+  status: string;
+  template_id: number | null;
+  created_by: number | null;
+  created_at: string;
+}
+
 export async function applyTaskTemplate(
   eventId: number | string,
   templateId: number,
   overrides?: { title?: string; assignee_name?: string; due_date?: string },
-): Promise<unknown> {
-  const data = await api.post<{ task: unknown }>(
+): Promise<AppliedTask> {
+  const data = await api.post<{ task: AppliedTask }>(
     `/api/events/${eventId}/task-templates/${templateId}/apply`,
     overrides ?? {},
   );

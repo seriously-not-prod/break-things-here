@@ -259,7 +259,7 @@ export default function BudgetTemplatesPage({ eventId, onApplied }: Props): JSX.
                   value={item.color}
                   onChange={(e) => updateItemRow(idx, 'color', e.target.value)}
                   style={{ width: 36, height: 36, border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                  aria-label="Category color"
+                  aria-label={`Color for category ${item.name || idx + 1}`}
                 />
                 {newItems.length > 1 && (
                   <IconButton size="small" onClick={() => removeItemRow(idx)} aria-label="Remove row">

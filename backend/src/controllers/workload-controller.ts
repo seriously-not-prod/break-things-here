@@ -46,11 +46,10 @@ export async function getWorkload(req: Request, res: Response): Promise<Response
        COUNT(t.id) FILTER (WHERE t.status = 'In Progress')::int  AS in_progress_tasks,
        COUNT(t.id) FILTER (WHERE t.status = 'Blocked')::int      AS blocked_tasks,
        COUNT(t.id) FILTER (WHERE t.status = 'Complete')::int     AS complete_tasks,
-       COALESCE(SUM(t.estimated_hours), 0)::float                AS estimated_hours
+       COALESCE(SUM(t.estimated_hours) FILTER (WHERE t.status <> 'Complete'), 0)::float AS estimated_hours
      FROM tasks t
      LEFT JOIN users u ON u.id = t.assigned_user_id
      WHERE t.event_id = ?
-       AND t.status <> 'Complete'
      GROUP BY t.assigned_user_id, t.assignee_name, u.display_name
      ORDER BY total_tasks DESC`,
     [eventId],

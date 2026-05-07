@@ -123,6 +123,13 @@ export async function deleteVendorCommunication(req: Request, res: Response): Pr
   );
   if (!log) return res.status(404).json({ error: 'Communication log entry not found.' });
 
+  // Restrict to: entry author OR event owner/admin
+  const isAuthor = log.sent_by === authReq.user.id;
+  const isOwner = event.created_by === authReq.user.id;
+  if (!isAuthor && !isOwner) {
+    return res.status(403).json({ error: 'Not authorised to delete this communication log entry.' });
+  }
+
   await db.run(`DELETE FROM vendor_communication_log WHERE id = ?`, [logId]);
   return res.json({ message: 'Communication log entry deleted.' });
 }

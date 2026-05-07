@@ -140,6 +140,19 @@ export default function GanttView({ eventId }: Props): JSX.Element {
               </g>
             ))}
 
+            {/* Today marker */}
+            {(() => {
+              const todayOffset = dayOffset(new Date().toISOString().slice(0, 10));
+              const todayX = (todayOffset / totalDays) * CHART_WIDTH + CHART_PADDING;
+              if (todayOffset < 0 || todayOffset > totalDays) return null;
+              return (
+                <g key="today">
+                  <line x1={todayX} y1={20} x2={todayX} y2={svgHeight} stroke="#ef5350" strokeWidth={2} strokeDasharray="4 3" />
+                  <text x={todayX + 3} y={20} fontSize={9} fill="#ef5350" fontWeight="bold">Today</text>
+                </g>
+              );
+            })()}
+
             {/* Task bars */}
             {scheduledTasks.map((task, idx) => {
               const offset = dayOffset(task.due_date!);

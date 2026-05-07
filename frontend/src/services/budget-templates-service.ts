@@ -55,11 +55,21 @@ export async function deleteBudgetTemplate(id: number): Promise<void> {
   await api.delete(`/api/budget-templates/${id}`);
 }
 
+export interface AppliedBudgetCategory {
+  id: number;
+  event_id: number;
+  name: string;
+  allocated_amount: number;
+  color: string;
+  spent: number;
+  created_at?: string;
+}
+
 export async function applyBudgetTemplate(
   eventId: number | string,
   templateId: number,
-): Promise<{ categories: unknown[] }> {
-  return api.post<{ categories: unknown[] }>(
+): Promise<{ categories: AppliedBudgetCategory[] }> {
+  return api.post<{ categories: AppliedBudgetCategory[] }>(
     `/api/events/${eventId}/budget/apply-template`,
     { template_id: templateId },
   );

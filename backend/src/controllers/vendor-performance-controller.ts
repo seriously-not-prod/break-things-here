@@ -98,9 +98,16 @@ export async function getVendorPerformance(req: Request, res: Response): Promise
     /** Simple score: rating * 20 + (comms > 0 ? 10 : 0) + (contract ? 20 : 0) */
     performance_score: Math.min(
       100,
-      (vendor.rating ?? 0) * 20 +
-        ((commStats?.total_communications ?? 0) > 0 ? 10 : 0) +
-        (vendor.contract_file ? 20 : 0),
+      // rating (0-5) → up to 50 pts
+      (vendor.rating ?? 0) * 10 +
+        // at least one communication → 15 pts
+        ((commStats?.total_communications ?? 0) > 0 ? 15 : 0) +
+        // contract on file → 15 pts
+        (vendor.contract_file ? 15 : 0) +
+        // has paid expenses → 10 pts (indicates active engagement)
+        ((expenseStats?.total_paid ?? 0) > 0 ? 10 : 0) +
+        // has timeline items → 10 pts
+        ((timelineCount?.timeline_items ?? 0) > 0 ? 10 : 0),
     ),
   };
 

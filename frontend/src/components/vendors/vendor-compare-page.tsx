@@ -23,7 +23,7 @@ import {
 } from '@mui/material';
 import CompareArrowsRounded from '@mui/icons-material/CompareArrowsRounded';
 import { api } from '../../lib/api-client';
-import { compareVendors } from '../../services/vendor-communication-service';
+import { compareVendors, VendorCompare } from '../../services/vendor-communication-service';
 
 interface VendorRow {
   id: number;
@@ -33,8 +33,6 @@ interface VendorRow {
   quoted_amount: number | null;
   rating: number | null;
   contract_file: string | null;
-  communication_count: number;
-  last_contact_at: string | null;
 }
 
 interface Props {
@@ -44,7 +42,7 @@ interface Props {
 export default function VendorComparePage({ eventId }: Props): JSX.Element {
   const [allVendors, setAllVendors] = useState<VendorRow[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [compared, setCompared] = useState<VendorRow[]>([]);
+  const [compared, setCompared] = useState<VendorCompare[]>([]);
   const [loading, setLoading] = useState(true);
   const [comparing, setComparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +70,7 @@ export default function VendorComparePage({ eventId }: Props): JSX.Element {
     setError(null);
     try {
       const result = await compareVendors(eventId, [...selected]);
-      setCompared(result as VendorRow[]);
+      setCompared(result);
     } catch {
       setError('Failed to compare vendors.');
     } finally {
@@ -84,6 +82,17 @@ export default function VendorComparePage({ eventId }: Props): JSX.Element {
     n != null
       ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
       : '—';
+
+  /** Returns the id(s) of the best vendor(s) for a given numeric metric. */
+  const bestIds = (getter: (v: VendorCompare) => number | null, lowerIsBetter = false): Set<number> => {
+    const vals = compared.map((v) => ({ id: v.id, val: getter(v) })).filter((x) => x.val != null) as { id: number; val: number }[];
+    if (vals.length === 0) return new Set();
+    const best = lowerIsBetter ? Math.min(...vals.map((x) => x.val)) : Math.max(...vals.map((x) => x.val));
+    return new Set(vals.filter((x) => x.val === best).map((x) => x.id));
+  };
+
+  const bestBg = (ids: Set<number>, vendorId: number): { bgcolor?: string } =>
+    ids.has(vendorId) ? { bgcolor: 'success.50' } : {};
 
   if (loading) return <CircularProgress />;
 
@@ -147,18 +156,26 @@ export default function VendorComparePage({ eventId }: Props): JSX.Element {
                   </TableCell>
                 ))}
               </TableRow>
+              {/* Lowest quoted amount highlighted */}
+              {(() => { const best = bestIds((v) => v.quoted_amount, true); return (
               <TableRow>
                 <TableCell>Quoted Amount</TableCell>
-                {compared.map((v) => <TableCell key={v.id} align="center">{fmt(v.quoted_amount)}</TableCell>)}
+                {compared.map((v) => (
+                  <TableCell key={v.id} align="center" sx={bestBg(best, v.id)}>{fmt(v.quoted_amount)}</TableCell>
+                ))}
               </TableRow>
+              ); })()}
+              {/* Highest rating highlighted */}
+              {(() => { const best = bestIds((v) => v.rating); return (
               <TableRow>
                 <TableCell>Rating</TableCell>
                 {compared.map((v) => (
-                  <TableCell key={v.id} align="center">
+                  <TableCell key={v.id} align="center" sx={bestBg(best, v.id)}>
                     {v.rating ? <Rating value={v.rating} readOnly size="small" /> : '—'}
                   </TableCell>
                 ))}
               </TableRow>
+              ); })()}
               <TableRow>
                 <TableCell>Contract on File</TableCell>
                 {compared.map((v) => (
@@ -171,10 +188,15 @@ export default function VendorComparePage({ eventId }: Props): JSX.Element {
                   </TableCell>
                 ))}
               </TableRow>
+              {/* Most communications highlighted */}
+              {(() => { const best = bestIds((v) => v.communication_count); return (
               <TableRow>
                 <TableCell>Communications</TableCell>
-                {compared.map((v) => <TableCell key={v.id} align="center">{v.communication_count}</TableCell>)}
+                {compared.map((v) => (
+                  <TableCell key={v.id} align="center" sx={bestBg(best, v.id)}>{v.communication_count}</TableCell>
+                ))}
               </TableRow>
+              ); })()}
               <TableRow>
                 <TableCell>Last Contact</TableCell>
                 {compared.map((v) => (

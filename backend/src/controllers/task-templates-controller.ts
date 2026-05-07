@@ -169,13 +169,22 @@ export async function listTimeEntries(req: Request, res: Response): Promise<Resp
   if (!event) return res as Response;
 
   const db = getDatabase();
+
+  // Verify task belongs to this event (prevents cross-event access by taskId)
+  const taskCheck = await db.get<{ id: number }>(
+    `SELECT id FROM tasks WHERE id = ? AND event_id = ?`,
+    [taskId, eventId],
+  );
+  if (!taskCheck) return res.status(404).json({ error: 'Task not found in this event.' });
+
   const entries = await db.all<TaskTimeEntry & { author_name: string }>(
     `SELECT tte.*, u.display_name AS author_name
      FROM task_time_entries tte
      JOIN users u ON u.id = tte.user_id
-     WHERE tte.task_id = ?
+     JOIN tasks t ON t.id = tte.task_id
+     WHERE tte.task_id = ? AND t.event_id = ?
      ORDER BY tte.logged_at DESC, tte.created_at DESC`,
-    [taskId],
+    [taskId, eventId],
   );
   const totalHours = entries.reduce((sum, e) => sum + Number(e.hours_spent), 0);
   return res.json({ entries, total_hours: totalHours });
@@ -236,20 +245,23 @@ export async function deleteTimeEntry(req: Request, res: Response): Promise<Resp
   if (!event) return res as Response;
 
   const db = getDatabase();
+  // Verify task belongs to this event
+  const task = await db.get<{ event_id: number; created_by: number | null }>(
+    `SELECT event_id, created_by FROM tasks WHERE id = ? AND event_id = ?`,
+    [taskId, eventId],
+  );
+  if (!task) return res.status(404).json({ error: 'Task not found in this event.' });
+
   const entry = await db.get<TaskTimeEntry>(
     `SELECT * FROM task_time_entries WHERE id = ? AND task_id = ?`,
     [id, taskId],
   );
   if (!entry) return res.status(404).json({ error: 'Time entry not found.' });
 
-  // Only the author or event owner can delete
-  const task = await db.get<{ event_id: number }>(
-    `SELECT event_id FROM tasks WHERE id = ?`,
-    [taskId],
-  );
-  if (!task) return res.status(404).json({ error: 'Task not found.' });
-
-  if (entry.user_id !== authReq.user.id) {
+  // Allow: entry author OR event owner/admin
+  const isOwner = event.created_by === authReq.user.id;
+  const isAuthor = entry.user_id === authReq.user.id;
+  if (!isAuthor && !isOwner) {
     return res.status(403).json({ error: 'Not authorised to delete this time entry.' });
   }
 

@@ -131,11 +131,18 @@ export async function deleteTemplate(req: Request, res: Response): Promise<Respo
   const { id } = req.params;
   const db = getDatabase();
 
-  const template = await db.get<{ id: number }>(
-    `SELECT id FROM budget_templates WHERE id = ?`,
+  const template = await db.get<{ id: number; created_by: number | null }>(
+    `SELECT id, created_by FROM budget_templates WHERE id = ?`,
     [id],
   );
   if (!template) return res.status(404).json({ error: 'Budget template not found.' });
+
+  // Restrict deletion to the creator or admin (role_id <= 2)
+  const isCreator = template.created_by === authReq.user.id;
+  const isAdmin = authReq.user.role_id <= 2;
+  if (!isCreator && !isAdmin) {
+    return res.status(403).json({ error: 'Not authorised to delete this budget template.' });
+  }
 
   await db.run(`DELETE FROM budget_templates WHERE id = ?`, [id]);
   return res.json({ message: 'Budget template deleted.' });
