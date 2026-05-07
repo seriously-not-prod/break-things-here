@@ -76,6 +76,40 @@ export async function getGlobalAnalytics(): Promise<GlobalAnalytics> {
   return api.get<GlobalAnalytics>('/api/analytics');
 }
 
+// ── Communication metrics (#467) ─────────────────────────────────────────────
+
+export interface CommunicationCampaignRow {
+  campaignType: string;
+  sent: number;
+  opens: number;
+  clicks: number;
+}
+
+export interface CommunicationMetrics {
+  totals: {
+    sent: number;
+    failed: number;
+    delivered: number;
+    uniqueOpens: number;
+    totalOpens: number;
+    uniqueClicks: number;
+    totalClicks: number;
+    /** Fraction in 0..1 — multiply by 100 for a percentage. */
+    openRate: number;
+    /** Fraction in 0..1 — multiply by 100 for a percentage. */
+    clickRate: number;
+  };
+  byCampaign: CommunicationCampaignRow[];
+}
+
+export async function getCommunicationMetrics(
+  eventId: string | number,
+): Promise<CommunicationMetrics> {
+  return api.get<CommunicationMetrics>(
+    `/api/events/${eventId}/analytics/communication`,
+  );
+}
+
 /**
  * Triggers a CSV download of the event report.
  * Uses fetch directly so we can handle the binary/text stream as a blob.

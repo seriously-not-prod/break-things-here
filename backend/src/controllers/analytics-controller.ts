@@ -349,3 +349,103 @@ export async function exportEventReport(req: AuthRequest, res: Response): Promis
     res.status(500).json({ error: 'Failed to export event report' });
   }
 }
+
+// ── Communication tracking metrics (#467) ─────────────────────────────────────
+
+interface CommunicationMetricRow {
+  total_sent: number;
+  total_failed: number;
+  unique_opens: number;
+  total_opens: number;
+  unique_clicks: number;
+  total_clicks: number;
+}
+
+interface PerCampaignRow {
+  campaign_type: string;
+  sent: number;
+  opens: number;
+  clicks: number;
+}
+
+/**
+ * GET /api/events/:eventId/analytics/communication
+ * Aggregate open/click stats for the event's communication log.
+ */
+export async function getCommunicationMetrics(
+  req: AuthRequest,
+  res: Response,
+): Promise<void> {
+  try {
+    const { eventId } = req.params;
+
+    const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!event) return;
+
+    const db = getDatabase();
+
+    const totals = await db.get<CommunicationMetricRow>(
+      `SELECT
+         COUNT(*)                                               AS total_sent,
+         COUNT(*) FILTER (WHERE cl.status = 'failed')           AS total_failed,
+         COUNT(DISTINCT te.communication_log_id)
+           FILTER (WHERE te.event_type = 'open')                AS unique_opens,
+         COUNT(*) FILTER (WHERE te.event_type = 'open')         AS total_opens,
+         COUNT(DISTINCT te.communication_log_id)
+           FILTER (WHERE te.event_type = 'click')               AS unique_clicks,
+         COUNT(*) FILTER (WHERE te.event_type = 'click')        AS total_clicks
+       FROM communication_log cl
+       LEFT JOIN communication_tracking_events te
+         ON te.communication_log_id = cl.id
+       WHERE cl.event_id = ?`,
+      [eventId],
+    );
+
+    const perCampaign = await db.all<PerCampaignRow>(
+      `SELECT
+         cl.communication_type AS campaign_type,
+         COUNT(DISTINCT cl.id) AS sent,
+         COUNT(*) FILTER (WHERE te.event_type = 'open')  AS opens,
+         COUNT(*) FILTER (WHERE te.event_type = 'click') AS clicks
+       FROM communication_log cl
+       LEFT JOIN communication_tracking_events te
+         ON te.communication_log_id = cl.id
+       WHERE cl.event_id = ?
+       GROUP BY cl.communication_type
+       ORDER BY cl.communication_type`,
+      [eventId],
+    );
+
+    const sent = Number(totals?.total_sent ?? 0);
+    const failed = Number(totals?.total_failed ?? 0);
+    const uniqueOpens = Number(totals?.unique_opens ?? 0);
+    const totalOpens = Number(totals?.total_opens ?? 0);
+    const uniqueClicks = Number(totals?.unique_clicks ?? 0);
+    const totalClicks = Number(totals?.total_clicks ?? 0);
+    const delivered = Math.max(sent - failed, 0);
+
+    res.json({
+      totals: {
+        sent,
+        failed,
+        delivered,
+        uniqueOpens,
+        totalOpens,
+        uniqueClicks,
+        totalClicks,
+        openRate: delivered > 0 ? uniqueOpens / delivered : 0,
+        clickRate: delivered > 0 ? uniqueClicks / delivered : 0,
+      },
+      byCampaign: perCampaign.map((row) => ({
+        campaignType: row.campaign_type,
+        sent: Number(row.sent),
+        opens: Number(row.opens),
+        clicks: Number(row.clicks),
+      })),
+    });
+  } catch (error) {
+    console.error('Error fetching communication metrics:', error);
+    res.status(500).json({ error: 'Failed to fetch communication metrics' });
+  }
+}
+
