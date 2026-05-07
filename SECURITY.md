@@ -46,6 +46,19 @@ When contributing to this project:
 - Validate all user inputs
 - Implement proper authentication and authorization
 
+## Secret Management
+
+The backend uses three server-side secrets for token security. See the dedicated guide for generation, rotation, and emergency revocation procedures:
+
+- **[docs/security/jwt-secrets.md](docs/security/jwt-secrets.md)** — JWT_SECRET, TOKEN_HASH_SECRET, REFRESH_TOKEN_ENC_KEY lifecycle, rotation, and revocation
+- **[PASSWORD_HASHING.md](PASSWORD_HASHING.md)** — bcrypt configuration for password storage
+
+For emergency session revocation, use `scripts/revoke-all-sessions.sql` against your PostgreSQL instance:
+
+```bash
+psql "$DATABASE_URL" -f scripts/revoke-all-sessions.sql
+```
+
 ## Disclosure Policy
 
 We follow responsible disclosure practices. Please allow us time to address the vulnerability before publicly disclosing it.
