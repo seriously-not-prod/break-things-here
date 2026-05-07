@@ -12,18 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Gallery image delete: hover overlay with delete button on gallery grid; delete button in preview dialog (`GalleryPage`, `MediaPreviewDialog`) (#409)
+- Gallery caption edit: inline caption editor in `MediaPreviewDialog` with save/cancel and keyboard support (#409)
+- `deleteGalleryItem()` and `updateGalleryCaption()` in `gallery-service.ts`; `PATCH /api/events/:eventId/gallery/:id` backend endpoint (#409)
+- `caption` column added to `event_documents` table via additive `ALTER TABLE … ADD COLUMN IF NOT EXISTS` migration (#409)
+- Messages service rewritten to use live backend APIs: `GET /api/events` for threads, `GET /api/events/:id/messages` for thread content, `POST /api/events/:id/messages` for sending — all mock data removed (#409)
 - My Events view at `/events/my` now returns only events owned by the authenticated user via `?owner=me` API filter (#408 #425)
 - Tag-based filtering on the events listing page via chip selectors; tags and My Events filter can be combined (#408 #426)
 - Global search field on the events listing page filters by title, location, status, tags, event type, and organiser name (#408 #427)
 - `GET /api/events` backend endpoint now accepts `?owner=me`, `?tags=`, `?status=`, `?q=` query parameters with parameterised queries (#408)
 - `EventListFilters` interface and `listMyEvents()` helper added to `events-service.ts`
 - `backend/__tests__/events-list-filter.test.ts` — 7 unit tests covering owner filter, tag filter, combined filters, no-auth guard, and error path
-- Added a BRD parallel execution plan under `docs/processes/brd-parallel-execution-plan.md` covering 5-developer ownership, merge waves, platform-track separation, and issue-ready stories/tasks with acceptance criteria
-- Gallery management actions: users can now delete gallery images with a confirmation dialog and edit captions inline from the gallery grid (#430)
-- New backend endpoints: `DELETE /api/events/:eventId/gallery/:id` and `PATCH /api/events/:eventId/gallery/:id/caption` for gallery item management
-- Caption field added to `event_documents` table via non-destructive `ALTER TABLE` migration; captions are shown in both the gallery grid tile bar and the media preview dialog
-- Frontend gallery service extended with `deleteGalleryItem` and `updateGalleryCaption` functions; `GalleryItem` interface updated with `caption` field
-- 9 new frontend tests covering delete (confirm, cancel, success, error) and caption edit (open, pre-fill, save, error, preview display) — gallery suite now 17 tests total
 
 ### Fixed
 - Fixed frontend CSRF handling so login, password reset, uploads, and other mutating module actions reuse a valid token instead of refetching one per request, preventing proxy-path 403/429 failures in local Docker runs

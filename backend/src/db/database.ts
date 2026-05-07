@@ -671,6 +671,6 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_categories_event_id ON event_categories(event_id)`);
 
-  // ── Gallery caption support (issue #430) ─────────────────────────────────
+  // ── Gallery caption support (#409, #430) ─────────────────────────────────
   await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS caption TEXT`);
 }

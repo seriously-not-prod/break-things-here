@@ -9,11 +9,11 @@ import {
   DialogContentText,
   DialogTitle,
   IconButton,
+  TextField,
   ImageList,
   ImageListItem,
   ImageListItemBar,
   Skeleton,
-  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -42,16 +42,13 @@ export function GalleryPage(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
-
-  // Delete state
-  const [deleteTarget, setDeleteTarget] = useState<GalleryItem | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  // Caption edit state
-  const [captionTarget, setCaptionTarget] = useState<GalleryItem | null>(null);
-  const [captionDraft, setCaptionDraft] = useState('');
-  const [savingCaption, setSavingCaption] = useState(false);
-
+  /** ID of the item pending confirmation before deletion; null when no dialog is open. */
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  /** Original name of the item pending deletion (for display in the confirmation dialog). */
+  const [confirmDeleteName, setConfirmDeleteName] = useState<string>('');
+  /** ID of the item whose caption is being edited; null when no editor is open. */
+  const [captionEditId, setCaptionEditId] = useState<number | null>(null);
+  const [captionDraft, setCaptionDraft] = useState<string>('');
   const uploadRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -98,40 +95,41 @@ export function GalleryPage(): JSX.Element {
     }
   }
 
-  async function handleDeleteConfirm(): Promise<void> {
-    if (!deleteTarget || !eventId) return;
-    setDeleting(true);
-    setError(null);
+  async function handleDelete(itemId: number): Promise<void> {
+    if (!eventId) return;
+    setConfirmDeleteId(null);
     try {
-      await deleteGalleryItem(eventId, deleteTarget.id);
-      setItems((prev) => prev.filter((i) => i.id !== deleteTarget.id));
-      setDeleteTarget(null);
+      await deleteGalleryItem(eventId, itemId);
+      // Use functional updater so both state writes reference the same current snapshot
+      setItems((prev) => {
+        const next = prev.filter((item) => item.id !== itemId);
+        // Close the preview dialog when the displayed item is deleted
+        setPreviewIndex((idx) => {
+          if (idx === null) return null;
+          if (prev[idx]?.id === itemId) return null;
+          // Shift the index down if items before it were removed
+          const newIdx = next.findIndex((item) => item.id === prev[idx]?.id);
+          return newIdx >= 0 ? newIdx : null;
+        });
+        return next;
+      });
+      setError(null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Delete failed');
-    } finally {
-      setDeleting(false);
     }
   }
 
-  function openCaptionEdit(item: GalleryItem): void {
-    setCaptionTarget(item);
-    setCaptionDraft(item.caption);
-  }
-
-  async function handleCaptionSave(): Promise<void> {
-    if (!captionTarget || !eventId) return;
-    setSavingCaption(true);
-    setError(null);
+  async function handleCaptionUpdate(itemId: number, caption: string): Promise<void> {
+    if (!eventId) return;
     try {
-      const updated = await updateGalleryCaption(eventId, captionTarget.id, captionDraft);
+      const { caption: saved } = await updateGalleryCaption(eventId, itemId, caption);
+      // Apply the server-confirmed caption locally (avoids a full gallery re-fetch).
       setItems((prev) =>
-        prev.map((i) => (i.id === updated.id ? { ...i, caption: updated.caption } : i)),
+        prev.map((item) => (item.id === itemId ? { ...item, caption: saved } : item)),
       );
-      setCaptionTarget(null);
+      setError(null);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to save caption');
-    } finally {
-      setSavingCaption(false);
+      setError(err instanceof Error ? err.message : 'Caption update failed');
     }
   }
 
@@ -208,37 +206,51 @@ export function GalleryPage(): JSX.Element {
           {items.map((item, index) => (
             <ImageListItem
               key={item.id}
-              sx={{ cursor: 'pointer', borderRadius: 1, overflow: 'hidden', position: 'relative' }}
+              sx={{
+                cursor: 'pointer',
+                borderRadius: 1,
+                overflow: 'hidden',
+                position: 'relative',
+                '&:hover .gallery-item-bar': { opacity: 1 },
+              }}
+              onClick={() => setPreviewIndex(index)}
+              role="button"
+              tabIndex={0}
+              aria-label={`Open preview for ${item.originalName}`}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setPreviewIndex(index);
+                }
+              }}
             >
               <img
                 src={`${API_BASE}${item.url}`}
                 alt={item.originalName}
                 loading="lazy"
                 style={{ display: 'block', width: '100%', borderRadius: 4 }}
-                onClick={() => setPreviewIndex(index)}
-                role="button"
-                tabIndex={0}
-                aria-label={`Open preview for ${item.originalName}`}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setPreviewIndex(index);
-                  }
-                }}
               />
+              {/* Delete overlay — visible on hover */}
               <ImageListItemBar
-                title={item.caption || item.originalName}
-                subtitle={item.caption ? item.originalName : undefined}
+                className="gallery-item-bar"
+                position="top"
+                actionPosition="right"
+                sx={{
+                  opacity: 0,
+                  transition: 'opacity 0.2s',
+                  background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)',
+                }}
                 actionIcon={
-                  <Box sx={{ display: 'flex', gap: 0.5, pr: 0.5 }}>
+                  <Box sx={{ display: 'flex' }}>
                     <Tooltip title="Edit caption">
                       <IconButton
                         size="small"
                         aria-label={`Edit caption for ${item.originalName}`}
-                        sx={{ color: 'rgba(255,255,255,0.8)' }}
+                        sx={{ color: 'white' }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          openCaptionEdit(item);
+                          setCaptionEditId(item.id);
+                          setCaptionDraft(item.caption ?? '');
                         }}
                       >
                         <EditRounded fontSize="small" />
@@ -248,10 +260,11 @@ export function GalleryPage(): JSX.Element {
                       <IconButton
                         size="small"
                         aria-label={`Delete ${item.originalName}`}
-                        sx={{ color: 'rgba(255,255,255,0.8)' }}
+                        sx={{ color: 'white' }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setDeleteTarget(item);
+                          setConfirmDeleteId(item.id);
+                          setConfirmDeleteName(item.originalName);
                         }}
                       >
                         <DeleteRounded fontSize="small" />
@@ -259,7 +272,6 @@ export function GalleryPage(): JSX.Element {
                     </Tooltip>
                   </Box>
                 }
-                sx={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)' }}
               />
             </ImageListItem>
           ))}
@@ -271,76 +283,72 @@ export function GalleryPage(): JSX.Element {
           items={items}
           initialIndex={previewIndex}
           onClose={() => setPreviewIndex(null)}
+          onDelete={(itemId) => setConfirmDeleteId(itemId)}
+          onCaptionUpdate={(itemId, caption) => void handleCaptionUpdate(itemId, caption)}
         />
       )}
 
-      {/* Delete confirmation dialog */}
+      {/* Caption edit dialog */}
       <Dialog
-        open={deleteTarget !== null}
-        onClose={() => setDeleteTarget(null)}
-        aria-labelledby="delete-dialog-title"
+        open={captionEditId !== null}
+        onClose={() => setCaptionEditId(null)}
+        aria-labelledby="caption-edit-title"
       >
-        <DialogTitle id="delete-dialog-title">Delete image?</DialogTitle>
+        <DialogTitle id="caption-edit-title">Edit caption</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete{' '}
-            <strong>{deleteTarget?.originalName}</strong>? This action cannot be undone.
-          </DialogContentText>
+          <TextField
+            autoFocus
+            fullWidth
+            multiline
+            minRows={2}
+            label="Caption text"
+            value={captionDraft}
+            onChange={(e) => setCaptionDraft(e.target.value)}
+            sx={{ mt: 1 }}
+          />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)} disabled={deleting}>
-            Cancel
-          </Button>
+          <Button onClick={() => setCaptionEditId(null)}>Cancel</Button>
           <Button
-            onClick={() => void handleDeleteConfirm()}
-            color="error"
             variant="contained"
-            disabled={deleting}
-            aria-label="Confirm delete"
+            onClick={() => {
+              if (captionEditId !== null) {
+                void handleCaptionUpdate(captionEditId, captionDraft);
+              }
+              setCaptionEditId(null);
+            }}
           >
-            {deleting ? 'Deleting…' : 'Delete'}
+            Save caption
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Caption edit dialog */}
+      {/* Delete confirmation dialog */}
       <Dialog
-        open={captionTarget !== null}
-        onClose={() => setCaptionTarget(null)}
-        aria-labelledby="caption-dialog-title"
-        fullWidth
-        maxWidth="sm"
+        open={confirmDeleteId !== null}
+        onClose={() => setConfirmDeleteId(null)}
+        aria-labelledby="delete-confirm-title"
+        aria-describedby="delete-confirm-description"
       >
-        <DialogTitle id="caption-dialog-title">Edit caption</DialogTitle>
+        <DialogTitle id="delete-confirm-title">Delete image?</DialogTitle>
         <DialogContent>
-          <TextField
-            label="Caption"
-            value={captionDraft}
-            onChange={(e) => setCaptionDraft(e.target.value)}
-            fullWidth
-            multiline
-            minRows={2}
-            maxRows={4}
-            inputProps={{ maxLength: 500, 'aria-label': 'Caption text' }}
-            sx={{ mt: 1 }}
-            autoFocus
-          />
+          <DialogContentText id="delete-confirm-description">
+            Are you sure you want to delete{' '}
+            <strong>{confirmDeleteName}</strong>? This action cannot be undone.
+          </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCaptionTarget(null)} disabled={savingCaption}>
-            Cancel
-          </Button>
+          <Button onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
           <Button
-            onClick={() => void handleCaptionSave()}
+            color="error"
             variant="contained"
-            disabled={savingCaption}
-            aria-label="Save caption"
+            onClick={() => confirmDeleteId !== null && void handleDelete(confirmDeleteId)}
+            autoFocus
           >
-            {savingCaption ? 'Saving…' : 'Save'}
+            Confirm delete
           </Button>
         </DialogActions>
       </Dialog>
     </Box>
   );
 }
-
