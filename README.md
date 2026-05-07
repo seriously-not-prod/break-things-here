@@ -95,10 +95,12 @@ The active root planner app runs on `http://localhost:5173` and the backend runs
 Current implementation includes:
 - Dashboard with event, RSVP, and task summaries
 - Sidebar and top navigation with responsive mobile behavior
-- Event list, create, detail, and edit flows
+- Event list, create, detail, and edit flows (with owner filter, tag filter, and full-text search)
 - Task tracking linked to events
 - RSVP management plus a public RSVP route (`/rsvp/:eventId`)
 - Minimal admin overview with sample users and activity logs
+- **Gallery management**: upload, delete (with confirmation), and caption editing of event images; `GET/DELETE/PATCH /api/events/:id/gallery`
+- **Messaging**: live event-thread messaging backed by `GET/POST /api/events/:id/messages`; no mock data
 
 ### Backend Environment Variables
 
