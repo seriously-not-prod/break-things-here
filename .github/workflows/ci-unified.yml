@@ -87,6 +87,19 @@ jobs:
     needs: lint-and-typecheck
     permissions:
       contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: festival_planner_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d festival_planner_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -104,6 +117,8 @@ jobs:
       - name: Run backend tests
         working-directory: backend
         run: npm test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/festival_planner_test
 
   test-frontend:
     name: Test - Frontend (Vite)
@@ -164,149 +179,13 @@ jobs:
     steps:
       - name: Check all jobs passed
         run: |
-          if [[ "${{ needs.lint-and-typecheck.result }}" != "success" || \
-                "${{ needs.test-root.result }}" != "success" || \
-                "${{ needs.test-backend.result }}" != "success" || \
-                "${{ needs.test-frontend.result }}" != "success" || \
-                "${{ needs.build-check.result }}" != "success" ]]; then
+          if [[ "${{ needs['lint-and-typecheck'].result }}" != "success" || \
+                "${{ needs['test-root'].result }}" != "success" || \
+                "${{ needs['test-backend'].result }}" != "success" || \
+                "${{ needs['test-frontend'].result }}" != "success" || \
+                "${{ needs['build-check'].result }}" != "success" ]]; then
             echo "❌ One or more CI jobs failed"
             exit 1
           fi
           echo "✅ All CI checks passed"
 
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: TypeScript type check (root)
-        run: npx tsc --noEmit
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: TypeScript type check (backend)
-        working-directory: backend
-        run: npx tsc --noEmit
-  test-root:
-    name: Test - Root (Vitest)
-    runs-on: ubuntu-latest
-    needs: lint-and-typecheck
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests with coverage
-        run: npm test -- --coverage --reporter=verbose
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-root
-          path: coverage/
-          retention-days: 7
-
-  test-backend:
-    name: Test - Backend (Vitest)
-    runs-on: ubuntu-latest
-    needs: lint-and-typecheck
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: Run backend tests
-        working-directory: backend
-        run: npm test
-
-  test-frontend:
-    name: Test - Frontend (Vite)
-    runs-on: ubuntu-latest
-    needs: lint-and-typecheck
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: TypeScript type check (frontend)
-        working-directory: frontend
-        run: npx tsc --noEmit
-
-  build-check:
-    name: Build Check
-    runs-on: ubuntu-latest
-    needs: [test-root, test-backend, test-frontend]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Build frontend
-        working-directory: frontend
-        run: npm run build
-
-  ci-complete:
-    name: CI Complete
-    runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, test-root, test-backend, test-frontend, build-check]
-    if: always()
-    steps:
-      - name: Check all jobs passed
-        run: |
-          if [[ "${{ needs.lint-and-typecheck.result }}" != "success" || \
-                "${{ needs.test-root.result }}" != "success" || \
-                "${{ needs.test-backend.result }}" != "success" || \
-                "${{ needs.test-frontend.result }}" != "success" || \
-                "${{ needs.build-check.result }}" != "success" ]]; then
-            echo "❌ One or more CI jobs failed"
-            exit 1
-          fi
-          echo "✅ All CI checks passed"

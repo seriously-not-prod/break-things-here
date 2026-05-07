@@ -28,6 +28,27 @@ interface AuthRequest extends Request {
   };
 }
 
+interface ProfilePhotoRow {
+  profile_photo_url: string | null;
+}
+
+interface UserProfileRow extends ProfilePhotoRow {
+  email: string;
+  display_name: string;
+  email_verified: number;
+  bio: string | null;
+  phone_number: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  country: string | null;
+}
+function normalizeProfilePhotoUrl(photoUrl: string | null | undefined): string | null {
+  if (!photoUrl) return null;
+  if (photoUrl.startsWith('/api/')) return photoUrl;
+  return `/api/${photoUrl.replace(/^\//, '')}`;
+}
 export async function getUserProfile(req: AuthRequest, res: Response) {
   try {
     if (!req.user) {
@@ -42,7 +63,7 @@ export async function getUserProfile(req: AuthRequest, res: Response) {
       [req.user.id],
     );
 
-    const profile = await db.get(
+    const profile = await db.get<UserProfileRow>(
       `SELECT up.*, u.email, u.display_name, u.email_verified
        FROM user_profiles up
        JOIN users u ON up.user_id = u.id
@@ -50,10 +71,43 @@ export async function getUserProfile(req: AuthRequest, res: Response) {
       [req.user.id],
     );
 
-    return res.json(profile);
+    return res.json({
+      ...profile,
+      profile_photo_url: normalizeProfilePhotoUrl(profile?.profile_photo_url),
+    });
   } catch (error) {
     console.error('Get profile error:', error);
     return res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+}
+
+export async function getProfilePhoto(req: AuthRequest, res: Response) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { filename } = req.params;
+    if (!filename || filename.includes('..') || filename.includes('/')) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+
+    const db = getDatabase();
+  const profile = await db.get<ProfilePhotoRow>(
+      'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
+      [req.user.id],
+    );
+
+    const currentFileName = profile?.profile_photo_url ? path.basename(profile.profile_photo_url) : null;
+    if (!currentFileName || currentFileName !== filename) {
+      return res.status(404).json({ error: 'Photo not found' });
+    }
+
+    const filePath = assertSafePath(path.join(UPLOADS_DIR, filename));
+    return res.sendFile(filePath);
+  } catch (error) {
+    console.error('Get profile photo error:', error);
+    return res.status(500).json({ error: 'Failed to fetch profile photo' });
   }
 }
 
@@ -132,7 +186,7 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
     const db = getDatabase();
 
     // Get old photo URL if exists
-    const existingProfile = await db.get(
+    const existingProfile = await db.get<ProfilePhotoRow>(
       'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
       [req.user.id],
     );
@@ -159,7 +213,7 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
 
     res.json({
       message: 'Profile photo uploaded successfully',
-      photoUrl: relativePhotoUrl,
+      photoUrl: `/api/${relativePhotoUrl}`,
     });
   } catch (error) {
     console.error('Upload profile photo error:', error);
@@ -178,7 +232,7 @@ export async function deleteProfilePhoto(req: AuthRequest, res: Response) {
     const db = getDatabase();
 
     // Get photo URL
-    const profile = await db.get(
+    const profile = await db.get<ProfilePhotoRow>(
       'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
       [req.user.id],
     );

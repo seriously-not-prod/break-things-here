@@ -8,7 +8,6 @@ import {
   Stack,
   TextField,
   Typography,
-  Avatar,
   CircularProgress,
   InputAdornment,
 } from '@mui/material';
@@ -106,14 +105,6 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
   return (
     <Box component="form" onSubmit={handleSubmit} noValidate>
       <Stack spacing={2} sx={{ width: '100%' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-          <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48 }}>FP</Avatar>
-          <Box>
-            <Typography variant="h6">Festival Planner</Typography>
-            <Typography variant="caption" color="text.secondary">Sign in to your account</Typography>
-          </Box>
-        </Box>
-
         {lockoutText && <Alert severity="warning">{lockoutText}</Alert>}
         {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
         {successMessage && <Alert severity="success">{successMessage}</Alert>}
