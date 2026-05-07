@@ -1,6 +1,6 @@
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAuthLimiter } from '../src/middleware/rate-limit.js';
 
 function buildApp() {
@@ -36,6 +36,17 @@ async function expectRateLimitAfterTenRequests(path: '/auth/login' | '/auth/regi
 }
 
 describe('Auth endpoint rate limits (#248)', () => {
+  // The limiter falls back to a relaxed cap (100/window) outside production so
+  // local development isn't disrupted; the production cap (10/window) is what
+  // this test is actually asserting on, so pin NODE_ENV before each case.
+  beforeEach(() => {
+    vi.stubEnv('NODE_ENV', 'production');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('returns 429 for /auth/login after 10 requests in 15 minutes', async () => {
     await expectRateLimitAfterTenRequests('/auth/login');
   });

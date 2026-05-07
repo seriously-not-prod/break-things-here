@@ -6,6 +6,7 @@
 
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { requireEventAccess } from '../utils/event-access.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -18,18 +19,13 @@ interface AuthRequest extends Request {
  */
 export async function listFeed(req: Request, res: Response): Promise<void> {
   try {
-    const db = getDatabase();
+    const authReq = req as AuthRequest;
     const { eventId } = req.params;
 
-    const event = await db.get(
-      'SELECT id FROM events WHERE id = ? AND deleted_at IS NULL',
-      [eventId],
-    );
-    if (!event) {
-      res.status(404).json({ error: 'Event not found.' });
-      return;
-    }
+    const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+    if (!event) return;
 
+    const db = getDatabase();
     const feed = await db.all(
       `SELECT af.id,
               af.event_id,
