@@ -34,6 +34,13 @@ import * as vendorPerfController from '../controllers/vendor-performance-control
 import * as storeSuggestionsController from '../controllers/store-suggestions-controller.js';
 import * as entraAuthController from '../controllers/entra-auth-controller.js';
 import * as trackingController from '../controllers/tracking-controller.js';
+import * as guestMergeController from '../controllers/guest-merge-controller.js';
+import * as rsvpConfirmationController from '../controllers/rsvp-confirmation-controller.js';
+import * as rsvpTokenController from '../controllers/rsvp-token-controller.js';
+import * as waitlistController from '../controllers/waitlist-controller.js';
+import * as rsvpQuestionsController from '../controllers/rsvp-questions-controller.js';
+import * as currencyController from '../controllers/currency-controller.js';
+import * as budgetForecastController from '../controllers/budget-forecast-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
 import multer from 'multer';
@@ -159,6 +166,10 @@ router.get('/public/events/:eventId', rsvpController.getPublicRsvpContext);
 // Tokens are HMAC-signed; see backend/src/utils/tracking-token.ts.
 router.get('/tracking/open/:token', trackingController.recordOpen);
 router.get('/tracking/click/:token', trackingController.recordClick);
+
+// Public RSVP token lookup (#411, #437) — guest-facing, unauthenticated.
+router.get('/public/rsvp/:token', rsvpTokenController.lookupRsvpByToken);
+router.post('/public/rsvp/:token/responses', rsvpQuestionsController.submitResponses);
 // Token refresh and heartbeat
 router.post('/auth/refresh', authController.refreshTokenEndpoint);
 router.post('/auth/session/heartbeat', authenticateToken, authController.sessionHeartbeat);
@@ -184,9 +195,38 @@ router.post('/events/:eventId/rsvps', rsvpController.createRsvp);
 // Specific sub-paths must be registered BEFORE /:id parameterized routes
 router.get('/events/:eventId/rsvps/export', authenticateToken, rsvpController.exportRsvpsCsv);
 router.post('/events/:eventId/rsvps/import', authenticateToken, csvUpload.single('file'), rsvpController.importCsv);
+router.get('/events/:eventId/rsvps/duplicates', authenticateToken, guestMergeController.listDuplicates);
+router.get('/events/:eventId/guest-merges', authenticateToken, guestMergeController.listMergeAudit);
+router.post('/events/:eventId/rsvps/:id/merge', authenticateToken, guestMergeController.mergeGuests);
+router.post('/events/:eventId/rsvps/:id/send-confirmation', authenticateToken, rsvpConfirmationController.sendRsvpConfirmation);
+router.get('/events/:eventId/rsvps/:id/ics', authenticateToken, rsvpConfirmationController.downloadRsvpIcs);
+router.get('/events/:eventId/rsvps/:id/qr.svg', authenticateToken, rsvpConfirmationController.getRsvpQr);
+router.post('/events/:eventId/rsvps/:id/token', authenticateToken, rsvpTokenController.issueRsvpToken);
 router.patch('/events/:eventId/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
 router.patch('/events/:eventId/rsvps/:id/checkin', authenticateToken, rsvpController.checkInGuest);
 router.delete('/events/:eventId/rsvps/:id', authenticateToken, rsvpController.deleteRsvp);
+
+// ============ WAITLIST ROUTES — #413, #442 ============
+router.get('/events/:eventId/waitlist', authenticateToken, waitlistController.listWaitlist);
+router.post('/events/:eventId/waitlist', authenticateToken, waitlistController.addRsvpToWaitlist);
+router.post('/events/:eventId/waitlist/promote', authenticateToken, waitlistController.promoteWaitlist);
+router.delete('/events/:eventId/waitlist/:id', authenticateToken, waitlistController.removeFromWaitlist);
+
+// ============ CUSTOM RSVP QUESTIONS — #413, #443 ============
+router.get('/events/:eventId/rsvp-questions', authenticateToken, rsvpQuestionsController.listQuestions);
+router.post('/events/:eventId/rsvp-questions', authenticateToken, rsvpQuestionsController.createQuestion);
+router.patch('/events/:eventId/rsvp-questions/:id', authenticateToken, rsvpQuestionsController.updateQuestion);
+router.delete('/events/:eventId/rsvp-questions/:id', authenticateToken, rsvpQuestionsController.deleteQuestion);
+router.get('/events/:eventId/rsvp-questions/responses', authenticateToken, rsvpQuestionsController.listResponses);
+
+// ============ CURRENCY & EXCHANGE RATES — #418, #461 ============
+router.get('/currency/supported', currencyController.listSupportedCurrencies);
+router.get('/currency/rates', authenticateToken, currencyController.listRates);
+router.put('/currency/rates', authenticateToken, currencyController.setRate);
+router.delete('/currency/rates/:base/:quote', authenticateToken, currencyController.deleteRate);
+
+// ============ BUDGET FORECAST — #418, #462 ============
+router.get('/events/:eventId/budget/forecast', authenticateToken, budgetForecastController.getBudgetForecast);
 
 // ============ GUEST COMMUNICATION ROUTES ============
 router.get('/events/:eventId/communication', authenticateToken, communicationController.listCommunicationLog);
