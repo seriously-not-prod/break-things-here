@@ -197,23 +197,46 @@ export function EventCalendarView({ events }: EventCalendarViewProps): JSX.Eleme
                       </Typography>
 
                       {/* Event chips — max 3 shown, +N more indicator */}
-                      {cellEvents.slice(0, 3).map((ev) => (
-                        <Tooltip key={ev.id} title={`${ev.title} · ${ev.status}`}>
-                          <Chip
-                            label={ev.title}
-                            color={statusChipColor(ev.status)}
-                            size="small"
-                            onClick={() => navigate(`/events/${ev.id}`)}
-                            sx={{
-                              mb: 0.25,
-                              maxWidth: '100%',
-                              cursor: 'pointer',
-                              fontSize: '0.65rem',
-                              height: 18,
-                            }}
-                          />
-                        </Tooltip>
-                      ))}
+                      {cellEvents.slice(0, 3).map((ev) => {
+                        const going = Number(ev.going_count ?? 0);
+                        const cap = ev.capacity;
+                        const overflow = cap != null && going > cap;
+                        const capacityText =
+                          cap != null
+                            ? overflow
+                              ? `${going}/${cap} · waitlist ${going - cap}`
+                              : `${going}/${cap} · ${Math.max(cap - going, 0)} left`
+                            : null;
+                        const tooltip = [
+                          ev.title,
+                          ev.status,
+                          capacityText,
+                          ev.waitlist_enabled ? 'Waitlist enabled' : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ');
+                        const label = capacityText
+                          ? `${ev.title} · ${capacityText}`
+                          : ev.title;
+                        return (
+                          <Tooltip key={ev.id} title={tooltip}>
+                            <Chip
+                              label={label}
+                              color={overflow ? 'error' : statusChipColor(ev.status)}
+                              size="small"
+                              onClick={() => navigate(`/events/${ev.id}`)}
+                              data-testid={`calendar-event-chip-${ev.id}`}
+                              sx={{
+                                mb: 0.25,
+                                maxWidth: '100%',
+                                cursor: 'pointer',
+                                fontSize: '0.65rem',
+                                height: 18,
+                              }}
+                            />
+                          </Tooltip>
+                        );
+                      })}
                       {cellEvents.length > 3 && (
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
                           +{cellEvents.length - 3} more

@@ -1,15 +1,19 @@
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
   Button,
   ButtonGroup,
+  Checkbox,
   Chip,
   CircularProgress,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
+  InputAdornment,
   MenuItem,
   Paper,
   Stack,
@@ -20,34 +24,69 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
-import { AddRounded, CalendarMonthRounded, ClearRounded, ContentCopyRounded, DeleteRounded, EditRounded, ListRounded, OpenInNewRounded, SearchRounded } from '@mui/icons-material';
-import { InputAdornment } from '@mui/material';
+import {
+  AddRounded,
+  ArchiveRounded,
+  BookmarkAddRounded,
+  BookmarkBorderRounded,
+  BookmarkRounded,
+  CalendarMonthRounded,
+  ClearRounded,
+  ContentCopyRounded,
+  DeleteRounded,
+  DescriptionRounded,
+  DownloadRounded,
+  EditRounded,
+  ListRounded,
+  OpenInNewRounded,
+  SearchRounded,
+  TuneRounded,
+} from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
 import { EventCalendarView } from './event-calendar-view';
-import type { Event as PlannerEventFull } from '../../services/events-service';
+import {
+  buildEventQuery,
+  type Event as PlannerEventFull,
+  type EventListFilters,
+} from '../../services/events-service';
+import {
+  bulkArchiveOrDelete,
+  bulkExportCsv,
+  type BulkResultSummary,
+} from '../../services/event-bulk-service';
+import {
+  createPreset,
+  deletePreset,
+  listPresets,
+  type FilterPreset,
+} from '../../services/event-filter-presets-service';
+import EventTemplatesDialog from './event-templates-dialog';
 
-interface PlannerEvent {
-  id: number;
-  title: string;
-  location: string | null;
-  date: string;
-  capacity: number | null;
+interface PlannerEvent extends Omit<
+  Pick<PlannerEventFull,
+    'id' | 'title' | 'location' | 'date' | 'capacity' | 'status'
+    | 'creator_name' | 'created_by' | 'event_type' | 'tags'
+    | 'latitude' | 'longitude' | 'waitlist_enabled' | 'going_count' | 'pending_count'
+  >,
+  'status'
+> {
+  // Loosen status to string here so the legacy table cells keep working with
+  // values outside the strict EventStatus union (e.g. 'Cancelled', 'Ongoing').
   status: string;
-  creator_name: string | null;
-  created_by: number;
-  event_type?: string | null;
-  tags?: string | null;
 }
 
-const STATUS_OPTIONS = ['Draft', 'Active', 'Completed'];
-const STATUS_COLORS: Record<string, 'default' | 'primary' | 'success' | 'error'> = {
+const STATUS_OPTIONS = ['Draft', 'Active', 'Completed', 'Cancelled'];
+const STATUS_COLORS: Record<string, 'default' | 'primary' | 'success' | 'error' | 'warning'> = {
   Draft: 'default',
   Active: 'primary',
   Completed: 'success',
+  Cancelled: 'error',
+  Ongoing: 'success',
 };
 
 interface EventForm {
@@ -57,13 +96,86 @@ interface EventForm {
   date: string;
   capacity: string;
   status: string;
+  latitude: string;
+  longitude: string;
+  waitlist_enabled: boolean;
+  tags: string;
+  event_type: string;
 }
 
-const EMPTY_FORM: EventForm = { title: '', description: '', location: '', date: '', capacity: '', status: 'Draft' };
+const EMPTY_FORM: EventForm = {
+  title: '',
+  description: '',
+  location: '',
+  date: '',
+  capacity: '',
+  status: 'Draft',
+  latitude: '',
+  longitude: '',
+  waitlist_enabled: false,
+  tags: '',
+  event_type: '',
+};
+
+interface AdvancedFilters {
+  title_q: string;
+  location_q: string;
+  date_from: string;
+  date_to: string;
+  capacity_min: string;
+  capacity_max: string;
+  event_type: string;
+  has_waitlist: '' | 'true' | 'false';
+}
+
+const EMPTY_ADVANCED: AdvancedFilters = {
+  title_q: '',
+  location_q: '',
+  date_from: '',
+  date_to: '',
+  capacity_min: '',
+  capacity_max: '',
+  event_type: '',
+  has_waitlist: '',
+};
 
 interface EventsPageProps {
   initialView?: 'list' | 'calendar';
   ownerOnly?: boolean;
+}
+
+function buildFilters(opts: {
+  ownerOnly: boolean;
+  selectedTags: string[];
+  searchQuery: string;
+  status: string;
+  advanced: AdvancedFilters;
+}): EventListFilters {
+  const { ownerOnly, selectedTags, searchQuery, status, advanced } = opts;
+  const filters: EventListFilters = {};
+  if (ownerOnly) filters.owner = 'me';
+  if (selectedTags.length > 0) filters.tags = [...selectedTags];
+  if (searchQuery.trim()) filters.q = searchQuery.trim();
+  if (status) filters.status = status;
+  if (advanced.title_q.trim()) filters.title_q = advanced.title_q.trim();
+  if (advanced.location_q.trim()) filters.location_q = advanced.location_q.trim();
+  if (advanced.date_from) filters.date_from = advanced.date_from;
+  if (advanced.date_to) filters.date_to = advanced.date_to;
+  if (advanced.capacity_min) filters.capacity_min = advanced.capacity_min;
+  if (advanced.capacity_max) filters.capacity_max = advanced.capacity_max;
+  if (advanced.event_type.trim()) filters.event_type = advanced.event_type.trim();
+  if (advanced.has_waitlist === 'true') filters.has_waitlist = true;
+  if (advanced.has_waitlist === 'false') filters.has_waitlist = false;
+  return filters;
+}
+
+function capacityLabel(event: PlannerEvent): string {
+  if (event.capacity == null) return '—';
+  const going = Number(event.going_count ?? 0);
+  const remaining = Math.max(event.capacity - going, 0);
+  const overflow = Math.max(going - event.capacity, 0);
+  if (overflow > 0) return `${going}/${event.capacity} · waitlist ${overflow}`;
+  return `${going}/${event.capacity} · ${remaining} left`;
 }
 
 export default function EventsPage({ initialView = 'list', ownerOnly = false }: EventsPageProps): JSX.Element {
@@ -73,79 +185,97 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
   const [events, setEvents] = useState<PlannerEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [view, setView] = useState<'list' | 'calendar'>(initialView);
+
+  // Filters
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [advanced, setAdvanced] = useState<AdvancedFilters>(EMPTY_ADVANCED);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  // Saved filter presets
+  const [presets, setPresets] = useState<FilterPreset[]>([]);
+  const [activePresetId, setActivePresetId] = useState<number | null>(null);
+  const [presetMenuAnchor, setPresetMenuAnchor] = useState<HTMLElement | null>(null);
+  const [presetSaveOpen, setPresetSaveOpen] = useState(false);
+  const [presetSaveName, setPresetSaveName] = useState('');
+  const [presetSaveError, setPresetSaveError] = useState<string | null>(null);
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [bulkSummary, setBulkSummary] = useState<BulkResultSummary | null>(null);
+
+  // Templates dialog
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+
+  // Create / edit dialog (existing flow, augmented with new fields)
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<EventForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [view, setView] = useState<'list' | 'calendar'>(initialView);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const isMyEvents = location.pathname === '/events/my';
-  const canCreate = user && user.roleId >= 2;
+  const canCreate = !!user && user.roleId >= 2;
+
+  const filters = useMemo(
+    () => buildFilters({ ownerOnly, selectedTags, searchQuery, status: statusFilter, advanced }),
+    [ownerOnly, selectedTags, searchQuery, statusFilter, advanced],
+  );
 
   const availableTags = useMemo(() => {
     const tagSet = new Set<string>();
     events.forEach((event) => {
-      if (event.tags) {
-        event.tags.split(',').forEach((tag) => {
-          const trimmed = tag.trim();
-          if (trimmed) tagSet.add(trimmed);
-        });
-      }
+      event.tags?.split(',').forEach((tag) => {
+        const trimmed = tag.trim();
+        if (trimmed) tagSet.add(trimmed);
+      });
     });
     return Array.from(tagSet).sort();
   }, [events]);
 
-  const filteredEvents = useMemo(() => {
-    let result = events;
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      result = result.filter(
-        (e) =>
-          e.title.toLowerCase().includes(q) ||
-          (e.location?.toLowerCase().includes(q) ?? false) ||
-          e.status.toLowerCase().includes(q) ||
-          (e.tags?.toLowerCase().includes(q) ?? false) ||
-          (e.event_type?.toLowerCase().includes(q) ?? false) ||
-          (e.creator_name?.toLowerCase().includes(q) ?? false),
-      );
-    }
-
-    if (selectedTags.length > 0) {
-      result = result.filter((event) => {
-        if (!event.tags) return false;
-        const eventTags = event.tags.split(',').map((t) => t.trim());
-        return selectedTags.some((tag) => eventTags.includes(tag));
-      });
-    }
-
-    return result;
-  }, [events, searchQuery, selectedTags]);
-
-  function toggleTag(tag: string): void {
-    setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
-    );
-  }
-
-  async function loadEvents(): Promise<void> {
+  const loadEvents = useCallback(async (): Promise<void> => {
     setLoading(true);
+    setError(null);
     try {
-      const qs = ownerOnly ? '?owner=me' : '';
+      const qs = buildEventQuery(filters);
       const data = await api.get<PlannerEvent[] | { events: PlannerEvent[] }>(`/api/events${qs}`);
       const list: PlannerEvent[] = Array.isArray(data) ? data : (data as { events: PlannerEvent[] }).events ?? [];
       setEvents(list);
+      // Drop selections that no longer match the current filter
+      setSelectedIds((prev) => {
+        const visible = new Set(list.map((e) => e.id));
+        const next = new Set<number>();
+        prev.forEach((id) => {
+          if (visible.has(id)) next.add(id);
+        });
+        return next;
+      });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load events.');
     } finally {
       setLoading(false);
     }
-  }
+  }, [filters]);
 
-  useEffect(() => { void loadEvents(); }, [ownerOnly]);
+  // Load presets once
+  useEffect(() => {
+    void (async () => {
+      try {
+        setPresets(await listPresets());
+      } catch (err) {
+        // Presets are non-critical; silently degrade.
+        console.error('Failed to load filter presets', err);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    void loadEvents();
+  }, [loadEvents]);
 
   useEffect(() => {
     if (location.pathname === '/events/calendar') {
@@ -161,6 +291,10 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
   useEffect(() => {
     setSelectedTags([]);
     setSearchQuery('');
+    setStatusFilter('');
+    setAdvanced(EMPTY_ADVANCED);
+    setActivePresetId(null);
+    setSelectedIds(new Set());
   }, [ownerOnly]);
 
   function handleViewToggle(newView: 'list' | 'calendar'): void {
@@ -170,6 +304,134 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
       navigate(newView === 'calendar' ? '/events/calendar' : '/events');
     }
   }
+
+  function toggleTag(tag: string): void {
+    setActivePresetId(null);
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
+  }
+
+  function clearAllFilters(): void {
+    setSelectedTags([]);
+    setSearchQuery('');
+    setStatusFilter('');
+    setAdvanced(EMPTY_ADVANCED);
+    setActivePresetId(null);
+  }
+
+  function applyPreset(p: FilterPreset): void {
+    const f = p.filters ?? {};
+    setSelectedTags(f.tags ?? []);
+    setSearchQuery(f.q ?? '');
+    setStatusFilter(f.status ?? '');
+    setAdvanced({
+      title_q: f.title_q ?? '',
+      location_q: f.location_q ?? '',
+      date_from: f.date_from ?? '',
+      date_to: f.date_to ?? '',
+      capacity_min: f.capacity_min !== undefined ? String(f.capacity_min) : '',
+      capacity_max: f.capacity_max !== undefined ? String(f.capacity_max) : '',
+      event_type: f.event_type ?? '',
+      has_waitlist:
+        f.has_waitlist === true ? 'true' : f.has_waitlist === false ? 'false' : '',
+    });
+    setActivePresetId(p.id);
+    setPresetMenuAnchor(null);
+  }
+
+  async function savePresetSubmit(): Promise<void> {
+    setPresetSaveError(null);
+    if (!presetSaveName.trim()) {
+      setPresetSaveError('Name is required.');
+      return;
+    }
+    try {
+      const created = await createPreset(presetSaveName.trim(), filters);
+      setPresets((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
+      setActivePresetId(created.id);
+      setPresetSaveOpen(false);
+      setPresetSaveName('');
+      setFeedback(`Preset "${created.name}" saved.`);
+    } catch (err) {
+      setPresetSaveError(err instanceof Error ? err.message : 'Save failed.');
+    }
+  }
+
+  async function handleDeletePreset(p: FilterPreset): Promise<void> {
+    if (!window.confirm(`Delete preset "${p.name}"?`)) return;
+    try {
+      await deletePreset(p.id);
+      setPresets((prev) => prev.filter((x) => x.id !== p.id));
+      if (activePresetId === p.id) setActivePresetId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed.');
+    }
+  }
+
+  // ---- Bulk selection ----
+
+  const allVisibleIds = useMemo(() => events.map((e) => e.id), [events]);
+  const allSelected =
+    allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0 && !allSelected;
+
+  function toggleSelect(id: number): void {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll(): void {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allVisibleIds));
+    }
+  }
+
+  async function runBulkArchiveOrDelete(action: 'archive' | 'delete'): Promise<void> {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    if (action === 'delete' && !window.confirm(`Delete ${ids.length} events? This cannot be undone.`)) {
+      return;
+    }
+    setBulkRunning(true);
+    setBulkSummary(null);
+    try {
+      const summary = await bulkArchiveOrDelete(action, ids);
+      setBulkSummary(summary);
+      const labelMap: Record<typeof action, string> = {
+        archive: 'archived',
+        delete: 'deleted',
+      };
+      setFeedback(`${labelMap[action]} ${summary.success}/${summary.total} events.`);
+      setSelectedIds(new Set());
+      await loadEvents();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bulk action failed.');
+    } finally {
+      setBulkRunning(false);
+    }
+  }
+
+  async function runBulkExport(): Promise<void> {
+    if (selectedIds.size === 0) return;
+    setBulkRunning(true);
+    try {
+      await bulkExportCsv(Array.from(selectedIds));
+      setFeedback(`Exported ${selectedIds.size} events.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Export failed.');
+    } finally {
+      setBulkRunning(false);
+    }
+  }
+
+  // ---- Single event create / edit ----
 
   function openCreate(): void {
     setEditingId(null);
@@ -185,8 +447,13 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
       description: '',
       location: event.location ?? '',
       date: event.date,
-      capacity: event.capacity === null || event.capacity === undefined ? '' : String(event.capacity),
+      capacity: event.capacity == null ? '' : String(event.capacity),
       status: event.status,
+      latitude: event.latitude == null ? '' : String(event.latitude),
+      longitude: event.longitude == null ? '' : String(event.longitude),
+      waitlist_enabled: !!event.waitlist_enabled,
+      tags: event.tags ?? '',
+      event_type: event.event_type ?? '',
     });
     setSaveError(null);
     setDialogOpen(true);
@@ -205,10 +472,23 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
     }
     setSaving(true);
     try {
+      const payload = {
+        title: form.title,
+        description: form.description,
+        location: form.location,
+        date: form.date,
+        capacity: form.capacity ? Number(form.capacity) : null,
+        status: form.status,
+        latitude: form.latitude === '' ? null : Number(form.latitude),
+        longitude: form.longitude === '' ? null : Number(form.longitude),
+        waitlist_enabled: form.waitlist_enabled,
+        tags: form.tags || null,
+        event_type: form.event_type || null,
+      };
       if (editingId) {
-        await api.put(`/api/events/${editingId}`, { ...form, capacity: form.capacity ? Number(form.capacity) : null });
+        await api.put(`/api/events/${editingId}`, payload);
       } else {
-        await api.post('/api/events', { ...form, capacity: form.capacity ? Number(form.capacity) : null });
+        await api.post('/api/events', payload);
       }
       setDialogOpen(false);
       await loadEvents();
@@ -238,11 +518,17 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
     }
   }
 
-  function handleField(field: keyof EventForm): (e: ChangeEvent<HTMLInputElement>) => void {
-    return (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  function handleField(fieldKey: keyof EventForm): (_e: ChangeEvent<HTMLInputElement>) => void {
+    return (e) => {
+      const value = fieldKey === 'waitlist_enabled' ? e.target.checked : e.target.value;
+      setForm((prev) => ({ ...prev, [fieldKey]: value }));
+    };
   }
 
   const pageTitle = isMyEvents ? 'My Events' : 'Events';
+  const filterCount = Object.values(filters).filter((v) =>
+    Array.isArray(v) ? v.length > 0 : v !== undefined && v !== '',
+  ).length;
 
   return (
     <Box sx={{ p: 4 }}>
@@ -255,7 +541,7 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
             </Typography>
           )}
         </Box>
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
           <ButtonGroup size="small" variant="outlined" aria-label="View toggle">
             <Button
               startIcon={<ListRounded />}
@@ -275,43 +561,231 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
             </Button>
           </ButtonGroup>
           {canCreate && (
-            <Button variant="contained" startIcon={<AddRounded />} onClick={openCreate}>
-              New Event
-            </Button>
+            <>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<DescriptionRounded />}
+                onClick={() => setTemplatesOpen(true)}
+              >
+                Templates
+              </Button>
+              <Button variant="contained" size="small" startIcon={<AddRounded />} onClick={openCreate}>
+                New Event
+              </Button>
+            </>
           )}
         </Stack>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-
-      {/* Search box — filters across title, location, status, tags, type, organizer */}
-      {!loading && (
-        <Box sx={{ mb: 2, maxWidth: 480 }}>
-          <TextField
-            size="small"
-            placeholder="Search by title, location, status, tags…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            fullWidth
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchRounded fontSize="small" color="action" />
-                </InputAdornment>
-              ),
-              endAdornment: searchQuery ? (
-                <InputAdornment position="end">
-                  <Button size="small" onClick={() => setSearchQuery('')} sx={{ minWidth: 0, p: 0.5 }}>
-                    <ClearRounded fontSize="small" />
-                  </Button>
-                </InputAdornment>
-              ) : null,
-            }}
-          />
-        </Box>
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+      {feedback && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setFeedback(null)}>{feedback}</Alert>}
+      {bulkSummary && bulkSummary.results.some((r) => r.status !== 'ok') && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setBulkSummary(null)}>
+          {bulkSummary.results.filter((r) => r.status !== 'ok').length} events skipped:{' '}
+          {bulkSummary.results
+            .filter((r) => r.status !== 'ok')
+            .map((r) => `#${r.event_id} (${r.status})`)
+            .join(', ')}
+        </Alert>
       )}
 
-      {/* Tag filter controls — only shown when tags exist in the loaded events */}
+      {/* Search / advanced / preset toolbar */}
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }} sx={{ mb: 2 }}>
+        <TextField
+          size="small"
+          placeholder="Search by title, location, status, tags…"
+          value={searchQuery}
+          onChange={(e) => { setSearchQuery(e.target.value); setActivePresetId(null); }}
+          sx={{ flex: 1, maxWidth: 480 }}
+          inputProps={{ 'aria-label': 'event-search' }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchRounded fontSize="small" color="action" />
+              </InputAdornment>
+            ),
+            endAdornment: searchQuery ? (
+              <InputAdornment position="end">
+                <IconButton size="small" onClick={() => setSearchQuery('')}>
+                  <ClearRounded fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ) : null,
+          }}
+        />
+        <Button
+          size="small"
+          variant={advancedOpen ? 'contained' : 'outlined'}
+          startIcon={<TuneRounded />}
+          onClick={() => setAdvancedOpen((v) => !v)}
+          aria-expanded={advancedOpen}
+          aria-controls="event-advanced-search"
+        >
+          Advanced
+        </Button>
+        <Stack direction="row" spacing={0.5}>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<BookmarkBorderRounded />}
+            onClick={(e) => setPresetMenuAnchor(e.currentTarget)}
+            aria-haspopup="menu"
+          >
+            Saved filters{presets.length ? ` (${presets.length})` : ''}
+          </Button>
+          {filterCount > 0 && (
+            <Button
+              size="small"
+              startIcon={<BookmarkAddRounded />}
+              onClick={() => { setPresetSaveOpen(true); setPresetSaveName(''); setPresetSaveError(null); }}
+            >
+              Save as preset
+            </Button>
+          )}
+          {filterCount > 0 && (
+            <Button size="small" onClick={clearAllFilters}>
+              Clear all
+            </Button>
+          )}
+        </Stack>
+      </Stack>
+
+      {/* Saved filters menu */}
+      {presetMenuAnchor && (
+        <Paper
+          elevation={4}
+          sx={{ position: 'absolute', zIndex: 10, p: 1, minWidth: 240 }}
+          onMouseLeave={() => setPresetMenuAnchor(null)}
+        >
+          {presets.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ p: 1 }}>
+              No saved filters yet.
+            </Typography>
+          ) : (
+            presets.map((p) => (
+              <Stack
+                key={p.id}
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{
+                  p: 0.75,
+                  borderRadius: 1,
+                  '&:hover': { bgcolor: 'action.hover' },
+                  cursor: 'pointer',
+                }}
+                onClick={() => applyPreset(p)}
+              >
+                <Box>
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <BookmarkRounded fontSize="small" color={activePresetId === p.id ? 'primary' : 'action'} />
+                    <Typography variant="body2">{p.name}</Typography>
+                  </Stack>
+                </Box>
+                <IconButton
+                  size="small"
+                  edge="end"
+                  onClick={(e) => { e.stopPropagation(); void handleDeletePreset(p); }}
+                  aria-label={`Delete preset ${p.name}`}
+                >
+                  <DeleteRounded fontSize="small" />
+                </IconButton>
+              </Stack>
+            ))
+          )}
+        </Paper>
+      )}
+
+      {/* Advanced search panel */}
+      <Collapse in={advancedOpen} unmountOnExit>
+        <Paper id="event-advanced-search" variant="outlined" sx={{ p: 2, mb: 2 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} flexWrap="wrap" useFlexGap>
+            <TextField
+              size="small"
+              label="Title contains"
+              value={advanced.title_q}
+              onChange={(e) => { setAdvanced((p) => ({ ...p, title_q: e.target.value })); setActivePresetId(null); }}
+              inputProps={{ 'aria-label': 'advanced-title' }}
+            />
+            <TextField
+              size="small"
+              label="Location contains"
+              value={advanced.location_q}
+              onChange={(e) => { setAdvanced((p) => ({ ...p, location_q: e.target.value })); setActivePresetId(null); }}
+              inputProps={{ 'aria-label': 'advanced-location' }}
+            />
+            <TextField
+              size="small"
+              label="Date from"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              value={advanced.date_from}
+              onChange={(e) => { setAdvanced((p) => ({ ...p, date_from: e.target.value })); setActivePresetId(null); }}
+              inputProps={{ 'aria-label': 'advanced-date-from' }}
+            />
+            <TextField
+              size="small"
+              label="Date to"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              value={advanced.date_to}
+              onChange={(e) => { setAdvanced((p) => ({ ...p, date_to: e.target.value })); setActivePresetId(null); }}
+              inputProps={{ 'aria-label': 'advanced-date-to' }}
+            />
+            <TextField
+              size="small"
+              label="Capacity min"
+              type="number"
+              value={advanced.capacity_min}
+              onChange={(e) => { setAdvanced((p) => ({ ...p, capacity_min: e.target.value })); setActivePresetId(null); }}
+              inputProps={{ min: 0, 'aria-label': 'advanced-capacity-min' }}
+            />
+            <TextField
+              size="small"
+              label="Capacity max"
+              type="number"
+              value={advanced.capacity_max}
+              onChange={(e) => { setAdvanced((p) => ({ ...p, capacity_max: e.target.value })); setActivePresetId(null); }}
+              inputProps={{ min: 0, 'aria-label': 'advanced-capacity-max' }}
+            />
+            <TextField
+              size="small"
+              label="Event type"
+              value={advanced.event_type}
+              onChange={(e) => { setAdvanced((p) => ({ ...p, event_type: e.target.value })); setActivePresetId(null); }}
+            />
+            <TextField
+              size="small"
+              label="Status"
+              select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setActivePresetId(null); }}
+              sx={{ minWidth: 140 }}
+            >
+              <MenuItem value="">Any</MenuItem>
+              {STATUS_OPTIONS.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+            </TextField>
+            <TextField
+              size="small"
+              label="Waitlist"
+              select
+              value={advanced.has_waitlist}
+              onChange={(e) => {
+                setAdvanced((p) => ({ ...p, has_waitlist: e.target.value as AdvancedFilters['has_waitlist'] }));
+                setActivePresetId(null);
+              }}
+              sx={{ minWidth: 140 }}
+            >
+              <MenuItem value="">Any</MenuItem>
+              <MenuItem value="true">Enabled</MenuItem>
+              <MenuItem value="false">Disabled</MenuItem>
+            </TextField>
+          </Stack>
+        </Paper>
+      </Collapse>
+
+      {/* Tag chips */}
       {!loading && availableTags.length > 0 && (
         <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
           <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5, fontWeight: 600 }}>
@@ -336,14 +810,56 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
         </Box>
       )}
 
+      {/* Bulk toolbar */}
+      {canCreate && view === 'list' && events.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 1, mb: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Checkbox
+            checked={allSelected}
+            indeterminate={someSelected}
+            onChange={toggleSelectAll}
+            inputProps={{ 'aria-label': 'select-all-events' }}
+          />
+          <Typography variant="body2" color="text.secondary">
+            {selectedIds.size === 0
+              ? `${events.length} events`
+              : `${selectedIds.size} of ${events.length} selected`}
+          </Typography>
+          <Box sx={{ flex: 1 }} />
+          <ButtonGroup size="small" variant="outlined" disabled={selectedIds.size === 0 || bulkRunning}>
+            <Button
+              startIcon={<ArchiveRounded />}
+              onClick={() => void runBulkArchiveOrDelete('archive')}
+              data-testid="bulk-archive-button"
+            >
+              Archive
+            </Button>
+            <Button
+              startIcon={<DownloadRounded />}
+              onClick={() => void runBulkExport()}
+              data-testid="bulk-export-button"
+            >
+              Export CSV
+            </Button>
+            <Button
+              color="error"
+              startIcon={<DeleteRounded />}
+              onClick={() => void runBulkArchiveOrDelete('delete')}
+              data-testid="bulk-delete-button"
+            >
+              Delete
+            </Button>
+          </ButtonGroup>
+        </Paper>
+      )}
+
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}><CircularProgress /></Box>
       ) : view === 'calendar' ? (
-        <EventCalendarView events={filteredEvents as unknown as PlannerEventFull[]} />
-      ) : filteredEvents.length === 0 ? (
+        <EventCalendarView events={events as unknown as PlannerEventFull[]} />
+      ) : events.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography color="text.secondary">
-            {searchQuery.trim() || selectedTags.length > 0
+            {filterCount > 0
               ? 'No events match the current filters.'
               : isMyEvents
               ? 'You have not created any events yet.'
@@ -355,6 +871,16 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
           <Table size="small">
             <TableHead>
               <TableRow>
+                {canCreate && (
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      checked={allSelected}
+                      indeterminate={someSelected}
+                      onChange={toggleSelectAll}
+                      inputProps={{ 'aria-label': 'select-all-events-table' }}
+                    />
+                  </TableCell>
+                )}
                 <TableCell><strong>Title</strong></TableCell>
                 <TableCell><strong>Date</strong></TableCell>
                 <TableCell><strong>Location</strong></TableCell>
@@ -366,68 +892,144 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredEvents.map((event) => (
-                <TableRow key={event.id} hover>
-                  <TableCell>
-                    {event.title}
-                    {event.event_type && (
-                      <Chip label={event.event_type} size="small" variant="outlined" sx={{ ml: 1 }} />
+              {events.map((event) => {
+                const selected = selectedIds.has(event.id);
+                const overflow =
+                  event.capacity != null && Number(event.going_count ?? 0) > event.capacity;
+                return (
+                  <TableRow key={event.id} hover selected={selected} data-testid={`event-row-${event.id}`}>
+                    {canCreate && (
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          checked={selected}
+                          onChange={() => toggleSelect(event.id)}
+                          inputProps={{ 'aria-label': `select-event-${event.id}` }}
+                        />
+                      </TableCell>
                     )}
-                  </TableCell>
-                  <TableCell>{new Date(event.date).toLocaleDateString()}</TableCell>
-                  <TableCell>{event.location ?? '—'}</TableCell>
-                  <TableCell>{event.capacity ?? '—'}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={event.status}
-                      color={STATUS_COLORS[event.status] ?? 'default'}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {event.tags
-                      ? event.tags.split(',').map((tag) => tag.trim()).filter(Boolean).map((tag) => (
-                          <Chip
-                            key={tag}
-                            label={tag}
-                            size="small"
-                            variant="outlined"
-                            color={selectedTags.includes(tag) ? 'primary' : 'default'}
-                            onClick={() => toggleTag(tag)}
-                            clickable
-                            sx={{ mr: 0.25, mb: 0.25 }}
-                          />
-                        ))
-                      : '—'}
-                  </TableCell>
-                  <TableCell>{event.creator_name ?? '—'}</TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                      <Button size="small" startIcon={<OpenInNewRounded />} onClick={() => navigate(`/events/${event.id}`)}>
-                        Open
-                      </Button>
-                      {canCreate && (
-                        <>
-                          <Button size="small" startIcon={<EditRounded />} onClick={() => openEdit(event)}>
-                            Edit
-                          </Button>
-                          <Button size="small" startIcon={<ContentCopyRounded />} onClick={() => handleClone(event.id)}>
-                            Clone
-                          </Button>
-                          <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => handleDelete(event.id)}>
-                            Delete
-                          </Button>
-                        </>
+                    <TableCell>
+                      {event.title}
+                      {event.event_type && (
+                        <Chip label={event.event_type} size="small" variant="outlined" sx={{ ml: 1 }} />
                       )}
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))}
+                      {event.waitlist_enabled && (
+                        <Tooltip title="Waitlist enabled for this event">
+                          <Chip label="Waitlist" size="small" color="warning" variant="outlined" sx={{ ml: 0.5 }} />
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                    <TableCell>{new Date(event.date).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      {event.location ?? '—'}
+                      {event.latitude != null && event.longitude != null && (
+                        <Tooltip title={`Coordinates: ${event.latitude.toFixed(3)}, ${event.longitude.toFixed(3)}`}>
+                          <Chip label="Map" size="small" variant="outlined" sx={{ ml: 0.5 }} />
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <Typography variant="body2">{capacityLabel(event)}</Typography>
+                        {overflow && (
+                          <Chip label="Over capacity" size="small" color="error" variant="outlined" />
+                        )}
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={event.status}
+                        color={STATUS_COLORS[event.status] ?? 'default'}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {event.tags
+                        ? event.tags
+                            .split(',')
+                            .map((tag) => tag.trim())
+                            .filter(Boolean)
+                            .map((tag) => (
+                              <Chip
+                                key={tag}
+                                label={tag}
+                                size="small"
+                                variant="outlined"
+                                color={selectedTags.includes(tag) ? 'primary' : 'default'}
+                                onClick={() => toggleTag(tag)}
+                                clickable
+                                sx={{ mr: 0.25, mb: 0.25 }}
+                              />
+                            ))
+                        : '—'}
+                    </TableCell>
+                    <TableCell>{event.creator_name ?? '—'}</TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                        <Button size="small" startIcon={<OpenInNewRounded />} onClick={() => navigate(`/events/${event.id}`)}>
+                          Open
+                        </Button>
+                        {canCreate && (
+                          <>
+                            <Button size="small" startIcon={<EditRounded />} onClick={() => openEdit(event)}>
+                              Edit
+                            </Button>
+                            <Button size="small" startIcon={<ContentCopyRounded />} onClick={() => handleClone(event.id)}>
+                              Clone
+                            </Button>
+                            <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => handleDelete(event.id)}>
+                              Delete
+                            </Button>
+                          </>
+                        )}
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>
       )}
 
+      {/* Templates dialog */}
+      <EventTemplatesDialog
+        open={templatesOpen}
+        onClose={() => setTemplatesOpen(false)}
+        onTemplateApplied={(eventId) => {
+          setFeedback(`Created event #${eventId} from template.`);
+          void loadEvents();
+        }}
+      />
+
+      {/* Save preset dialog */}
+      <Dialog open={presetSaveOpen} onClose={() => setPresetSaveOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Save filter preset</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5} sx={{ mt: 1 }}>
+            {presetSaveError && <Alert severity="error">{presetSaveError}</Alert>}
+            <TextField
+              label="Preset name"
+              value={presetSaveName}
+              onChange={(e) => setPresetSaveName(e.target.value)}
+              fullWidth
+              autoFocus
+              required
+              inputProps={{ maxLength: 120, 'aria-label': 'preset-name' }}
+            />
+            <Typography variant="caption" color="text.secondary">
+              {filterCount === 0
+                ? 'No filters set; preset will load the default view.'
+                : `${filterCount} active filter${filterCount === 1 ? '' : 's'} will be saved.`}
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPresetSaveOpen(false)}>Cancel</Button>
+          <Button onClick={() => void savePresetSubmit()} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create / edit event dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{editingId ? 'Edit Event' : 'New Event'}</DialogTitle>
         <DialogContent>
@@ -437,6 +1039,28 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               <TextField label="Title" value={form.title} onChange={handleField('title')} required fullWidth />
               <TextField label="Description" value={form.description} onChange={handleField('description')} multiline rows={3} fullWidth />
               <TextField label="Location" value={form.location} onChange={handleField('location')} fullWidth />
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                <TextField
+                  label="Latitude"
+                  type="number"
+                  value={form.latitude}
+                  onChange={handleField('latitude')}
+                  inputProps={{ step: '0.000001', min: -90, max: 90 }}
+                  fullWidth
+                  helperText="-90 to 90"
+                />
+                <TextField
+                  label="Longitude"
+                  type="number"
+                  value={form.longitude}
+                  onChange={handleField('longitude')}
+                  inputProps={{ step: '0.000001', min: -180, max: 180 }}
+                  fullWidth
+                  helperText="-180 to 180"
+                />
+              </Stack>
+              <TextField label="Event type" value={form.event_type} onChange={handleField('event_type')} fullWidth />
+              <TextField label="Tags (comma-separated)" value={form.tags} onChange={handleField('tags')} fullWidth />
               <TextField
                 label="Capacity"
                 type="number"
@@ -445,6 +1069,15 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
                 fullWidth
                 inputProps={{ min: 1 }}
               />
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <input
+                  id="event-form-waitlist"
+                  type="checkbox"
+                  checked={form.waitlist_enabled}
+                  onChange={(e) => setForm((prev) => ({ ...prev, waitlist_enabled: e.target.checked }))}
+                />
+                <label htmlFor="event-form-waitlist">Enable waitlist</label>
+              </Stack>
               <TextField
                 label="Event Date"
                 type="date"

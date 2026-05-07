@@ -29,6 +29,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api, apiFetch, ApiError, getAuthHeaders } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
 import { ActivityFeedPanel } from './activity-feed-panel';
+import EventLocationMap from './event-location-map';
 
 interface PlannerEvent {
   id: number;
@@ -42,6 +43,10 @@ interface PlannerEvent {
   creator_name: string | null;
   cover_image_url?: string | null;
   event_type?: string | null;
+  // Story #414 additions
+  latitude?: number | null;
+  longitude?: number | null;
+  waitlist_enabled?: boolean | null;
 }
 
 interface Task {
@@ -152,12 +157,18 @@ export default function EventDetailPage(): JSX.Element {
   const [memberError, setMemberError] = useState<string | null>(null);
 
   const canEdit = user && user.roleId >= 2;
-  const remainingCapacity = event?.capacity === null || event?.capacity === undefined
-    ? null
-    : Math.max(
-      event.capacity - rsvps.reduce((sum, rsvp) => sum + (rsvp.status === 'Going' ? Number(rsvp.guests || 1) : 0), 0),
-      0,
-    );
+  const goingHeadcount = rsvps.reduce(
+    (sum, rsvp) => sum + (rsvp.status === 'Going' ? Number(rsvp.guests || 1) : 0),
+    0,
+  );
+  const remainingCapacity =
+    event?.capacity === null || event?.capacity === undefined
+      ? null
+      : Math.max(event.capacity - goingHeadcount, 0);
+  const waitlistOverflow =
+    event?.capacity == null
+      ? 0
+      : Math.max(goingHeadcount - event.capacity, 0);
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -498,15 +509,51 @@ export default function EventDetailPage(): JSX.Element {
               </Typography>
             </Stack>
             {event.capacity !== null && event.capacity !== undefined && (
-              <Typography variant="body2" color="text.secondary">
-                Capacity: {event.capacity} {remainingCapacity !== null ? `· Remaining: ${remainingCapacity}` : ''}
-              </Typography>
+              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                <Chip
+                  label={`Capacity: ${goingHeadcount}/${event.capacity}`}
+                  size="small"
+                  color={waitlistOverflow > 0 ? 'error' : remainingCapacity === 0 ? 'warning' : 'default'}
+                  variant="outlined"
+                  data-testid="capacity-chip"
+                />
+                {remainingCapacity !== null && remainingCapacity > 0 && (
+                  <Typography variant="caption" color="text.secondary">
+                    · {remainingCapacity} seats left
+                  </Typography>
+                )}
+                {event.waitlist_enabled && (
+                  <Chip
+                    label={waitlistOverflow > 0 ? `Waitlist: ${waitlistOverflow}` : 'Waitlist open'}
+                    size="small"
+                    color="warning"
+                    variant={waitlistOverflow > 0 ? 'filled' : 'outlined'}
+                    data-testid="waitlist-chip"
+                  />
+                )}
+                {!event.waitlist_enabled && waitlistOverflow > 0 && (
+                  <Chip
+                    label={`Over by ${waitlistOverflow}`}
+                    size="small"
+                    color="error"
+                    variant="outlined"
+                  />
+                )}
+              </Stack>
             )}
             {event.description && <Typography variant="body1" sx={{ mt: 1 }}>{event.description}</Typography>}
           </Box>
           <Chip label={event.status} color={event.status === 'Active' ? 'primary' : event.status === 'Completed' ? 'success' : 'default'} />
         </Box>
       </Paper>
+
+      <Box sx={{ mb: 2 }}>
+        <EventLocationMap
+          latitude={event.latitude ?? null}
+          longitude={event.longitude ?? null}
+          locationLabel={event.location}
+        />
+      </Box>
 
       <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
         <Button

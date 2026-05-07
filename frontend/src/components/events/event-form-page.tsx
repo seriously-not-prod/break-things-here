@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api-client';
+import EventLocationMap from './event-location-map';
 
 interface CreatedEventResponse {
   id?: number;
@@ -35,6 +36,9 @@ export default function EventFormPage(): JSX.Element {
     capacity: '',
     is_public: true,
     tags: '',
+    latitude: '',
+    longitude: '',
+    waitlist_enabled: false,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +59,18 @@ export default function EventFormPage(): JSX.Element {
     if (!form.location.trim()) return setError('Location is required.');
     setSaving(true);
     try {
+      const lat = form.latitude === '' ? null : Number(form.latitude);
+      const lng = form.longitude === '' ? null : Number(form.longitude);
+      if (lat !== null && (!Number.isFinite(lat) || lat < -90 || lat > 90)) {
+        setError('Latitude must be between -90 and 90.');
+        setSaving(false);
+        return;
+      }
+      if (lng !== null && (!Number.isFinite(lng) || lng < -180 || lng > 180)) {
+        setError('Longitude must be between -180 and 180.');
+        setSaving(false);
+        return;
+      }
       const payload = {
         title: form.title.trim(),
         description: form.description.trim() || null,
@@ -65,6 +81,9 @@ export default function EventFormPage(): JSX.Element {
         capacity: form.capacity ? Number(form.capacity) : null,
         is_public: form.is_public,
         tags: form.tags.trim() || null,
+        latitude: lat,
+        longitude: lng,
+        waitlist_enabled: form.waitlist_enabled,
       };
       const res = await api.post<CreatedEventResponse>('/api/events', payload);
       const newId = res.id ?? res.event?.id;
@@ -163,6 +182,34 @@ export default function EventFormPage(): JSX.Element {
               placeholder="e.g. City Park Amphitheater, Downtown"
             />
 
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                label="Latitude"
+                type="number"
+                value={form.latitude}
+                onChange={handleField('latitude')}
+                inputProps={{ step: '0.000001', min: -90, max: 90 }}
+                fullWidth
+                helperText="-90 to 90"
+              />
+              <TextField
+                label="Longitude"
+                type="number"
+                value={form.longitude}
+                onChange={handleField('longitude')}
+                inputProps={{ step: '0.000001', min: -180, max: 180 }}
+                fullWidth
+                helperText="-180 to 180"
+              />
+            </Stack>
+
+            <EventLocationMap
+              latitude={form.latitude === '' ? null : Number(form.latitude)}
+              longitude={form.longitude === '' ? null : Number(form.longitude)}
+              locationLabel={form.location || null}
+              height={200}
+            />
+
             <TextField
               label="Tags (comma separated)"
               value={form.tags}
@@ -179,6 +226,16 @@ export default function EventFormPage(): JSX.Element {
                 />
               }
               label="Public event (visible on public RSVP page)"
+            />
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={form.waitlist_enabled}
+                  onChange={(e) => setForm((p) => ({ ...p, waitlist_enabled: e.target.checked }))}
+                />
+              }
+              label="Enable waitlist when capacity is reached"
             />
 
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
