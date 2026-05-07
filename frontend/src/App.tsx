@@ -1,4 +1,4 @@
-import { Box, CircularProgress, Paper, Typography } from '@mui/material';
+import { Avatar, Box, CircularProgress, Paper, Typography } from '@mui/material';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/auth-context';
 import { LoginForm } from './components/login-form/login-form';
@@ -50,30 +50,49 @@ function AuthShell(): JSX.Element {
         display: 'grid',
         placeItems: 'center',
         px: 2,
-        background: (theme) =>
-          theme.palette.mode === 'dark'
-            ? 'linear-gradient(160deg, #0D1117 0%, #111827 100%)'
-            : 'linear-gradient(160deg, #EEF2FF 0%, #F8F9FC 60%, #FFFFFF 100%)',
+        background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
       }}
     >
       <Paper
-        elevation={8}
+        elevation={12}
         sx={{
           width: '100%',
-          maxWidth: 460,
+          maxWidth: 480,
           p: 4,
-          borderRadius: 4,
-          border: '1px solid',
-          borderColor: 'primary.light',
+          borderRadius: 3,
           bgcolor: 'background.paper',
         }}
       >
-        <Typography component="h1" variant="h5" fontWeight={800} color="primary.main" sx={{ mb: 2 }}>
-          eQuip Fest Planner
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          {TITLES[view]}
-        </Typography>
+        {/* Brand header */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
+          <Avatar
+            sx={{
+              width: 44,
+              height: 44,
+              bgcolor: '#4f46e5',
+              borderRadius: 2,
+              fontSize: '0.85rem',
+              fontWeight: 800,
+              letterSpacing: '-0.5px',
+            }}
+          >
+            FE
+          </Avatar>
+          <Typography component="h1" variant="h5" fontWeight={700} color="text.primary">
+            Festival Planner
+          </Typography>
+        </Box>
+
+        {view === 'login' && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3, mt: 0.5 }}>
+            Sign in to access your workspace
+          </Typography>
+        )}
+        {view !== 'login' && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3, mt: 0.5 }}>
+            {TITLES[view]}
+          </Typography>
+        )}
 
         {view === 'login' && (
           <LoginForm
