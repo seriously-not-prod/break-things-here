@@ -1078,6 +1078,13 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_rsvp_question_responses_rsvp ON rsvp_question_responses(rsvp_id)`,
   );
 
+  // ── Planned-vs-actual timeline workflow (#460) ───────────────────────────
+  await db.exec(`ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS planned_start_time TIMESTAMP`);
+  await db.exec(`ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS planned_end_time TIMESTAMP`);
+  await db.exec(`ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS actual_start_time TIMESTAMP`);
+  await db.exec(`ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS actual_end_time TIMESTAMP`);
+  await db.exec(`ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'planned' CHECK (status IN ('planned','in-progress','completed','skipped'))`);
+
   // ── Currency & exchange rates (#418, #461) ────────────────────────────────
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'USD'`);
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT`);

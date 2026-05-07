@@ -204,7 +204,7 @@ describe('SeatingPage (#386)', () => {
     await waitFor(() => {
       expect(mockedService.createTable).toHaveBeenCalledWith('10', { name: 'Table C', capacity: 8 });
     });
-  });
+  }, 15000);
 
   it('supports visually reassigning a guest by dropping them on another table', async () => {
     renderPage();

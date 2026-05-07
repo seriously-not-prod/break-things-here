@@ -457,18 +457,23 @@ CREATE TABLE IF NOT EXISTS shopping_items (
 -- Event Timeline (BRD 3.8)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS timeline_activities (
-  id          SERIAL PRIMARY KEY,
-  event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  title       TEXT NOT NULL,
-  description TEXT,
-  start_time  TIMESTAMP,
-  end_time    TIMESTAMP,
-  location    TEXT,
-  vendor_id   INTEGER REFERENCES vendors(id) ON DELETE SET NULL,
-  sort_order  INTEGER DEFAULT 0,
-  created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id                  SERIAL PRIMARY KEY,
+  event_id            INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  title               TEXT NOT NULL,
+  description         TEXT,
+  start_time          TIMESTAMP,
+  end_time            TIMESTAMP,
+  planned_start_time  TIMESTAMP,
+  planned_end_time    TIMESTAMP,
+  actual_start_time   TIMESTAMP,
+  actual_end_time     TIMESTAMP,
+  status              TEXT DEFAULT 'planned' CHECK (status IN ('planned','in-progress','completed','skipped')),
+  location            TEXT,
+  vendor_id           INTEGER REFERENCES vendors(id) ON DELETE SET NULL,
+  sort_order          INTEGER DEFAULT 0,
+  created_by          INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ============================================================

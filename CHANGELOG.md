@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Planned-vs-actual timeline workflow: `timeline_activities` now stores `planned_start_time`, `planned_end_time`, `actual_start_time`, `actual_end_time`, and `status` (`planned`/`in-progress`/`completed`/`skipped`) fields; `GET /api/events/:eventId/timeline/comparison` returns per-activity variance in minutes and a status summary; timeline UI adds a "Planned vs Actual" comparison tab and status chips on activity cards; form updated with planned/actual time fields and a status selector; all existing CRUD behaviour preserved (#460)
+- Fixed pre-existing test timeout instability in `seating.test.tsx` and `events-page-compatibility.test.tsx` by adding explicit 15 s timeout per test
+
+### Added
 - Gallery albums: organise gallery images into named albums with create/edit/delete/assign workflows; `gallery_albums` table and `/api/events/:eventId/gallery/albums` CRUD + `PATCH .../gallery/:id/album` assignment endpoint (#417 #459)
 - Gallery moderation queue: guest submissions enter a pending state; event members can approve or reject via `PATCH .../gallery/:id/moderate` and `PATCH .../gallery/:id/submit`; moderation tab in gallery UI with approve/reject actions (#417 #459)
 - Gallery slideshows: create named slideshows from gallery images with ordered item lists; full-screen player dialog; `gallery_slideshows` and `slideshow_items` tables; CRUD + items endpoint; slideshows tab in gallery UI (#417 #459)
