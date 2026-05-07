@@ -257,6 +257,23 @@ CREATE TABLE IF NOT EXISTS communication_log (
 CREATE INDEX IF NOT EXISTS idx_communication_log_event_id ON communication_log(event_id);
 
 -- ============================================================
+-- Communication Tracking (#419, #465, #466)
+-- Append-only event log for email opens (pixel) and clicks (redirect).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS communication_tracking_events (
+  id                   SERIAL PRIMARY KEY,
+  communication_log_id INTEGER NOT NULL REFERENCES communication_log(id) ON DELETE CASCADE,
+  event_type           TEXT NOT NULL CHECK (event_type IN ('open','click')),
+  target_url           TEXT,
+  ip_address           TEXT,
+  user_agent           TEXT,
+  occurred_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_comm_tracking_log_id ON communication_tracking_events(communication_log_id);
+CREATE INDEX IF NOT EXISTS idx_comm_tracking_type ON communication_tracking_events(event_type);
+
+-- ============================================================
 -- Budgeting
 -- ============================================================
 CREATE TABLE IF NOT EXISTS budget_categories (
