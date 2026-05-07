@@ -132,24 +132,22 @@ export function MessagesInbox(): JSX.Element {
     if (!selectedId || currentUserId === null) return;
     try {
       await deleteMessage(selectedId, messageId);
-      setMessages((prev) => {
-        const next = prev.filter((m) => m.id !== messageId);
-        // If we just deleted the latest message, refresh the sidebar preview
-        // to show the new tail (or clear it if the thread is now empty).
-        const newLast = next[next.length - 1];
-        setConversations((convs) =>
-          convs.map((conv) =>
-            conv.id === selectedId
-              ? {
-                  ...conv,
-                  lastMessage: newLast?.body ?? '',
-                  lastMessageAt: newLast?.sentAt ?? conv.lastMessageAt,
-                }
-              : conv,
-          ),
-        );
-        return next;
-      });
+      const next = messages.filter((m) => m.id !== messageId);
+      setMessages(next);
+      // If we just deleted the latest message, refresh the sidebar preview
+      // to show the new tail (or clear it if the thread is now empty).
+      const newLast = next[next.length - 1];
+      setConversations((convs) =>
+        convs.map((conv) =>
+          conv.id === selectedId
+            ? {
+                ...conv,
+                lastMessage: newLast?.body ?? '',
+                lastMessageAt: newLast?.sentAt ?? conv.lastMessageAt,
+              }
+            : conv,
+        ),
+      );
     } catch (err: unknown) {
       setError(describeError(err, 'Failed to delete message'));
     }
