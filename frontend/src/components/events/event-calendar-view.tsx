@@ -197,23 +197,59 @@ export function EventCalendarView({ events }: EventCalendarViewProps): JSX.Eleme
                       </Typography>
 
                       {/* Event chips — max 3 shown, +N more indicator */}
-                      {cellEvents.slice(0, 3).map((ev) => (
-                        <Tooltip key={ev.id} title={`${ev.title} · ${ev.status}`}>
-                          <Chip
-                            label={ev.title}
-                            color={statusChipColor(ev.status)}
-                            size="small"
-                            onClick={() => navigate(`/events/${ev.id}`)}
-                            sx={{
-                              mb: 0.25,
-                              maxWidth: '100%',
-                              cursor: 'pointer',
-                              fontSize: '0.65rem',
-                              height: 18,
-                            }}
-                          />
-                        </Tooltip>
-                      ))}
+                      {cellEvents.slice(0, 3).map((ev) => {
+                        const going = Number(ev.going_count ?? 0);
+                        const cap = ev.capacity;
+                        const overflow = cap != null && going > cap;
+                        // Only describe overflow as a "waitlist" when waitlist
+                        // is actually enabled on the event — otherwise it's
+                        // simply over capacity.
+                        const overflowText =
+                          overflow && cap != null
+                            ? ev.waitlist_enabled
+                              ? `waitlist ${going - cap}`
+                              : `over by ${going - cap}`
+                            : null;
+                        const capacityText =
+                          cap != null
+                            ? overflow
+                              ? `${going}/${cap} · ${overflowText}`
+                              : `${going}/${cap} · ${Math.max(cap - going, 0)} left`
+                            : null;
+                        const tooltip = [
+                          ev.title,
+                          ev.status,
+                          capacityText,
+                          ev.waitlist_enabled
+                            ? 'Waitlist enabled'
+                            : overflow
+                            ? 'Waitlist disabled'
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ');
+                        const label = capacityText
+                          ? `${ev.title} · ${capacityText}`
+                          : ev.title;
+                        return (
+                          <Tooltip key={ev.id} title={tooltip}>
+                            <Chip
+                              label={label}
+                              color={overflow ? 'error' : statusChipColor(ev.status)}
+                              size="small"
+                              onClick={() => navigate(`/events/${ev.id}`)}
+                              data-testid={`calendar-event-chip-${ev.id}`}
+                              sx={{
+                                mb: 0.25,
+                                maxWidth: '100%',
+                                cursor: 'pointer',
+                                fontSize: '0.65rem',
+                                height: 18,
+                              }}
+                            />
+                          </Tooltip>
+                        );
+                      })}
                       {cellEvents.length > 3 && (
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
                           +{cellEvents.length - 3} more

@@ -24,6 +24,14 @@ export interface Event {
   is_public: boolean;
   rsvp_deadline: string | null;
   tags: string | null;
+  /** Story #414 — map-backed location */
+  latitude?: number | null;
+  longitude?: number | null;
+  /** Story #414 — capacity / waitlist surface */
+  waitlist_enabled?: boolean | null;
+  /** Aggregated counts populated by GET /api/events */
+  going_count?: number | null;
+  pending_count?: number | null;
   created_by: number;
   creator_name: string | null;
   created_at: string;
@@ -66,15 +74,43 @@ export interface EventListFilters {
   tags?: string[];
   status?: string;
   q?: string;
+  // Advanced search — story #416, task #455
+  title_q?: string;
+  location_q?: string;
+  date_from?: string;
+  date_to?: string;
+  capacity_min?: number | string;
+  capacity_max?: number | string;
+  event_type?: string;
+  has_waitlist?: boolean;
+}
+
+export function buildEventQuery(filters?: EventListFilters): string {
+  if (!filters) return '';
+  const params = new URLSearchParams();
+  if (filters.owner) params.set('owner', filters.owner);
+  if (filters.tags?.length) params.set('tags', filters.tags.join(','));
+  if (filters.status) params.set('status', filters.status);
+  if (filters.q) params.set('q', filters.q);
+  if (filters.title_q) params.set('title_q', filters.title_q);
+  if (filters.location_q) params.set('location_q', filters.location_q);
+  if (filters.date_from) params.set('date_from', filters.date_from);
+  if (filters.date_to) params.set('date_to', filters.date_to);
+  if (filters.capacity_min !== undefined && filters.capacity_min !== '') {
+    params.set('capacity_min', String(filters.capacity_min));
+  }
+  if (filters.capacity_max !== undefined && filters.capacity_max !== '') {
+    params.set('capacity_max', String(filters.capacity_max));
+  }
+  if (filters.event_type) params.set('event_type', filters.event_type);
+  if (filters.has_waitlist !== undefined) {
+    params.set('has_waitlist', filters.has_waitlist ? 'true' : 'false');
+  }
+  return params.toString() ? `?${params.toString()}` : '';
 }
 
 export async function listEvents(filters?: EventListFilters): Promise<Event[]> {
-  const params = new URLSearchParams();
-  if (filters?.owner) params.set('owner', filters.owner);
-  if (filters?.tags?.length) params.set('tags', filters.tags.join(','));
-  if (filters?.status) params.set('status', filters.status);
-  if (filters?.q) params.set('q', filters.q);
-  const qs = params.toString() ? `?${params.toString()}` : '';
+  const qs = buildEventQuery(filters);
   const data = await api.get<EventApiRecord[] | { events: EventApiRecord[] }>(`/api/events${qs}`);
   const events = Array.isArray(data) ? data : data.events ?? [];
   return events.map(normalizeEvent);

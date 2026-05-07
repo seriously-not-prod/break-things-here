@@ -105,6 +105,8 @@ export interface CreateExpensePayload {
   payment_status: 'pending' | 'paid' | 'overdue';
   vendor_name: string | null;
   notes: string | null;
+  /** ISO 4217 currency code; if omitted the event's base currency is used. */
+  currency_code?: string;
 }
 
 export async function createExpense(

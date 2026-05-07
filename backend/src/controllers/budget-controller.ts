@@ -5,10 +5,42 @@
  */
 
 import { Request, Response } from 'express';
-import { getDatabase } from '../db/database.js';
+import { getDatabase, type DatabaseAdapter } from '../db/database.js';
 import { logActivity } from './activity-feed-controller.js';
 import { createBudgetAlert } from './notifications-controller.js';
 import { requireEventAccess } from '../utils/event-access.js';
+import { convertAmount, isValidCurrencyCode, normalizeCurrencyCode } from '../utils/currency.js';
+
+/**
+ * Resolve the FX-converted amount and rate for an expense, given its source
+ * currency. When `currency_code` matches the event base, no conversion is
+ * needed and `rate` is 1. When the rate is unavailable we still let the
+ * expense save — `amount_base` stays null and the forecast surface shows a
+ * "rate unavailable" warning rather than silently zeroing the value.
+ */
+async function resolveExpenseFxAmount(
+  db: DatabaseAdapter,
+  eventId: string | number,
+  amount: number,
+  expenseCurrency: string | null,
+): Promise<{ baseCurrency: string; baseAmount: number | null; rate: number | null; currency: string }> {
+  const evRow = await db.get<{ currency_code: string }>(
+    `SELECT COALESCE(currency_code, 'USD') AS currency_code FROM events WHERE id = ?`,
+    [eventId],
+  );
+  const baseCurrency = normalizeCurrencyCode(evRow?.currency_code ?? 'USD');
+  const currency = expenseCurrency ? normalizeCurrencyCode(expenseCurrency) : baseCurrency;
+  if (currency === baseCurrency) {
+    return { baseCurrency, baseAmount: amount, rate: 1, currency };
+  }
+  const conv = await convertAmount(db, amount, currency, baseCurrency);
+  return {
+    baseCurrency,
+    baseAmount: conv ? conv.amount : null,
+    rate: conv ? conv.rate : null,
+    currency,
+  };
+}
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -288,13 +320,14 @@ export async function createExpense(req: AuthRequest, res: Response): Promise<vo
     const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
     if (!event) return;
 
-    const { title, amount, category_id, payment_status, vendor_name, notes } = req.body as {
+    const { title, amount, category_id, payment_status, vendor_name, notes, currency_code } = req.body as {
       title?: unknown;
       amount?: unknown;
       category_id?: unknown;
       payment_status?: unknown;
       vendor_name?: unknown;
       notes?: unknown;
+      currency_code?: unknown;
     };
 
     if (typeof title !== 'string' || title.trim() === '') {
@@ -311,6 +344,10 @@ export async function createExpense(req: AuthRequest, res: Response): Promise<vo
       res.status(400).json({ error: 'category_id must be a valid integer' });
       return;
     }
+    if (currency_code !== undefined && currency_code !== null && !isValidCurrencyCode(currency_code)) {
+      res.status(400).json({ error: 'currency_code must be a valid ISO 4217 code.' });
+      return;
+    }
 
     const status: PaymentStatus = VALID_PAYMENT_STATUSES.includes(payment_status as PaymentStatus)
       ? (payment_status as PaymentStatus)
@@ -318,11 +355,29 @@ export async function createExpense(req: AuthRequest, res: Response): Promise<vo
 
     const safeVendor = typeof vendor_name === 'string' ? vendor_name.trim() : null;
     const safeNotes = typeof notes === 'string' ? notes.trim() : null;
+    const fx = await resolveExpenseFxAmount(
+      db,
+      eventId,
+      parsedAmount,
+      typeof currency_code === 'string' ? currency_code : null,
+    );
 
     const result = await db.run(
-      `INSERT INTO expenses (event_id, category_id, title, amount, payment_status, vendor_name, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-      [eventId, parsedCategoryId, title.trim(), parsedAmount, status, safeVendor, safeNotes],
+      `INSERT INTO expenses (event_id, category_id, title, amount, payment_status, vendor_name, notes,
+                              currency_code, amount_base, exchange_rate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [
+        eventId,
+        parsedCategoryId,
+        title.trim(),
+        parsedAmount,
+        status,
+        safeVendor,
+        safeNotes,
+        fx.currency,
+        fx.baseAmount,
+        fx.rate,
+      ],
     );
 
     const expense = await db.get(
@@ -362,13 +417,14 @@ export async function updateExpense(req: AuthRequest, res: Response): Promise<vo
     const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
     if (!event) return;
 
-    const { title, amount, category_id, payment_status, vendor_name, notes } = req.body as {
+    const { title, amount, category_id, payment_status, vendor_name, notes, currency_code } = req.body as {
       title?: unknown;
       amount?: unknown;
       category_id?: unknown;
       payment_status?: unknown;
       vendor_name?: unknown;
       notes?: unknown;
+      currency_code?: unknown;
     };
 
     const existing = await db.get(
@@ -394,6 +450,10 @@ export async function updateExpense(req: AuthRequest, res: Response): Promise<vo
       res.status(400).json({ error: 'category_id must be a valid integer' });
       return;
     }
+    if (currency_code !== undefined && currency_code !== null && !isValidCurrencyCode(currency_code)) {
+      res.status(400).json({ error: 'currency_code must be a valid ISO 4217 code.' });
+      return;
+    }
 
     const status: PaymentStatus = VALID_PAYMENT_STATUSES.includes(payment_status as PaymentStatus)
       ? (payment_status as PaymentStatus)
@@ -401,11 +461,29 @@ export async function updateExpense(req: AuthRequest, res: Response): Promise<vo
 
     const safeVendor = typeof vendor_name === 'string' ? vendor_name.trim() : null;
     const safeNotes = typeof notes === 'string' ? notes.trim() : null;
+    const fx = await resolveExpenseFxAmount(
+      db,
+      eventId,
+      parsedAmount,
+      typeof currency_code === 'string' ? currency_code : null,
+    );
 
     await db.run(
       `UPDATE expenses SET title = ?, amount = ?, category_id = ?, payment_status = ?,
-              vendor_name = ?, notes = ? WHERE id = ?`,
-      [title.trim(), parsedAmount, parsedCategoryId, status, safeVendor, safeNotes, id],
+              vendor_name = ?, notes = ?, currency_code = ?, amount_base = ?, exchange_rate = ?
+        WHERE id = ?`,
+      [
+        title.trim(),
+        parsedAmount,
+        parsedCategoryId,
+        status,
+        safeVendor,
+        safeNotes,
+        fx.currency,
+        fx.baseAmount,
+        fx.rate,
+        id,
+      ],
     );
 
     const expense = await db.get(
