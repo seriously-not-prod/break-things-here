@@ -1,6 +1,21 @@
 import { KeyboardEvent, useEffect, useRef, useState } from 'react';
-import { Avatar, Box, CircularProgress, IconButton, TextField, Typography } from '@mui/material';
-import { SendRounded } from '@mui/icons-material';
+import {
+  Avatar,
+  Box,
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  IconButton,
+  Stack,
+  TextField,
+  Tooltip,
+  Typography,
+} from '@mui/material';
+import { DeleteOutline, EditOutlined, SendRounded } from '@mui/icons-material';
 import type { Message } from '../../types/message';
 
 interface ThreadViewProps {
@@ -10,6 +25,10 @@ interface ThreadViewProps {
   messages: Message[];
   loading: boolean;
   onSend: (_body: string) => Promise<void>;
+  /** Optional — when omitted, edit affordance is hidden. */
+  onEdit?: (_messageId: string, _body: string) => Promise<void>;
+  /** Optional — when omitted, delete affordance is hidden. */
+  onDelete?: (_messageId: string) => Promise<void>;
 }
 
 export function ThreadView({
@@ -18,9 +37,16 @@ export function ThreadView({
   messages,
   loading,
   onSend,
+  onEdit,
+  onDelete,
 }: ThreadViewProps): JSX.Element {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,6 +57,8 @@ export function ThreadView({
 
   useEffect(() => {
     setDraft('');
+    setEditingId(null);
+    setConfirmDeleteId(null);
   }, [conversationId]);
 
   async function handleSend(): Promise<void> {
@@ -49,6 +77,42 @@ export function ThreadView({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void handleSend();
+    }
+  }
+
+  function startEdit(msg: Message): void {
+    setEditingId(msg.id);
+    setEditDraft(msg.body);
+  }
+
+  function cancelEdit(): void {
+    setEditingId(null);
+    setEditDraft('');
+  }
+
+  async function commitEdit(messageId: string): Promise<void> {
+    const trimmed = editDraft.trim();
+    if (!trimmed || !onEdit) {
+      cancelEdit();
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await onEdit(messageId, trimmed);
+      cancelEdit();
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function commitDelete(): Promise<void> {
+    if (!confirmDeleteId || !onDelete) return;
+    setDeleting(true);
+    try {
+      await onDelete(confirmDeleteId);
+      setConfirmDeleteId(null);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -98,43 +162,125 @@ export function ThreadView({
           </Typography>
         )}
 
-        {messages.map((msg) => (
-          <Box
-            key={msg.id}
-            role="article"
-            aria-label={`${msg.senderName} at ${formatTime(msg.sentAt)}: ${msg.body}`}
-            sx={{
-              display: 'flex',
-              flexDirection: msg.isOwn ? 'row-reverse' : 'row',
-              alignItems: 'flex-start',
-              gap: 1,
-            }}
-          >
-            {!msg.isOwn && (
-              <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.light', fontSize: 12 }}>
-                {msg.senderName.charAt(0)}
-              </Avatar>
-            )}
+        {messages.map((msg) => {
+          const isEditing = editingId === msg.id;
+          const wasEdited = msg.updatedAt && msg.updatedAt !== msg.sentAt;
+          const canEdit = msg.isOwn && Boolean(onEdit);
+          const canDelete = msg.isOwn && Boolean(onDelete);
+
+          return (
             <Box
+              key={msg.id}
+              role="article"
+              aria-label={`${msg.senderName} at ${formatTime(msg.sentAt)}: ${msg.body}`}
               sx={{
-                maxWidth: '70%',
-                bgcolor: msg.isOwn ? 'primary.main' : 'grey.100',
-                color: msg.isOwn ? 'primary.contrastText' : 'text.primary',
-                borderRadius: 2,
-                px: 1.5,
-                py: 1,
+                display: 'flex',
+                flexDirection: msg.isOwn ? 'row-reverse' : 'row',
+                alignItems: 'flex-start',
+                gap: 1,
               }}
             >
-              <Typography variant="body2">{msg.body}</Typography>
-              <Typography
-                variant="caption"
-                sx={{ opacity: 0.7, display: 'block', textAlign: msg.isOwn ? 'right' : 'left' }}
+              {!msg.isOwn && (
+                <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.light', fontSize: 12 }}>
+                  {msg.senderName.charAt(0)}
+                </Avatar>
+              )}
+              <Box
+                sx={{
+                  maxWidth: '70%',
+                  bgcolor: msg.isOwn ? 'primary.main' : 'grey.100',
+                  color: msg.isOwn ? 'primary.contrastText' : 'text.primary',
+                  borderRadius: 2,
+                  px: 1.5,
+                  py: 1,
+                }}
               >
-                {formatTime(msg.sentAt)}
-              </Typography>
+                {isEditing ? (
+                  <Stack spacing={1}>
+                    <TextField
+                      size="small"
+                      fullWidth
+                      multiline
+                      maxRows={4}
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      inputProps={{ 'aria-label': 'Edit message input' }}
+                      disabled={savingEdit}
+                      sx={{
+                        bgcolor: 'background.paper',
+                        borderRadius: 1,
+                        '& .MuiInputBase-input': { color: 'text.primary' },
+                      }}
+                    />
+                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      <Button
+                        size="small"
+                        onClick={cancelEdit}
+                        disabled={savingEdit}
+                        sx={{ color: msg.isOwn ? 'primary.contrastText' : undefined }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="secondary"
+                        onClick={() => void commitEdit(msg.id)}
+                        disabled={!editDraft.trim() || savingEdit}
+                      >
+                        Save
+                      </Button>
+                    </Stack>
+                  </Stack>
+                ) : (
+                  <>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                      {msg.body}
+                    </Typography>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        gap: 0.5,
+                        alignItems: 'center',
+                        justifyContent: msg.isOwn ? 'flex-end' : 'flex-start',
+                        mt: 0.25,
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                        {formatTime(msg.sentAt)}
+                        {wasEdited ? ' · edited' : ''}
+                      </Typography>
+                      {canEdit && (
+                        <Tooltip title="Edit">
+                          <IconButton
+                            size="small"
+                            onClick={() => startEdit(msg)}
+                            aria-label={`Edit message ${msg.id}`}
+                            sx={{ color: 'inherit', opacity: 0.7, p: 0.25 }}
+                          >
+                            <EditOutlined fontSize="inherit" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {canDelete && (
+                        <Tooltip title="Delete">
+                          <IconButton
+                            size="small"
+                            onClick={() => setConfirmDeleteId(msg.id)}
+                            aria-label={`Delete message ${msg.id}`}
+                            sx={{ color: 'inherit', opacity: 0.7, p: 0.25 }}
+                          >
+                            <DeleteOutline fontSize="inherit" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </>
+                )}
+              </Box>
             </Box>
-          </Box>
-        ))}
+          );
+        })}
 
         <div ref={bottomRef} />
       </Box>
@@ -171,6 +317,33 @@ export function ThreadView({
           <SendRounded />
         </IconButton>
       </Box>
+
+      {/* Delete confirmation */}
+      <Dialog
+        open={confirmDeleteId !== null}
+        onClose={() => (deleting ? null : setConfirmDeleteId(null))}
+        aria-labelledby="delete-message-title"
+      >
+        <DialogTitle id="delete-message-title">Delete this message?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This message will be removed from the thread for everyone. This cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDeleteId(null)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => void commitDelete()}
+            disabled={deleting}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

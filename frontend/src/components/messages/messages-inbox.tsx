@@ -4,12 +4,27 @@ import { MailRounded } from '@mui/icons-material';
 import { ConversationList } from './conversation-list';
 import { ThreadView } from './thread-view';
 import {
+  deleteMessage,
+  editMessage,
   getMessages,
   listConversations,
   sendMessage,
 } from '../../services/messages-service';
 import type { Conversation, Message } from '../../types/message';
 import { useAuth } from '../../contexts/auth-context';
+import { ApiError } from '../../lib/api-client';
+
+/** Convert any thrown value into a UI-friendly error message. */
+function describeError(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    if (err.status === 401) return 'Your session has expired. Please sign in again.';
+    if (err.status === 403) return "You don't have access to this conversation.";
+    if (err.status === 404) return 'This conversation is no longer available.';
+    return err.message || fallback;
+  }
+  if (err instanceof Error) return err.message;
+  return fallback;
+}
 
 export function MessagesInbox(): JSX.Element {
   const { user } = useAuth();
@@ -30,9 +45,7 @@ export function MessagesInbox(): JSX.Element {
         setConversations(data);
         if (data.length > 0) setSelectedId(data[0].id);
       })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : 'Failed to load conversations'),
-      )
+      .catch((err: unknown) => setError(describeError(err, 'Failed to load conversations')))
       .finally(() => setLoadingConversations(false));
   }, []);
 
@@ -48,11 +61,23 @@ export function MessagesInbox(): JSX.Element {
     setLoadingMessages(true);
     getMessages(selectedId, currentUserId)
       .then((data) => {
-        if (!cancelled) setMessages(data);
+        if (cancelled) return;
+        setMessages(data);
+        // Sync the conversation row so the sidebar reflects the most recent
+        // message body/timestamp once we have real data for the thread.
+        const last = data[data.length - 1];
+        if (last) {
+          setConversations((prev) =>
+            prev.map((conv) =>
+              conv.id === selectedId
+                ? { ...conv, lastMessage: last.body, lastMessageAt: last.sentAt, isRead: true }
+                : conv,
+            ),
+          );
+        }
       })
       .catch((err: unknown) => {
-        if (!cancelled)
-          setError(err instanceof Error ? err.message : 'Failed to load messages');
+        if (!cancelled) setError(describeError(err, 'Failed to load messages'));
       })
       .finally(() => {
         if (!cancelled) setLoadingMessages(false);
@@ -81,7 +106,50 @@ export function MessagesInbox(): JSX.Element {
         ),
       );
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to send message');
+      setError(describeError(err, 'Failed to send message'));
+    }
+  }
+
+  async function handleEdit(messageId: string, body: string): Promise<void> {
+    if (!selectedId || currentUserId === null) return;
+    try {
+      const updated = await editMessage(selectedId, messageId, body, currentUserId);
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? updated : m)));
+      // If the edited message was the latest, update the sidebar preview too.
+      setConversations((prev) =>
+        prev.map((conv) => {
+          if (conv.id !== selectedId) return conv;
+          const isLatest = messages.length > 0 && messages[messages.length - 1].id === messageId;
+          return isLatest ? { ...conv, lastMessage: updated.body } : conv;
+        }),
+      );
+    } catch (err: unknown) {
+      setError(describeError(err, 'Failed to edit message'));
+    }
+  }
+
+  async function handleDelete(messageId: string): Promise<void> {
+    if (!selectedId || currentUserId === null) return;
+    try {
+      await deleteMessage(selectedId, messageId);
+      const next = messages.filter((m) => m.id !== messageId);
+      setMessages(next);
+      // If we just deleted the latest message, refresh the sidebar preview
+      // to show the new tail (or clear it if the thread is now empty).
+      const newLast = next[next.length - 1];
+      setConversations((convs) =>
+        convs.map((conv) =>
+          conv.id === selectedId
+            ? {
+                ...conv,
+                lastMessage: newLast?.body ?? '',
+                lastMessageAt: newLast?.sentAt ?? conv.lastMessageAt,
+              }
+            : conv,
+        ),
+      );
+    } catch (err: unknown) {
+      setError(describeError(err, 'Failed to delete message'));
     }
   }
 
@@ -164,6 +232,8 @@ export function MessagesInbox(): JSX.Element {
                 messages={messages}
                 loading={loadingMessages}
                 onSend={handleSend}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
               />
             ) : (
               <Box
