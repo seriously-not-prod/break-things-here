@@ -12,7 +12,7 @@ export interface EventData {
   location: string;
   description?: string;
   capacity?: number | null;
-  status?: 'Draft' | 'Active' | 'Completed';
+  status?: 'Draft' | 'Active' | 'Completed' | 'Cancelled';
   event_type?: string | null;
   is_public?: boolean;
   tags?: string | null;
@@ -26,10 +26,15 @@ interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
 }
 
+// Note on going_count/pending_count: scalar subqueries run once per event row.
+// For typical event counts (<1k) this is fine; if a future workload exposes a
+// hot list, swap to a single LEFT JOIN rsvps … GROUP BY e.id with conditional
+// SUM-CASE so the aggregate is computed in one pass.
 const EVENT_SELECT_COLUMNS = `
   e.*,
   e.date AS event_date,
   u.display_name as created_by_name,
+  u.display_name as creator_name,
   (
     SELECT COALESCE(SUM(COALESCE(r.guests, 1)), 0)::int
       FROM rsvps r
@@ -309,8 +314,8 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (status && !['Draft', 'Active', 'Completed'].includes(status)) {
-      res.status(400).json({ error: 'Invalid status. Must be Draft, Active or Completed' });
+    if (status && !['Draft', 'Active', 'Completed', 'Cancelled'].includes(status)) {
+      res.status(400).json({ error: 'Invalid status. Must be Draft, Active, Completed, or Cancelled' });
       return;
     }
 
@@ -393,8 +398,8 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (status && !['Draft', 'Active', 'Completed'].includes(status)) {
-      res.status(400).json({ error: 'Invalid status. Must be Draft, Active or Completed' });
+    if (status && !['Draft', 'Active', 'Completed', 'Cancelled'].includes(status)) {
+      res.status(400).json({ error: 'Invalid status. Must be Draft, Active, Completed, or Cancelled' });
       return;
     }
 

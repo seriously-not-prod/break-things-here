@@ -128,12 +128,28 @@ describe('EventsPage compatibility', () => {
   it('renders capacity progress and waitlist chip on the list', async () => {
     renderPage();
     await waitFor(() => expect(screen.getByText('Sold Out Concert')).toBeInTheDocument());
-    // Sold Out: 105 going on capacity 100 -> waitlist 5
+    // Sold Out: 105 going on capacity 100, waitlist enabled -> waitlist 5
     expect(screen.getByText('105/100 · waitlist 5')).toBeInTheDocument();
     // Waitlist chip rendered for the event with waitlist_enabled
     expect(screen.getAllByText(/Waitlist/i).length).toBeGreaterThanOrEqual(1);
     // Quiet Workshop: 10/50 · 40 left
     expect(screen.getByText('10/50 · 40 left')).toBeInTheDocument();
+  });
+
+  it('uses "over by N" wording when overflow happens with waitlist disabled', async () => {
+    const overflowNoWaitlist = [
+      {
+        ...EVENTS[0],
+        id: 110,
+        title: 'Hard Cap',
+        going_count: 102,
+        waitlist_enabled: false,
+      },
+    ];
+    vi.mocked(apiClient.api.get).mockResolvedValue(overflowNoWaitlist);
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Hard Cap')).toBeInTheDocument());
+    expect(screen.getByText('102/100 · over by 2')).toBeInTheDocument();
   });
 
   it('exposes the bulk selection toolbar', async () => {

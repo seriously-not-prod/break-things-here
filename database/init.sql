@@ -162,6 +162,20 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS latitude  DOUBLE PRECISION;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS waitlist_enabled BOOLEAN DEFAULT FALSE;
 
+-- Story #410, task #433: bulk-archive uses 'Cancelled' as a soft-archive marker.
+-- Existing databases were created with status CHECK IN ('Draft','Active','Completed');
+-- widen the constraint to include 'Cancelled' so archive UPDATEs don't violate it.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'events_status_check'
+  ) THEN
+    ALTER TABLE events DROP CONSTRAINT events_status_check;
+  END IF;
+END$$;
+ALTER TABLE events ADD CONSTRAINT events_status_check
+  CHECK (status IN ('Draft', 'Active', 'Completed', 'Cancelled'));
+
 -- ============================================================
 -- Event templates — story #410, task #432
 -- Reusable seed data for new events. Templates are owned by a user

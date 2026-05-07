@@ -29,7 +29,7 @@ export interface EventTemplateRow {
   updated_at: string;
 }
 
-const VALID_STATUSES = ['Draft', 'Active', 'Completed'] as const;
+const VALID_STATUSES = ['Draft', 'Active', 'Completed', 'Cancelled'] as const;
 
 function canMutate(user?: AuthRequest['user']): boolean {
   return !!user && user.role_id >= 2;

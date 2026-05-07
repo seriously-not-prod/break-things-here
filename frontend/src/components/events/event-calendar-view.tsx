@@ -201,17 +201,30 @@ export function EventCalendarView({ events }: EventCalendarViewProps): JSX.Eleme
                         const going = Number(ev.going_count ?? 0);
                         const cap = ev.capacity;
                         const overflow = cap != null && going > cap;
+                        // Only describe overflow as a "waitlist" when waitlist
+                        // is actually enabled on the event — otherwise it's
+                        // simply over capacity.
+                        const overflowText =
+                          overflow && cap != null
+                            ? ev.waitlist_enabled
+                              ? `waitlist ${going - cap}`
+                              : `over by ${going - cap}`
+                            : null;
                         const capacityText =
                           cap != null
                             ? overflow
-                              ? `${going}/${cap} · waitlist ${going - cap}`
+                              ? `${going}/${cap} · ${overflowText}`
                               : `${going}/${cap} · ${Math.max(cap - going, 0)} left`
                             : null;
                         const tooltip = [
                           ev.title,
                           ev.status,
                           capacityText,
-                          ev.waitlist_enabled ? 'Waitlist enabled' : null,
+                          ev.waitlist_enabled
+                            ? 'Waitlist enabled'
+                            : overflow
+                            ? 'Waitlist disabled'
+                            : null,
                         ]
                           .filter(Boolean)
                           .join(' · ');

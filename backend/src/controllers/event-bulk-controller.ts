@@ -78,7 +78,12 @@ function toCsv(events: EventRow[]): string {
 
 function canActOnEvent(user: AuthRequest['user'], event: EventRow): boolean {
   if (!user) return false;
+  // Admin (role_id === 3) can act on any event.
   if (user.role_id === 3) return true;
+  // Lower roles (Attendee = 1) cannot run bulk actions even on events they
+  // somehow own — bulk ops are an Organizer/Admin capability.
+  if (user.role_id < 2) return false;
+  // Organizers act only on events they created.
   return Number(event.created_by) === Number(user.id);
 }
 

@@ -174,7 +174,13 @@ function capacityLabel(event: PlannerEvent): string {
   const going = Number(event.going_count ?? 0);
   const remaining = Math.max(event.capacity - going, 0);
   const overflow = Math.max(going - event.capacity, 0);
-  if (overflow > 0) return `${going}/${event.capacity} · waitlist ${overflow}`;
+  if (overflow > 0) {
+    // Only call the overflow a "waitlist" when waitlist is actually enabled —
+    // otherwise it's just over capacity, not a managed waitlist.
+    return event.waitlist_enabled
+      ? `${going}/${event.capacity} · waitlist ${overflow}`
+      : `${going}/${event.capacity} · over by ${overflow}`;
+  }
   return `${going}/${event.capacity} · ${remaining} left`;
 }
 

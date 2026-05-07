@@ -79,7 +79,7 @@ describe('EventCalendarView — capacity surfacing', () => {
     expect(chip.textContent).toContain('40/100');
   });
 
-  it('shows waitlist overflow on over-capacity events', () => {
+  it('shows waitlist overflow on over-capacity events when waitlist is enabled', () => {
     render(
       <MemoryRouter>
         <EventCalendarView events={[OVER_BY_TWO]} />
@@ -88,6 +88,26 @@ describe('EventCalendarView — capacity surfacing', () => {
     const chip = screen.getByTestId('calendar-event-chip-12');
     expect(chip.textContent).toContain('52/50');
     expect(chip.textContent).toContain('waitlist 2');
+  });
+
+  it('uses "over by N" wording when overflow happens with waitlist disabled', () => {
+    const overflowNoWaitlist = makeEvent({
+      id: 14,
+      title: 'Closed Door',
+      event_date: '2026-05-15',
+      capacity: 30,
+      going_count: 33,
+      waitlist_enabled: false,
+    });
+    render(
+      <MemoryRouter>
+        <EventCalendarView events={[overflowNoWaitlist]} />
+      </MemoryRouter>,
+    );
+    const chip = screen.getByTestId('calendar-event-chip-14');
+    expect(chip.textContent).toContain('33/30');
+    expect(chip.textContent).toContain('over by 3');
+    expect(chip.textContent).not.toContain('waitlist');
   });
 
   it('omits capacity text when capacity is unset', () => {
