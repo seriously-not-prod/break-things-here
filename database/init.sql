@@ -243,15 +243,20 @@ CREATE INDEX IF NOT EXISTS idx_rsvps_event_id ON rsvps(event_id);
 -- ============================================================
 -- Guest Communication Log
 -- ============================================================
+-- Schema below mirrors the runtime migrations in backend/src/db/database.ts so
+-- a fresh DB initialized from init.sql matches what the application expects.
+-- Column naming uses `communication_type`/`content` (not `type`/`body`) and
+-- carries a `status` column the analytics queries depend on.
 CREATE TABLE IF NOT EXISTS communication_log (
-  id       SERIAL PRIMARY KEY,
-  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  rsvp_id  INTEGER REFERENCES rsvps(id) ON DELETE SET NULL,
-  type     TEXT NOT NULL CHECK(type IN ('invitation','reminder','announcement','thank_you')),
-  subject  TEXT NOT NULL,
-  body     TEXT NOT NULL,
-  sent_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  sent_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id                 SERIAL PRIMARY KEY,
+  event_id           INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  guest_email        TEXT,
+  communication_type TEXT NOT NULL,
+  subject            TEXT,
+  content            TEXT,
+  status             TEXT DEFAULT 'sent',
+  sent_by            INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  sent_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_communication_log_event_id ON communication_log(event_id);

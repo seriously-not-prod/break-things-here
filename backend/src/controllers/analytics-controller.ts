@@ -384,10 +384,15 @@ export async function getCommunicationMetrics(
 
     const db = getDatabase();
 
+    // Count distinct communication_log rows so the LEFT JOIN to
+    // communication_tracking_events doesn't multiply `sent`/`failed` when a
+    // single send accumulates many opens/clicks.
     const totals = await db.get<CommunicationMetricRow>(
       `SELECT
-         COUNT(*)                                               AS total_sent,
-         COUNT(*) FILTER (WHERE cl.status = 'failed')           AS total_failed,
+         COUNT(DISTINCT cl.id)
+           AS total_sent,
+         COUNT(DISTINCT cl.id) FILTER (WHERE cl.status = 'failed')
+           AS total_failed,
          COUNT(DISTINCT te.communication_log_id)
            FILTER (WHERE te.event_type = 'open')                AS unique_opens,
          COUNT(*) FILTER (WHERE te.event_type = 'open')         AS total_opens,

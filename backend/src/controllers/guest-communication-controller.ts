@@ -101,12 +101,15 @@ async function bulkSend(
       .replace(/\{event\}/gi, event.title);
 
     // Insert the log row first so we have a stable id to embed in tracking
-    // links/pixels. If the send itself fails we mark the row 'failed' below.
+    // links/pixels. The row is created with status='pending' and is flipped
+    // to 'sent' or 'failed' once the SMTP call returns — without this, a
+    // crash between insert and send would leave the row eternally claiming
+    // delivery and skew the metrics aggregates.
     let logId: number | undefined;
     try {
       const logResult = await db.run(
-        `INSERT INTO communication_log (event_id, guest_email, communication_type, subject, content, sent_by, sent_at)
-         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) RETURNING id`,
+        `INSERT INTO communication_log (event_id, guest_email, communication_type, subject, content, status, sent_by, sent_at)
+         VALUES (?, ?, ?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP) RETURNING id`,
         [eventId, rsvp.email, type, subject, personalised, senderUserId],
       );
       logId = logResult.lastID;
@@ -128,8 +131,14 @@ async function bulkSend(
         ...(htmlBody ? { html: htmlBody } : {}),
       });
       sent++;
+      if (logId) {
+        try {
+          await db.run('UPDATE communication_log SET status = ? WHERE id = ?', ['sent', logId]);
+        } catch {
+          /* swallow — best-effort, send already succeeded */
+        }
+      }
     } catch {
-      // Best-effort flip of the log row to 'failed' so downstream metrics know.
       if (logId) {
         try {
           await db.run('UPDATE communication_log SET status = ? WHERE id = ?', ['failed', logId]);

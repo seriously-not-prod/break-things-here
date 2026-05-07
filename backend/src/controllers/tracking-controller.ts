@@ -60,9 +60,17 @@ function sendPixel(res: Response): void {
 }
 
 function clientIp(req: Request): string | null {
+  // Tracking endpoints are unauthenticated, so x-forwarded-for is attacker-
+  // controllable. Cap the stored value so we never persist unbounded
+  // header content to communication_tracking_events.ip_address.
+  const MAX_IP_LEN = 64;
   const fwd = req.headers['x-forwarded-for'];
-  if (typeof fwd === 'string' && fwd.length > 0) return fwd.split(',')[0]?.trim() ?? null;
-  return req.ip ?? req.socket?.remoteAddress ?? null;
+  if (typeof fwd === 'string' && fwd.length > 0) {
+    const first = fwd.split(',')[0]?.trim();
+    if (first) return first.slice(0, MAX_IP_LEN);
+  }
+  const fallback = req.ip ?? req.socket?.remoteAddress ?? null;
+  return fallback ? fallback.slice(0, MAX_IP_LEN) : null;
 }
 
 function clientUa(req: Request): string | null {
