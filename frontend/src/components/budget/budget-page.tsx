@@ -72,9 +72,12 @@ export default function BudgetPage(): JSX.Element {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [summary, setSummary] = useState<BudgetSummary>({
     totalAllocated: 0,
+    totalPlanned: 0,
     totalSpent: 0,
     remaining: 0,
+    plannedRemaining: 0,
     percentUsed: 0,
+    plannedPercentUsed: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -365,6 +368,12 @@ export default function BudgetPage(): JSX.Element {
                         </Stack>
                         <Typography variant="caption" color="text.secondary">
                           {fmt(cat.spent)} of {fmt(cat.allocated_amount)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Planned: {fmt(cat.plannedTotal)} (Tax {fmt(cat.taxAmount)}, Gratuity {fmt(cat.gratuityAmount)}, Contingency {fmt(cat.contingencyAmount)})
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Rates: Tax {cat.tax_rate}% | Gratuity {cat.gratuity_rate}% | Contingency {cat.contingency_rate}%
                         </Typography>
                       </Box>
                     );

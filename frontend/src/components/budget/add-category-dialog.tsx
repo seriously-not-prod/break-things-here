@@ -34,15 +34,28 @@ interface AddCategoryDialogProps {
 interface FormState {
   name: string;
   allocated_amount: string;
+  tax_rate: string;
+  gratuity_rate: string;
+  contingency_rate: string;
   color: string;
 }
 
-const EMPTY: FormState = { name: '', allocated_amount: '', color: '#F97316' };
+const EMPTY: FormState = {
+  name: '',
+  allocated_amount: '',
+  tax_rate: '0',
+  gratuity_rate: '0',
+  contingency_rate: '0',
+  color: '#F97316',
+};
 
 function toFormState(c: BudgetCategory): FormState {
   return {
     name: c.name,
     allocated_amount: String(c.allocated_amount),
+    tax_rate: String(c.tax_rate ?? 0),
+    gratuity_rate: String(c.gratuity_rate ?? 0),
+    contingency_rate: String(c.contingency_rate ?? 0),
     color: c.color ?? '#F97316',
   };
 }
@@ -79,6 +92,9 @@ export function AddCategoryDialog({
     setError(null);
 
     const parsedAmount = Number(form.allocated_amount);
+    const parsedTax = Number(form.tax_rate);
+    const parsedGratuity = Number(form.gratuity_rate);
+    const parsedContingency = Number(form.contingency_rate);
     if (!form.name.trim()) {
       setError('Name is required.');
       return;
@@ -87,12 +103,27 @@ export function AddCategoryDialog({
       setError('Allocated amount must be a non-negative number.');
       return;
     }
+    if (!Number.isFinite(parsedTax) || parsedTax < 0 || parsedTax > 100) {
+      setError('Tax rate must be between 0 and 100.');
+      return;
+    }
+    if (!Number.isFinite(parsedGratuity) || parsedGratuity < 0 || parsedGratuity > 100) {
+      setError('Gratuity rate must be between 0 and 100.');
+      return;
+    }
+    if (!Number.isFinite(parsedContingency) || parsedContingency < 0 || parsedContingency > 100) {
+      setError('Contingency rate must be between 0 and 100.');
+      return;
+    }
 
     setSaving(true);
     try {
       await onSave({
         name: form.name.trim(),
         allocated_amount: parsedAmount,
+        tax_rate: parsedTax,
+        gratuity_rate: parsedGratuity,
+        contingency_rate: parsedContingency,
         color: form.color,
       });
       reset();
@@ -162,6 +193,39 @@ export function AddCategoryDialog({
               </MenuItem>
             ))}
           </TextField>
+          <TextField
+            id="category-tax-rate"
+            label="Tax Rate (%)"
+            name="tax_rate"
+            type="number"
+            value={form.tax_rate}
+            onChange={handleChange}
+            fullWidth
+            margin="normal"
+            inputProps={{ min: 0, max: 100, step: '0.01' }}
+          />
+          <TextField
+            id="category-gratuity-rate"
+            label="Gratuity Rate (%)"
+            name="gratuity_rate"
+            type="number"
+            value={form.gratuity_rate}
+            onChange={handleChange}
+            fullWidth
+            margin="normal"
+            inputProps={{ min: 0, max: 100, step: '0.01' }}
+          />
+          <TextField
+            id="category-contingency-rate"
+            label="Contingency Rate (%)"
+            name="contingency_rate"
+            type="number"
+            value={form.contingency_rate}
+            onChange={handleChange}
+            fullWidth
+            margin="normal"
+            inputProps={{ min: 0, max: 100, step: '0.01' }}
+          />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={handleClose} disabled={saving}>

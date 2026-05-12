@@ -781,6 +781,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
       allocated_amount NUMERIC(10,2) DEFAULT 0,
+      tax_rate NUMERIC(5,2) DEFAULT 0 CHECK (tax_rate >= 0 AND tax_rate <= 100),
+      gratuity_rate NUMERIC(5,2) DEFAULT 0 CHECK (gratuity_rate >= 0 AND gratuity_rate <= 100),
+      contingency_rate NUMERIC(5,2) DEFAULT 0 CHECK (contingency_rate >= 0 AND contingency_rate <= 100),
       color TEXT DEFAULT '#6366f1',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -963,6 +966,38 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   // ── Expenses schema drift fix ─────────────────────────────────────────────
   // Older DB stored vendor FK; current code stores vendor_name as free text
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS vendor_name TEXT`);
+
+  // ── Budget planning schema drift fix (#596, #597) ─────────────────────────
+  await db.exec(`ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(5,2) DEFAULT 0`);
+  await db.exec(`ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS gratuity_rate NUMERIC(5,2) DEFAULT 0`);
+  await db.exec(`ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS contingency_rate NUMERIC(5,2) DEFAULT 0`);
+  await db.exec(`
+    DO $$
+    BEGIN
+      ALTER TABLE budget_categories
+      ADD CONSTRAINT budget_categories_tax_rate_range_chk
+      CHECK (tax_rate >= 0 AND tax_rate <= 100);
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$
+  `);
+  await db.exec(`
+    DO $$
+    BEGIN
+      ALTER TABLE budget_categories
+      ADD CONSTRAINT budget_categories_gratuity_rate_range_chk
+      CHECK (gratuity_rate >= 0 AND gratuity_rate <= 100);
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$
+  `);
+  await db.exec(`
+    DO $$
+    BEGIN
+      ALTER TABLE budget_categories
+      ADD CONSTRAINT budget_categories_contingency_rate_range_chk
+      CHECK (contingency_rate >= 0 AND contingency_rate <= 100);
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$
+  `);
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS task_comments (

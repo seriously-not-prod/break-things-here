@@ -345,9 +345,40 @@ CREATE TABLE IF NOT EXISTS budget_categories (
   event_id         INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   name             TEXT NOT NULL,
   allocated_amount NUMERIC(10,2) DEFAULT 0,
+  tax_rate         NUMERIC(5,2) DEFAULT 0 CHECK (tax_rate >= 0 AND tax_rate <= 100),
+  gratuity_rate    NUMERIC(5,2) DEFAULT 0 CHECK (gratuity_rate >= 0 AND gratuity_rate <= 100),
+  contingency_rate NUMERIC(5,2) DEFAULT 0 CHECK (contingency_rate >= 0 AND contingency_rate <= 100),
   color            TEXT DEFAULT '#6366f1',
   created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(5,2) DEFAULT 0;
+ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS gratuity_rate NUMERIC(5,2) DEFAULT 0;
+ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS contingency_rate NUMERIC(5,2) DEFAULT 0;
+
+DO $$
+BEGIN
+  ALTER TABLE budget_categories
+  ADD CONSTRAINT budget_categories_tax_rate_range_chk
+  CHECK (tax_rate >= 0 AND tax_rate <= 100);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE budget_categories
+  ADD CONSTRAINT budget_categories_gratuity_rate_range_chk
+  CHECK (gratuity_rate >= 0 AND gratuity_rate <= 100);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE budget_categories
+  ADD CONSTRAINT budget_categories_contingency_rate_range_chk
+  CHECK (contingency_rate >= 0 AND contingency_rate <= 100);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS expenses (
   id             SERIAL PRIMARY KEY,

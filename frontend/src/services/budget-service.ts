@@ -13,6 +13,13 @@ export interface BudgetCategory {
   event_id: number;
   name: string;
   allocated_amount: number;
+  tax_rate: number;
+  gratuity_rate: number;
+  contingency_rate: number;
+  taxAmount: number;
+  gratuityAmount: number;
+  contingencyAmount: number;
+  plannedTotal: number;
   color: string | null;
   created_at: string;
   spent: number;
@@ -33,17 +40,34 @@ export interface Expense {
 
 export interface BudgetSummary {
   totalAllocated: number;
+  totalPlanned: number;
   totalSpent: number;
   remaining: number;
+  plannedRemaining: number;
   percentUsed: number;
+  plannedPercentUsed: number;
 }
 
 export function computeSummary(categories: BudgetCategory[]): BudgetSummary {
   const totalAllocated = categories.reduce((sum, c) => sum + c.allocated_amount, 0);
+  const totalPlanned = categories.reduce(
+    (sum, c) => sum + (Number.isFinite(c.plannedTotal) ? c.plannedTotal : c.allocated_amount),
+    0,
+  );
   const totalSpent = categories.reduce((sum, c) => sum + c.spent, 0);
   const remaining = totalAllocated - totalSpent;
+  const plannedRemaining = totalPlanned - totalSpent;
   const percentUsed = totalAllocated > 0 ? Math.min(100, Math.round((totalSpent / totalAllocated) * 100)) : 0;
-  return { totalAllocated, totalSpent, remaining, percentUsed };
+  const plannedPercentUsed = totalPlanned > 0 ? Math.min(100, Math.round((totalSpent / totalPlanned) * 100)) : 0;
+  return {
+    totalAllocated,
+    totalPlanned,
+    totalSpent,
+    remaining,
+    plannedRemaining,
+    percentUsed,
+    plannedPercentUsed,
+  };
 }
 
 // ─── Category API ──────────────────────────────────────────────────────────────
@@ -59,6 +83,9 @@ export interface CreateCategoryPayload {
   name: string;
   allocated_amount: number;
   color: string | null;
+  tax_rate: number;
+  gratuity_rate: number;
+  contingency_rate: number;
 }
 
 export async function createCategory(
