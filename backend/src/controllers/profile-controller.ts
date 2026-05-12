@@ -8,6 +8,8 @@ import {
 } from '../utils/auth-helpers.js';
 import path from 'path';
 import fs from 'fs/promises';
+import { scanFile } from '../utils/virus-scan.js';
+import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
 
 const UPLOADS_DIR = path.resolve('uploads/profile-photos');
 
@@ -183,7 +185,33 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
       });
     }
 
+    // Virus / malware scan (#565, #634)
     const db = getDatabase();
+    const scanResult = await scanFile(req.file.path);
+    if (!scanResult.clean) {
+      await fs.unlink(assertSafePath(req.file.path));
+      await logAuditEvent({
+        db, userId: req.user.id, email: req.user.email,
+        action: AUDIT_ACTIONS.UPLOAD_SCAN_FAIL,
+        description: `Malicious file detected: ${scanResult.threat}`,
+        ipAddress: req.ip,
+        severity: 'CRITICAL',
+        targetType: 'profile-photo',
+        context: { threat: scanResult.threat, scanner: scanResult.scanner },
+      });
+      return res.status(422).json({
+        error: 'File failed security scan and was rejected.',
+      });
+    }
+    await logAuditEvent({
+      db, userId: req.user.id, email: req.user.email,
+      action: AUDIT_ACTIONS.UPLOAD_SCAN_PASS,
+      description: 'Profile photo passed security scan',
+      ipAddress: req.ip,
+      severity: 'INFO',
+      targetType: 'profile-photo',
+      context: { scanner: scanResult.scanner, scannedAt: scanResult.scannedAt },
+    });
 
     // Get old photo URL if exists
     const existingProfile = await db.get<ProfilePhotoRow>(

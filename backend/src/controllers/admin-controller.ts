@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { hashPassword, validateEmailFormat } from '../utils/auth-helpers.js';
+import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -37,6 +38,22 @@ export async function changeUserRole(req: AuthRequest, res: Response): Promise<R
   }
 
   await db.run('UPDATE users SET role_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [role_id, id]);
+
+  // Get target user info for audit
+  const targetUser = await db.get<{ email: string }>('SELECT email FROM users WHERE id = ?', [id]);
+  await logAuditEvent({
+    db,
+    userId: req.user!.id,
+    email: req.user!.email,
+    action: AUDIT_ACTIONS.ROLE_CHANGE,
+    description: `Admin changed role for user ${id} to role_id=${role_id}`,
+    ipAddress: req.ip,
+    severity: 'WARN',
+    targetType: 'user',
+    targetId: String(id),
+    context: { newRoleId: role_id, targetEmail: targetUser?.email },
+  });
+
   return res.json({ message: 'Role updated.' });
 }
 

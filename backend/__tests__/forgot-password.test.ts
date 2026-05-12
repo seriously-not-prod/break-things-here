@@ -68,6 +68,7 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         display_name TEXT,
+        auth_provider TEXT DEFAULT 'local',
         deleted_at TIMESTAMP
       );
       CREATE TABLE password_reset_rate_limit (

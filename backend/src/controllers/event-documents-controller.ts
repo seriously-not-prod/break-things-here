@@ -4,6 +4,8 @@ import path from 'path';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
 import { isHeicFile, stageHeicForConversion } from '../utils/image-processing.js';
+import { scanFile } from '../utils/virus-scan.js';
+import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -75,6 +77,34 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
   const safeOriginalName = path.basename(authReq.file.originalname).replace(/[^a-zA-Z0-9._\-]/g, '_');
 
   const db = getDatabase();
+
+  // Virus / malware scan first (#565, #634) — refuse to persist a file we
+  // haven't cleared. Scan failures terminate the upload before we hit the DB.
+  const scanResult = await scanFile(authReq.file.path);
+  if (!scanResult.clean) {
+    await cleanupUploadedFile(authReq.file.path);
+    await logAuditEvent({
+      db, userId: authReq.user?.id ?? null, email: authReq.user?.email ?? null,
+      action: AUDIT_ACTIONS.UPLOAD_SCAN_FAIL,
+      description: `Malicious event document detected: ${scanResult.threat}`,
+      ipAddress: req.ip,
+      severity: 'CRITICAL',
+      targetType: 'event-document',
+      targetId: req.params.eventId,
+      context: { threat: scanResult.threat, scanner: scanResult.scanner },
+    });
+    return res.status(422).json({ error: 'File failed security scan and was rejected.' });
+  }
+  await logAuditEvent({
+    db, userId: authReq.user?.id ?? null, email: authReq.user?.email ?? null,
+    action: AUDIT_ACTIONS.UPLOAD_SCAN_PASS,
+    description: 'Event document passed security scan',
+    ipAddress: req.ip,
+    severity: 'INFO',
+    targetType: 'event-document',
+    targetId: req.params.eventId,
+    context: { scanner: scanResult.scanner, scannedAt: scanResult.scannedAt },
+  });
 
   // Storage quota enforcement (#622). Atomic check-and-reserve so a flurry of
   // parallel uploads cannot collectively exceed the quota.

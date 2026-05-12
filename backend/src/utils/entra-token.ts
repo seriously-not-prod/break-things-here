@@ -26,6 +26,8 @@ export interface EntraTokenClaims {
   exp: number;
   iat: number;
   nonce?: string;
+  /** Authentication methods references — 'mfa' is present when MFA was completed (#568) */
+  amr?: string[];
 }
 
 let _jwksCache: { keys: JwksKey[]; fetchedAt: number } | null = null;

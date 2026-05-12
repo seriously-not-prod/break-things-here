@@ -48,6 +48,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
+import { canEditEvent } from '../../utils/roles';
 import { EventCalendarView } from './event-calendar-view';
 import {
   buildEventQuery,
@@ -254,7 +255,7 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const isMyEvents = location.pathname === '/events/my';
-  const canCreate = !!user && user.roleId >= 2;
+  const canCreate = !!user && canEditEvent(user.roleName);
 
   const filters = useMemo(
     () =>
