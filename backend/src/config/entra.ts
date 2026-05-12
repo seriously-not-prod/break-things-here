@@ -30,6 +30,15 @@ export function getEntraConfig(): EntraConfig {
   return { tenantId, clientId, clientSecret, redirectUri, authority, jwksUri };
 }
 
+/**
+ * Returns true when ENTRA_MFA_REQUIRED=true is set.
+ * When enabled, the Entra callback will reject any token whose `amr` claim
+ * does not contain 'mfa', enforcing that all SSO logins complete MFA.
+ */
+export function isMfaRequired(): boolean {
+  return process.env.ENTRA_MFA_REQUIRED === 'true';
+}
+
 export function validateEntraConfigAtStartup(): void {
   if (!isEntraEnabled()) return;
   getEntraConfig();

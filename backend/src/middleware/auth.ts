@@ -4,6 +4,7 @@ import { parse as parseCookies } from 'cookie';
 import { Request, Response, NextFunction } from 'express';
 import { getDatabase } from '../db/database.js';
 import { hashToken } from '../utils/auth-helpers.js';
+import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
 
 interface AuthRequest extends Request {
   user?: {
@@ -120,6 +121,15 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
     const lastActivity = new Date(session.last_activity).getTime();
     if (Date.now() - lastActivity > SESSION_TIMEOUT_MS) {
       await db.run('DELETE FROM sessions WHERE id = ?', [session.id]);
+      await logAuditEvent({
+        db,
+        userId: payload.id,
+        email: payload.email,
+        action: AUDIT_ACTIONS.SESSION_EXPIRED,
+        description: 'Session expired due to inactivity',
+        ipAddress: req.ip,
+        severity: 'INFO',
+      });
       res.status(401).json({ error: 'Session expired due to inactivity', code: 'SESSION_TIMEOUT' });
       return;
     }
@@ -153,6 +163,21 @@ export function authorizeRole(
     );
 
     if (!role || !allowedRoles.includes(role.name)) {
+      await logAuditEvent({
+        db,
+        userId: req.user.id,
+        email: req.user.email,
+        action: AUDIT_ACTIONS.PERMISSION_DENIED,
+        description: `Role '${role?.name ?? 'unknown'}' not in allowed roles: ${allowedRoles.join(', ')}`,
+        ipAddress: req.ip,
+        severity: 'WARN',
+        context: {
+          actualRole: role?.name,
+          requiredRoles: allowedRoles,
+          path: req.path,
+          method: req.method,
+        },
+      });
       res.status(403).json({ error: 'Insufficient permissions' });
       return;
     }

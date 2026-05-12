@@ -26,6 +26,7 @@ import {
 } from '@mui/material';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/auth-context';
+import { isAdmin } from '../../utils/roles';
 import { NotificationBell } from '../notifications/notification-bell';
 
 const DRAWER_WIDTH = 260;
@@ -67,7 +68,7 @@ export function AppNav(): JSX.Element {
   }
 
   const items = NAV_ITEMS.filter((item) => {
-    if (item.adminOnly && user?.roleId !== 3) return false;
+    if (item.adminOnly && !isAdmin(user?.roleName)) return false;
     return true;
   });
 

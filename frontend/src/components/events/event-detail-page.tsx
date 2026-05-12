@@ -44,6 +44,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, apiFetch, ApiError, getAuthHeaders } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
+import { canEditEvent } from '../../utils/roles';
 import { ActivityFeedPanel } from './activity-feed-panel';
 import EventLocationMap from './event-location-map';
 
@@ -172,7 +173,7 @@ export default function EventDetailPage(): JSX.Element {
   const [memberSaving, setMemberSaving] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
 
-  const canEdit = user && user.roleId >= 2;
+  const canEdit = user && canEditEvent(user.roleName);
   const goingHeadcount = rsvps.reduce(
     (sum, rsvp) => sum + (rsvp.status === 'Going' ? Number(rsvp.guests || 1) : 0),
     0,
