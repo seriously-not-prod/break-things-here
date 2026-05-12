@@ -345,7 +345,7 @@ export default function BudgetPage(): JSX.Element {
                 <Chip label={`Current planned ${fmt(summary.totalPlanned)}`} size="small" />
                 <Chip label={`Peer avg planned ${fmt(comparisonData.overview.averagePlanned)}`} size="small" variant="outlined" />
                 <Chip label={`Peer avg spent ${fmt(comparisonData.overview.averageSpent)}`} size="small" variant="outlined" />
-                <Chip label={`Peer avg used ${comparisonData.overview.averagePercentUsed}%`} size="small" variant="outlined" />
+                <Chip label={`Peer avg planned used ${comparisonData.overview.averagePlannedPercentUsed}%`} size="small" variant="outlined" />
               </Stack>
 
               <TableContainer component={Paper} variant="outlined">
@@ -357,8 +357,8 @@ export default function BudgetPage(): JSX.Element {
                       <TableCell align="right">Categories</TableCell>
                       <TableCell align="right">Planned</TableCell>
                       <TableCell align="right">Spent</TableCell>
-                      <TableCell align="right">Remaining</TableCell>
-                      <TableCell align="right">Used</TableCell>
+                      <TableCell align="right">Planned Remaining</TableCell>
+                      <TableCell align="right">Planned Used</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>

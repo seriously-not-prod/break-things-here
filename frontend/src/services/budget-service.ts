@@ -52,7 +52,7 @@ export interface BudgetComparisonOverview {
   averageAllocated: number;
   averagePlanned: number;
   averageSpent: number;
-  averagePercentUsed: number;
+  averagePlannedPercentUsed: number;
 }
 
 export interface SimilarBudgetComparison {

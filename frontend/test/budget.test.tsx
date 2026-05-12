@@ -13,6 +13,7 @@ vi.mock('../src/services/budget-service', async () => {
     ...actual,
     listCategories: vi.fn(),
     listExpenses: vi.fn(),
+    getBudgetComparison: vi.fn(),
     createCategory: vi.fn(),
     updateCategory: vi.fn(),
     deleteCategory: vi.fn(),
@@ -86,6 +87,33 @@ describe('BudgetPage', () => {
   beforeEach(() => {
     mockedService.listCategories.mockResolvedValue(MOCK_CATEGORIES);
     mockedService.listExpenses.mockResolvedValue(MOCK_EXPENSES);
+    mockedService.getBudgetComparison.mockResolvedValue({
+      currentEvent: {
+        id: 42,
+        title: 'Current Event',
+        date: '2026-01-01',
+        location: 'Test Venue',
+        capacity: 100,
+        eventType: 'Music',
+        summary: {
+          totalAllocated: 70000,
+          totalPlanned: 70000,
+          totalSpent: 35000,
+          remaining: 35000,
+          plannedRemaining: 35000,
+          percentUsed: 50,
+          plannedPercentUsed: 50,
+          categoryCount: 2,
+        },
+      },
+      comparison: [],
+      overview: {
+        averageAllocated: 0,
+        averagePlanned: 0,
+        averageSpent: 0,
+        averagePlannedPercentUsed: 0,
+      },
+    });
   });
 
   afterEach(() => {
@@ -220,6 +248,9 @@ describe('BudgetPage', () => {
       expect(mockedService.createCategory).toHaveBeenCalledWith('42', {
         name: 'Marketing',
         allocated_amount: 10000,
+        tax_rate: 0,
+        gratuity_rate: 0,
+        contingency_rate: 0,
         color: expect.any(String),
         tax_rate: expect.any(Number),
         gratuity_rate: expect.any(Number),

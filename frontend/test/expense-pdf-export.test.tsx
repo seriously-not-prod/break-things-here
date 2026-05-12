@@ -86,6 +86,7 @@ vi.mock('../src/services/budget-service', async () => {
     ...actual,
     listCategories: vi.fn(),
     listExpenses: vi.fn(),
+    getBudgetComparison: vi.fn(),
     createCategory: vi.fn(),
     updateCategory: vi.fn(),
     deleteCategory: vi.fn(),
@@ -151,9 +152,12 @@ const MOCK_EXPENSES: budgetService.Expense[] = [
 
 const MOCK_SUMMARY: budgetService.BudgetSummary = {
   totalAllocated: 70000,
+  totalPlanned: 70000,
   totalSpent: 35000,
   remaining: 35000,
+  plannedRemaining: 35000,
   percentUsed: 50,
+  plannedPercentUsed: 50,
 };
 
 const FIXED_DATE = new Date('2026-05-07T00:00:00Z');

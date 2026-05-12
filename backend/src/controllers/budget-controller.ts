@@ -85,6 +85,13 @@ interface BudgetComparisonEventRow {
   created_by: number;
 }
 
+interface ComparisonQueryFilters {
+  eventType: string;
+  location: string;
+  minCapacity: number | null;
+  maxCapacity: number | null;
+}
+
 interface SimilarBudgetEvent {
   id: number;
   title: string;
@@ -375,13 +382,50 @@ export async function compareSimilarEvents(req: AuthRequest, res: Response): Pro
       return;
     }
 
+    const comparisonFilters: ComparisonQueryFilters = {
+      eventType: normalizeText(currentEvent.event_type),
+      location: normalizeText(currentEvent.location),
+      minCapacity: currentEvent.capacity !== null
+        ? Math.max(1, Math.floor(currentEvent.capacity * 0.5))
+        : null,
+      maxCapacity: currentEvent.capacity !== null
+        ? Math.ceil(currentEvent.capacity * 1.5)
+        : null,
+    };
+
+    const hasAdminPrefilter = Boolean(
+      comparisonFilters.eventType
+      || comparisonFilters.location
+      || (comparisonFilters.minCapacity !== null && comparisonFilters.maxCapacity !== null),
+    );
+    const adminFilterSql = hasAdminPrefilter
+      ? `AND ((? <> '' AND lower(COALESCE(event_type, '')) = ?)
+             OR (? <> '' AND lower(location) = ?)
+             OR (?::integer IS NOT NULL AND ?::integer IS NOT NULL AND capacity BETWEEN ? AND ?))`
+      : '';
+
     const candidateEvents = req.user.role_id >= 3
       ? await db.all<BudgetComparisonEventRow>(
           `SELECT id, title, date, location, capacity, event_type, tags, created_by
              FROM events
             WHERE id <> ?
-              AND deleted_at IS NULL`,
-          [eventId],
+              AND deleted_at IS NULL
+              ${adminFilterSql}
+            ORDER BY date DESC, id DESC
+            LIMIT 250`,
+          hasAdminPrefilter
+            ? [
+                eventId,
+                comparisonFilters.eventType,
+                comparisonFilters.eventType,
+                comparisonFilters.location,
+                comparisonFilters.location,
+                comparisonFilters.minCapacity,
+                comparisonFilters.maxCapacity,
+                comparisonFilters.minCapacity,
+                comparisonFilters.maxCapacity,
+              ]
+            : [eventId],
         )
       : await db.all<BudgetComparisonEventRow>(
           `SELECT DISTINCT e.id, e.title, e.date, e.location, e.capacity, e.event_type, e.tags, e.created_by
@@ -439,8 +483,8 @@ export async function compareSimilarEvents(req: AuthRequest, res: Response): Pro
     const averageSpent = comparisonCount > 0
       ? roundBudgetValue(similarEvents.reduce((sum, item) => sum + item.summary.totalSpent, 0) / comparisonCount)
       : 0;
-    const averagePercentUsed = comparisonCount > 0
-      ? Math.round(similarEvents.reduce((sum, item) => sum + item.summary.percentUsed, 0) / comparisonCount)
+    const averagePlannedPercentUsed = comparisonCount > 0
+      ? Math.round(similarEvents.reduce((sum, item) => sum + item.summary.plannedPercentUsed, 0) / comparisonCount)
       : 0;
 
     res.json({
@@ -458,7 +502,7 @@ export async function compareSimilarEvents(req: AuthRequest, res: Response): Pro
         averageAllocated,
         averagePlanned,
         averageSpent,
-        averagePercentUsed,
+        averagePlannedPercentUsed,
       },
     });
   } catch (error) {
