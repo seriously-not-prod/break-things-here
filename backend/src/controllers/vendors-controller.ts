@@ -27,6 +27,61 @@ interface VendorRow {
   updated_at: string;
 }
 
+interface VendorFavoriteRow {
+  id: number;
+  event_id: number;
+  vendor_id: number;
+  user_id: number;
+  created_at: string;
+}
+
+interface VendorBookingRow {
+  id: number;
+  event_id: number;
+  vendor_id: number;
+  status: string;
+  contract_signed_at: string | null;
+  service_start_at: string | null;
+  service_end_at: string | null;
+  total_amount: number | null;
+  currency_code: string | null;
+  notes: string | null;
+  created_by: number | null;
+  updated_by: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface VendorPaymentScheduleRow {
+  id: number;
+  event_id: number;
+  vendor_id: number;
+  vendor_booking_id: number | null;
+  due_date: string;
+  amount: number;
+  status: string;
+  paid_at: string | null;
+  note: string | null;
+  created_by: number | null;
+  updated_by: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const VALID_BOOKING_STATUSES = [
+  'requested',
+  'quoted',
+  'negotiating',
+  'approved',
+  'contracted',
+  'scheduled',
+  'in_progress',
+  'completed',
+  'cancelled',
+] as const;
+
+const VALID_PAYMENT_STATUSES = ['pending', 'paid', 'overdue', 'cancelled'] as const;
+
 const VENDOR_CONTRACTS_DIR = path.resolve('uploads/vendor-contracts');
 const VENDOR_CONTRACTS_DIR_PREFIX = VENDOR_CONTRACTS_DIR + path.sep;
 
@@ -71,11 +126,240 @@ export async function listVendors(req: Request, res: Response): Promise<Response
   const event = await db.get<{ id: number }>('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
-  const vendors = await db.all<VendorRow>(
-    `SELECT * FROM vendors WHERE event_id = ? ORDER BY created_at DESC`,
-    [eventId],
+  const vendors = await db.all<(VendorRow & { is_favorite: boolean; booking_status: string | null })>(
+    `SELECT v.*, 
+            CASE WHEN vf.id IS NULL THEN FALSE ELSE TRUE END AS is_favorite,
+            vb.status AS booking_status
+     FROM vendors v
+     LEFT JOIN vendor_favorites vf
+       ON vf.event_id = v.event_id AND vf.vendor_id = v.id AND vf.user_id = ?
+     LEFT JOIN vendor_bookings vb
+       ON vb.event_id = v.event_id AND vb.vendor_id = v.id
+     WHERE v.event_id = ?
+     ORDER BY v.created_at DESC`,
+    [authReq.user.id, eventId],
   );
   return res.json({ vendors });
+}
+
+/** GET /api/events/:eventId/vendors/favorites */
+export async function listFavoriteVendors(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId } = req.params;
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
+
+  const db = getDatabase();
+  const favorites = await db.all<(VendorFavoriteRow & { vendor: VendorRow })>(
+    `SELECT vf.*, row_to_json(v.*) AS vendor
+       FROM vendor_favorites vf
+       JOIN vendors v ON v.id = vf.vendor_id
+      WHERE vf.event_id = ? AND vf.user_id = ?
+      ORDER BY vf.created_at DESC`,
+    [eventId, authReq.user!.id],
+  );
+  return res.json({ favorites });
+}
+
+/** PUT /api/events/:eventId/vendors/:id/favorite */
+export async function setVendorFavorite(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId, id } = req.params;
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
+
+  const { favorite } = req.body as { favorite?: boolean };
+  if (typeof favorite !== 'boolean') {
+    return res.status(400).json({ error: 'favorite must be a boolean.' });
+  }
+
+  const db = getDatabase();
+  const vendor = await db.get<{ id: number }>('SELECT id FROM vendors WHERE id = ? AND event_id = ?', [id, eventId]);
+  if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
+
+  if (favorite) {
+    await db.run(
+      `INSERT INTO vendor_favorites (event_id, vendor_id, user_id)
+       VALUES (?, ?, ?)
+       ON CONFLICT (event_id, vendor_id, user_id) DO NOTHING`,
+      [eventId, id, authReq.user!.id],
+    );
+  } else {
+    await db.run(
+      `DELETE FROM vendor_favorites WHERE event_id = ? AND vendor_id = ? AND user_id = ?`,
+      [eventId, id, authReq.user!.id],
+    );
+  }
+
+  return res.json({ vendorId: Number(id), favorite });
+}
+
+/** GET /api/events/:eventId/vendors/:id/booking */
+export async function getVendorBooking(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId, id } = req.params;
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
+
+  const db = getDatabase();
+  const booking = await db.get<VendorBookingRow>(
+    `SELECT * FROM vendor_bookings WHERE event_id = ? AND vendor_id = ?`,
+    [eventId, id],
+  );
+  return res.json({ booking: booking ?? null });
+}
+
+/** PUT /api/events/:eventId/vendors/:id/booking */
+export async function upsertVendorBooking(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId, id } = req.params;
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
+
+  const { status, contract_signed_at, service_start_at, service_end_at, total_amount, currency_code, notes } = req.body as {
+    status?: string;
+    contract_signed_at?: string;
+    service_start_at?: string;
+    service_end_at?: string;
+    total_amount?: number | string;
+    currency_code?: string;
+    notes?: string;
+  };
+
+  if (!status || !VALID_BOOKING_STATUSES.includes(status as (typeof VALID_BOOKING_STATUSES)[number])) {
+    return res.status(400).json({ error: `status must be one of: ${VALID_BOOKING_STATUSES.join(', ')}.` });
+  }
+
+  const parsedAmount = total_amount !== undefined && total_amount !== '' ? Number(total_amount) : null;
+  if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
+    return res.status(400).json({ error: 'total_amount must be a valid non-negative number.' });
+  }
+
+  const db = getDatabase();
+  const vendor = await db.get<{ id: number }>('SELECT id FROM vendors WHERE id = ? AND event_id = ?', [id, eventId]);
+  if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
+
+  await db.run(
+    `INSERT INTO vendor_bookings
+      (event_id, vendor_id, status, contract_signed_at, service_start_at, service_end_at, total_amount, currency_code, notes, created_by, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (event_id, vendor_id)
+     DO UPDATE SET
+       status = EXCLUDED.status,
+       contract_signed_at = EXCLUDED.contract_signed_at,
+       service_start_at = EXCLUDED.service_start_at,
+       service_end_at = EXCLUDED.service_end_at,
+       total_amount = EXCLUDED.total_amount,
+       currency_code = EXCLUDED.currency_code,
+       notes = EXCLUDED.notes,
+       updated_by = EXCLUDED.updated_by,
+       updated_at = CURRENT_TIMESTAMP`,
+    [
+      eventId,
+      id,
+      status,
+      contract_signed_at || null,
+      service_start_at || null,
+      service_end_at || null,
+      parsedAmount,
+      currency_code?.trim() || 'USD',
+      notes?.trim() || null,
+      authReq.user!.id,
+      authReq.user!.id,
+    ],
+  );
+
+  const booking = await db.get<VendorBookingRow>(
+    `SELECT * FROM vendor_bookings WHERE event_id = ? AND vendor_id = ?`,
+    [eventId, id],
+  );
+  return res.json({ booking });
+}
+
+/** GET /api/events/:eventId/vendors/:id/payment-schedules */
+export async function listVendorPaymentSchedules(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId, id } = req.params;
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
+
+  const db = getDatabase();
+  const schedules = await db.all<VendorPaymentScheduleRow>(
+    `SELECT * FROM vendor_payment_schedules
+      WHERE event_id = ? AND vendor_id = ?
+      ORDER BY due_date ASC, created_at ASC`,
+    [eventId, id],
+  );
+  return res.json({ schedules });
+}
+
+/** POST /api/events/:eventId/vendors/:id/payment-schedules */
+export async function createVendorPaymentSchedule(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId, id } = req.params;
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
+
+  const { due_date, amount, status, note, vendor_booking_id } = req.body as {
+    due_date?: string;
+    amount?: number | string;
+    status?: string;
+    note?: string;
+    vendor_booking_id?: number | string;
+  };
+
+  if (!due_date?.trim()) {
+    return res.status(400).json({ error: 'due_date is required.' });
+  }
+  const parsedAmount = amount !== undefined && amount !== '' ? Number(amount) : NaN;
+  if (isNaN(parsedAmount) || parsedAmount < 0) {
+    return res.status(400).json({ error: 'amount must be a valid non-negative number.' });
+  }
+
+  const paymentStatus = status ?? 'pending';
+  if (!VALID_PAYMENT_STATUSES.includes(paymentStatus as (typeof VALID_PAYMENT_STATUSES)[number])) {
+    return res.status(400).json({ error: `status must be one of: ${VALID_PAYMENT_STATUSES.join(', ')}.` });
+  }
+
+  const db = getDatabase();
+  const vendor = await db.get<{ id: number }>('SELECT id FROM vendors WHERE id = ? AND event_id = ?', [id, eventId]);
+  if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
+
+  const bookingId = vendor_booking_id !== undefined && vendor_booking_id !== '' ? Number(vendor_booking_id) : null;
+  if (bookingId !== null) {
+    const booking = await db.get<{ id: number }>(
+      `SELECT id FROM vendor_bookings WHERE id = ? AND event_id = ? AND vendor_id = ?`,
+      [bookingId, eventId, id],
+    );
+    if (!booking) {
+      return res.status(400).json({ error: 'vendor_booking_id must reference a booking for this vendor/event.' });
+    }
+  }
+
+  const result = await db.run(
+    `INSERT INTO vendor_payment_schedules
+      (event_id, vendor_id, vendor_booking_id, due_date, amount, status, paid_at, note, created_by, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     RETURNING id`,
+    [
+      eventId,
+      id,
+      bookingId,
+      due_date,
+      parsedAmount,
+      paymentStatus,
+      paymentStatus === 'paid' ? new Date().toISOString() : null,
+      note?.trim() || null,
+      authReq.user!.id,
+      authReq.user!.id,
+    ],
+  );
+
+  const schedule = await db.get<VendorPaymentScheduleRow>(
+    `SELECT * FROM vendor_payment_schedules WHERE id = ?`,
+    [result.lastID],
+  );
+  return res.status(201).json({ schedule });
 }
 
 /** POST /api/events/:eventId/vendors */
