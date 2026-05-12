@@ -437,6 +437,7 @@ router.delete('/events/:eventId/messages/:id', authenticateToken, messagesContro
 
 // ============ BUDGET ROUTES — BRD 3.4, issue #374 ============
 router.get('/events/:eventId/budget/categories', authenticateToken, budgetController.listCategories);
+router.get('/events/:eventId/budget/compare', authenticateToken, budgetController.compareSimilarEvents);
 router.post('/events/:eventId/budget/categories', authenticateToken, budgetController.createCategory);
 router.put('/events/:eventId/budget/categories/:id', authenticateToken, budgetController.updateCategory);
 router.delete('/events/:eventId/budget/categories/:id', authenticateToken, budgetController.deleteCategory);

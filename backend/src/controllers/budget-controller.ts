@@ -63,6 +63,40 @@ interface BudgetCategoryRow {
   contingency_rate: number | string;
 }
 
+interface BudgetSummarySnapshot {
+  totalAllocated: number;
+  totalPlanned: number;
+  totalSpent: number;
+  remaining: number;
+  plannedRemaining: number;
+  percentUsed: number;
+  plannedPercentUsed: number;
+  categoryCount: number;
+}
+
+interface BudgetComparisonEventRow {
+  id: number;
+  title: string;
+  date: string;
+  location: string;
+  capacity: number | null;
+  event_type: string | null;
+  tags: string | null;
+  created_by: number;
+}
+
+interface SimilarBudgetEvent {
+  id: number;
+  title: string;
+  date: string;
+  location: string;
+  capacity: number | null;
+  eventType: string | null;
+  matchScore: number;
+  matchReasons: string[];
+  summary: BudgetSummarySnapshot;
+}
+
 function toNumber(value: number | string | null | undefined): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -87,6 +121,151 @@ function enrichBudgetCategory(category: BudgetCategoryRow): BudgetCategoryRow & 
       contingencyRate,
     }),
   };
+}
+
+function roundBudgetValue(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function buildBudgetSummary(categories: BudgetCategoryRow[]): BudgetSummarySnapshot {
+  const enrichedCategories = categories.map(enrichBudgetCategory);
+  const totalAllocated = roundBudgetValue(
+    enrichedCategories.reduce((sum, category) => sum + toNumber(category.allocated_amount), 0),
+  );
+  const totalPlanned = roundBudgetValue(
+    enrichedCategories.reduce((sum, category) => sum + category.plannedTotal, 0),
+  );
+  const totalSpent = roundBudgetValue(
+    enrichedCategories.reduce((sum, category) => sum + toNumber(category.spent), 0),
+  );
+  const remaining = roundBudgetValue(totalAllocated - totalSpent);
+  const plannedRemaining = roundBudgetValue(totalPlanned - totalSpent);
+  const percentUsed = totalAllocated > 0
+    ? Math.min(100, Math.round((totalSpent / totalAllocated) * 100))
+    : 0;
+  const plannedPercentUsed = totalPlanned > 0
+    ? Math.min(100, Math.round((totalSpent / totalPlanned) * 100))
+    : 0;
+
+  return {
+    totalAllocated,
+    totalPlanned,
+    totalSpent,
+    remaining,
+    plannedRemaining,
+    percentUsed,
+    plannedPercentUsed,
+    categoryCount: enrichedCategories.length,
+  };
+}
+
+function normalizeText(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? '';
+}
+
+function parseTags(tags: string | null | undefined): string[] {
+  return (tags ?? '')
+    .split(',')
+    .map((tag) => tag.trim().toLowerCase())
+    .filter((tag) => tag.length > 0);
+}
+
+function getDayDifference(left: string, right: string): number | null {
+  const leftDate = new Date(left);
+  const rightDate = new Date(right);
+  if (Number.isNaN(leftDate.getTime()) || Number.isNaN(rightDate.getTime())) {
+    return null;
+  }
+  return Math.abs(leftDate.getTime() - rightDate.getTime()) / (1000 * 60 * 60 * 24);
+}
+
+function scoreSimilarBudgetEvent(
+  currentEvent: BudgetComparisonEventRow,
+  candidate: BudgetComparisonEventRow,
+): { score: number; reasons: string[] } {
+  let score = 0;
+  const reasons: string[] = [];
+
+  const currentEventType = normalizeText(currentEvent.event_type);
+  const candidateEventType = normalizeText(candidate.event_type);
+  if (currentEventType && currentEventType === candidateEventType) {
+    score += 3;
+    reasons.push('Same event type');
+  }
+
+  const currentLocation = normalizeText(currentEvent.location);
+  const candidateLocation = normalizeText(candidate.location);
+  if (currentLocation && currentLocation === candidateLocation) {
+    score += 2;
+    reasons.push('Same location');
+  }
+
+  if (currentEvent.capacity && candidate.capacity) {
+    const allowedVariance = Math.max(currentEvent.capacity * 0.25, 25);
+    if (Math.abs(currentEvent.capacity - candidate.capacity) <= allowedVariance) {
+      score += 1;
+      reasons.push('Similar capacity');
+    }
+  }
+
+  const currentTags = parseTags(currentEvent.tags);
+  const candidateTags = new Set(parseTags(candidate.tags));
+  const sharedTags = currentTags.filter((tag) => candidateTags.has(tag)).slice(0, 3);
+  if (sharedTags.length > 0) {
+    score += 2;
+    reasons.push(`Shared tags: ${sharedTags.join(', ')}`);
+  }
+
+  const dayDifference = getDayDifference(currentEvent.date, candidate.date);
+  if (dayDifference !== null && dayDifference <= 120) {
+    score += 1;
+    reasons.push('Scheduled within 120 days');
+  }
+
+  if (score < 3) {
+    return { score: 0, reasons: [] };
+  }
+
+  return { score, reasons };
+}
+
+async function loadBudgetCategoriesForEvents(
+  db: DatabaseAdapter,
+  eventIds: number[],
+): Promise<Map<number, BudgetCategoryRow[]>> {
+  if (eventIds.length === 0) {
+    return new Map<number, BudgetCategoryRow[]>();
+  }
+
+  const placeholders = eventIds.map(() => '?').join(', ');
+  const categories = await db.all<BudgetCategoryRow>(
+    `SELECT bc.id,
+            bc.event_id,
+            bc.name,
+            bc.allocated_amount,
+            bc.color,
+            bc.created_at,
+            COALESCE(bc.tax_rate, 0)::numeric AS tax_rate,
+            COALESCE(bc.gratuity_rate, 0)::numeric AS gratuity_rate,
+            COALESCE(bc.contingency_rate, 0)::numeric AS contingency_rate,
+            COALESCE(SUM(e.amount), 0)::numeric AS spent
+       FROM budget_categories bc
+       LEFT JOIN expenses e ON e.category_id = bc.id
+      WHERE bc.event_id IN (${placeholders})
+      GROUP BY bc.id, bc.event_id, bc.name, bc.allocated_amount, bc.color, bc.created_at,
+               bc.tax_rate, bc.gratuity_rate, bc.contingency_rate
+      ORDER BY bc.event_id ASC, bc.name ASC`,
+    eventIds,
+  );
+
+  const categoriesByEvent = new Map<number, BudgetCategoryRow[]>();
+  for (const category of categories) {
+    const existing = categoriesByEvent.get(category.event_id) ?? [];
+    existing.push(category);
+    categoriesByEvent.set(category.event_id, existing);
+  }
+
+  return categoriesByEvent;
 }
 
 // ─── Internal helper ─────────────────────────────────────────────────────────
@@ -174,6 +353,117 @@ export async function listCategories(req: AuthRequest, res: Response): Promise<v
   } catch (error) {
     console.error('Error listing budget categories:', error);
     res.status(500).json({ error: 'Failed to fetch budget categories' });
+  }
+}
+
+export async function compareSimilarEvents(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const db = getDatabase();
+    const { eventId } = req.params;
+
+    const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!event || !req.user) return;
+
+    const currentEvent = await db.get<BudgetComparisonEventRow>(
+      `SELECT id, title, date, location, capacity, event_type, tags, created_by
+         FROM events
+        WHERE id = ? AND deleted_at IS NULL`,
+      [eventId],
+    );
+    if (!currentEvent) {
+      res.status(404).json({ error: 'Event not found.' });
+      return;
+    }
+
+    const candidateEvents = req.user.role_id >= 3
+      ? await db.all<BudgetComparisonEventRow>(
+          `SELECT id, title, date, location, capacity, event_type, tags, created_by
+             FROM events
+            WHERE id <> ?
+              AND deleted_at IS NULL`,
+          [eventId],
+        )
+      : await db.all<BudgetComparisonEventRow>(
+          `SELECT DISTINCT e.id, e.title, e.date, e.location, e.capacity, e.event_type, e.tags, e.created_by
+             FROM events e
+             LEFT JOIN event_members em
+               ON em.event_id = e.id
+              AND em.user_id = ?
+            WHERE e.id <> ?
+              AND e.deleted_at IS NULL
+              AND (e.created_by = ? OR em.user_id IS NOT NULL)`,
+          [req.user.id, eventId, req.user.id],
+        );
+
+    const scoredCandidates = candidateEvents
+      .map((candidate) => ({
+        candidate,
+        ...scoreSimilarBudgetEvent(currentEvent, candidate),
+      }))
+      .filter((entry) => entry.score > 0)
+      .sort((left, right) => right.score - left.score || left.candidate.date.localeCompare(right.candidate.date))
+      .slice(0, 5);
+
+    const eventIdsToLoad = [currentEvent.id, ...scoredCandidates.map((entry) => entry.candidate.id)];
+    const categoriesByEvent = await loadBudgetCategoriesForEvents(db, eventIdsToLoad);
+    const currentSummary = buildBudgetSummary(categoriesByEvent.get(currentEvent.id) ?? []);
+
+    const similarEvents: SimilarBudgetEvent[] = scoredCandidates
+      .map(({ candidate, score, reasons }) => {
+        const summary = buildBudgetSummary(categoriesByEvent.get(candidate.id) ?? []);
+        if (summary.categoryCount === 0) {
+          return null;
+        }
+
+        return {
+          id: candidate.id,
+          title: candidate.title,
+          date: candidate.date,
+          location: candidate.location,
+          capacity: candidate.capacity,
+          eventType: candidate.event_type,
+          matchScore: score,
+          matchReasons: reasons,
+          summary,
+        };
+      })
+      .filter((entry): entry is SimilarBudgetEvent => entry !== null);
+
+    const comparisonCount = similarEvents.length;
+    const averageAllocated = comparisonCount > 0
+      ? roundBudgetValue(similarEvents.reduce((sum, item) => sum + item.summary.totalAllocated, 0) / comparisonCount)
+      : 0;
+    const averagePlanned = comparisonCount > 0
+      ? roundBudgetValue(similarEvents.reduce((sum, item) => sum + item.summary.totalPlanned, 0) / comparisonCount)
+      : 0;
+    const averageSpent = comparisonCount > 0
+      ? roundBudgetValue(similarEvents.reduce((sum, item) => sum + item.summary.totalSpent, 0) / comparisonCount)
+      : 0;
+    const averagePercentUsed = comparisonCount > 0
+      ? Math.round(similarEvents.reduce((sum, item) => sum + item.summary.percentUsed, 0) / comparisonCount)
+      : 0;
+
+    res.json({
+      currentEvent: {
+        id: currentEvent.id,
+        title: currentEvent.title,
+        date: currentEvent.date,
+        location: currentEvent.location,
+        capacity: currentEvent.capacity,
+        eventType: currentEvent.event_type,
+        summary: currentSummary,
+      },
+      comparison: similarEvents,
+      overview: {
+        averageAllocated,
+        averagePlanned,
+        averageSpent,
+        averagePercentUsed,
+      },
+    });
+  } catch (error) {
+    console.error('Error comparing similar budget events:', error);
+    res.status(500).json({ error: 'Failed to compare budget data across similar events' });
   }
 }
 

@@ -30,6 +30,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../../lib/api-client';
 import {
   BudgetCategory,
+  BudgetComparisonResponse,
   BudgetSummary,
   computeSummary,
   CreateCategoryPayload,
@@ -37,6 +38,7 @@ import {
   deleteCategory,
   deleteExpense,
   Expense,
+  getBudgetComparison,
   listCategories,
   listExpenses,
   createCategory,
@@ -82,6 +84,9 @@ export default function BudgetPage(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [comparisonData, setComparisonData] = useState<BudgetComparisonResponse | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
 
   // Dialog state
   const [catDialogOpen, setCatDialogOpen] = useState(false);
@@ -112,26 +117,46 @@ export default function BudgetPage(): JSX.Element {
     void load();
   }, [load]);
 
+  const loadComparison = useCallback(async (): Promise<void> => {
+    if (!eventId) return;
+    setComparisonLoading(true);
+    setComparisonError(null);
+    try {
+      const data = await getBudgetComparison(eventId);
+      setComparisonData(data);
+    } catch (err) {
+      setComparisonData(null);
+      setComparisonError(err instanceof ApiError ? err.message : 'Failed to load similar event comparisons.');
+    } finally {
+      setComparisonLoading(false);
+    }
+  }, [eventId]);
+
+  useEffect(() => {
+    void loadComparison();
+  }, [loadComparison]);
+
   // ─── Category handlers ──────────────────────────────────────────────────────
 
   async function handleSaveCategory(payload: CreateCategoryPayload): Promise<void> {
     if (!eventId) return;
     if (editingCategory) {
       const updated = await updateCategory(eventId, editingCategory.id, payload);
-      setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      setCategories((prev) => {
+        const next = prev.map((c) => (c.id === updated.id ? updated : c));
+        setSummary(computeSummary(next));
+        return next;
+      });
     } else {
       const created = await createCategory(eventId, payload);
-      setCategories((prev) => [...prev, created]);
+      setCategories((prev) => {
+        const next = [...prev, created];
+        setSummary(computeSummary(next));
+        return next;
+      });
     }
-    setSummary(() => {
-      const cats = editingCategory
-        ? categories.map((c) =>
-            c.id === editingCategory.id ? { ...c, allocated_amount: payload.allocated_amount } : c,
-          )
-        : [...categories, { allocated_amount: payload.allocated_amount, spent: 0 } as BudgetCategory];
-      return computeSummary(cats);
-    });
     setEditingCategory(undefined);
+    void loadComparison();
   }
 
   async function handleDeleteCategory(category: BudgetCategory): Promise<void> {
@@ -141,6 +166,7 @@ export default function BudgetPage(): JSX.Element {
     setCategories((prev) => prev.filter((c) => c.id !== category.id));
     setExpenses((prev) => prev.filter((e) => e.category_id !== category.id));
     void load();
+    void loadComparison();
   }
 
   // ─── Expense handlers ───────────────────────────────────────────────────────
@@ -159,6 +185,7 @@ export default function BudgetPage(): JSX.Element {
     setCategories(cats);
     setSummary(computeSummary(cats));
     setEditingExpense(undefined);
+    void loadComparison();
   }
 
   async function handleDeleteExpense(expense: Expense): Promise<void> {
@@ -169,6 +196,7 @@ export default function BudgetPage(): JSX.Element {
     const cats = await listCategories(eventId);
     setCategories(cats);
     setSummary(computeSummary(cats));
+    void loadComparison();
   }
 
   // ─── Render helpers ─────────────────────────────────────────────────────────
@@ -276,6 +304,103 @@ export default function BudgetPage(): JSX.Element {
       <Box sx={{ mb: 3 }}>
         <BudgetSummaryCards summary={summary} />
       </Box>
+
+      <Card variant="outlined" sx={{ mb: 3 }}>
+        <CardContent>
+          <Stack
+            direction={{ xs: 'column', md: 'row' }}
+            justifyContent="space-between"
+            alignItems={{ xs: 'flex-start', md: 'center' }}
+            spacing={1}
+            sx={{ mb: 2 }}
+          >
+            <Box>
+              <Typography variant="subtitle1" fontWeight={700}>
+                Similar Event Budget Comparison
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Benchmark this event against similar accessible events using type, location, scale, tags, and timing.
+              </Typography>
+            </Box>
+            <Button variant="outlined" size="small" onClick={() => void loadComparison()} disabled={comparisonLoading}>
+              Refresh Comparison
+            </Button>
+          </Stack>
+
+          {comparisonError && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setComparisonError(null)}>
+              {comparisonError}
+            </Alert>
+          )}
+
+          {comparisonLoading ? (
+            <Stack spacing={1.5}>
+              <Skeleton variant="text" width={220} height={28} />
+              <Skeleton variant="rounded" height={52} />
+              <Skeleton variant="rounded" height={160} />
+            </Stack>
+          ) : comparisonData && comparisonData.comparison.length > 0 ? (
+            <Stack spacing={2}>
+              <Stack direction="row" flexWrap="wrap" gap={1}>
+                <Chip label={`Current planned ${fmt(summary.totalPlanned)}`} size="small" />
+                <Chip label={`Peer avg planned ${fmt(comparisonData.overview.averagePlanned)}`} size="small" variant="outlined" />
+                <Chip label={`Peer avg spent ${fmt(comparisonData.overview.averageSpent)}`} size="small" variant="outlined" />
+                <Chip label={`Peer avg used ${comparisonData.overview.averagePercentUsed}%`} size="small" variant="outlined" />
+              </Stack>
+
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small" aria-label="Similar event budget comparison table">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Event</TableCell>
+                      <TableCell>Match</TableCell>
+                      <TableCell align="right">Categories</TableCell>
+                      <TableCell align="right">Planned</TableCell>
+                      <TableCell align="right">Spent</TableCell>
+                      <TableCell align="right">Remaining</TableCell>
+                      <TableCell align="right">Used</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {comparisonData.comparison.map((item) => (
+                      <TableRow key={item.id} hover>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600}>
+                            {item.title}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {new Date(item.date).toLocaleDateString()} | {item.location}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {item.eventType ?? 'Other'}{item.capacity ? ` | Capacity ${item.capacity}` : ''}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                            <Chip label={`Score ${item.matchScore}`} size="small" color="primary" />
+                            {item.matchReasons.map((reason) => (
+                              <Chip key={`${item.id}-${reason}`} label={reason} size="small" variant="outlined" />
+                            ))}
+                          </Stack>
+                        </TableCell>
+                        <TableCell align="right">{item.summary.categoryCount}</TableCell>
+                        <TableCell align="right">{fmt(item.summary.totalPlanned)}</TableCell>
+                        <TableCell align="right">{fmt(item.summary.totalSpent)}</TableCell>
+                        <TableCell align="right">{fmt(item.summary.plannedRemaining)}</TableCell>
+                        <TableCell align="right">{item.summary.plannedPercentUsed}%</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No comparable events with budget data are available yet.
+            </Typography>
+          )}
+        </CardContent>
+      </Card>
 
       {categories.length === 0 ? (
         <Paper

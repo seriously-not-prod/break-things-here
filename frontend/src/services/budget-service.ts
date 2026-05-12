@@ -48,6 +48,39 @@ export interface BudgetSummary {
   plannedPercentUsed: number;
 }
 
+export interface BudgetComparisonOverview {
+  averageAllocated: number;
+  averagePlanned: number;
+  averageSpent: number;
+  averagePercentUsed: number;
+}
+
+export interface SimilarBudgetComparison {
+  id: number;
+  title: string;
+  date: string;
+  location: string;
+  capacity: number | null;
+  eventType: string | null;
+  matchScore: number;
+  matchReasons: string[];
+  summary: BudgetSummary & { categoryCount: number };
+}
+
+export interface BudgetComparisonResponse {
+  currentEvent: {
+    id: number;
+    title: string;
+    date: string;
+    location: string;
+    capacity: number | null;
+    eventType: string | null;
+    summary: BudgetSummary & { categoryCount: number };
+  };
+  comparison: SimilarBudgetComparison[];
+  overview: BudgetComparisonOverview;
+}
+
 export function computeSummary(categories: BudgetCategory[]): BudgetSummary {
   const totalAllocated = categories.reduce((sum, c) => sum + c.allocated_amount, 0);
   const totalPlanned = categories.reduce(
@@ -123,6 +156,12 @@ export async function deleteCategory(
 export async function listExpenses(eventId: number | string): Promise<Expense[]> {
   const data = await api.get<{ expenses: Expense[] }>(`/api/events/${eventId}/expenses`);
   return data.expenses;
+}
+
+export async function getBudgetComparison(
+  eventId: number | string,
+): Promise<BudgetComparisonResponse> {
+  return api.get<BudgetComparisonResponse>(`/api/events/${eventId}/budget/compare`);
 }
 
 export interface CreateExpensePayload {
