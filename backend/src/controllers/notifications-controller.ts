@@ -208,3 +208,112 @@ export async function createTaskDueAlert(
     console.error('createTaskDueAlert failed:', err);
   }
 }
+
+// ── #623: Notification preferences ───────────────────────────────────────────
+
+const VALID_NOTIFICATION_TYPES = new Set([
+  'task_due', 'task_overdue', 'task_assigned', 'budget_alert',
+  'rsvp_submitted', 'event_update', 'chat_message', 'event_reminder',
+]);
+
+/** GET /api/notifications/preferences */
+export async function listNotificationPreferences(req: AuthRequest, res: Response): Promise<void> {
+  if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  const db = getDatabase();
+  const rows = await db.all(
+    'SELECT * FROM notification_preferences WHERE user_id = ? ORDER BY notification_type ASC',
+    [req.user.id],
+  );
+  res.json({ preferences: rows });
+}
+
+/** PUT /api/notifications/preferences/:type */
+export async function upsertNotificationPreference(req: AuthRequest, res: Response): Promise<void> {
+  if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  const { type } = req.params;
+  if (!VALID_NOTIFICATION_TYPES.has(type)) {
+    res.status(400).json({ error: `Invalid notification_type. Allowed: ${[...VALID_NOTIFICATION_TYPES].join(', ')}` });
+    return;
+  }
+  const { email_enabled, in_app_enabled, push_enabled } = req.body as {
+    email_enabled?: boolean;
+    in_app_enabled?: boolean;
+    push_enabled?: boolean;
+  };
+
+  const db = getDatabase();
+  await db.run(
+    `INSERT INTO notification_preferences (user_id, notification_type, email_enabled, in_app_enabled, push_enabled)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (user_id, notification_type) DO UPDATE SET
+       email_enabled  = EXCLUDED.email_enabled,
+       in_app_enabled = EXCLUDED.in_app_enabled,
+       push_enabled   = EXCLUDED.push_enabled,
+       updated_at     = CURRENT_TIMESTAMP`,
+    [req.user.id, type, email_enabled ?? true, in_app_enabled ?? true, push_enabled ?? false],
+  );
+  const pref = await db.get(
+    'SELECT * FROM notification_preferences WHERE user_id = ? AND notification_type = ?',
+    [req.user.id, type],
+  );
+  res.json({ preference: pref });
+}
+
+// ── #624: Notification batching / anti-spam ───────────────────────────────────
+
+/** GET /api/notifications/batch-rules */
+export async function listBatchRules(req: AuthRequest, res: Response): Promise<void> {
+  if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  const db = getDatabase();
+  const rules = await db.all('SELECT * FROM notification_batch_rules ORDER BY notification_type ASC');
+  res.json({ rules });
+}
+
+/**
+ * Batched notification creation — respects anti-spam rules.
+ * Returns true if the notification was created; false if suppressed by anti-spam.
+ */
+export async function createBatchedNotification(
+  userId: number,
+  notificationType: string,
+  title: string,
+  body: string,
+  link?: string,
+  batchKey?: string,
+): Promise<boolean> {
+  try {
+    const db = getDatabase();
+
+    // Check user preference — skip if in-app disabled
+    const pref = await db.get<{ in_app_enabled: boolean }>(
+      'SELECT in_app_enabled FROM notification_preferences WHERE user_id = ? AND notification_type = ?',
+      [userId, notificationType],
+    );
+    if (pref && !pref.in_app_enabled) return false;
+
+    // Apply batch window / anti-spam
+    const rule = await db.get<{ batch_window_mins: number; max_per_window: number }>(
+      'SELECT batch_window_mins, max_per_window FROM notification_batch_rules WHERE notification_type = ?',
+      [notificationType],
+    );
+    if (rule && batchKey) {
+      const recent = await db.get<{ cnt: number }>(
+        `SELECT COUNT(*) AS cnt FROM notifications
+         WHERE user_id = ? AND batch_key = ?
+           AND created_at > datetime('now', ?)`,
+        [userId, batchKey, `-${rule.batch_window_mins} minutes`],
+      );
+      if (recent && recent.cnt >= rule.max_per_window) return false; // suppressed
+    }
+
+    await db.run(
+      `INSERT INTO notifications (user_id, type, title, body, link, notification_type, batch_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [userId, notificationType, title, body, link ?? null, notificationType, batchKey ?? null],
+    );
+    return true;
+  } catch (err) {
+    console.error('createBatchedNotification failed:', err);
+    return false;
+  }
+}

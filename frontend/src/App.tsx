@@ -120,8 +120,6 @@ function AuthShell(): JSX.Element {
   );
 }
 
-const DRAWER_WIDTH = 260;
-
 /**
  * Inner component that registers all application-wide keyboard shortcuts.
  * Must be rendered inside React Router so it can call `useNavigate`.
@@ -301,7 +299,7 @@ function AppShell(): JSX.Element {
   return (
     <Box sx={{ display: 'flex' }}>
       <AppNav />
-      <Box component="main" sx={{ flexGrow: 1, ml: `${DRAWER_WIDTH}px`, minHeight: '100vh', bgcolor: 'background.default' }}>
+      <Box component="main" sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default', p: 3 }}>
         <Routes>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/events" element={<EventsPage />} />

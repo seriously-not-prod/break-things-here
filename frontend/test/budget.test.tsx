@@ -221,6 +221,9 @@ describe('BudgetPage', () => {
         name: 'Marketing',
         allocated_amount: 10000,
         color: expect.any(String),
+        tax_rate: expect.any(Number),
+        gratuity_rate: expect.any(Number),
+        contingency_rate: expect.any(Number),
       });
     });
   }, 15000);
