@@ -1,8 +1,9 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 
-const execAsync = promisify(exec);
+// Use execFile (not exec) to prevent OS command injection — CWE-78
+const execFileAsync = promisify(execFile);
 
 export interface ScanResult {
   clean: boolean;
@@ -26,7 +27,11 @@ export async function scanFile(filePath: string): Promise<ScanResult> {
   const now = new Date().toISOString();
 
   if (!fs.existsSync(filePath)) {
-    throw new Error(`[VirusScan] File not found: ${filePath}`);
+    if (process.env.VIRUS_SCAN_BLOCK_ON_ERROR === 'true') {
+      return { clean: false, threat: 'File not accessible for scanning', scanner: 'stub', scannedAt: now };
+    }
+    console.warn('[VirusScan] File not found, skipping scan (fail-open):', filePath);
+    return { clean: true, scanner: 'stub', scannedAt: now };
   }
 
   if (process.env.VIRUS_SCAN_ENABLED === 'true') {
@@ -39,7 +44,8 @@ export async function scanFile(filePath: string): Promise<ScanResult> {
 async function scanWithClamAV(filePath: string, scannedAt: string): Promise<ScanResult> {
   try {
     // clamscan exits 0 = clean, 1 = infected, 2 = error
-    await execAsync(`clamscan --no-summary "${filePath}"`);
+    // Use execFile with argument array to prevent OS command injection (CWE-78)
+    await execFileAsync('clamscan', ['--no-summary', filePath]);
     return { clean: true, scanner: 'clamav', scannedAt };
   } catch (err: unknown) {
     const error = err as { code?: number; stderr?: string; stdout?: string };

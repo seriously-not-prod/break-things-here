@@ -81,28 +81,64 @@ describe('Role-permission seed migration (#265 #287)', () => {
       rolePermissions.set(row.role_id, current);
     }
 
+    // BRD v2 extended permissions — Admin (3) gets all permissions in the DB
     expect(rolePermissions.get(3)).toEqual([
+      'budget.edit',
+      'budget.view',
+      'checkin.perform',
       'events.create',
       'events.delete',
       'events.edit',
       'events.view',
+      'gallery.moderate',
+      'gallery.upload',
+      'gallery.view',
+      'guests.manage',
+      'guests.view',
+      'reports.view',
       'roles.manage',
       'roles.view',
+      'rsvp.create',
+      'rsvp.manage',
+      'rsvp.view',
+      'tasks.edit',
+      'tasks.view',
       'users.delete',
       'users.edit',
+      'users.manage',
       'users.view',
     ]);
 
+    // BRD v2 — Organizer has full event + team management permissions
     expect(rolePermissions.get(2)).toEqual([
+      'budget.edit',
+      'budget.view',
+      'checkin.perform',
       'events.create',
       'events.delete',
       'events.edit',
       'events.view',
+      'gallery.moderate',
+      'gallery.upload',
+      'gallery.view',
+      'guests.manage',
+      'guests.view',
+      'reports.view',
       'roles.view',
+      'rsvp.create',
+      'rsvp.manage',
+      'rsvp.view',
+      'tasks.edit',
+      'tasks.view',
+      'users.view',
     ]);
 
+    // BRD v2 — Attendee (= Guest) has minimal RSVP + gallery permissions
     expect(rolePermissions.get(1)).toEqual([
       'events.view',
+      'gallery.view',
+      'rsvp.create',
+      'rsvp.view',
     ]);
   });
 

@@ -131,6 +131,7 @@ const ORGANIZER_PERMISSION_NAMES = [
 
 const COLLABORATOR_PERMISSION_NAMES = [
   'events.view',
+  'events.edit',
   'rsvp.view',
   'tasks.view',
   'tasks.edit',
@@ -242,6 +243,7 @@ async function seedRolePermissions(db: DatabaseAdapter): Promise<void> {
     ['gallery.moderate', 'Moderate gallery items'],
     ['checkin.perform',  'Perform attendee check-in'],
     ['reports.view',     'View analytics and reports'],
+    ['users.manage',     'Manage user accounts (admin only)'],
   ];
   for (const [name, description] of extendedPermissions) {
     await db.run(

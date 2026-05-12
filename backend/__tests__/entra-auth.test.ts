@@ -258,3 +258,229 @@ describe('POST /api/auth/entra/callback — identity mapping', () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
+// ── #568 — MFA enforcement ───────────────────────────────────────────────────
+
+describe('POST /api/auth/entra/callback — MFA enforcement (#568)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    process.env.ENTRA_AUTH_ENABLED = 'true';
+    process.env.AZURE_TENANT_ID = 'test-tenant';
+    process.env.AZURE_CLIENT_ID = 'test-client';
+    process.env.AZURE_CLIENT_SECRET = 'test-secret';
+    process.env.ENTRA_MFA_REQUIRED = 'true';
+  });
+
+  afterEach(() => {
+    delete process.env.ENTRA_AUTH_ENABLED;
+    delete process.env.AZURE_TENANT_ID;
+    delete process.env.AZURE_CLIENT_ID;
+    delete process.env.AZURE_CLIENT_SECRET;
+    delete process.env.ENTRA_MFA_REQUIRED;
+    vi.restoreAllMocks();
+  });
+
+  it('rejects login when ENTRA_MFA_REQUIRED=true and amr does not include mfa', async () => {
+    vi.doMock('../src/utils/entra-token.js', () => ({
+      validateEntraIdToken: vi.fn().mockResolvedValue({
+        oid: 'oid-no-mfa',
+        email: 'user@example.com',
+        name: 'User',
+        tid: 'test-tenant',
+        aud: 'test-client',
+        iss: 'https://login.microsoftonline.com/test-tenant/v2.0',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+        amr: ['pwd'],   // password only — no MFA
+      }),
+    }));
+
+    const { handleEntraCallback } = await import('../src/controllers/entra-auth-controller.js');
+    const req = { body: { id_token: 'fake.jwt.token' } } as import('express').Request;
+    const res = makeRes();
+
+    await handleEntraCallback(req, res as unknown as import('express').Response);
+    expect(res.statusCode).toBe(401);
+    expect((res.body as { error: string }).error).toMatch(/MFA is required/i);
+  });
+
+  it('rejects login when amr claim is absent and MFA is required', async () => {
+    vi.doMock('../src/utils/entra-token.js', () => ({
+      validateEntraIdToken: vi.fn().mockResolvedValue({
+        oid: 'oid-no-amr',
+        email: 'user2@example.com',
+        name: 'User2',
+        tid: 'test-tenant',
+        aud: 'test-client',
+        iss: 'https://login.microsoftonline.com/test-tenant/v2.0',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+        // amr deliberately omitted
+      }),
+    }));
+
+    const { handleEntraCallback } = await import('../src/controllers/entra-auth-controller.js');
+    const req = { body: { id_token: 'fake.jwt.token' } } as import('express').Request;
+    const res = makeRes();
+
+    await handleEntraCallback(req, res as unknown as import('express').Response);
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('allows login when amr includes mfa', async () => {
+    vi.doMock('../src/utils/entra-token.js', () => ({
+      validateEntraIdToken: vi.fn().mockResolvedValue({
+        oid: 'oid-with-mfa',
+        email: 'mfauser@example.com',
+        name: 'MFA User',
+        tid: 'test-tenant',
+        aud: 'test-client',
+        iss: 'https://login.microsoftonline.com/test-tenant/v2.0',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+        amr: ['mfa', 'pwd'],   // MFA completed
+      }),
+    }));
+
+    const { handleEntraCallback } = await import('../src/controllers/entra-auth-controller.js');
+    const req = { body: { id_token: 'fake.jwt.token' } } as import('express').Request;
+    const res = makeRes();
+
+    await handleEntraCallback(req, res as unknown as import('express').Response);
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('allows login without MFA check when ENTRA_MFA_REQUIRED is not set', async () => {
+    delete process.env.ENTRA_MFA_REQUIRED;
+
+    vi.doMock('../src/utils/entra-token.js', () => ({
+      validateEntraIdToken: vi.fn().mockResolvedValue({
+        oid: 'oid-mfa-opt',
+        email: 'optuser@example.com',
+        name: 'Opt User',
+        tid: 'test-tenant',
+        aud: 'test-client',
+        iss: 'https://login.microsoftonline.com/test-tenant/v2.0',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+        amr: ['pwd'],   // no MFA — should still succeed
+      }),
+    }));
+
+    const { handleEntraCallback } = await import('../src/controllers/entra-auth-controller.js');
+    const req = { body: { id_token: 'fake.jwt.token' } } as import('express').Request;
+    const res = makeRes();
+
+    await handleEntraCallback(req, res as unknown as import('express').Response);
+    expect(res.statusCode).toBe(200);
+  });
+});
+
+// ── #570 — Entra-tied password and account recovery ─────────────────────────
+
+describe('POST /api/auth/forgot-password — Entra account block (#570)', () => {
+  const SCHEMA_FULL = `
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      display_name TEXT NOT NULL DEFAULT '',
+      email_verified INTEGER DEFAULT 0,
+      email_verified_at TIMESTAMP,
+      role_id INTEGER DEFAULT 1,
+      account_locked INTEGER DEFAULT 0,
+      login_attempts INTEGER DEFAULT 0,
+      auth_provider TEXT DEFAULT 'local',
+      entra_oid TEXT,
+      deleted_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id),
+      email TEXT NOT NULL,
+      token_selector TEXT NOT NULL UNIQUE,
+      token TEXT NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS password_reset_rate_limit (
+      email TEXT PRIMARY KEY,
+      request_count INTEGER DEFAULT 0,
+      window_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      details TEXT,
+      ip_address TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+
+  let resetDb: TestDatabase;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    resetDb = await createPostgresTestDatabase(SCHEMA_FULL);
+    vi.doMock('../src/db/database.js', () => ({
+      getDatabase: () => resetDb,
+      initializeDatabase: async () => resetDb,
+    }));
+    process.env.AZURE_TENANT_ID = 'test-tenant';
+  });
+
+  afterEach(async () => {
+    await resetDb.close();
+    delete process.env.AZURE_TENANT_ID;
+    vi.restoreAllMocks();
+  });
+
+  it('returns 422 for Entra-linked accounts with password recovery URL', async () => {
+    const hash = await hashPassword('does-not-matter');
+    await resetDb.run(
+      `INSERT INTO users (email, password_hash, display_name, email_verified, auth_provider)
+       VALUES ('entrauser@corp.com', ?, 'Entra User', 1, 'entra')`,
+      [hash],
+    );
+
+    const { forgotPassword } = await import('../src/controllers/password-reset-controller.js');
+    const req = {
+      body: { email: 'entrauser@corp.com' },
+      ip: '127.0.0.1',
+    } as import('express').Request;
+    const res = makeRes();
+
+    await forgotPassword(req, res as unknown as import('express').Response);
+
+    expect(res.statusCode).toBe(422);
+    const body = res.body as { error: string; entraPasswordResetUrl: string };
+    expect(body.error).toMatch(/Microsoft Entra/i);
+    expect(body.entraPasswordResetUrl).toContain('activedirectory.windowsazure.com');
+  });
+
+  it('proceeds normally with local password reset for local accounts', async () => {
+    const hash = await hashPassword('localpassword');
+    await resetDb.run(
+      `INSERT INTO users (email, password_hash, display_name, email_verified, auth_provider)
+       VALUES ('localuser@example.com', ?, 'Local User', 1, 'local')`,
+      [hash],
+    );
+
+    const { forgotPassword } = await import('../src/controllers/password-reset-controller.js');
+    const req = {
+      body: { email: 'localuser@example.com' },
+      ip: '127.0.0.1',
+    } as import('express').Request;
+    const res = makeRes();
+
+    await forgotPassword(req, res as unknown as import('express').Response);
+
+    // Local accounts go through the normal flow (200 with generic message)
+    expect(res.statusCode).toBe(200);
+    const body = res.body as { message: string };
+    expect(body.message).toMatch(/password reset link/i);
+  });
+});

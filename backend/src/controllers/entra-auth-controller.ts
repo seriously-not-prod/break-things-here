@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
-import { isEntraEnabled, getEntraConfig } from '../config/entra.js';
+import { isEntraEnabled, getEntraConfig, isMfaRequired } from '../config/entra.js';
 import { validateEntraIdToken } from '../utils/entra-token.js';
 import { getDatabase } from '../db/database.js';
 import { generateTokens } from '../middleware/auth.js';
@@ -103,6 +103,16 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
     config.clientId,
     config.tenantId,
   );
+
+  // #568 — MFA enforcement: when ENTRA_MFA_REQUIRED=true the token's `amr`
+  // claim MUST include 'mfa'. Azure AD sets this when MFA was completed.
+  if (isMfaRequired()) {
+    const amr: string[] = Array.isArray(claims.amr) ? (claims.amr as string[]) : [];
+    if (!amr.includes('mfa')) {
+      res.status(401).json({ error: 'MFA is required. Please complete multi-factor authentication and try again.' });
+      return;
+    }
+  }
 
   const email = (claims.email ?? claims.preferred_username ?? '').toLowerCase().trim();
   const displayName = claims.name ?? email.split('@')[0];
