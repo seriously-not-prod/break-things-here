@@ -393,11 +393,17 @@ router.get('/notifications/digest', authenticateToken, notificationsController.g
 // Static sub-paths must be registered BEFORE parameterised /:id routes
 router.get('/events/:eventId/vendors', authenticateToken, vendorsController.listVendors);
 router.post('/events/:eventId/vendors', authenticateToken, vendorsController.createVendor);
+router.get('/events/:eventId/vendors/favorites', authenticateToken, vendorsController.listFavoriteVendors);
 router.get('/events/:eventId/vendors/compare', authenticateToken, vendorCommController.compareVendors);
 router.get('/events/:eventId/vendors/performance', authenticateToken, vendorPerfController.listVendorPerformance);
 router.put('/events/:eventId/vendors/:id', authenticateToken, vendorsController.updateVendor);
 router.delete('/events/:eventId/vendors/:id', authenticateToken, vendorsController.deleteVendor);
+router.put('/events/:eventId/vendors/:id/favorite', authenticateToken, vendorsController.setVendorFavorite);
 router.post('/events/:eventId/vendors/:id/contract', authenticateToken, contractUpload.single('file'), vendorsController.uploadContract);
+router.get('/events/:eventId/vendors/:id/booking', authenticateToken, vendorsController.getVendorBooking);
+router.put('/events/:eventId/vendors/:id/booking', authenticateToken, vendorsController.upsertVendorBooking);
+router.get('/events/:eventId/vendors/:id/payment-schedules', authenticateToken, vendorsController.listVendorPaymentSchedules);
+router.post('/events/:eventId/vendors/:id/payment-schedules', authenticateToken, vendorsController.createVendorPaymentSchedule);
 router.get('/events/:eventId/vendors/:vendorId/communication', authenticateToken, vendorCommController.listVendorCommunication);
 router.post('/events/:eventId/vendors/:vendorId/communication', authenticateToken, vendorCommController.addVendorCommunication);
 router.delete('/events/:eventId/vendors/:vendorId/communication/:logId', authenticateToken, vendorCommController.deleteVendorCommunication);
