@@ -112,14 +112,58 @@ const ORGANIZER_PERMISSION_NAMES = [
   'events.edit',
   'events.delete',
   'roles.view',
+  'rsvp.create',
+  'rsvp.view',
+  'rsvp.manage',
+  'tasks.view',
+  'tasks.edit',
+  'guests.view',
+  'guests.manage',
+  'budget.view',
+  'budget.edit',
+  'gallery.view',
+  'gallery.upload',
+  'gallery.moderate',
+  'users.view',
+  'checkin.perform',
+  'reports.view',
 ];
 
-const ATTENDEE_PERMISSION_NAMES = ['events.view'];
+const COLLABORATOR_PERMISSION_NAMES = [
+  'events.view',
+  'rsvp.view',
+  'tasks.view',
+  'tasks.edit',
+  'guests.view',
+  'budget.view',
+  'gallery.view',
+  'gallery.upload',
+  'users.view',
+  'checkin.perform',
+];
+
+const GUEST_PERMISSION_NAMES = [
+  'events.view',
+  'rsvp.create',
+  'rsvp.view',
+  'gallery.view',
+];
+
+const VIEWER_PERMISSION_NAMES = [
+  'events.view',
+  'rsvp.view',
+  'gallery.view',
+];
+
+const ATTENDEE_PERMISSION_NAMES = GUEST_PERMISSION_NAMES;
 
 const ROLE_NAMES = {
-  attendee: 'Attendee',
-  organizer: 'Organizer',
-  admin: 'Admin',
+  attendee:     'Attendee',
+  organizer:    'Organizer',
+  admin:        'Admin',
+  collaborator: 'Collaborator',
+  guest:        'Guest',
+  viewer:       'Viewer',
 } as const;
 
 const DEV_DEMO_USERS = [
@@ -182,15 +226,54 @@ const DEV_DEMO_EVENT = {
 type RoleName = (typeof ROLE_NAMES)[keyof typeof ROLE_NAMES];
 
 async function seedRolePermissions(db: DatabaseAdapter): Promise<void> {
+  // Ensure extended permissions exist for new BRD v2 role model (#537, #573)
+  const extendedPermissions = [
+    ['rsvp.create',      'Submit an RSVP'],
+    ['rsvp.view',        'View own RSVP'],
+    ['rsvp.manage',      'Manage all RSVPs for an event'],
+    ['tasks.view',       'View event tasks'],
+    ['tasks.edit',       'Create and update tasks'],
+    ['guests.view',      'View guest list'],
+    ['guests.manage',    'Manage guest records'],
+    ['budget.view',      'View budget'],
+    ['budget.edit',      'Edit budget items'],
+    ['gallery.view',     'View gallery'],
+    ['gallery.upload',   'Upload gallery media'],
+    ['gallery.moderate', 'Moderate gallery items'],
+    ['checkin.perform',  'Perform attendee check-in'],
+    ['reports.view',     'View analytics and reports'],
+  ];
+  for (const [name, description] of extendedPermissions) {
+    await db.run(
+      `INSERT INTO permissions (name, description) VALUES (?, ?) ON CONFLICT (name) DO NOTHING`,
+      [name, description],
+    );
+  }
+
   const [adminRoleId, organizerRoleId, attendeeRoleId] = await Promise.all([
     getRoleIdByName(db, ROLE_NAMES.admin),
     getRoleIdByName(db, ROLE_NAMES.organizer),
     getRoleIdByName(db, ROLE_NAMES.attendee),
   ]);
 
+  // Seed new BRD v2 roles — created with ON CONFLICT DO NOTHING so idempotent
+  const collaboratorRole = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = ?', [ROLE_NAMES.collaborator]);
+  const guestRole        = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = ?', [ROLE_NAMES.guest]);
+  const viewerRole       = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = ?', [ROLE_NAMES.viewer]);
+
   await insertRolePermissions(db, adminRoleId);
   await insertRolePermissions(db, organizerRoleId, ORGANIZER_PERMISSION_NAMES);
   await insertRolePermissions(db, attendeeRoleId, ATTENDEE_PERMISSION_NAMES);
+
+  if (collaboratorRole) {
+    await insertRolePermissions(db, collaboratorRole.id, COLLABORATOR_PERMISSION_NAMES);
+  }
+  if (guestRole) {
+    await insertRolePermissions(db, guestRole.id, GUEST_PERMISSION_NAMES);
+  }
+  if (viewerRole) {
+    await insertRolePermissions(db, viewerRole.id, VIEWER_PERMISSION_NAMES);
+  }
 }
 
 async function getRoleIdByName(db: DatabaseAdapter, roleName: RoleName): Promise<number> {
@@ -564,6 +647,26 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     )
   `);
 
+  // BRD v2 #538/#572: extend audit_log with richer security event fields
+  await db.exec(`ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS actor_id    INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS target_type TEXT`);
+  await db.exec(`ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS target_id   TEXT`);
+  await db.exec(`ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS context     JSONB`);
+  await db.exec(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'audit_log' AND column_name = 'severity'
+      ) THEN
+        ALTER TABLE audit_log ADD COLUMN severity TEXT DEFAULT 'INFO'
+          CHECK (severity IN ('INFO','WARN','ERROR','CRITICAL'));
+      END IF;
+    END $$
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_action     ON audit_log(action)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_user_id    ON audit_log(user_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at DESC)`);
+
   await db.exec(`
     CREATE TABLE IF NOT EXISTS roles (
       id SERIAL PRIMARY KEY,
@@ -575,13 +678,18 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
   await db.exec(`
     INSERT INTO roles (id, name, description) VALUES
-    (1, 'Attendee', 'Default role for new users'),
-    (2, 'Organizer', 'Can create and manage events'),
-    (3, 'Admin', 'Full system access')
-    ON CONFLICT (id) DO NOTHING
+    (1, 'Attendee',     'Default role for new users'),
+    (2, 'Organizer',    'Can create and manage events'),
+    (3, 'Admin',        'Full system access'),
+    (4, 'Collaborator', 'Can contribute to events they are assigned to'),
+    (5, 'Guest',        'Invited event attendee; can RSVP and check in'),
+    (6, 'Viewer',       'Read-only access to public events and own RSVPs')
+    ON CONFLICT (id) DO UPDATE
+      SET name        = EXCLUDED.name,
+          description = EXCLUDED.description
   `);
 
-  await db.exec(`SELECT setval('roles_id_seq', GREATEST((SELECT MAX(id) FROM roles), 3))`);
+  await db.exec(`SELECT setval('roles_id_seq', GREATEST((SELECT MAX(id) FROM roles), 6))`);
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS permissions (
@@ -1291,6 +1399,78 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     `);
 
     console.log('[RLS] RLS pilot policies applied.');
+  }
+
+  // ── RLS v2: extend RLS to tasks, expenses, vendors, rsvps (#564, #632, #633) ──
+  if (process.env.RLS_PILOT_ENABLED === 'true') {
+    console.log('[RLS] Applying RLS v2 policies on tasks, expenses, vendors, rsvps…');
+    for (const tbl of ['tasks', 'expenses', 'vendors', 'rsvps']) {
+      await db.exec(`ALTER TABLE ${tbl} ENABLE ROW LEVEL SECURITY`);
+      await db.exec(`ALTER TABLE ${tbl} FORCE ROW LEVEL SECURITY`);
+    }
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'tasks' AND policyname = 'rls_tasks_event_member'
+        ) THEN
+          CREATE POLICY rls_tasks_event_member ON tasks
+            USING (
+              event_id IN (
+                SELECT event_id FROM event_members
+                WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+              )
+            );
+        END IF;
+      END $$;
+    `);
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'expenses' AND policyname = 'rls_expenses_event_member'
+        ) THEN
+          CREATE POLICY rls_expenses_event_member ON expenses
+            USING (
+              event_id IN (
+                SELECT event_id FROM event_members
+                WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+              )
+            );
+        END IF;
+      END $$;
+    `);
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'vendors' AND policyname = 'rls_vendors_event_member'
+        ) THEN
+          CREATE POLICY rls_vendors_event_member ON vendors
+            USING (
+              event_id IN (
+                SELECT event_id FROM event_members
+                WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+              )
+            );
+        END IF;
+      END $$;
+    `);
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'rsvps' AND policyname = 'rls_rsvps_access'
+        ) THEN
+          CREATE POLICY rls_rsvps_access ON rsvps
+            USING (
+              user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+              OR event_id IN (
+                SELECT event_id FROM event_members
+                WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+                  AND role IN ('organizer', 'admin', 'collaborator')
+              )
+            );
+        END IF;
+      END $$;
+    `);
+    console.log('[RLS] RLS v2 policies applied.');
   }
 
   // ── Guest merge audit (#411, #435) ───────────────────────────────────────
