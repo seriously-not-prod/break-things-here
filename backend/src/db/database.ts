@@ -1612,6 +1612,53 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     )
   `);
 
+  // ─── Pre-BRD v2 gallery tables (#417, #459) ───────────────────────────────
+  // These tables exist in init.sql but were not previously mirrored in the
+  // runtime migration. BRD v2 (#619) adds gallery_share_links with an FK to
+  // gallery_albums, so this block must precede the BRD v2 section to keep the
+  // runtime migration self-contained on fresh databases.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS gallery_albums (
+      id          SERIAL PRIMARY KEY,
+      event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name        TEXT NOT NULL,
+      description TEXT,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_albums_event_id ON gallery_albums(event_id)`);
+
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS album_id INTEGER REFERENCES gallery_albums(id) ON DELETE SET NULL`);
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS moderation_status TEXT NOT NULL DEFAULT 'approved'`);
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS submitted_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_documents_album_id ON event_documents(album_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_documents_moderation ON event_documents(event_id, moderation_status)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS gallery_slideshows (
+      id          SERIAL PRIMARY KEY,
+      event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name        TEXT NOT NULL,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_slideshows_event_id ON gallery_slideshows(event_id)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS slideshow_items (
+      id           SERIAL PRIMARY KEY,
+      slideshow_id INTEGER NOT NULL REFERENCES gallery_slideshows(id) ON DELETE CASCADE,
+      document_id  INTEGER NOT NULL REFERENCES event_documents(id) ON DELETE CASCADE,
+      sort_order   INTEGER NOT NULL DEFAULT 0,
+      UNIQUE (slideshow_id, document_id)
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_slideshow_items_slideshow_id ON slideshow_items(slideshow_id)`);
+
   // ─── BRD v2 parity: lifecycle, archive, custom fields, gallery, reports ────
   // Stories #528, #533 — tasks #539-#542, #560-#563, #574-#581, #617-#622.
 
