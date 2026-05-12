@@ -1,9 +1,28 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
+import path from 'path';
 
 // Use execFile (not exec) to prevent OS command injection — CWE-78
 const execFileAsync = promisify(execFile);
+
+// Resolve allowed upload directory at startup to prevent path injection (CWE-22/CWE-73)
+const ALLOWED_UPLOAD_DIR = path.resolve(
+  process.env.UPLOAD_DIR ?? path.join(new URL('.', import.meta.url).pathname, '../../uploads')
+);
+
+/**
+ * Validate that filePath resolves to within the allowed upload directory.
+ * Throws if the path escapes the directory (path traversal / path injection).
+ */
+function validateUploadPath(filePath: string): string {
+  const resolved = path.resolve(filePath);
+  const allowedPrefix = ALLOWED_UPLOAD_DIR + path.sep;
+  if (resolved !== ALLOWED_UPLOAD_DIR && !resolved.startsWith(allowedPrefix)) {
+    throw new Error('Path injection detected: file is outside the allowed upload directory');
+  }
+  return resolved;
+}
 
 export interface ScanResult {
   clean: boolean;
@@ -26,19 +45,28 @@ export interface ScanResult {
 export async function scanFile(filePath: string): Promise<ScanResult> {
   const now = new Date().toISOString();
 
-  if (!fs.existsSync(filePath)) {
+  // Validate path before any file operation — prevents path injection (CWE-22/CWE-73)
+  let safePath: string;
+  try {
+    safePath = validateUploadPath(filePath);
+  } catch {
+    console.error('[VirusScan] Rejected unsafe file path:', filePath);
+    return { clean: false, threat: 'Invalid file path', scanner: 'stub', scannedAt: now };
+  }
+
+  if (!fs.existsSync(safePath)) {
     if (process.env.VIRUS_SCAN_BLOCK_ON_ERROR === 'true') {
       return { clean: false, threat: 'File not accessible for scanning', scanner: 'stub', scannedAt: now };
     }
-    console.warn('[VirusScan] File not found, skipping scan (fail-open):', filePath);
+    console.warn('[VirusScan] File not found, skipping scan (fail-open):', safePath);
     return { clean: true, scanner: 'stub', scannedAt: now };
   }
 
   if (process.env.VIRUS_SCAN_ENABLED === 'true') {
-    return scanWithClamAV(filePath, now);
+    return scanWithClamAV(safePath, now);
   }
 
-  return stubScan(filePath, now);
+  return stubScan(safePath, now);
 }
 
 async function scanWithClamAV(filePath: string, scannedAt: string): Promise<ScanResult> {
