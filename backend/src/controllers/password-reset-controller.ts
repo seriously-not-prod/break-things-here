@@ -96,10 +96,22 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
     }
 
     // AC: Look up user (but don't reveal if they exist)
-    const user = await db.get(
-      'SELECT id FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL',
+    const user = await db.get<{ id: number; auth_provider?: string | null }>(
+      'SELECT id, auth_provider FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL',
       [normalizedEmail],
     );
+
+    // #570 — Entra-tied accounts must use Entra self-service password reset.
+    // Block local password reset to prevent auth-provider confusion.
+    if (user?.auth_provider === 'entra') {
+      const entraTenantId = process.env.AZURE_TENANT_ID ?? 'common';
+      const entraPasswordResetUrl = `https://account.activedirectory.windowsazure.com/r/#/passwordReset`;
+      return res.status(422).json({
+        error: 'This account uses Microsoft Entra ID (SSO) for authentication. Please reset your password via your organisation\u2019s Microsoft account portal.',
+        entraPasswordResetUrl,
+        tenantId: entraTenantId,
+      });
+    }
 
     // AC: Generate cryptographically secure token (selector/verifier pattern)
     // selector: 32-char hex stored in plaintext for fast DB lookup
