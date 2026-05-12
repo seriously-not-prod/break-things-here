@@ -111,8 +111,9 @@ jobs:
         run: |
           echo "Validating commit messages..."
           
-          # Get all commits in this PR
-          COMMITS=$(git log --format="%H" $BASE_SHA..$HEAD_SHA)
+          # Get all non-merge commits in this PR. Merge commits are auto-generated
+          # by GitHub or `git merge` and cannot reliably carry issue references.
+          COMMITS=$(git log --format="%H" --no-merges $BASE_SHA..$HEAD_SHA)
           
           ERRORS=0
           
