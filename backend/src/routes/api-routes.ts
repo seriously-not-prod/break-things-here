@@ -44,6 +44,11 @@ import * as waitlistController from '../controllers/waitlist-controller.js';
 import * as rsvpQuestionsController from '../controllers/rsvp-questions-controller.js';
 import * as currencyController from '../controllers/currency-controller.js';
 import * as budgetForecastController from '../controllers/budget-forecast-controller.js';
+import * as taskMultiAssigneeController from '../controllers/task-multi-assignee-controller.js';
+import * as timelineTemplatesController from '../controllers/timeline-templates-controller.js';
+import * as collaborationController from '../controllers/collaboration-controller.js';
+import * as eventChatController from '../controllers/event-chat-controller.js';
+import * as entityVersionsController from '../controllers/entity-versions-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
 import multer from 'multer';
@@ -482,6 +487,60 @@ router.patch('/events/:eventId/store-suggestions/:id', authenticateToken, storeS
 router.delete('/events/:eventId/store-suggestions/:id', authenticateToken, storeSuggestionsController.deleteStoreSuggestion);
 
 // ============ TIMELINE CONFLICT DETECTION — #441 (registered in timeline section above)
+
+// ============ #532 STORY: Tasks / Timeline / Collaboration / Notification Parity ============
+
+// ── #603/#604/#605/#606: Multi-assignee, full status lifecycle, escalation, my tasks ──────
+router.get('/tasks/my-tasks', authenticateToken, taskMultiAssigneeController.getMyTasks);
+router.get('/tasks/capacity', authenticateToken, taskMultiAssigneeController.getCapacityPlanning);
+router.get('/events/:eventId/tasks/:taskId/assignees', authenticateToken, taskMultiAssigneeController.listTaskAssignees);
+router.post('/events/:eventId/tasks/:taskId/assignees', authenticateToken, taskMultiAssigneeController.addTaskAssignee);
+router.delete('/events/:eventId/tasks/:taskId/assignees/:userId', authenticateToken, taskMultiAssigneeController.removeTaskAssignee);
+router.patch('/events/:eventId/tasks/:taskId/status', authenticateToken, taskMultiAssigneeController.updateTaskStatus);
+router.post('/events/:eventId/tasks/:taskId/verify', authenticateToken, taskMultiAssigneeController.verifyTaskCompletion);
+router.get('/events/:eventId/escalation-policy', authenticateToken, taskMultiAssigneeController.getEscalationPolicy);
+router.put('/events/:eventId/escalation-policy', authenticateToken, taskMultiAssigneeController.upsertEscalationPolicy);
+router.post('/events/:eventId/tasks/escalate-overdue', authenticateToken, taskMultiAssigneeController.escalateOverdueTasks);
+
+// ── #612/#613/#614/#615/#616: Timeline templates, buffer-time, reorder, execution ──────────
+router.get('/timeline-templates', authenticateToken, timelineTemplatesController.listTimelineTemplates);
+router.get('/timeline-templates/:id', authenticateToken, timelineTemplatesController.getTimelineTemplate);
+router.post('/timeline-templates', authenticateToken, timelineTemplatesController.createTimelineTemplate);
+router.delete('/timeline-templates/:id', authenticateToken, timelineTemplatesController.deleteTimelineTemplate);
+router.post('/events/:eventId/timeline/apply-template', authenticateToken, timelineTemplatesController.applyTimelineTemplate);
+router.patch('/events/:eventId/timeline/reorder', authenticateToken, timelineTemplatesController.reorderTimeline);
+router.patch('/events/:eventId/timeline/:id/buffer', authenticateToken, timelineTemplatesController.updateActivityBuffer);
+router.patch('/events/:eventId/timeline/:id/execution', authenticateToken, timelineTemplatesController.updateExecutionStatus);
+
+// ── #623/#624: Notification preferences and batching ─────────────────────────────────────
+router.get('/notifications/preferences', authenticateToken, notificationsController.listNotificationPreferences);
+router.put('/notifications/preferences/:type', authenticateToken, notificationsController.upsertNotificationPreference);
+router.get('/notifications/batch-rules', authenticateToken, notificationsController.listBatchRules);
+
+// ── #625/#626/#627: Collaboration — presence and conflict resolution ──────────────────────
+router.post('/presence', authenticateToken, collaborationController.heartbeatPresence);
+router.get('/presence', authenticateToken, collaborationController.getPresence);
+router.delete('/presence', authenticateToken, collaborationController.leavePresence);
+router.get('/events/:eventId/presence', authenticateToken, collaborationController.getEventPresence);
+
+// ── #628: Event team chat ─────────────────────────────────────────────────────────────────
+router.get('/events/:eventId/chat', authenticateToken, eventChatController.listChatMessages);
+router.post('/events/:eventId/chat', authenticateToken, eventChatController.postChatMessage);
+router.patch('/events/:eventId/chat/:id', authenticateToken, eventChatController.editChatMessage);
+router.delete('/events/:eventId/chat/:id', authenticateToken, eventChatController.deleteChatMessage);
+
+// ── #629: Version history and rollback ───────────────────────────────────────────────────
+router.get('/entity-versions/:id', authenticateToken, entityVersionsController.getEntityVersion);
+router.get('/events/:eventId/tasks/:entityId/versions', authenticateToken, entityVersionsController.listEntityVersions);
+router.get('/events/:eventId/timeline/:entityId/versions', authenticateToken, (req, res) => {
+  req.query.entity_type = 'timeline_activity';
+  return entityVersionsController.listEntityVersions(req, res);
+});
+router.post('/events/:eventId/tasks/:entityId/rollback', authenticateToken, entityVersionsController.rollbackEntityVersion);
+router.post('/events/:eventId/timeline/:entityId/rollback', authenticateToken, (req, res) => {
+  (req.body as Record<string, unknown>).entity_type = 'timeline_activity';
+  return entityVersionsController.rollbackEntityVersion(req, res);
+});
 
 export default router;
 
