@@ -41,9 +41,22 @@ function nextRunDate(frequency: Frequency, now: Date = new Date()): Date {
   return d;
 }
 
+// Length-bounded, single-pass parser to avoid the polynomial regex CodeQL
+// flagged for the older `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` pattern.
 function isValidEmail(value: unknown): value is string {
   if (typeof value !== 'string') return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  if (value.length === 0 || value.length > 254) return false;
+  const at = value.indexOf('@');
+  if (at <= 0 || at !== value.lastIndexOf('@')) return false;
+  const local = value.slice(0, at);
+  const domain = value.slice(at + 1);
+  if (local.length === 0 || domain.length === 0) return false;
+  // Whitespace not allowed in either segment.
+  if (/[\s]/.test(local) || /[\s]/.test(domain)) return false;
+  // Domain must contain at least one dot, and neither side of the dot empty.
+  const dot = domain.lastIndexOf('.');
+  if (dot <= 0 || dot >= domain.length - 1) return false;
+  return true;
 }
 
 export async function listReports(req: Request, res: Response): Promise<Response> {

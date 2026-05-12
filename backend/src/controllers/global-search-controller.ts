@@ -40,7 +40,9 @@ export async function globalSearch(req: Request, res: Response): Promise<Respons
     (ALL_TYPES as readonly string[]).includes(t),
   );
 
-  const like = `%${q.replace(/[%_]/g, '\\$&')}%`;
+  // Escape LIKE wildcards AND the escape character itself so user input cannot
+  // alter pattern semantics. Order matters: escape backslashes first.
+  const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
 
   // Accessible event ids: created_by + event_members.
   const isAdmin = authReq.user.role_id === 3;

@@ -112,7 +112,10 @@ export async function materialiseRenditions(
         await fs.copyFile(source, target);
       } catch (err) {
         // Surface but don't crash the API — the original is still served.
-        console.warn(`[cover-resize] Failed to materialise ${target}:`, err);
+        // Pass `target` as a separate argument (not interpolated into the
+        // format string) so user-derived file names cannot break log parsing
+        // or smuggle ANSI escapes.
+        console.warn('[cover-resize] Failed to materialise rendition:', target, err);
       }
     }
   }

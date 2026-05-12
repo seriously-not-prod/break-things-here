@@ -184,9 +184,12 @@ export async function revokeShareLink(req: Request, res: Response): Promise<Resp
  */
 export async function resolveShareLink(req: Request, res: Response): Promise<Response> {
   const { token } = req.params;
-  const password = typeof req.query['password'] === 'string'
-    ? req.query['password']
-    : (req.body as { password?: string } | undefined)?.password;
+  // Passwords are only accepted in the request body, never the query string,
+  // so they don't leak into access logs or browser history.
+  const password =
+    req.method === 'POST'
+      ? (req.body as { password?: string } | undefined)?.password
+      : undefined;
 
   if (!token || token.length > 100) {
     return res.status(400).json({ error: 'Invalid token.' });
