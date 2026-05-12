@@ -4,7 +4,16 @@
  */
 
 import { Request, Response } from 'express';
+import path from 'path';
 import { getDatabase } from '../db/database';
+import {
+  EVENT_STATUSES,
+  EventStatus,
+  describeInvalidTransition,
+  isValidStatus,
+  validateEventDate,
+} from '../utils/event-lifecycle.js';
+import { buildCoverRenditionUrls, materialiseRenditions } from '../utils/image-processing.js';
 
 export interface EventData {
   title: string;
@@ -12,7 +21,7 @@ export interface EventData {
   location: string;
   description?: string;
   capacity?: number | null;
-  status?: 'Draft' | 'Active' | 'Completed' | 'Cancelled';
+  status?: EventStatus;
   event_type?: string | null;
   is_public?: boolean;
   tags?: string | null;
@@ -20,6 +29,11 @@ export interface EventData {
   latitude?: number | null;
   longitude?: number | null;
   waitlist_enabled?: boolean | null;
+  // BRD v2 (#618, #621, #622)
+  gallery_comments_enabled?: boolean | null;
+  gallery_guest_uploads?: boolean | null;
+  gallery_public?: boolean | null;
+  storage_quota_bytes?: number | null;
 }
 
 interface AuthRequest extends Request {
@@ -89,11 +103,12 @@ async function recordEventAudit(
  *
  * Filters:
  *   ?owner=me                          — events created by the authenticated user
- *   ?status=Draft|Active|Completed     — single status
+ *   ?status=Draft|Active|Completed     — single status (or comma-separated list — #580)
  *   ?q=keyword                         — quick search across title/description/location
  *   ?tags=tag1,tag2                    — comma-separated tag match (any-of)
+ *   ?archived=true|false|only          — include archived (#578); default excludes archived
  *
- * Advanced search — story #416, task #455:
+ * Advanced search — story #416, task #455 + BRD v2 (#581):
  *   ?title_q=...                       — case-insensitive substring match on title
  *   ?location_q=...                    — case-insensitive substring match on location
  *   ?date_from=YYYY-MM-DD              — events on/after this date
@@ -102,6 +117,10 @@ async function recordEventAudit(
  *   ?capacity_max=N                    — capacity <= N
  *   ?event_type=Concert                — exact event_type match
  *   ?has_waitlist=true|false           — waitlist_enabled flag
+ *   ?created_by=N                      — events created by user N
+ *   ?sort=date_asc|date_desc|title_asc|title_desc|created_desc — sort order (#580)
+ *   ?view=list|grid|calendar|timeline  — UX hint; backend returns same rows but
+ *                                        this is recorded in audit for power-user nav (#580)
  */
 export async function getAllEvents(req: Request, res: Response): Promise<void> {
   try {
@@ -120,6 +139,9 @@ export async function getAllEvents(req: Request, res: Response): Promise<void> {
       capacity_max,
       event_type,
       has_waitlist,
+      archived,
+      created_by,
+      sort,
     } = req.query as {
       owner?: string;
       tags?: string;
@@ -133,6 +155,9 @@ export async function getAllEvents(req: Request, res: Response): Promise<void> {
       capacity_max?: string;
       event_type?: string;
       has_waitlist?: string;
+      archived?: string;
+      created_by?: string;
+      sort?: string;
     };
 
     let query = `
@@ -143,14 +168,36 @@ export async function getAllEvents(req: Request, res: Response): Promise<void> {
     `;
     const params: (string | number | boolean)[] = [];
 
+    // Archive filter (#540, #578).
+    // Default: exclude archived rows so existing dashboards stay clean.
+    // archived=true  → include archived alongside active.
+    // archived=only  → only archived.
+    if (archived === 'only') {
+      query += ' AND e.archived_at IS NOT NULL';
+    } else if (archived !== 'true') {
+      query += ' AND e.archived_at IS NULL';
+    }
+
     if (owner === 'me' && authReq.user?.id) {
       query += ' AND e.created_by = ?';
       params.push(authReq.user.id);
     }
 
     if (status) {
-      query += ' AND e.status = ?';
-      params.push(status);
+      // Accept comma-separated list of statuses (#580 view filters).
+      const statusList = String(status)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const valid = statusList.filter((s): s is EventStatus => isValidStatus(s));
+      if (valid.length === 1) {
+        query += ' AND e.status = ?';
+        params.push(valid[0]);
+      } else if (valid.length > 1) {
+        const placeholders = valid.map(() => '?').join(',');
+        query += ` AND e.status IN (${placeholders})`;
+        valid.forEach((s) => params.push(s));
+      }
     }
 
     if (q) {
@@ -210,8 +257,25 @@ export async function getAllEvents(req: Request, res: Response): Promise<void> {
     } else if (has_waitlist === 'false') {
       query += ' AND COALESCE(e.waitlist_enabled, FALSE) = FALSE';
     }
+    if (created_by !== undefined && created_by !== '') {
+      const cb = Number(created_by);
+      if (Number.isFinite(cb)) {
+        query += ' AND e.created_by = ?';
+        params.push(cb);
+      }
+    }
 
-    query += ' ORDER BY e.date DESC';
+    // Sort (#580, #581). Whitelist sort keys to avoid SQL injection.
+    const sortMap: Record<string, string> = {
+      date_asc: 'e.date ASC',
+      date_desc: 'e.date DESC',
+      title_asc: 'e.title ASC',
+      title_desc: 'e.title DESC',
+      created_desc: 'e.created_at DESC',
+      created_asc: 'e.created_at ASC',
+    };
+    const orderBy = sort && sortMap[sort] ? sortMap[sort] : 'e.date DESC';
+    query += ` ORDER BY ${orderBy}`;
 
     const events = await db.all(query, params);
     res.json(events);
@@ -314,8 +378,23 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (status && !['Draft', 'Active', 'Completed', 'Cancelled'].includes(status)) {
-      res.status(400).json({ error: 'Invalid status. Must be Draft, Active, Completed, or Cancelled' });
+    // Lifecycle: validate status against the full BRD v2 set (#575).
+    if (status && !isValidStatus(status)) {
+      res.status(400).json({
+        error: `Invalid status. Must be one of: ${EVENT_STATUSES.join(', ')}`,
+      });
+      return;
+    }
+    const initialStatus: EventStatus = (status as EventStatus) || 'Draft';
+
+    // Date validation (#574). New events must be today or future, unless
+    // explicitly created as a historical (Completed/Cancelled) record.
+    const dateError = validateEventDate(date, {
+      isCreate: true,
+      status: initialStatus,
+    });
+    if (dateError) {
+      res.status(400).json({ error: dateError });
       return;
     }
 
@@ -332,13 +411,13 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
 
     const result = await db.run(`
       INSERT INTO events (title, date, location, description, capacity, status, event_type, is_public, tags,
-                          latitude, longitude, waitlist_enabled, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          latitude, longitude, waitlist_enabled, created_by, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING id
-    `, [title, date, location, description ?? null, capacity ?? null, status || 'Draft',
+    `, [title, date, location, description ?? null, capacity ?? null, initialStatus,
         event_type ?? 'Other', is_public ?? false, tags ?? null,
         lat, lng, waitlist_enabled ?? false,
-        userId]);
+        userId, userId]);
     
     const newEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = ?`, [result.lastID]);
     await db.run(
@@ -381,6 +460,10 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       latitude,
       longitude,
       waitlist_enabled,
+      gallery_comments_enabled,
+      gallery_guest_uploads,
+      gallery_public,
+      storage_quota_bytes,
     } = req.body as EventData & { start_date?: string; venue_name?: string };
 
     const date = _date || start_date;
@@ -398,9 +481,44 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (status && !['Draft', 'Active', 'Completed', 'Cancelled'].includes(status)) {
-      res.status(400).json({ error: 'Invalid status. Must be Draft, Active, Completed, or Cancelled' });
+    // Archived events cannot be edited until unarchived (#540, #578).
+    if (existingEvent['archived_at']) {
+      res.status(409).json({ error: 'Archived events must be unarchived before editing.' });
       return;
+    }
+
+    if (status && !isValidStatus(status)) {
+      res.status(400).json({
+        error: `Invalid status. Must be one of: ${EVENT_STATUSES.join(', ')}`,
+      });
+      return;
+    }
+
+    // Enforce legal status transitions (#575).
+    if (status && status !== existingEvent['status']) {
+      const isAdmin = authReq.user?.role_id === 3;
+      const transitionError = describeInvalidTransition(
+        existingEvent['status'] as EventStatus,
+        status as EventStatus,
+        isAdmin,
+      );
+      if (transitionError) {
+        res.status(400).json({ error: transitionError });
+        return;
+      }
+    }
+
+    // Date validation on update (#574).
+    if (date) {
+      const dateError = validateEventDate(date, {
+        isCreate: false,
+        currentDate: existingEvent['date'] as string,
+        status: (status as EventStatus) || (existingEvent['status'] as EventStatus),
+      });
+      if (dateError) {
+        res.status(400).json({ error: dateError });
+        return;
+      }
     }
 
     let nextLat: number | null | undefined = existingEvent['latitude'] as number | null;
@@ -422,11 +540,29 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       nextLng = result;
     }
 
+    // Storage quota override (#622) — only admins may raise the quota.
+    let nextQuota = existingEvent['storage_quota_bytes'] as number | undefined;
+    if (storage_quota_bytes !== undefined && storage_quota_bytes !== null) {
+      const q = Number(storage_quota_bytes);
+      if (!Number.isFinite(q) || q < 0) {
+        res.status(400).json({ error: 'storage_quota_bytes must be a non-negative number.' });
+        return;
+      }
+      const currentQuota = Number(existingEvent['storage_quota_bytes'] ?? 0);
+      if (q > currentQuota && authReq.user?.role_id !== 3) {
+        res.status(403).json({ error: 'Only admins can increase the storage quota.' });
+        return;
+      }
+      nextQuota = q;
+    }
+
     await db.run(`
       UPDATE events
       SET title = ?, date = ?, location = ?, description = ?, capacity = ?, status = ?,
           event_type = ?, is_public = ?, tags = ?, latitude = ?, longitude = ?, waitlist_enabled = ?,
-          updated_at = CURRENT_TIMESTAMP
+          gallery_comments_enabled = ?, gallery_guest_uploads = ?, gallery_public = ?,
+          storage_quota_bytes = ?,
+          updated_by = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [
       title || existingEvent.title,
@@ -441,6 +577,17 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       nextLat,
       nextLng,
       waitlist_enabled !== undefined ? waitlist_enabled : existingEvent['waitlist_enabled'],
+      gallery_comments_enabled !== undefined
+        ? Boolean(gallery_comments_enabled)
+        : (existingEvent['gallery_comments_enabled'] as boolean | undefined) ?? true,
+      gallery_guest_uploads !== undefined
+        ? Boolean(gallery_guest_uploads)
+        : (existingEvent['gallery_guest_uploads'] as boolean | undefined) ?? false,
+      gallery_public !== undefined
+        ? Boolean(gallery_public)
+        : (existingEvent['gallery_public'] as boolean | undefined) ?? false,
+      nextQuota,
+      userId,
       id,
     ]);
     
@@ -627,9 +774,29 @@ export async function setCoverImage(req: Request, res: Response): Promise<void> 
       }
     }
 
+    // Cover image resize pipeline (#541, #576). Stash derived URLs in JSONB.
+    // Only synthesise renditions when the URL points at a local uploaded file.
+    const fileName = cover_image_url.startsWith('/api/uploads/event-documents/')
+      ? path.basename(cover_image_url)
+      : null;
+    let renditions: ReturnType<typeof buildCoverRenditionUrls> | null = null;
+    if (fileName) {
+      renditions = buildCoverRenditionUrls(fileName);
+      try {
+        const UPLOADS_DIR = path.resolve('uploads/event-documents');
+        await materialiseRenditions(UPLOADS_DIR, fileName);
+      } catch (err) {
+        // Failure to materialise renditions is non-fatal — we still record metadata.
+        console.warn('[cover-resize] materialiseRenditions failed:', err);
+      }
+    }
+
     await db.run(
-      'UPDATE events SET cover_image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [cover_image_url, id],
+      `UPDATE events
+          SET cover_image_url = ?, cover_image_sizes = ?::jsonb,
+              updated_by = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`,
+      [cover_image_url, renditions ? JSON.stringify(renditions) : null, userId, id],
     );
 
     const updated = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = ?`, [id]);
@@ -637,6 +804,136 @@ export async function setCoverImage(req: Request, res: Response): Promise<void> 
   } catch (error) {
     console.error('Error setting cover image:', error);
     res.status(500).json({ error: 'Failed to set cover image' });
+  }
+}
+
+/**
+ * Archive an event — POST /api/events/:id/archive
+ *
+ * Archival is distinct from delete and from Cancelled status (#540, #578):
+ *   - Event row remains active and queryable via ?archived=only.
+ *   - Status is not changed; archived events keep their lifecycle state.
+ *   - Mutating endpoints reject archived events until unarchived.
+ *   - Owner or admin may archive.
+ */
+export async function archiveEvent(req: Request, res: Response): Promise<void> {
+  try {
+    const db = getDatabase();
+    const { id } = req.params;
+    const authReq = req as AuthRequest;
+    const user = authReq.user;
+
+    if (!user) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const event = await db.get(
+      'SELECT id, title, created_by, archived_at FROM events WHERE id = ? AND deleted_at IS NULL',
+      [id],
+    );
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    if (Number(event.created_by) !== Number(user.id) && user.role_id !== 3) {
+      res.status(403).json({ error: 'Not authorised to archive this event.' });
+      return;
+    }
+
+    if (event.archived_at) {
+      res.status(409).json({ error: 'Event is already archived.' });
+      return;
+    }
+
+    const { reason } = (req.body ?? {}) as { reason?: unknown };
+    const safeReason =
+      typeof reason === 'string' && reason.trim()
+        ? reason.trim().substring(0, 500)
+        : null;
+
+    await db.run(
+      `UPDATE events
+         SET archived_at = CURRENT_TIMESTAMP, archived_by = ?, archive_reason = ?,
+             updated_by = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [user.id, safeReason, user.id, id],
+    );
+    await recordEventAudit(
+      db,
+      authReq,
+      'event.archived',
+      `Archived event #${id}: ${event.title}${safeReason ? ` — ${safeReason}` : ''}`,
+    );
+
+    const updated = await db.get(
+      `SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = ?`,
+      [id],
+    );
+    res.json(updated);
+  } catch (error) {
+    console.error('Error archiving event:', error);
+    res.status(500).json({ error: 'Failed to archive event' });
+  }
+}
+
+/**
+ * Unarchive an event — POST /api/events/:id/unarchive
+ */
+export async function unarchiveEvent(req: Request, res: Response): Promise<void> {
+  try {
+    const db = getDatabase();
+    const { id } = req.params;
+    const authReq = req as AuthRequest;
+    const user = authReq.user;
+
+    if (!user) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const event = await db.get(
+      'SELECT id, title, created_by, archived_at FROM events WHERE id = ?',
+      [id],
+    );
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    if (Number(event.created_by) !== Number(user.id) && user.role_id !== 3) {
+      res.status(403).json({ error: 'Not authorised to unarchive this event.' });
+      return;
+    }
+
+    if (!event.archived_at) {
+      res.status(409).json({ error: 'Event is not archived.' });
+      return;
+    }
+
+    await db.run(
+      `UPDATE events
+         SET archived_at = NULL, archived_by = NULL, archive_reason = NULL,
+             updated_by = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [user.id, id],
+    );
+    await recordEventAudit(
+      db,
+      authReq,
+      'event.unarchived',
+      `Unarchived event #${id}: ${event.title}`,
+    );
+
+    const updated = await db.get(
+      `SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = ?`,
+      [id],
+    );
+    res.json(updated);
+  } catch (error) {
+    console.error('Error unarchiving event:', error);
+    res.status(500).json({ error: 'Failed to unarchive event' });
   }
 }
 

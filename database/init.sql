@@ -845,6 +845,178 @@ CREATE INDEX IF NOT EXISTS idx_slideshow_items_slideshow_id ON slideshow_items(s
 -- ============================================================
 
 -- ============================================================
+-- BRD v2: Event lifecycle, gallery, reporting parity
+-- Stories #528, #533 — covers tasks #539-#542, #560-#563,
+--   #574-#581, #617-#622.
+-- All deltas are idempotent (IF NOT EXISTS / DO blocks).
+-- ============================================================
+
+-- Widen event status to full BRD v2 lifecycle (#575).
+-- Existing values stay valid; we add 'Planning' and 'Confirmed'.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'events_status_check') THEN
+    ALTER TABLE events DROP CONSTRAINT events_status_check;
+  END IF;
+END$$;
+ALTER TABLE events ADD CONSTRAINT events_status_check
+  CHECK (status IN ('Draft','Planning','Confirmed','Active','Completed','Cancelled'));
+
+-- True archival (#540, #578) — distinct from soft-delete (deleted_at)
+ALTER TABLE events ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS archived_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS archive_reason TEXT;
+CREATE INDEX IF NOT EXISTS idx_events_archived_at ON events(archived_at) WHERE archived_at IS NOT NULL;
+
+-- Audit field (#542, #575) — who last updated the event
+ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+
+-- Gallery permission flags per-event (#618, #621)
+ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_comments_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_guest_uploads BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_public BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Storage quota (#622) — bytes, default 500MB
+ALTER TABLE events ADD COLUMN IF NOT EXISTS storage_quota_bytes BIGINT NOT NULL DEFAULT 524288000;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS storage_used_bytes BIGINT NOT NULL DEFAULT 0;
+
+-- Cover image resize pipeline outputs (#541, #576) — JSON of derived sizes
+ALTER TABLE events ADD COLUMN IF NOT EXISTS cover_image_sizes JSONB;
+
+-- Event custom fields (#541, #577) — flexible per-event metadata
+CREATE TABLE IF NOT EXISTS event_custom_fields (
+  id          SERIAL PRIMARY KEY,
+  event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  field_key   TEXT NOT NULL,
+  label       TEXT NOT NULL,
+  field_type  TEXT NOT NULL CHECK (field_type IN ('text','number','boolean','date','url','select')),
+  options     JSONB,
+  value       TEXT,
+  required    BOOLEAN NOT NULL DEFAULT FALSE,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (event_id, field_key)
+);
+CREATE INDEX IF NOT EXISTS idx_event_custom_fields_event_id ON event_custom_fields(event_id);
+
+-- Extend event_documents (#560, #617, #618, #619) with conversion + permissions metadata.
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'event';
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_documents_visibility_check') THEN
+    ALTER TABLE event_documents DROP CONSTRAINT event_documents_visibility_check;
+  END IF;
+END$$;
+ALTER TABLE event_documents ADD CONSTRAINT event_documents_visibility_check
+  CHECK (visibility IN ('private','event','public'));
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS allow_download BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS allow_comments BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS conversion_status TEXT NOT NULL DEFAULT 'none';
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_documents_conversion_status_check') THEN
+    ALTER TABLE event_documents DROP CONSTRAINT event_documents_conversion_status_check;
+  END IF;
+END$$;
+ALTER TABLE event_documents ADD CONSTRAINT event_documents_conversion_status_check
+  CHECK (conversion_status IN ('none','pending','converted','failed'));
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS original_format TEXT;
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS converted_file_name TEXT;
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS medium_url TEXT;
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_event_documents_visibility ON event_documents(event_id, visibility);
+CREATE INDEX IF NOT EXISTS idx_event_documents_conversion ON event_documents(conversion_status) WHERE conversion_status <> 'none';
+
+-- Gallery share links (#619) — public URLs scoped to an event or album
+CREATE TABLE IF NOT EXISTS gallery_share_links (
+  id              SERIAL PRIMARY KEY,
+  event_id        INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  album_id        INTEGER REFERENCES gallery_albums(id) ON DELETE CASCADE,
+  token           TEXT NOT NULL UNIQUE,
+  password_hash   TEXT,
+  allow_download  BOOLEAN NOT NULL DEFAULT TRUE,
+  expires_at      TIMESTAMP,
+  view_count      INTEGER NOT NULL DEFAULT 0,
+  last_viewed_at  TIMESTAMP,
+  revoked_at      TIMESTAMP,
+  created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_gallery_share_links_event_id ON gallery_share_links(event_id);
+CREATE INDEX IF NOT EXISTS idx_gallery_share_links_album_id ON gallery_share_links(album_id);
+CREATE INDEX IF NOT EXISTS idx_gallery_share_links_token_active
+  ON gallery_share_links(token) WHERE revoked_at IS NULL;
+
+-- Gallery comments / discussion threads (#621)
+CREATE TABLE IF NOT EXISTS gallery_comments (
+  id           SERIAL PRIMARY KEY,
+  event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  document_id  INTEGER NOT NULL REFERENCES event_documents(id) ON DELETE CASCADE,
+  parent_id    INTEGER REFERENCES gallery_comments(id) ON DELETE CASCADE,
+  user_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  body         TEXT NOT NULL CHECK (length(body) <= 2000),
+  is_hidden    BOOLEAN NOT NULL DEFAULT FALSE,
+  hidden_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  hidden_at    TIMESTAMP,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by   INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_gallery_comments_document_id ON gallery_comments(document_id);
+CREATE INDEX IF NOT EXISTS idx_gallery_comments_event_id ON gallery_comments(event_id);
+CREATE INDEX IF NOT EXISTS idx_gallery_comments_parent_id ON gallery_comments(parent_id);
+
+-- Scheduled reports (#562)
+CREATE TABLE IF NOT EXISTS scheduled_reports (
+  id            SERIAL PRIMARY KEY,
+  event_id      INTEGER REFERENCES events(id) ON DELETE CASCADE,
+  report_type   TEXT NOT NULL CHECK (report_type IN ('rsvp_summary','budget_summary','task_summary','storage_summary','full')),
+  frequency     TEXT NOT NULL CHECK (frequency IN ('daily','weekly','monthly')),
+  recipients    JSONB NOT NULL DEFAULT '[]'::jsonb,
+  filters       JSONB,
+  next_run_at   TIMESTAMP,
+  last_run_at   TIMESTAMP,
+  is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_scheduled_reports_event_id ON scheduled_reports(event_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_reports_due
+  ON scheduled_reports(next_run_at) WHERE is_active = TRUE;
+
+-- Report deliveries (audit trail for #562)
+CREATE TABLE IF NOT EXISTS scheduled_report_deliveries (
+  id            SERIAL PRIMARY KEY,
+  report_id     INTEGER NOT NULL REFERENCES scheduled_reports(id) ON DELETE CASCADE,
+  delivered_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  recipients    JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status        TEXT NOT NULL CHECK (status IN ('success','partial','failed')),
+  error_message TEXT,
+  payload_kind  TEXT NOT NULL DEFAULT 'json'
+);
+CREATE INDEX IF NOT EXISTS idx_scheduled_report_deliveries_report_id ON scheduled_report_deliveries(report_id);
+
+-- Event template depth (#579) — sections that templates can pre-fill
+CREATE TABLE IF NOT EXISTS event_template_sections (
+  id            SERIAL PRIMARY KEY,
+  template_id   INTEGER NOT NULL REFERENCES event_templates(id) ON DELETE CASCADE,
+  section_key   TEXT NOT NULL CHECK (section_key IN ('tasks','budget','timeline','custom_fields','vendors','shopping','rsvp_questions')),
+  payload       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (template_id, section_key)
+);
+CREATE INDEX IF NOT EXISTS idx_event_template_sections_template_id ON event_template_sections(template_id);
+
+-- ============================================================
 -- DEMO SEED DATA
 -- Provides ready-to-use accounts and events for new users.
 -- Passwords (bcrypt, 12 rounds):

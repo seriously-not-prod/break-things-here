@@ -66,6 +66,7 @@ import {
   type FilterPreset,
 } from '../../services/event-filter-presets-service';
 import EventTemplatesDialog from './event-templates-dialog';
+import PowerUserSearch from './power-user-search';
 
 interface PlannerEvent extends Omit<
   Pick<PlannerEventFull,
@@ -80,14 +81,22 @@ interface PlannerEvent extends Omit<
   status: string;
 }
 
-const STATUS_OPTIONS = ['Draft', 'Active', 'Completed', 'Cancelled'];
+// BRD v2 (#575) — full event lifecycle status set.
+const STATUS_OPTIONS = ['Draft', 'Planning', 'Confirmed', 'Active', 'Completed', 'Cancelled'];
 const STATUS_COLORS: Record<string, 'default' | 'primary' | 'success' | 'error' | 'warning'> = {
   Draft: 'default',
+  Planning: 'warning',
+  Confirmed: 'warning',
   Active: 'primary',
   Completed: 'success',
   Cancelled: 'error',
   Ongoing: 'success',
 };
+// BRD v2 (#580) — supported view modes.
+const EVENT_VIEWS = ['list', 'grid', 'calendar', 'timeline'] as const;
+type EventViewMode = (typeof EVENT_VIEWS)[number];
+// BRD v2 (#578) — archive filter mode.
+type ArchiveFilter = 'active' | 'all' | 'only';
 
 interface EventForm {
   title: string;
@@ -140,7 +149,7 @@ const EMPTY_ADVANCED: AdvancedFilters = {
 };
 
 interface EventsPageProps {
-  initialView?: 'list' | 'calendar';
+  initialView?: EventViewMode;
   ownerOnly?: boolean;
 }
 
@@ -150,8 +159,9 @@ function buildFilters(opts: {
   searchQuery: string;
   status: string;
   advanced: AdvancedFilters;
+  archive?: ArchiveFilter;
 }): EventListFilters {
-  const { ownerOnly, selectedTags, searchQuery, status, advanced } = opts;
+  const { ownerOnly, selectedTags, searchQuery, status, advanced, archive } = opts;
   const filters: EventListFilters = {};
   if (ownerOnly) filters.owner = 'me';
   if (selectedTags.length > 0) filters.tags = [...selectedTags];
@@ -166,6 +176,9 @@ function buildFilters(opts: {
   if (advanced.event_type.trim()) filters.event_type = advanced.event_type.trim();
   if (advanced.has_waitlist === 'true') filters.has_waitlist = true;
   if (advanced.has_waitlist === 'false') filters.has_waitlist = false;
+  // Archive filter (#578).
+  if (archive === 'all') filters.archived = 'true';
+  else if (archive === 'only') filters.archived = 'only';
   return filters;
 }
 
@@ -192,7 +205,9 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [view, setView] = useState<'list' | 'calendar'>(initialView);
+  const [view, setView] = useState<EventViewMode>(initialView);
+  // BRD v2 (#578) — archive filter mode.
+  const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>('active');
 
   // Filters
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -216,6 +231,20 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
 
   // Templates dialog
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  // BRD v2 (#581) — power-user search dialog
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Bind Ctrl/Cmd+K to open the power-user search.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Create / edit dialog (existing flow, augmented with new fields)
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -228,8 +257,16 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
   const canCreate = !!user && user.roleId >= 2;
 
   const filters = useMemo(
-    () => buildFilters({ ownerOnly, selectedTags, searchQuery, status: statusFilter, advanced }),
-    [ownerOnly, selectedTags, searchQuery, statusFilter, advanced],
+    () =>
+      buildFilters({
+        ownerOnly,
+        selectedTags,
+        searchQuery,
+        status: statusFilter,
+        advanced,
+        archive: archiveFilter,
+      }),
+    [ownerOnly, selectedTags, searchQuery, statusFilter, advanced, archiveFilter],
   );
 
   const availableTags = useMemo(() => {
@@ -303,11 +340,18 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
     setSelectedIds(new Set());
   }, [ownerOnly]);
 
-  function handleViewToggle(newView: 'list' | 'calendar'): void {
+  function handleViewToggle(newView: EventViewMode): void {
     if (isMyEvents) {
       setView(newView);
+      return;
+    }
+    if (newView === 'calendar') {
+      navigate('/events/calendar');
+    } else if (newView === 'list') {
+      navigate('/events');
     } else {
-      navigate(newView === 'calendar' ? '/events/calendar' : '/events');
+      // Grid/timeline views are local state — they don't have their own routes.
+      setView(newView);
     }
   }
 
@@ -330,7 +374,7 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
     const f = p.filters ?? {};
     setSelectedTags(f.tags ?? []);
     setSearchQuery(f.q ?? '');
-    setStatusFilter(f.status ?? '');
+    setStatusFilter(Array.isArray(f.status) ? f.status.join(',') : f.status ?? '');
     setAdvanced({
       title_q: f.title_q ?? '',
       location_q: f.location_q ?? '',
@@ -558,6 +602,13 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               List
             </Button>
             <Button
+              onClick={() => setView('grid')}
+              variant={view === 'grid' ? 'contained' : 'outlined'}
+              aria-pressed={view === 'grid'}
+            >
+              Grid
+            </Button>
+            <Button
               startIcon={<CalendarMonthRounded />}
               onClick={() => handleViewToggle('calendar')}
               variant={view === 'calendar' ? 'contained' : 'outlined'}
@@ -565,7 +616,40 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
             >
               Calendar
             </Button>
+            <Button
+              onClick={() => setView('timeline')}
+              variant={view === 'timeline' ? 'contained' : 'outlined'}
+              aria-pressed={view === 'timeline'}
+            >
+              Timeline
+            </Button>
           </ButtonGroup>
+          <Button
+            size="small"
+            variant={archiveFilter === 'only' ? 'contained' : 'outlined'}
+            onClick={() =>
+              setArchiveFilter(
+                archiveFilter === 'active' ? 'all' : archiveFilter === 'all' ? 'only' : 'active',
+              )
+            }
+            aria-label="Toggle archived events"
+            data-testid="archive-filter-toggle"
+          >
+            {archiveFilter === 'active'
+              ? 'Active only'
+              : archiveFilter === 'all'
+              ? 'Including archived'
+              : 'Archived only'}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Open power-user search"
+            data-testid="power-search-button"
+          >
+            Search (⌘K)
+          </Button>
           {canCreate && (
             <>
               <Button
@@ -872,6 +956,77 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               : 'No events yet. Create your first event!'}
           </Typography>
         </Paper>
+      ) : view === 'grid' ? (
+        // BRD v2 (#580) — grid view renders cards for each event.
+        <Box
+          sx={{
+            display: 'grid',
+            gap: 2,
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+              lg: 'repeat(4, 1fr)',
+            },
+          }}
+          data-testid="events-grid-view"
+        >
+          {events.map((event) => (
+            <Paper
+              key={event.id}
+              variant="outlined"
+              sx={{ p: 2, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 1 }}
+              onClick={() => navigate(`/events/${event.id}`)}
+            >
+              <Typography variant="subtitle1" fontWeight={600}>{event.title}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {new Date(event.date).toLocaleDateString()} · {event.location}
+              </Typography>
+              <Box>
+                <Chip
+                  label={event.status}
+                  color={STATUS_COLORS[event.status] ?? 'default'}
+                  size="small"
+                />
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                {capacityLabel(event)}
+              </Typography>
+            </Paper>
+          ))}
+        </Box>
+      ) : view === 'timeline' ? (
+        // BRD v2 (#580) — timeline view groups events chronologically.
+        <Paper variant="outlined" sx={{ p: 2 }} data-testid="events-timeline-view">
+          <Stack divider={<Box sx={{ borderBottom: 1, borderColor: 'divider' }} />} spacing={1}>
+            {[...events]
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+              .map((event) => (
+                <Box
+                  key={event.id}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer', py: 1 }}
+                  onClick={() => navigate(`/events/${event.id}`)}
+                >
+                  <Box sx={{ minWidth: 120 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      {new Date(event.date).toLocaleDateString()}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle2" fontWeight={600}>{event.title}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {event.location}
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label={event.status}
+                    color={STATUS_COLORS[event.status] ?? 'default'}
+                    size="small"
+                  />
+                </Box>
+              ))}
+          </Stack>
+        </Paper>
       ) : (
         <TableContainer component={Paper}>
           <Table size="small">
@@ -1118,6 +1273,8 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
           </Button>
         </DialogActions>
       </Dialog>
+
+      <PowerUserSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </Box>
   );
 }
