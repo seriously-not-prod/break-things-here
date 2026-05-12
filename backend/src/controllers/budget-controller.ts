@@ -741,10 +741,14 @@ export async function listExpenses(req: AuthRequest, res: Response): Promise<voi
     const { eventId } = req.params;
 
     const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
-    if (!event) return;
+    if (!event || !req.user) return;
 
-    const expenses = await db.all(
-      `SELECT e.*, bc.name AS category_name
+    const isApprover = req.user.role_id >= 3 || req.user.id === event.created_by;
+    const expenses = await db.all<ExpenseWorkflowRow>(
+      `SELECT e.*,
+              bc.name AS category_name,
+              COALESCE(e.approval_status, 'pending') AS approval_status,
+              COALESCE(e.reimbursement_status, 'not_requested') AS reimbursement_status
        FROM expenses e
        LEFT JOIN budget_categories bc ON bc.id = e.category_id
        WHERE e.event_id = ?
@@ -752,7 +756,37 @@ export async function listExpenses(req: AuthRequest, res: Response): Promise<voi
       [eventId],
     );
 
-    res.json({ expenses });
+    const workflowSummary = await db.get<ExpenseWorkflowSummaryRow>(
+      `SELECT COUNT(*) FILTER (WHERE COALESCE(approval_status, 'pending') = 'pending')::int AS approval_pending,
+              COUNT(*) FILTER (WHERE COALESCE(approval_status, 'pending') = 'approved')::int AS approval_approved,
+              COUNT(*) FILTER (WHERE COALESCE(approval_status, 'pending') = 'rejected')::int AS approval_rejected,
+              COUNT(*) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'not_requested')::int AS reimbursement_not_requested,
+              COUNT(*) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'requested')::int AS reimbursement_requested,
+              COUNT(*) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'reimbursed')::int AS reimbursement_reimbursed,
+              COUNT(*) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'rejected')::int AS reimbursement_rejected,
+              COALESCE(SUM(amount) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'requested'), 0)::float AS reimbursement_requested_amount
+         FROM expenses
+        WHERE event_id = ?`,
+      [eventId],
+    );
+
+    res.json({
+      expenses: expenses.map((expense) => toExpenseResponse(expense, isApprover, req.user?.id ?? null)),
+      workflowSummary: {
+        approval: {
+          pending: workflowSummary?.approval_pending ?? 0,
+          approved: workflowSummary?.approval_approved ?? 0,
+          rejected: workflowSummary?.approval_rejected ?? 0,
+        },
+        reimbursement: {
+          notRequested: workflowSummary?.reimbursement_not_requested ?? 0,
+          requested: workflowSummary?.reimbursement_requested ?? 0,
+          reimbursed: workflowSummary?.reimbursement_reimbursed ?? 0,
+          rejected: workflowSummary?.reimbursement_rejected ?? 0,
+        },
+        reimbursementRequestedAmount: roundBudgetValue(workflowSummary?.reimbursement_requested_amount ?? 0),
+      },
+    });
   } catch (error) {
     console.error('Error listing expenses:', error);
     res.status(500).json({ error: 'Failed to fetch expenses' });
@@ -761,6 +795,106 @@ export async function listExpenses(req: AuthRequest, res: Response): Promise<voi
 
 const VALID_PAYMENT_STATUSES = ['pending', 'paid', 'overdue'] as const;
 type PaymentStatus = (typeof VALID_PAYMENT_STATUSES)[number];
+const VALID_APPROVAL_DECISIONS = ['approved', 'rejected'] as const;
+type ApprovalDecision = (typeof VALID_APPROVAL_DECISIONS)[number];
+const VALID_REIMBURSEMENT_DECISIONS = ['reimbursed', 'rejected'] as const;
+type ReimbursementDecision = (typeof VALID_REIMBURSEMENT_DECISIONS)[number];
+
+interface ExpenseWorkflowRow {
+  id: number;
+  event_id: number;
+  category_id: number | null;
+  category_name: string | null;
+  title: string;
+  amount: number | string;
+  payment_status: string;
+  vendor_name: string | null;
+  notes: string | null;
+  created_at: string;
+  created_by: number | null;
+  approval_status: 'pending' | 'approved' | 'rejected';
+  approval_note: string | null;
+  approved_by: number | null;
+  approved_at: string | null;
+  reimbursement_status: 'not_requested' | 'requested' | 'reimbursed' | 'rejected';
+  reimbursement_requested_by: number | null;
+  reimbursement_requested_at: string | null;
+  reimbursed_by: number | null;
+  reimbursed_at: string | null;
+}
+
+interface ExpenseWorkflowSummaryRow {
+  approval_pending: number;
+  approval_approved: number;
+  approval_rejected: number;
+  reimbursement_not_requested: number;
+  reimbursement_requested: number;
+  reimbursement_reimbursed: number;
+  reimbursement_rejected: number;
+  reimbursement_requested_amount: number;
+}
+
+function isExpenseApprover(user: AuthRequest['user'], event: { created_by: number }): boolean {
+  if (!user) return false;
+  return user.role_id >= 3 || user.id === event.created_by;
+}
+
+function toExpenseResponse(
+  expense: ExpenseWorkflowRow,
+  isApprover: boolean,
+  currentUserId: number | null,
+): ExpenseWorkflowRow & {
+  can_approve: boolean;
+  can_request_reimbursement: boolean;
+  can_resolve_reimbursement: boolean;
+} {
+  return {
+    ...expense,
+    amount: roundBudgetValue(toNumber(expense.amount)),
+    can_approve: isApprover && expense.approval_status === 'pending',
+    can_request_reimbursement:
+      expense.approval_status === 'approved'
+      && (expense.reimbursement_status === 'not_requested' || expense.reimbursement_status === 'rejected')
+      && currentUserId !== null,
+    can_resolve_reimbursement: isApprover && expense.reimbursement_status === 'requested',
+  };
+}
+
+async function getExpenseForEvent(
+  db: DatabaseAdapter,
+  eventId: string,
+  expenseId: string,
+): Promise<ExpenseWorkflowRow | null> {
+  const row = await db.get<ExpenseWorkflowRow>(
+    `SELECT e.*,
+            bc.name AS category_name,
+            COALESCE(e.approval_status, 'pending') AS approval_status,
+            COALESCE(e.reimbursement_status, 'not_requested') AS reimbursement_status
+       FROM expenses e
+       LEFT JOIN budget_categories bc ON bc.id = e.category_id
+      WHERE e.id = ? AND e.event_id = ?`,
+    [expenseId, eventId],
+  );
+  return row ?? null;
+}
+
+async function logExpenseWorkflowEvent(
+  db: DatabaseAdapter,
+  eventId: string,
+  expenseId: string,
+  action: string,
+  actorUserId: number,
+  fromState: string,
+  toState: string,
+  note: string | null,
+): Promise<void> {
+  await db.run(
+    `INSERT INTO expense_workflow_events
+       (event_id, expense_id, action, actor_user_id, from_state, to_state, note)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [eventId, expenseId, action, actorUserId, fromState, toState, note],
+  );
+}
 
 /**
  * POST /events/:eventId/expenses
@@ -772,7 +906,7 @@ export async function createExpense(req: AuthRequest, res: Response): Promise<vo
     const { eventId } = req.params;
 
     const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
-    if (!event) return;
+    if (!event || !req.user) return;
 
     const { title, amount, category_id, payment_status, vendor_name, notes, currency_code } = req.body as {
       title?: unknown;
@@ -806,6 +940,10 @@ export async function createExpense(req: AuthRequest, res: Response): Promise<vo
     const status: PaymentStatus = VALID_PAYMENT_STATUSES.includes(payment_status as PaymentStatus)
       ? (payment_status as PaymentStatus)
       : 'pending';
+    const approver = isExpenseApprover(req.user, event);
+    const approvalStatus = approver ? 'approved' : 'pending';
+    const approvedBy = approver ? req.user.id : null;
+    const approvedAt = approver ? new Date().toISOString() : null;
 
     const safeVendor = typeof vendor_name === 'string' ? vendor_name.trim() : null;
     const safeNotes = typeof notes === 'string' ? notes.trim() : null;
@@ -818,8 +956,9 @@ export async function createExpense(req: AuthRequest, res: Response): Promise<vo
 
     const result = await db.run(
       `INSERT INTO expenses (event_id, category_id, title, amount, payment_status, vendor_name, notes,
-                              currency_code, amount_base, exchange_rate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+                              currency_code, amount_base, exchange_rate, created_by, updated_by,
+                              approval_status, approved_by, approved_at, reimbursement_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       [
         eventId,
         parsedCategoryId,
@@ -831,15 +970,34 @@ export async function createExpense(req: AuthRequest, res: Response): Promise<vo
         fx.currency,
         fx.baseAmount,
         fx.rate,
+        req.user.id,
+        req.user.id,
+        approvalStatus,
+        approvedBy,
+        approvedAt,
+        'not_requested',
       ],
     );
 
-    const expense = await db.get(
-      `SELECT e.*, bc.name AS category_name
-       FROM expenses e
-       LEFT JOIN budget_categories bc ON bc.id = e.category_id
-       WHERE e.id = ?`,
-      [result.lastID],
+    const expense = await getExpenseForEvent(
+      db,
+      String(eventId),
+      String(result.lastID),
+    );
+    if (!expense) {
+      res.status(500).json({ error: 'Failed to load created expense.' });
+      return;
+    }
+
+    await logExpenseWorkflowEvent(
+      db,
+      String(eventId),
+      String(expense.id),
+      'expense_created',
+      req.user.id,
+      'draft',
+      approvalStatus,
+      null,
     );
 
     // Fire budget alert if category reaches >= 90% utilisation
@@ -853,7 +1011,7 @@ export async function createExpense(req: AuthRequest, res: Response): Promise<vo
       `/events/${eventId}`,
     );
 
-    res.status(201).json({ expense });
+    res.status(201).json({ expense: toExpenseResponse(expense, approver, req.user.id) });
   } catch (error) {
     console.error('Error creating expense:', error);
     res.status(500).json({ error: 'Failed to create expense' });
@@ -869,7 +1027,8 @@ export async function updateExpense(req: AuthRequest, res: Response): Promise<vo
     const { eventId, id } = req.params;
 
     const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
-    if (!event) return;
+    if (!event || !req.user) return;
+    const approver = isExpenseApprover(req.user, event);
 
     const { title, amount, category_id, payment_status, vendor_name, notes, currency_code } = req.body as {
       title?: unknown;
@@ -881,12 +1040,14 @@ export async function updateExpense(req: AuthRequest, res: Response): Promise<vo
       currency_code?: unknown;
     };
 
-    const existing = await db.get(
-      'SELECT id FROM expenses WHERE id = ? AND event_id = ?',
-      [id, eventId],
-    );
+    const existing = await getExpenseForEvent(db, String(eventId), String(id));
     if (!existing) {
       res.status(404).json({ error: 'Expense not found' });
+      return;
+    }
+
+    if (!approver && existing.approval_status !== 'pending') {
+      res.status(403).json({ error: 'Approved or rejected expenses can only be edited by approvers.' });
       return;
     }
 
@@ -923,8 +1084,8 @@ export async function updateExpense(req: AuthRequest, res: Response): Promise<vo
     );
 
     await db.run(
-      `UPDATE expenses SET title = ?, amount = ?, category_id = ?, payment_status = ?,
-              vendor_name = ?, notes = ?, currency_code = ?, amount_base = ?, exchange_rate = ?
+            `UPDATE expenses SET title = ?, amount = ?, category_id = ?, payment_status = ?,
+              vendor_name = ?, notes = ?, currency_code = ?, amount_base = ?, exchange_rate = ?, updated_by = ?
         WHERE id = ?`,
       [
         title.trim(),
@@ -936,25 +1097,277 @@ export async function updateExpense(req: AuthRequest, res: Response): Promise<vo
         fx.currency,
         fx.baseAmount,
         fx.rate,
+        req.user.id,
         id,
       ],
     );
 
-    const expense = await db.get(
-      `SELECT e.*, bc.name AS category_name
-       FROM expenses e
-       LEFT JOIN budget_categories bc ON bc.id = e.category_id
-       WHERE e.id = ?`,
-      [id],
-    );
+    const expense = await getExpenseForEvent(db, String(eventId), String(id));
+    if (!expense) {
+      res.status(500).json({ error: 'Failed to load updated expense.' });
+      return;
+    }
 
     // Fire budget alert if category reaches >= 90% utilisation
     await checkAndFireBudgetAlert(db, parsedCategoryId, Number(eventId));
 
-    res.json({ expense });
+    res.json({ expense: toExpenseResponse(expense, approver, req.user.id) });
   } catch (error) {
     console.error('Error updating expense:', error);
     res.status(500).json({ error: 'Failed to update expense' });
+  }
+}
+
+/**
+ * PATCH /events/:eventId/expenses/:id/approval
+ * Body: { decision: 'approved' | 'rejected', note?: string }
+ */
+export async function reviewExpenseApproval(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const db = getDatabase();
+    const { eventId, id } = req.params;
+    const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!event || !req.user) return;
+
+    if (!isExpenseApprover(req.user, event)) {
+      res.status(403).json({ error: 'Only event owner or admins can approve expenses.' });
+      return;
+    }
+
+    const { decision, note } = req.body as { decision?: unknown; note?: unknown };
+    if (typeof decision !== 'string' || !VALID_APPROVAL_DECISIONS.includes(decision as ApprovalDecision)) {
+      res.status(400).json({ error: 'decision must be "approved" or "rejected".' });
+      return;
+    }
+
+    const expense = await getExpenseForEvent(db, String(eventId), String(id));
+    if (!expense) {
+      res.status(404).json({ error: 'Expense not found' });
+      return;
+    }
+
+    const safeNote = typeof note === 'string' ? note.trim() : null;
+    const reviewedAt = new Date().toISOString();
+    const nextReimbursementStatus = decision === 'rejected' && expense.reimbursement_status === 'requested'
+      ? 'rejected'
+      : expense.reimbursement_status;
+
+    await db.run(
+      `UPDATE expenses
+          SET approval_status = ?,
+              approval_note = ?,
+              approved_by = ?,
+              approved_at = ?,
+              reimbursement_status = ?,
+              updated_by = ?
+        WHERE id = ? AND event_id = ?`,
+      [decision, safeNote, req.user.id, reviewedAt, nextReimbursementStatus, req.user.id, id, eventId],
+    );
+
+    await logExpenseWorkflowEvent(
+      db,
+      String(eventId),
+      String(id),
+      'approval_reviewed',
+      req.user.id,
+      expense.approval_status,
+      decision,
+      safeNote,
+    );
+
+    const updated = await getExpenseForEvent(db, String(eventId), String(id));
+    if (!updated) {
+      res.status(500).json({ error: 'Failed to load updated expense.' });
+      return;
+    }
+
+    res.json({ expense: toExpenseResponse(updated, true, req.user.id) });
+  } catch (error) {
+    console.error('Error reviewing expense approval:', error);
+    res.status(500).json({ error: 'Failed to review expense approval.' });
+  }
+}
+
+/**
+ * POST /events/:eventId/expenses/:id/reimbursement-request
+ */
+export async function requestExpenseReimbursement(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const db = getDatabase();
+    const { eventId, id } = req.params;
+    const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!event || !req.user) return;
+
+    const expense = await getExpenseForEvent(db, String(eventId), String(id));
+    if (!expense) {
+      res.status(404).json({ error: 'Expense not found' });
+      return;
+    }
+    if (expense.approval_status !== 'approved') {
+      res.status(409).json({ error: 'Expense must be approved before reimbursement can be requested.' });
+      return;
+    }
+    if (expense.reimbursement_status === 'requested' || expense.reimbursement_status === 'reimbursed') {
+      res.status(409).json({ error: 'Reimbursement is already in progress or completed for this expense.' });
+      return;
+    }
+
+    const requestedAt = new Date().toISOString();
+    await db.run(
+      `UPDATE expenses
+          SET reimbursement_status = 'requested',
+              reimbursement_requested_by = ?,
+              reimbursement_requested_at = ?,
+              updated_by = ?
+        WHERE id = ? AND event_id = ?`,
+      [req.user.id, requestedAt, req.user.id, id, eventId],
+    );
+
+    await logExpenseWorkflowEvent(
+      db,
+      String(eventId),
+      String(id),
+      'reimbursement_requested',
+      req.user.id,
+      expense.reimbursement_status,
+      'requested',
+      null,
+    );
+
+    const updated = await getExpenseForEvent(db, String(eventId), String(id));
+    if (!updated) {
+      res.status(500).json({ error: 'Failed to load updated expense.' });
+      return;
+    }
+
+    const approver = isExpenseApprover(req.user, event);
+    res.json({ expense: toExpenseResponse(updated, approver, req.user.id) });
+  } catch (error) {
+    console.error('Error requesting reimbursement:', error);
+    res.status(500).json({ error: 'Failed to request reimbursement.' });
+  }
+}
+
+/**
+ * PATCH /events/:eventId/expenses/:id/reimbursement
+ * Body: { decision: 'reimbursed' | 'rejected', note?: string }
+ */
+export async function resolveExpenseReimbursement(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const db = getDatabase();
+    const { eventId, id } = req.params;
+    const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!event || !req.user) return;
+    if (!isExpenseApprover(req.user, event)) {
+      res.status(403).json({ error: 'Only event owner or admins can resolve reimbursements.' });
+      return;
+    }
+
+    const { decision, note } = req.body as { decision?: unknown; note?: unknown };
+    if (typeof decision !== 'string' || !VALID_REIMBURSEMENT_DECISIONS.includes(decision as ReimbursementDecision)) {
+      res.status(400).json({ error: 'decision must be "reimbursed" or "rejected".' });
+      return;
+    }
+
+    const expense = await getExpenseForEvent(db, String(eventId), String(id));
+    if (!expense) {
+      res.status(404).json({ error: 'Expense not found' });
+      return;
+    }
+    if (expense.approval_status !== 'approved') {
+      res.status(409).json({ error: 'Only approved expenses can be reimbursed.' });
+      return;
+    }
+    if (expense.reimbursement_status !== 'requested') {
+      res.status(409).json({ error: 'Expense is not awaiting reimbursement review.' });
+      return;
+    }
+
+    const safeNote = typeof note === 'string' ? note.trim() : null;
+    const resolvedAt = new Date().toISOString();
+    const nextPaymentStatus = decision === 'reimbursed' ? 'paid' : expense.payment_status;
+    const reimbursedBy = decision === 'reimbursed' ? req.user.id : null;
+    const reimbursedAt = decision === 'reimbursed' ? resolvedAt : null;
+
+    await db.run(
+      `UPDATE expenses
+          SET reimbursement_status = ?,
+              reimbursed_by = ?,
+              reimbursed_at = ?,
+              payment_status = ?,
+              approval_note = COALESCE(?, approval_note),
+              updated_by = ?
+        WHERE id = ? AND event_id = ?`,
+      [decision, reimbursedBy, reimbursedAt, nextPaymentStatus, safeNote, req.user.id, id, eventId],
+    );
+
+    await logExpenseWorkflowEvent(
+      db,
+      String(eventId),
+      String(id),
+      'reimbursement_resolved',
+      req.user.id,
+      expense.reimbursement_status,
+      decision,
+      safeNote,
+    );
+
+    const updated = await getExpenseForEvent(db, String(eventId), String(id));
+    if (!updated) {
+      res.status(500).json({ error: 'Failed to load updated expense.' });
+      return;
+    }
+
+    res.json({ expense: toExpenseResponse(updated, true, req.user.id) });
+  } catch (error) {
+    console.error('Error resolving reimbursement:', error);
+    res.status(500).json({ error: 'Failed to resolve reimbursement.' });
+  }
+}
+
+/**
+ * GET /events/:eventId/expenses/workflow-summary
+ */
+export async function getExpenseWorkflowSummary(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const db = getDatabase();
+    const { eventId } = req.params;
+    const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!event) return;
+
+    const row = await db.get<ExpenseWorkflowSummaryRow>(
+      `SELECT COUNT(*) FILTER (WHERE COALESCE(approval_status, 'pending') = 'pending')::int AS approval_pending,
+              COUNT(*) FILTER (WHERE COALESCE(approval_status, 'pending') = 'approved')::int AS approval_approved,
+              COUNT(*) FILTER (WHERE COALESCE(approval_status, 'pending') = 'rejected')::int AS approval_rejected,
+              COUNT(*) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'not_requested')::int AS reimbursement_not_requested,
+              COUNT(*) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'requested')::int AS reimbursement_requested,
+              COUNT(*) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'reimbursed')::int AS reimbursement_reimbursed,
+              COUNT(*) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'rejected')::int AS reimbursement_rejected,
+              COALESCE(SUM(amount) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'requested'), 0)::float AS reimbursement_requested_amount
+         FROM expenses
+        WHERE event_id = ?`,
+      [eventId],
+    );
+
+    res.json({
+      summary: {
+        approval: {
+          pending: row?.approval_pending ?? 0,
+          approved: row?.approval_approved ?? 0,
+          rejected: row?.approval_rejected ?? 0,
+        },
+        reimbursement: {
+          notRequested: row?.reimbursement_not_requested ?? 0,
+          requested: row?.reimbursement_requested ?? 0,
+          reimbursed: row?.reimbursement_reimbursed ?? 0,
+          rejected: row?.reimbursement_rejected ?? 0,
+        },
+        reimbursementRequestedAmount: roundBudgetValue(row?.reimbursement_requested_amount ?? 0),
+      },
+    });
+  } catch (error) {
+    console.error('Error loading expense workflow summary:', error);
+    res.status(500).json({ error: 'Failed to fetch expense workflow summary.' });
   }
 }
 

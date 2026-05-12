@@ -1600,6 +1600,36 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT`);
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_base NUMERIC(14,4)`);
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(18,8)`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'pending'`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approval_note TEXT`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_status TEXT NOT NULL DEFAULT 'not_requested'`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_requested_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_requested_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursed_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursed_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expenses_approval_status_check`);
+  await db.exec(`ALTER TABLE expenses ADD CONSTRAINT expenses_approval_status_check CHECK (approval_status IN ('pending','approved','rejected'))`);
+  await db.exec(`ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expenses_reimbursement_status_check`);
+  await db.exec(`ALTER TABLE expenses ADD CONSTRAINT expenses_reimbursement_status_check CHECK (reimbursement_status IN ('not_requested','requested','reimbursed','rejected'))`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS expense_workflow_events (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      expense_id INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+      action TEXT NOT NULL,
+      actor_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      from_state TEXT,
+      to_state TEXT,
+      note TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_event_id ON expense_workflow_events(event_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_expense_id ON expense_workflow_events(expense_id)`);
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS exchange_rates (
