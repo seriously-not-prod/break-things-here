@@ -445,6 +445,8 @@ router.get('/events/:eventId/expenses', authenticateToken, budgetController.list
 router.get('/events/:eventId/expenses/workflow-summary', authenticateToken, budgetController.getExpenseWorkflowSummary);
 router.post('/events/:eventId/expenses', authenticateToken, budgetController.createExpense);
 router.put('/events/:eventId/expenses/:id', authenticateToken, budgetController.updateExpense);
+router.post('/events/:eventId/expenses/:id/ocr/extract', authenticateToken, budgetController.extractExpenseReceiptOcr);
+router.post('/events/:eventId/expenses/:id/ocr/:ocrId/apply', authenticateToken, budgetController.applyExpenseReceiptOcr);
 router.patch('/events/:eventId/expenses/:id/approval', authenticateToken, budgetController.reviewExpenseApproval);
 router.post('/events/:eventId/expenses/:id/reimbursement-request', authenticateToken, budgetController.requestExpenseReimbursement);
 router.patch('/events/:eventId/expenses/:id/reimbursement', authenticateToken, budgetController.resolveExpenseReimbursement);

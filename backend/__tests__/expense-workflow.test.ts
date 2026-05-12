@@ -75,6 +75,42 @@ CREATE TABLE IF NOT EXISTS expense_workflow_events (
   note TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS expense_receipt_ocr (
+  id SERIAL PRIMARY KEY,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  expense_id INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+  receipt_text TEXT NOT NULL,
+  extracted_title TEXT,
+  extracted_amount NUMERIC(10,2),
+  extracted_vendor_name TEXT,
+  extracted_date TEXT,
+  confidence NUMERIC(4,3) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'extracted',
+  error_code TEXT,
+  error_message TEXT,
+  created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  applied_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  applied_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS expense_reconciliation_logs (
+  id SERIAL PRIMARY KEY,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  expense_id INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+  ocr_id INTEGER NOT NULL REFERENCES expense_receipt_ocr(id) ON DELETE RESTRICT,
+  before_data JSONB NOT NULL,
+  extracted_data JSONB NOT NULL,
+  applied_data JSONB NOT NULL,
+  overrides_count INTEGER NOT NULL DEFAULT 0,
+  override_reason TEXT,
+  created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  updated_by INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 `;
 
 let testDb: TestDatabase;
@@ -85,6 +121,8 @@ vi.mock('../src/db/database.js', () => ({
 }));
 
 import {
+  applyExpenseReceiptOcr,
+  extractExpenseReceiptOcr,
   getExpenseWorkflowSummary,
   requestExpenseReimbursement,
   resolveExpenseReimbursement,
@@ -286,5 +324,56 @@ describe('expense approval and reimbursement workflow (#549 #599 #600)', () => {
         },
       },
     });
+  });
+
+  it('extracts OCR fields and allows owner apply with reconciliation logs', async () => {
+    const ownerId = await seedUser('owner4@test.dev', 2);
+    const memberId = await seedUser('member4@test.dev', 1);
+    const eventId = await seedEvent(ownerId);
+    const categoryId = await seedCategory(eventId);
+    const expenseId = await seedExpense(eventId, categoryId, memberId);
+    await testDb.run(`INSERT INTO event_members (event_id, user_id) VALUES (?, ?)`, [eventId, memberId]);
+
+    const extractReq = makeReq(
+      { eventId: String(eventId), id: String(expenseId) },
+      { id: memberId, email: 'member4@test.dev', role_id: 1 },
+      { receipt_text: 'Vendor Shop\n2026-02-10\nTotal 245.50' },
+    );
+    const extractRes = makeRes();
+    await extractExpenseReceiptOcr(extractReq, extractRes as unknown as Response);
+
+    expect(extractRes.statusCode).toBe(201);
+    expect(extractRes.body).toMatchObject({
+      extracted: {
+        amount: 245.5,
+      },
+    });
+
+    const ocrId = Number((extractRes.body as { ocr: { id: number } }).ocr.id);
+    const applyReq = makeReq(
+      { eventId: String(eventId), id: String(expenseId), ocrId: String(ocrId) },
+      { id: ownerId, email: 'owner4@test.dev', role_id: 2 },
+      { override_reason: 'Checked with receipt image.' },
+    );
+    const applyRes = makeRes();
+    await applyExpenseReceiptOcr(applyReq, applyRes as unknown as Response);
+
+    expect(applyRes.statusCode).toBe(200);
+    expect(applyRes.body).toMatchObject({
+      expense: {
+        id: expenseId,
+      },
+      reconciliation: {
+        ocr_id: ocrId,
+      },
+    });
+
+    const logCount = await testDb.get<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+         FROM expense_reconciliation_logs
+        WHERE event_id = ? AND expense_id = ?`,
+      [eventId, expenseId],
+    );
+    expect(Number(logCount?.count ?? '0')).toBe(1);
   });
 });

@@ -834,6 +834,80 @@ interface ExpenseWorkflowSummaryRow {
   reimbursement_requested_amount: number;
 }
 
+interface ExpenseOcrRow {
+  id: number;
+  event_id: number;
+  expense_id: number;
+  receipt_text: string;
+  extracted_title: string | null;
+  extracted_amount: number | string | null;
+  extracted_vendor_name: string | null;
+  extracted_date: string | null;
+  confidence: number | string;
+  status: 'extracted' | 'applied' | 'failed';
+  error_code: string | null;
+  error_message: string | null;
+  created_by: number;
+  applied_by: number | null;
+  applied_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface OcrExtractionResult {
+  title: string | null;
+  amount: number | null;
+  vendorName: string | null;
+  receiptDate: string | null;
+  confidence: number;
+}
+
+function findHighestAmount(text: string): number | null {
+  const amountMatches = text.match(/\b\d{1,6}(?:\.\d{2})\b/g);
+  if (!amountMatches || amountMatches.length === 0) {
+    return null;
+  }
+  const values = amountMatches
+    .map((entry) => Number(entry))
+    .filter((entry) => Number.isFinite(entry) && entry > 0);
+  if (values.length === 0) {
+    return null;
+  }
+  return Math.max(...values);
+}
+
+function extractReceiptData(receiptText: string): OcrExtractionResult {
+  const normalized = receiptText.replace(/\r/g, '\n');
+  const lines = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const vendorLine = lines.find((line) => /[a-z]/i.test(line) && !/receipt|invoice|total/i.test(line))
+    ?? lines[0]
+    ?? null;
+
+  const title = vendorLine ? `Receipt - ${vendorLine}` : null;
+  const dateMatch = normalized.match(/\b(20\d{2}-\d{2}-\d{2}|\d{2}[\/\-]\d{2}[\/\-]\d{4})\b/);
+  const totalMatch = normalized.match(/(?:grand\s+total|amount\s+due|total)\D{0,20}(\d{1,6}(?:\.\d{2})?)/i);
+  const extractedAmount = totalMatch && totalMatch[1]
+    ? Number(totalMatch[1])
+    : findHighestAmount(normalized);
+
+  let score = 0;
+  if (vendorLine) score += 0.3;
+  if (dateMatch?.[1]) score += 0.2;
+  if (Number.isFinite(extractedAmount ?? NaN)) score += 0.5;
+
+  return {
+    title,
+    amount: Number.isFinite(extractedAmount ?? NaN) ? Number(extractedAmount) : null,
+    vendorName: vendorLine,
+    receiptDate: dateMatch?.[1] ?? null,
+    confidence: roundBudgetValue(Math.min(1, score)),
+  };
+}
+
 function isExpenseApprover(user: AuthRequest['user'], event: { created_by: number }): boolean {
   if (!user) return false;
   return user.role_id >= 3 || user.id === event.created_by;
@@ -1368,6 +1442,255 @@ export async function getExpenseWorkflowSummary(req: AuthRequest, res: Response)
   } catch (error) {
     console.error('Error loading expense workflow summary:', error);
     res.status(500).json({ error: 'Failed to fetch expense workflow summary.' });
+  }
+}
+
+/**
+ * POST /events/:eventId/expenses/:id/ocr/extract
+ * Body: { receipt_text: string }
+ */
+export async function extractExpenseReceiptOcr(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const db = getDatabase();
+    const { eventId, id } = req.params;
+    const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!event || !req.user) return;
+
+    const expense = await getExpenseForEvent(db, String(eventId), String(id));
+    if (!expense) {
+      res.status(404).json({ code: 'EXPENSE_NOT_FOUND', error: 'Expense not found.' });
+      return;
+    }
+
+    const { receipt_text } = req.body as { receipt_text?: unknown };
+    if (typeof receipt_text !== 'string' || receipt_text.trim().length < 5) {
+      res.status(400).json({
+        code: 'INVALID_RECEIPT_TEXT',
+        error: 'receipt_text is required and must be at least 5 characters long.',
+      });
+      return;
+    }
+
+    const extracted = extractReceiptData(receipt_text);
+    if (!extracted.title && !extracted.amount && !extracted.vendorName) {
+      const failed = await db.run(
+        `INSERT INTO expense_receipt_ocr
+          (event_id, expense_id, receipt_text, confidence, status, error_code, error_message, created_by)
+         VALUES (?, ?, ?, ?, 'failed', 'EXTRACTION_FAILED', 'Unable to identify receipt fields.', ?) RETURNING id`,
+        [eventId, id, receipt_text.trim(), 0, req.user.id],
+      );
+      res.status(422).json({
+        code: 'EXTRACTION_FAILED',
+        error: 'Unable to identify receipt fields.',
+        ocr: {
+          id: failed.lastID,
+          status: 'failed',
+        },
+      });
+      return;
+    }
+
+    const result = await db.run(
+      `INSERT INTO expense_receipt_ocr
+        (event_id, expense_id, receipt_text, extracted_title, extracted_amount, extracted_vendor_name,
+         extracted_date, confidence, status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'extracted', ?) RETURNING id`,
+      [
+        eventId,
+        id,
+        receipt_text.trim(),
+        extracted.title,
+        extracted.amount,
+        extracted.vendorName,
+        extracted.receiptDate,
+        extracted.confidence,
+        req.user.id,
+      ],
+    );
+
+    const ocr = await db.get<ExpenseOcrRow>(
+      `SELECT * FROM expense_receipt_ocr WHERE id = ? AND event_id = ?`,
+      [result.lastID, eventId],
+    );
+
+    await logActivity(
+      eventId,
+      req.user.id,
+      'expense_ocr_extracted',
+      `OCR extraction completed for expense ${expense.title}`,
+      `/events/${eventId}`,
+    );
+
+    res.status(201).json({
+      ocr,
+      extracted: {
+        title: extracted.title,
+        amount: extracted.amount,
+        vendor_name: extracted.vendorName,
+        receipt_date: extracted.receiptDate,
+        confidence: extracted.confidence,
+      },
+      can_apply: isExpenseApprover(req.user, event),
+    });
+  } catch (error) {
+    console.error('Error extracting OCR receipt data:', error);
+    res.status(500).json({ code: 'OCR_EXTRACTION_ERROR', error: 'Failed to extract OCR receipt data.' });
+  }
+}
+
+/**
+ * POST /events/:eventId/expenses/:id/ocr/:ocrId/apply
+ * Body: { title?, amount?, vendor_name?, notes?, override_reason? }
+ */
+export async function applyExpenseReceiptOcr(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const db = getDatabase();
+    const { eventId, id, ocrId } = req.params;
+    const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
+    if (!event || !req.user) return;
+    if (!isExpenseApprover(req.user, event)) {
+      res.status(403).json({ code: 'FORBIDDEN', error: 'Only event owner or admins can apply OCR mappings.' });
+      return;
+    }
+
+    const expense = await getExpenseForEvent(db, String(eventId), String(id));
+    if (!expense) {
+      res.status(404).json({ code: 'EXPENSE_NOT_FOUND', error: 'Expense not found.' });
+      return;
+    }
+
+    const ocr = await db.get<ExpenseOcrRow>(
+      `SELECT *
+         FROM expense_receipt_ocr
+        WHERE id = ? AND event_id = ? AND expense_id = ?`,
+      [ocrId, eventId, id],
+    );
+    if (!ocr) {
+      res.status(404).json({ code: 'OCR_RESULT_NOT_FOUND', error: 'OCR result not found for this expense.' });
+      return;
+    }
+    if (ocr.status === 'failed') {
+      res.status(409).json({ code: 'OCR_RESULT_INVALID', error: 'Failed OCR results cannot be applied.' });
+      return;
+    }
+
+    const payload = req.body as {
+      title?: unknown;
+      amount?: unknown;
+      vendor_name?: unknown;
+      notes?: unknown;
+      override_reason?: unknown;
+    };
+
+    const nextTitle = typeof payload.title === 'string' ? payload.title.trim() : (ocr.extracted_title ?? expense.title);
+    const nextVendor = typeof payload.vendor_name === 'string'
+      ? payload.vendor_name.trim()
+      : (ocr.extracted_vendor_name ?? expense.vendor_name ?? '');
+    const nextNotes = typeof payload.notes === 'string' ? payload.notes.trim() : (expense.notes ?? '');
+    const amountCandidate = payload.amount !== undefined ? Number(payload.amount) : toNumber(ocr.extracted_amount ?? expense.amount);
+
+    if (!nextTitle) {
+      res.status(400).json({ code: 'INVALID_TITLE', error: 'title cannot be empty after OCR mapping.' });
+      return;
+    }
+    if (!Number.isFinite(amountCandidate) || amountCandidate < 0) {
+      res.status(400).json({ code: 'INVALID_AMOUNT', error: 'amount must be a non-negative number.' });
+      return;
+    }
+
+    const extractedSnapshot = {
+      title: ocr.extracted_title,
+      amount: ocr.extracted_amount === null ? null : toNumber(ocr.extracted_amount),
+      vendor_name: ocr.extracted_vendor_name,
+    };
+    const appliedSnapshot = {
+      title: nextTitle,
+      amount: amountCandidate,
+      vendor_name: nextVendor || null,
+      notes: nextNotes || null,
+    };
+
+    const overrides: string[] = [];
+    if ((extractedSnapshot.title ?? null) !== appliedSnapshot.title) overrides.push('title');
+    if ((extractedSnapshot.amount ?? null) !== appliedSnapshot.amount) overrides.push('amount');
+    if ((extractedSnapshot.vendor_name ?? null) !== (appliedSnapshot.vendor_name ?? null)) overrides.push('vendor_name');
+
+    await db.run(
+      `UPDATE expenses
+          SET title = ?,
+              amount = ?,
+              vendor_name = ?,
+              notes = ?,
+              updated_by = ?
+        WHERE id = ? AND event_id = ?`,
+      [nextTitle, amountCandidate, appliedSnapshot.vendor_name, appliedSnapshot.notes, req.user.id, id, eventId],
+    );
+
+    await db.run(
+      `UPDATE expense_receipt_ocr
+          SET status = 'applied',
+              applied_by = ?,
+              applied_at = CURRENT_TIMESTAMP,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND event_id = ?`,
+      [req.user.id, ocrId, eventId],
+    );
+
+    const safeOverrideReason = typeof payload.override_reason === 'string' ? payload.override_reason.trim() : null;
+    await db.run(
+      `INSERT INTO expense_reconciliation_logs
+        (event_id, expense_id, ocr_id, before_data, extracted_data, applied_data, overrides_count, override_reason, created_by, updated_by)
+       VALUES (?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?, ?)`,
+      [
+        eventId,
+        id,
+        ocrId,
+        JSON.stringify({ title: expense.title, amount: toNumber(expense.amount), vendor_name: expense.vendor_name, notes: expense.notes }),
+        JSON.stringify(extractedSnapshot),
+        JSON.stringify(appliedSnapshot),
+        overrides.length,
+        safeOverrideReason,
+        req.user.id,
+        req.user.id,
+      ],
+    );
+
+    await logExpenseWorkflowEvent(
+      db,
+      String(eventId),
+      String(id),
+      'ocr_applied',
+      req.user.id,
+      'extracted',
+      'applied',
+      safeOverrideReason,
+    );
+
+    await logActivity(
+      eventId,
+      req.user.id,
+      'expense_ocr_applied',
+      `OCR mapping applied for expense ${expense.title}`,
+      `/events/${eventId}`,
+    );
+
+    const updatedExpense = await getExpenseForEvent(db, String(eventId), String(id));
+    if (!updatedExpense) {
+      res.status(500).json({ code: 'EXPENSE_LOAD_FAILED', error: 'Failed to load updated expense after OCR apply.' });
+      return;
+    }
+
+    res.json({
+      expense: toExpenseResponse(updatedExpense, true, req.user.id),
+      reconciliation: {
+        ocr_id: Number(ocrId),
+        overrides,
+        overrides_count: overrides.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error applying OCR receipt mapping:', error);
+    res.status(500).json({ code: 'OCR_APPLY_ERROR', error: 'Failed to apply OCR mapping.' });
   }
 }
 

@@ -29,6 +29,7 @@ import PictureAsPdfRounded from '@mui/icons-material/PictureAsPdfRounded';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../../lib/api-client';
 import {
+  applyExpenseReceiptOcr,
   BudgetCategory,
   BudgetComparisonResponse,
   ExpenseWorkflowSummary,
@@ -39,6 +40,7 @@ import {
   deleteCategory,
   deleteExpense,
   Expense,
+  extractExpenseReceiptOcr,
   getBudgetComparison,
   listCategories,
   listExpenses,
@@ -106,6 +108,7 @@ export default function BudgetPage(): JSX.Element {
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
   const [workflowSummary, setWorkflowSummary] = useState<ExpenseWorkflowSummary | null>(null);
+  const [ocrBusyExpenseId, setOcrBusyExpenseId] = useState<number | null>(null);
 
   // Dialog state
   const [catDialogOpen, setCatDialogOpen] = useState(false);
@@ -262,6 +265,58 @@ export default function BudgetPage(): JSX.Element {
       setWorkflowSummary(await getExpenseWorkflowSummary(eventId));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to resolve reimbursement.');
+    }
+  }
+
+  async function handleExtractAndApplyOcr(expense: Expense): Promise<void> {
+    if (!eventId) return;
+    const receiptText = window.prompt(
+      'Paste receipt text for OCR extraction.\nTip: include vendor, date, and total lines.',
+      expense.notes ?? '',
+    );
+    if (receiptText === null) return;
+    if (receiptText.trim().length < 5) {
+      setError('Receipt text must be at least 5 characters long.');
+      return;
+    }
+
+    setOcrBusyExpenseId(expense.id);
+    setError(null);
+    try {
+      const extractedResponse = await extractExpenseReceiptOcr(eventId, expense.id, receiptText.trim());
+      const { extracted, ocr, can_apply } = extractedResponse;
+      const extractedSummary = [
+        `Title: ${extracted.title ?? 'N/A'}`,
+        `Amount: ${extracted.amount ?? 'N/A'}`,
+        `Vendor: ${extracted.vendor_name ?? 'N/A'}`,
+        `Date: ${extracted.receipt_date ?? 'N/A'}`,
+        `Confidence: ${Math.round(extracted.confidence * 100)}%`,
+      ].join('\n');
+
+      if (!can_apply) {
+        window.alert(`OCR extracted fields:\n\n${extractedSummary}\n\nYou do not have permission to apply these values.`);
+        return;
+      }
+
+      const shouldApply = window.confirm(`Apply OCR values to expense "${expense.title}"?\n\n${extractedSummary}`);
+      if (!shouldApply) return;
+
+      const applied = await applyExpenseReceiptOcr(eventId, expense.id, ocr.id, {
+        title: extracted.title ?? expense.title,
+        amount: extracted.amount ?? expense.amount,
+        vendor_name: extracted.vendor_name ?? expense.vendor_name ?? undefined,
+        override_reason: 'Applied OCR extracted fields from budget page review.',
+      });
+
+      upsertExpense(applied.expense);
+      const cats = await listCategories(eventId);
+      setCategories(cats);
+      setSummary(computeSummary(cats));
+      setWorkflowSummary(await getExpenseWorkflowSummary(eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed OCR extraction or apply flow.');
+    } finally {
+      setOcrBusyExpenseId(null);
     }
   }
 
@@ -727,6 +782,13 @@ export default function BudgetPage(): JSX.Element {
                                   </Button>
                                 </>
                               )}
+                              <Button
+                                size="small"
+                                onClick={() => void handleExtractAndApplyOcr(exp)}
+                                disabled={ocrBusyExpenseId === exp.id}
+                              >
+                                {ocrBusyExpenseId === exp.id ? 'OCR…' : 'OCR Extract'}
+                              </Button>
                               <Tooltip title="Delete expense">
                                 <IconButton
                                   size="small"
