@@ -1612,11 +1612,45 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     )
   `);
 
-  // ─── Pre-BRD v2 gallery tables (#417, #459) ───────────────────────────────
+  // ─── Pre-BRD v2 tables mirrored from init.sql (#417, #459, #432, #454) ────
   // These tables exist in init.sql but were not previously mirrored in the
-  // runtime migration. BRD v2 (#619) adds gallery_share_links with an FK to
-  // gallery_albums, so this block must precede the BRD v2 section to keep the
-  // runtime migration self-contained on fresh databases.
+  // runtime migration. BRD v2 (#619, #579) adds FKs into them, so they must
+  // precede the BRD v2 section to keep the runtime migration self-contained
+  // on fresh databases (e.g. CI integration tests).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_templates (
+      id           SERIAL PRIMARY KEY,
+      name         TEXT NOT NULL,
+      description  TEXT,
+      default_title TEXT,
+      default_location TEXT,
+      default_capacity INTEGER,
+      default_event_type TEXT,
+      default_status   TEXT DEFAULT 'Draft',
+      default_tags TEXT,
+      default_is_public BOOLEAN DEFAULT FALSE,
+      default_waitlist_enabled BOOLEAN DEFAULT FALSE,
+      created_by   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      deleted_at   TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_templates_created_by ON event_templates(created_by)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_filter_presets (
+      id          SERIAL PRIMARY KEY,
+      name        TEXT NOT NULL,
+      filters     TEXT NOT NULL,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_filter_presets_user ON event_filter_presets(user_id)`);
+  await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_event_filter_presets_user_name ON event_filter_presets(user_id, name)`);
+
   await db.exec(`
     CREATE TABLE IF NOT EXISTS gallery_albums (
       id          SERIAL PRIMARY KEY,
