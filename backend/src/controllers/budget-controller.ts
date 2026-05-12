@@ -54,13 +54,39 @@ interface BudgetCategoryRow {
   id: number;
   event_id: number;
   name: string;
-  allocated_amount: number;
+  allocated_amount: number | string;
   color: string | null;
   created_at: string;
-  spent: number;
-  tax_rate: number;
-  gratuity_rate: number;
-  contingency_rate: number;
+  spent: number | string;
+  tax_rate: number | string;
+  gratuity_rate: number | string;
+  contingency_rate: number | string;
+}
+
+function toNumber(value: number | string | null | undefined): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function enrichBudgetCategory(category: BudgetCategoryRow): BudgetCategoryRow & ReturnType<typeof calculateBudgetPlanning> {
+  const allocatedAmount = toNumber(category.allocated_amount);
+  const taxRate = toNumber(category.tax_rate);
+  const gratuityRate = toNumber(category.gratuity_rate);
+  const contingencyRate = toNumber(category.contingency_rate);
+
+  return {
+    ...category,
+    allocated_amount: allocatedAmount,
+    spent: toNumber(category.spent),
+    tax_rate: taxRate,
+    gratuity_rate: gratuityRate,
+    contingency_rate: contingencyRate,
+    ...calculateBudgetPlanning(allocatedAmount, {
+      taxRate,
+      gratuityRate,
+      contingencyRate,
+    }),
+  };
 }
 
 // ─── Internal helper ─────────────────────────────────────────────────────────
@@ -143,14 +169,7 @@ export async function listCategories(req: AuthRequest, res: Response): Promise<v
     );
 
     res.json({
-      categories: categories.map((category) => ({
-        ...category,
-        ...calculateBudgetPlanning(category.allocated_amount, {
-          taxRate: Number(category.tax_rate),
-          gratuityRate: Number(category.gratuity_rate),
-          contingencyRate: Number(category.contingency_rate),
-        }),
-      })),
+      categories: categories.map(enrichBudgetCategory),
     });
   } catch (error) {
     console.error('Error listing budget categories:', error);
@@ -228,14 +247,7 @@ export async function createCategory(req: AuthRequest, res: Response): Promise<v
     }
 
     res.status(201).json({
-      category: {
-        ...category,
-        ...calculateBudgetPlanning(category.allocated_amount, {
-          taxRate: Number(category.tax_rate),
-          gratuityRate: Number(category.gratuity_rate),
-          contingencyRate: Number(category.contingency_rate),
-        }),
-      },
+      category: enrichBudgetCategory(category),
     });
   } catch (error) {
     console.error('Error creating budget category:', error);
@@ -264,8 +276,13 @@ export async function updateCategory(req: AuthRequest, res: Response): Promise<v
       contingency_rate?: unknown;
     };
 
-    const existing = await db.get(
-      'SELECT id FROM budget_categories WHERE id = ? AND event_id = ?',
+    const existing = await db.get<Pick<BudgetCategoryRow, 'id' | 'tax_rate' | 'gratuity_rate' | 'contingency_rate'>>(
+      `SELECT id,
+              COALESCE(tax_rate, 0)::numeric AS tax_rate,
+              COALESCE(gratuity_rate, 0)::numeric AS gratuity_rate,
+              COALESCE(contingency_rate, 0)::numeric AS contingency_rate
+         FROM budget_categories
+        WHERE id = ? AND event_id = ?`,
       [id, eventId],
     );
     if (!existing) {
@@ -283,9 +300,9 @@ export async function updateCategory(req: AuthRequest, res: Response): Promise<v
       return;
     }
     const safeColor = typeof color === 'string' ? color.trim() : null;
-    const parsedTaxRate = tax_rate === undefined ? 0 : Number(tax_rate);
-    const parsedGratuityRate = gratuity_rate === undefined ? 0 : Number(gratuity_rate);
-    const parsedContingencyRate = contingency_rate === undefined ? 0 : Number(contingency_rate);
+    const parsedTaxRate = tax_rate === undefined ? toNumber(existing.tax_rate) : Number(tax_rate);
+    const parsedGratuityRate = gratuity_rate === undefined ? toNumber(existing.gratuity_rate) : Number(gratuity_rate);
+    const parsedContingencyRate = contingency_rate === undefined ? toNumber(existing.contingency_rate) : Number(contingency_rate);
 
     if (!isValidBudgetRate(parsedTaxRate)) {
       res.status(400).json({ error: 'tax_rate must be between 0 and 100' });
@@ -340,14 +357,7 @@ export async function updateCategory(req: AuthRequest, res: Response): Promise<v
     }
 
     res.json({
-      category: {
-        ...category,
-        ...calculateBudgetPlanning(category.allocated_amount, {
-          taxRate: Number(category.tax_rate),
-          gratuityRate: Number(category.gratuity_rate),
-          contingencyRate: Number(category.contingency_rate),
-        }),
-      },
+      category: enrichBudgetCategory(category),
     });
   } catch (error) {
     console.error('Error updating budget category:', error);

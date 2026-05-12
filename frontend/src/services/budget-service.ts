@@ -50,7 +50,10 @@ export interface BudgetSummary {
 
 export function computeSummary(categories: BudgetCategory[]): BudgetSummary {
   const totalAllocated = categories.reduce((sum, c) => sum + c.allocated_amount, 0);
-  const totalPlanned = categories.reduce((sum, c) => sum + c.plannedTotal, 0);
+  const totalPlanned = categories.reduce(
+    (sum, c) => sum + (Number.isFinite(c.plannedTotal) ? c.plannedTotal : c.allocated_amount),
+    0,
+  );
   const totalSpent = categories.reduce((sum, c) => sum + c.spent, 0);
   const remaining = totalAllocated - totalSpent;
   const plannedRemaining = totalPlanned - totalSpent;
