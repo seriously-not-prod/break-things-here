@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
+import { parse as parseCookies } from 'cookie';
 import { getDatabase } from '../db/database.js';
 import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken, hashToken, encryptToken, decryptToken } from '../utils/auth-helpers.js';
 import { generateTokens, verifyToken, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
+import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -99,12 +101,28 @@ export async function login(req: Request, res: Response): Promise<Response> {
                           updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         [newAttempts, lockedUntil, user.id],
       );
+      await logAuditEvent({
+        db, userId: user.id, email: normalizedEmail,
+        action: AUDIT_ACTIONS.LOGIN_ACCOUNT_LOCKED,
+        description: `Account locked after ${newAttempts} failed attempts`,
+        ipAddress: req.ip,
+        severity: 'WARN',
+        context: { attempts: newAttempts },
+      });
     } else {
       await db.run(
         `UPDATE users SET login_attempts = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         [newAttempts, user.id],
       );
     }
+    await logAuditEvent({
+      db, userId: user.id, email: normalizedEmail,
+      action: AUDIT_ACTIONS.LOGIN_FAILURE,
+      description: 'Invalid password',
+      ipAddress: req.ip,
+      severity: 'WARN',
+      context: { attempts: newAttempts },
+    });
 
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
@@ -162,9 +180,20 @@ export async function login(req: Request, res: Response): Promise<Response> {
   };
 
   if (process.env.NODE_ENV !== 'production') {
+    // Only return accessToken in dev for Authorization-header fallback.
+    // refreshToken is NEVER returned in the JSON body — it lives
+    // exclusively in the HttpOnly cookie set above. (#289)
     resp.accessToken = accessToken;
-    resp.refreshToken = refreshToken;
   }
+
+  await logAuditEvent({
+    db, userId: user.id, email: user.email,
+    action: AUDIT_ACTIONS.LOGIN_SUCCESS,
+    description: 'Successful login',
+    ipAddress: req.ip,
+    severity: 'INFO',
+    context: { roleId: user.role_id },
+  });
 
   return res.status(200).json(resp);
 }
@@ -254,7 +283,7 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
 
   const db = getDatabase();
   // Prefer revoking session by the refresh token cookie (server-side session).
-  let refreshToken = req.cookies?.refreshToken;
+  let refreshToken = parseCookies(req.headers.cookie ?? '').refreshToken as string | undefined;
   const authHeader = req.headers?.['authorization'];
   const authToken = authHeader && typeof authHeader === 'string' ? authHeader.split(' ')[1] : undefined;
   if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
@@ -278,6 +307,14 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
   res.clearCookie('refreshToken');
   res.clearCookie('accessToken');
 
+  await logAuditEvent({
+    db, userId: req.user.id, email: req.user.email,
+    action: AUDIT_ACTIONS.LOGOUT,
+    description: 'User logged out',
+    ipAddress: req.ip,
+    severity: 'INFO',
+  });
+
   return res.status(200).json({ message: 'Logged out successfully.' });
 }
 
@@ -292,8 +329,17 @@ export async function getCurrentUser(req: AuthRequest, res: Response): Promise<R
 
   const db = getDatabase();
   const user = await db.get(
-    `SELECT id, email, display_name, email_verified, role_id, created_at, updated_at
-     FROM users WHERE id = ? AND deleted_at IS NULL`,
+    `SELECT u.id,
+            u.email,
+            u.display_name,
+            u.email_verified,
+            u.role_id,
+            r.name AS role_name,
+            u.created_at,
+            u.updated_at
+     FROM users u
+     LEFT JOIN roles r ON r.id = u.role_id
+     WHERE u.id = ? AND u.deleted_at IS NULL`,
     [req.user.id],
   );
 
@@ -309,7 +355,8 @@ export async function getCurrentUser(req: AuthRequest, res: Response): Promise<R
  * Rotates the refresh token and issues a new access token.
  */
 export async function refreshTokenEndpoint(req: Request, res: Response): Promise<Response> {
-  let refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+  // AC #289/#290: refresh token must come from HttpOnly cookie only, never from body
+  let refreshToken = parseCookies(req.headers.cookie ?? '').refreshToken as string | undefined;
 
   // If cookie contains an encrypted token, decrypt it first
   if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
@@ -324,11 +371,7 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
     return res.status(401).json({ error: 'Refresh token is required.' });
   }
 
-  const payload = verifyToken(refreshToken);
-  if (!payload) {
-    return res.status(403).json({ error: 'Invalid or expired refresh token.' });
-  }
-
+  // Refresh tokens are opaque hex strings (not JWTs) — validate by DB lookup only
   const db = getDatabase();
 
   // Verify refresh token is in the sessions table
@@ -339,6 +382,13 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
   );
 
   if (!session) {
+    await logAuditEvent({
+      db: getDatabase(), userId: null, email: null,
+      action: AUDIT_ACTIONS.TOKEN_REFRESH_FAILURE,
+      description: 'Refresh token not found or revoked',
+      ipAddress: req.ip,
+      severity: 'WARN',
+    });
     return res.status(403).json({ error: 'Refresh token has been revoked.' });
   }
 
@@ -391,8 +441,17 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
     maxAge: 60 * 60 * 1000,
   });
 
+  await logAuditEvent({
+    db, userId: user.id, email: user.email,
+    action: AUDIT_ACTIONS.TOKEN_REFRESH_SUCCESS,
+    description: 'Access token refreshed',
+    ipAddress: req.ip,
+    severity: 'INFO',
+  });
+
   return res.status(200).json({
     message: 'Token refreshed successfully.',
+    accessToken: newAccessToken,
   });
 }
 
@@ -407,7 +466,7 @@ export async function sessionHeartbeat(req: AuthRequest, res: Response): Promise
 
   const db = getDatabase();
   // Update last_activity by refresh token stored in cookie (sessions keep refresh token hashes)
-  let refreshToken = req.cookies?.refreshToken;
+  let refreshToken = parseCookies(req.headers.cookie ?? '').refreshToken as string | undefined;
   if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
     try {
       refreshToken = decryptToken(refreshToken);
