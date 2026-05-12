@@ -12,16 +12,21 @@ const ALLOWED_UPLOAD_DIR = path.resolve(
 );
 
 /**
- * Validate that filePath resolves to within the allowed upload directory.
- * Throws if the path escapes the directory (path traversal / path injection).
+ * Sanitize an upload file path by:
+ * 1. Extracting only the basename (strips any ../../ traversal)
+ * 2. Reconstructing the full path from the trusted constant ALLOWED_UPLOAD_DIR
+ *
+ * This breaks CodeQL taint flow: the returned path is derived from a constant,
+ * not from user-supplied data. Returns null if the basename is empty or suspicious.
  */
-function validateUploadPath(filePath: string): string {
-  const resolved = path.resolve(filePath);
-  const allowedPrefix = ALLOWED_UPLOAD_DIR + path.sep;
-  if (resolved !== ALLOWED_UPLOAD_DIR && !resolved.startsWith(allowedPrefix)) {
-    throw new Error('Path injection detected: file is outside the allowed upload directory');
+function sanitizeUploadPath(filePath: string): string | null {
+  const basename = path.basename(filePath);
+  // Reject empty, dot-only, or names containing null bytes
+  if (!basename || basename === '.' || basename === '..' || basename.includes('\0')) {
+    return null;
   }
-  return resolved;
+  // Reconstruct from trusted directory — path is no longer tainted
+  return path.join(ALLOWED_UPLOAD_DIR, basename);
 }
 
 export interface ScanResult {
@@ -45,11 +50,9 @@ export interface ScanResult {
 export async function scanFile(filePath: string): Promise<ScanResult> {
   const now = new Date().toISOString();
 
-  // Validate path before any file operation — prevents path injection (CWE-22/CWE-73)
-  let safePath: string;
-  try {
-    safePath = validateUploadPath(filePath);
-  } catch {
+  // Sanitize: extract basename and reconstruct from trusted dir — breaks taint flow (CWE-22/CWE-73)
+  const safePath = sanitizeUploadPath(filePath);
+  if (safePath === null) {
     console.error('[VirusScan] Rejected unsafe file path:', filePath);
     return { clean: false, threat: 'Invalid file path', scanner: 'stub', scannedAt: now };
   }
@@ -121,7 +124,7 @@ async function stubScan(filePath: string, scannedAt: string): Promise<ScanResult
     // Additional heuristic: reject files with known dangerous extensions embedded
     // in content that don't match declared MIME type (simplified stub check).
     const contentStr = content.slice(0, 1024).toString('utf8', 0, 1024);
-    if (/<script[\s>]/i.test(contentStr) && filePath.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+    if (/<script[\s>]/i.test(contentStr) && path.extname(filePath).match(/^\.(jpg|jpeg|png|gif|webp)$/i)) {
       return {
         clean: false,
         threat: 'Embedded script in image (stub scanner)',
