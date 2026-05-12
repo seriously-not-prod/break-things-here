@@ -29,7 +29,16 @@ export interface EventTemplateRow {
   updated_at: string;
 }
 
-const VALID_STATUSES = ['Draft', 'Active', 'Completed', 'Cancelled'] as const;
+const VALID_STATUSES = ['Draft', 'Planning', 'Confirmed', 'Active', 'Completed', 'Cancelled'] as const;
+const VALID_TEMPLATE_SECTIONS = [
+  'tasks',
+  'budget',
+  'timeline',
+  'custom_fields',
+  'vendors',
+  'shopping',
+  'rsvp_questions',
+] as const;
 
 function canMutate(user?: AuthRequest['user']): boolean {
   return !!user && user.role_id >= 2;
@@ -320,14 +329,16 @@ export async function applyTemplate(req: Request, res: Response): Promise<void> 
     }
     const status = overrides.status ?? template.default_status ?? 'Draft';
     if (!VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
-      res.status(400).json({ error: 'Invalid status. Must be Draft, Active or Completed' });
+      res.status(400).json({
+        error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`,
+      });
       return;
     }
 
     const result = await db.run(
       `INSERT INTO events (title, date, location, description, capacity, status,
-                           event_type, is_public, tags, waitlist_enabled, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           event_type, is_public, tags, waitlist_enabled, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        RETURNING id`,
       [
         title,
@@ -341,8 +352,13 @@ export async function applyTemplate(req: Request, res: Response): Promise<void> 
         overrides.tags ?? template.default_tags ?? null,
         overrides.waitlist_enabled ?? template.default_waitlist_enabled ?? false,
         user.id,
+        user.id,
       ],
     );
+
+    // Template depth (#579) — replay section payloads into the new event.
+    await applyTemplateSections(db, Number(template.id), Number(result.lastID), user.id);
+
     const created = await db.get(
       'SELECT *, date AS event_date FROM events WHERE id = ?',
       [result.lastID],
@@ -361,5 +377,254 @@ export async function applyTemplate(req: Request, res: Response): Promise<void> 
   } catch (error) {
     console.error('Error applying template:', error);
     res.status(500).json({ error: 'Failed to apply template' });
+  }
+}
+
+// ─── Template section depth (#579) ────────────────────────────────────────────
+
+interface TemplateSectionRow {
+  id: number;
+  template_id: number;
+  section_key: string;
+  payload: unknown;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** GET /api/event-templates/:id/sections — depth payload */
+export async function listTemplateSections(req: Request, res: Response): Promise<void> {
+  try {
+    const authReq = req as AuthRequest;
+    const user = authReq.user;
+    if (!user) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+    const db = getDatabase();
+    const template = await db.get<EventTemplateRow>(
+      'SELECT id, created_by FROM event_templates WHERE id = ? AND deleted_at IS NULL',
+      [req.params['id']],
+    );
+    if (!template) {
+      res.status(404).json({ error: 'Template not found' });
+      return;
+    }
+    if (user.role_id !== 3 && template.created_by !== user.id) {
+      res.status(403).json({ error: 'Not authorised to view this template.' });
+      return;
+    }
+    const rows = await db.all<TemplateSectionRow>(
+      `SELECT id, template_id, section_key, payload, sort_order, created_at, updated_at
+         FROM event_template_sections WHERE template_id = ?
+        ORDER BY sort_order ASC, id ASC`,
+      [req.params['id']],
+    );
+    res.json({ sections: rows });
+  } catch (error) {
+    console.error('Error listing template sections:', error);
+    res.status(500).json({ error: 'Failed to list sections' });
+  }
+}
+
+/** PUT /api/event-templates/:id/sections/:sectionKey — upsert payload */
+export async function upsertTemplateSection(req: Request, res: Response): Promise<void> {
+  try {
+    const authReq = req as AuthRequest;
+    const user = authReq.user;
+    if (!user) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+    if (!canMutate(user)) {
+      res.status(403).json({ error: 'Not authorised to manage templates.' });
+      return;
+    }
+    const sectionKey = req.params['sectionKey'];
+    if (!sectionKey || !(VALID_TEMPLATE_SECTIONS as readonly string[]).includes(sectionKey)) {
+      res
+        .status(400)
+        .json({ error: `section_key must be one of: ${VALID_TEMPLATE_SECTIONS.join(', ')}` });
+      return;
+    }
+    const db = getDatabase();
+    const template = await db.get<EventTemplateRow>(
+      'SELECT id, created_by FROM event_templates WHERE id = ? AND deleted_at IS NULL',
+      [req.params['id']],
+    );
+    if (!template) {
+      res.status(404).json({ error: 'Template not found' });
+      return;
+    }
+    if (user.role_id !== 3 && template.created_by !== user.id) {
+      res.status(403).json({ error: 'Not authorised to manage this template.' });
+      return;
+    }
+
+    const { payload, sortOrder } = (req.body ?? {}) as { payload?: unknown; sortOrder?: unknown };
+    if (payload === undefined) {
+      res.status(400).json({ error: 'payload is required.' });
+      return;
+    }
+    const sort = Number(sortOrder) || 0;
+    const payloadJson = JSON.stringify(payload);
+
+    await db.run(
+      `INSERT INTO event_template_sections (template_id, section_key, payload, sort_order)
+       VALUES (?, ?, ?::jsonb, ?)
+       ON CONFLICT (template_id, section_key) DO UPDATE
+         SET payload = EXCLUDED.payload,
+             sort_order = EXCLUDED.sort_order,
+             updated_at = CURRENT_TIMESTAMP`,
+      [req.params['id'], sectionKey, payloadJson, sort],
+    );
+
+    const row = await db.get<TemplateSectionRow>(
+      `SELECT id, template_id, section_key, payload, sort_order, created_at, updated_at
+         FROM event_template_sections WHERE template_id = ? AND section_key = ?`,
+      [req.params['id'], sectionKey],
+    );
+    res.json(row);
+  } catch (error) {
+    console.error('Error upserting template section:', error);
+    res.status(500).json({ error: 'Failed to upsert section' });
+  }
+}
+
+/** DELETE /api/event-templates/:id/sections/:sectionKey */
+export async function deleteTemplateSection(req: Request, res: Response): Promise<void> {
+  try {
+    const authReq = req as AuthRequest;
+    const user = authReq.user;
+    if (!user) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+    if (!canMutate(user)) {
+      res.status(403).json({ error: 'Not authorised to manage templates.' });
+      return;
+    }
+    const sectionKey = req.params['sectionKey'];
+    if (!sectionKey || !(VALID_TEMPLATE_SECTIONS as readonly string[]).includes(sectionKey)) {
+      res
+        .status(400)
+        .json({ error: `section_key must be one of: ${VALID_TEMPLATE_SECTIONS.join(', ')}` });
+      return;
+    }
+    const db = getDatabase();
+    await db.run(
+      'DELETE FROM event_template_sections WHERE template_id = ? AND section_key = ?',
+      [req.params['id'], sectionKey],
+    );
+    res.json({ message: 'Section deleted' });
+  } catch (error) {
+    console.error('Error deleting template section:', error);
+    res.status(500).json({ error: 'Failed to delete section' });
+  }
+}
+
+/**
+ * Internal: replay template sections into a freshly applied event.
+ * Each section type maps to its native CRUD path so applied templates compose
+ * with the normal API surface.
+ */
+async function applyTemplateSections(
+  db: ReturnType<typeof getDatabase>,
+  templateId: number,
+  eventId: number,
+  userId: number,
+): Promise<void> {
+  // Defensive: a brand-new template may not have any sections yet, and the
+  // section table is optional on legacy databases. Treat lookup errors and
+  // null results as "no sections to apply" so apply still succeeds.
+  let sections: TemplateSectionRow[] = [];
+  try {
+    sections =
+      (await db.all<TemplateSectionRow>(
+        `SELECT section_key, payload FROM event_template_sections
+          WHERE template_id = ?
+          ORDER BY sort_order ASC, id ASC`,
+        [templateId],
+      )) ?? [];
+  } catch (err) {
+    console.warn('[template-sections] lookup failed, skipping section replay:', err);
+    return;
+  }
+  if (!Array.isArray(sections) || sections.length === 0) return;
+
+  for (const section of sections) {
+    const payload = section.payload as Record<string, unknown> | null;
+    if (!payload) continue;
+
+    if (section.section_key === 'tasks' && Array.isArray(payload['tasks'])) {
+      for (const task of payload['tasks'] as Array<Record<string, unknown>>) {
+        await db.run(
+          `INSERT INTO tasks (event_id, title, notes, due_date, status, priority, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            eventId,
+            String(task['title'] ?? 'Untitled task').slice(0, 200),
+            (task['notes'] as string) ?? null,
+            (task['due_date'] as string) ?? null,
+            (task['status'] as string) ?? 'Pending',
+            (task['priority'] as string) ?? 'Medium',
+            userId,
+          ],
+        );
+      }
+    } else if (section.section_key === 'budget' && Array.isArray(payload['categories'])) {
+      for (const cat of payload['categories'] as Array<Record<string, unknown>>) {
+        await db.run(
+          `INSERT INTO budget_categories (event_id, name, allocated_amount)
+           VALUES (?, ?, ?)`,
+          [eventId, String(cat['name'] ?? 'Category').slice(0, 100), Number(cat['allocated_amount'] ?? 0)],
+        );
+      }
+    } else if (section.section_key === 'custom_fields' && Array.isArray(payload['fields'])) {
+      for (const f of payload['fields'] as Array<Record<string, unknown>>) {
+        if (typeof f['field_key'] !== 'string' || typeof f['label'] !== 'string') continue;
+        if (typeof f['field_type'] !== 'string') continue;
+        await db.run(
+          `INSERT INTO event_custom_fields
+             (event_id, field_key, label, field_type, options, value, required, sort_order, created_by, updated_by)
+           VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?)
+           ON CONFLICT (event_id, field_key) DO NOTHING`,
+          [
+            eventId,
+            String(f['field_key']).slice(0, 60),
+            String(f['label']).slice(0, 120),
+            String(f['field_type']),
+            f['options'] ? JSON.stringify(f['options']) : null,
+            (f['value'] as string) ?? null,
+            Boolean(f['required']),
+            Number(f['sort_order']) || 0,
+            userId,
+            userId,
+          ],
+        );
+      }
+    } else if (section.section_key === 'shopping' && Array.isArray(payload['items'])) {
+      const listResult = await db.run(
+        `INSERT INTO shopping_lists (event_id, name, created_by) VALUES (?, ?, ?) RETURNING id`,
+        [eventId, String(payload['list_name'] ?? 'Template Shopping List'), userId],
+      );
+      const listId = listResult.lastID;
+      for (const item of payload['items'] as Array<Record<string, unknown>>) {
+        await db.run(
+          `INSERT INTO shopping_items (list_id, name, quantity, unit, estimated_cost)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            listId,
+            String(item['name'] ?? 'Item').slice(0, 200),
+            Number(item['quantity']) || 1,
+            (item['unit'] as string) ?? null,
+            Number(item['estimated_cost']) || null,
+          ],
+        );
+      }
+    }
+    // Other section types (timeline, vendors, rsvp_questions) are reserved for
+    // future work and intentionally left as a no-op here; the payload is still
+    // persisted on the template so future implementations are forward-compatible.
   }
 }

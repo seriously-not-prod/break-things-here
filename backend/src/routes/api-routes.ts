@@ -44,6 +44,13 @@ import * as waitlistController from '../controllers/waitlist-controller.js';
 import * as rsvpQuestionsController from '../controllers/rsvp-questions-controller.js';
 import * as currencyController from '../controllers/currency-controller.js';
 import * as budgetForecastController from '../controllers/budget-forecast-controller.js';
+import * as eventCustomFieldsController from '../controllers/event-custom-fields-controller.js';
+import * as galleryPermissionsController from '../controllers/gallery-permissions-controller.js';
+import * as gallerySharesController from '../controllers/gallery-shares-controller.js';
+import * as galleryCommentsController from '../controllers/gallery-comments-controller.js';
+import * as galleryDownloadsController from '../controllers/gallery-downloads-controller.js';
+import * as reportsController from '../controllers/reports-controller.js';
+import * as globalSearchController from '../controllers/global-search-controller.js';
 import * as taskMultiAssigneeController from '../controllers/task-multi-assignee-controller.js';
 import * as timelineTemplatesController from '../controllers/timeline-templates-controller.js';
 import * as collaborationController from '../controllers/collaboration-controller.js';
@@ -175,6 +182,10 @@ router.get('/public/events/:eventId', rsvpController.getPublicRsvpContext);
 router.get('/tracking/open/:token', trackingController.recordOpen);
 router.get('/tracking/click/:token', trackingController.recordClick);
 
+// ── Public gallery share resolution (#619) — unauthenticated, token-gated ──
+router.get('/public/gallery/:token', gallerySharesController.resolveShareLink);
+router.post('/public/gallery/:token', gallerySharesController.resolveShareLink);
+
 // Public RSVP token lookup (#411, #437) — guest-facing, unauthenticated.
 router.get('/public/rsvp/:token', rsvpTokenController.lookupRsvpByToken);
 router.post('/public/rsvp/:token/responses', rsvpQuestionsController.submitResponses);
@@ -299,6 +310,10 @@ router.get('/event-templates/:id', authenticateToken, eventTemplatesController.g
 router.patch('/event-templates/:id', authenticateToken, eventTemplatesController.updateTemplate);
 router.delete('/event-templates/:id', authenticateToken, eventTemplatesController.deleteTemplate);
 router.post('/event-templates/:id/apply', authenticateToken, eventTemplatesController.applyTemplate);
+// Template depth (#579)
+router.get('/event-templates/:id/sections', authenticateToken, eventTemplatesController.listTemplateSections);
+router.put('/event-templates/:id/sections/:sectionKey', authenticateToken, eventTemplatesController.upsertTemplateSection);
+router.delete('/event-templates/:id/sections/:sectionKey', authenticateToken, eventTemplatesController.deleteTemplateSection);
 
 // ============ EVENT FILTER PRESETS — story #416, task #454 ============
 router.get('/event-filter-presets', authenticateToken, eventFilterPresetsController.listPresets);
@@ -318,6 +333,15 @@ router.delete('/events/:id', authenticateToken, eventController.deleteEvent);
 router.post('/events/:id/clone', authenticateToken, eventController.cloneEvent);
 router.patch('/events/:id/cover', authenticateToken, eventController.setCoverImage);
 router.post('/events/:id/restore', authenticateToken, eventController.restoreEvent);
+// BRD v2 (#540, #578) — true archive workflow distinct from soft-delete
+router.post('/events/:id/archive', authenticateToken, eventController.archiveEvent);
+router.post('/events/:id/unarchive', authenticateToken, eventController.unarchiveEvent);
+
+// ── Event custom fields (#541, #577) ───────────────────────────────────────
+router.get('/events/:eventId/custom-fields', authenticateToken, eventCustomFieldsController.listFields);
+router.post('/events/:eventId/custom-fields', authenticateToken, eventCustomFieldsController.createField);
+router.patch('/events/:eventId/custom-fields/:fieldId', authenticateToken, eventCustomFieldsController.updateField);
+router.delete('/events/:eventId/custom-fields/:fieldId', authenticateToken, eventCustomFieldsController.deleteField);
 router.get('/events/:eventId/feed', authenticateToken, activityFeedController.listFeed);
 router.get('/events/:eventId/documents', authenticateToken, eventDocumentsController.listEventDocuments);
 router.post('/events/:eventId/documents', authenticateToken, documentUpload.single('document'), eventDocumentsController.uploadEventDocument);
@@ -345,6 +369,25 @@ router.post('/events/:eventId/gallery/slideshows', authenticateToken, galleryCon
 router.get('/events/:eventId/gallery/slideshows/:slideshowId/items', authenticateToken, galleryController.getSlideshowItems);
 router.patch('/events/:eventId/gallery/slideshows/:slideshowId', authenticateToken, galleryController.updateSlideshow);
 router.delete('/events/:eventId/gallery/slideshows/:slideshowId', authenticateToken, galleryController.deleteSlideshow);
+
+// ── BRD v2 gallery permissions, share links, comments, downloads, quota ───
+// #560 #618 — per-photo permission granularity
+router.patch('/events/:eventId/gallery/:documentId/permissions', authenticateToken, galleryPermissionsController.updatePhotoPermissions);
+router.post('/events/:eventId/gallery/:documentId/recompute-conversion', authenticateToken, galleryPermissionsController.recomputeConversion);
+// #622 — storage quota reporting
+router.get('/events/:eventId/gallery/storage', authenticateToken, galleryPermissionsController.getStorageUsage);
+// #619 — public share-link controls
+router.get('/events/:eventId/gallery/share-links', authenticateToken, gallerySharesController.listShareLinks);
+router.post('/events/:eventId/gallery/share-links', authenticateToken, gallerySharesController.createShareLink);
+router.delete('/events/:eventId/gallery/share-links/:id', authenticateToken, gallerySharesController.revokeShareLink);
+// #621 — photo comments
+router.get('/events/:eventId/gallery/:documentId/comments', authenticateToken, galleryCommentsController.listComments);
+router.post('/events/:eventId/gallery/:documentId/comments', authenticateToken, galleryCommentsController.addComment);
+router.patch('/events/:eventId/gallery/comments/:commentId', authenticateToken, galleryCommentsController.moderateComment);
+router.delete('/events/:eventId/gallery/comments/:commentId', authenticateToken, galleryCommentsController.deleteComment);
+// #620 — album / event download manifest
+router.get('/events/:eventId/gallery/download', authenticateToken, galleryDownloadsController.getEventDownloadManifest);
+router.get('/events/:eventId/gallery/albums/:albumId/download', authenticateToken, galleryDownloadsController.getAlbumDownloadManifest);
 
 // ============ ADMIN ROUTES — issues #260 #279 ============
 // All admin routes require authentication + Admin role
@@ -500,6 +543,18 @@ router.patch('/events/:eventId/store-suggestions/:id', authenticateToken, storeS
 router.delete('/events/:eventId/store-suggestions/:id', authenticateToken, storeSuggestionsController.deleteStoreSuggestion);
 
 // ============ TIMELINE CONFLICT DETECTION — #441 (registered in timeline section above)
+
+// ============ SCHEDULED REPORTS — #562 ============
+router.get('/events/:eventId/reports', authenticateToken, reportsController.listReports);
+router.post('/events/:eventId/reports', authenticateToken, reportsController.createReport);
+router.patch('/events/:eventId/reports/:reportId', authenticateToken, reportsController.updateReport);
+router.delete('/events/:eventId/reports/:reportId', authenticateToken, reportsController.deleteReport);
+router.get('/events/:eventId/reports/:reportId/render', authenticateToken, reportsController.renderReport);
+router.post('/events/:eventId/reports/:reportId/delivery', authenticateToken, reportsController.recordDelivery);
+router.get('/admin/reports/due', authenticateToken, authorizeRole(['Admin']), reportsController.listDueReports);
+
+// ============ POWER-USER GLOBAL SEARCH — #581 ============
+router.get('/search', authenticateToken, globalSearchController.globalSearch);
 
 // ============ #532 STORY: Tasks / Timeline / Collaboration / Notification Parity ============
 

@@ -6,7 +6,25 @@
 
 import { api } from '../lib/api-client';
 
-export type EventStatus = 'Draft' | 'Active' | 'Completed' | 'Cancelled';
+// BRD v2 (#575) — full event lifecycle status set.
+export type EventStatus =
+  | 'Draft'
+  | 'Planning'
+  | 'Confirmed'
+  | 'Active'
+  | 'Completed'
+  | 'Cancelled';
+
+export const EVENT_STATUSES: readonly EventStatus[] = [
+  'Draft',
+  'Planning',
+  'Confirmed',
+  'Active',
+  'Completed',
+  'Cancelled',
+] as const;
+
+export type EventView = 'list' | 'grid' | 'calendar' | 'timeline';
 
 export interface Event {
   id: number;
@@ -36,6 +54,19 @@ export interface Event {
   creator_name: string | null;
   created_at: string;
   updated_at: string;
+  /** BRD v2 (#540, #578) — true archive metadata */
+  archived_at?: string | null;
+  archived_by?: number | null;
+  archive_reason?: string | null;
+  /** BRD v2 (#622) — storage quota visibility */
+  storage_quota_bytes?: number | null;
+  storage_used_bytes?: number | null;
+  /** BRD v2 (#618, #621) — gallery permission toggles */
+  gallery_comments_enabled?: boolean | null;
+  gallery_guest_uploads?: boolean | null;
+  gallery_public?: boolean | null;
+  /** BRD v2 (#541, #576) — derived cover image sizes */
+  cover_image_sizes?: Record<string, unknown> | null;
 }
 
 export interface ActivityFeedEntry {
@@ -72,7 +103,7 @@ function normalizeEvent(event: EventApiRecord): Event {
 export interface EventListFilters {
   owner?: 'me';
   tags?: string[];
-  status?: string;
+  status?: string | string[];
   q?: string;
   // Advanced search — story #416, task #455
   title_q?: string;
@@ -83,6 +114,10 @@ export interface EventListFilters {
   capacity_max?: number | string;
   event_type?: string;
   has_waitlist?: boolean;
+  // BRD v2 (#578, #580, #581)
+  archived?: 'true' | 'false' | 'only';
+  created_by?: number;
+  sort?: 'date_asc' | 'date_desc' | 'title_asc' | 'title_desc' | 'created_desc' | 'created_asc';
 }
 
 export function buildEventQuery(filters?: EventListFilters): string {
@@ -90,7 +125,9 @@ export function buildEventQuery(filters?: EventListFilters): string {
   const params = new URLSearchParams();
   if (filters.owner) params.set('owner', filters.owner);
   if (filters.tags?.length) params.set('tags', filters.tags.join(','));
-  if (filters.status) params.set('status', filters.status);
+  if (filters.status) {
+    params.set('status', Array.isArray(filters.status) ? filters.status.join(',') : filters.status);
+  }
   if (filters.q) params.set('q', filters.q);
   if (filters.title_q) params.set('title_q', filters.title_q);
   if (filters.location_q) params.set('location_q', filters.location_q);
@@ -106,6 +143,9 @@ export function buildEventQuery(filters?: EventListFilters): string {
   if (filters.has_waitlist !== undefined) {
     params.set('has_waitlist', filters.has_waitlist ? 'true' : 'false');
   }
+  if (filters.archived) params.set('archived', filters.archived);
+  if (filters.created_by !== undefined) params.set('created_by', String(filters.created_by));
+  if (filters.sort) params.set('sort', filters.sort);
   return params.toString() ? `?${params.toString()}` : '';
 }
 
@@ -170,4 +210,88 @@ export async function listFeed(eventId: number | string): Promise<ActivityFeedEn
     `/api/events/${eventId}/feed`,
   );
   return data.feed;
+}
+
+// ── BRD v2 archive workflow (#540, #578) ──────────────────────────────────────
+
+export async function archiveEvent(
+  id: number | string,
+  reason?: string,
+): Promise<Event> {
+  const data = await api.post<EventApiRecord>(`/api/events/${id}/archive`, { reason });
+  return normalizeEvent(data);
+}
+
+export async function unarchiveEvent(id: number | string): Promise<Event> {
+  const data = await api.post<EventApiRecord>(`/api/events/${id}/unarchive`);
+  return normalizeEvent(data);
+}
+
+// ── BRD v2 custom fields (#577) ───────────────────────────────────────────────
+
+export interface EventCustomField {
+  id: number;
+  event_id: number;
+  field_key: string;
+  label: string;
+  field_type: 'text' | 'number' | 'boolean' | 'date' | 'url' | 'select';
+  options?: string[] | null;
+  value: string | null;
+  required: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listCustomFields(
+  eventId: number | string,
+): Promise<EventCustomField[]> {
+  const data = await api.get<{ fields: EventCustomField[] }>(
+    `/api/events/${eventId}/custom-fields`,
+  );
+  return data.fields;
+}
+
+export async function createCustomField(
+  eventId: number | string,
+  payload: Partial<EventCustomField>,
+): Promise<EventCustomField> {
+  return api.post<EventCustomField>(`/api/events/${eventId}/custom-fields`, payload);
+}
+
+export async function updateCustomField(
+  eventId: number | string,
+  fieldId: number,
+  payload: Partial<EventCustomField>,
+): Promise<EventCustomField> {
+  return api.patch<EventCustomField>(
+    `/api/events/${eventId}/custom-fields/${fieldId}`,
+    payload,
+  );
+}
+
+export async function deleteCustomField(
+  eventId: number | string,
+  fieldId: number,
+): Promise<void> {
+  await api.delete<void>(`/api/events/${eventId}/custom-fields/${fieldId}`);
+}
+
+// ── BRD v2 global search (#581) ───────────────────────────────────────────────
+
+export interface GlobalSearchResults {
+  q: string;
+  types: string[];
+  results: Record<string, Array<Record<string, unknown>>>;
+}
+
+export async function globalSearch(
+  q: string,
+  options: { types?: string[]; limit?: number; includeArchived?: boolean } = {},
+): Promise<GlobalSearchResults> {
+  const params = new URLSearchParams({ q });
+  if (options.types?.length) params.set('types', options.types.join(','));
+  if (options.limit) params.set('limit', String(options.limit));
+  if (options.includeArchived) params.set('include_archived', 'true');
+  return api.get<GlobalSearchResults>(`/api/search?${params.toString()}`);
 }

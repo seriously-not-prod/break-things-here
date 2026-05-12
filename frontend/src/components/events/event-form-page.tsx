@@ -21,8 +21,8 @@ interface CreatedEventResponse {
 }
 
 const EVENT_TYPES = ['Birthday', 'Wedding', 'Corporate', 'Festival', 'Conference', 'Other'];
-// Must match DB check constraint: Draft | Active | Completed
-const STATUS_OPTIONS = ['Draft', 'Active', 'Completed'];
+// BRD v2 (#575) — full event lifecycle status set.
+const STATUS_OPTIONS = ['Draft', 'Planning', 'Confirmed', 'Active', 'Completed', 'Cancelled'];
 
 export default function EventFormPage(): JSX.Element {
   const navigate = useNavigate();
@@ -57,6 +57,15 @@ export default function EventFormPage(): JSX.Element {
     if (!form.title.trim()) return setError('Event name is required.');
     if (!form.date) return setError('Event date is required.');
     if (!form.location.trim()) return setError('Location is required.');
+    // BRD v2 (#574) — events must start today or in the future, unless created
+    // as a historical record (Completed/Cancelled).
+    const isHistorical = form.status === 'Completed' || form.status === 'Cancelled';
+    if (!isHistorical) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (form.date < today) {
+        return setError('Event date must be today or in the future.');
+      }
+    }
     setSaving(true);
     try {
       const lat = form.latitude === '' ? null : Number(form.latitude);

@@ -47,6 +47,8 @@ import { useAuth } from '../../contexts/auth-context';
 import { canEditEvent } from '../../utils/roles';
 import { ActivityFeedPanel } from './activity-feed-panel';
 import EventLocationMap from './event-location-map';
+import EventCustomFieldsPanel from './event-custom-fields-panel';
+import { archiveEvent, unarchiveEvent } from '../../services/events-service';
 
 interface PlannerEvent {
   id: number;
@@ -64,6 +66,11 @@ interface PlannerEvent {
   latitude?: number | null;
   longitude?: number | null;
   waitlist_enabled?: boolean | null;
+  // BRD v2 (#540, #578)
+  archived_at?: string | null;
+  archived_by?: number | null;
+  archive_reason?: string | null;
+  created_by?: number;
 }
 
 interface Task {
@@ -613,7 +620,54 @@ export default function EventDetailPage(): JSX.Element {
             )}
             {event.description && <Typography variant="body1" sx={{ mt: 1 }}>{event.description}</Typography>}
           </Box>
-          <Chip label={event.status} color={event.status === 'Active' ? 'primary' : event.status === 'Completed' ? 'success' : 'default'} />
+          <Stack direction="row" spacing={1} alignItems="center">
+            {event.archived_at && (
+              <Chip
+                label="Archived"
+                color="warning"
+                size="small"
+                data-testid="event-archived-chip"
+              />
+            )}
+            <Chip
+              label={event.status}
+              color={
+                event.status === 'Active'
+                  ? 'primary'
+                  : event.status === 'Completed'
+                  ? 'success'
+                  : event.status === 'Cancelled'
+                  ? 'error'
+                  : event.status === 'Planning' || event.status === 'Confirmed'
+                  ? 'warning'
+                  : 'default'
+              }
+            />
+            {user && (user.id === event.created_by || user.roleId === 3) && (
+              <Button
+                size="small"
+                variant="outlined"
+                color={event.archived_at ? 'primary' : 'warning'}
+                data-testid="event-archive-button"
+                onClick={async () => {
+                  try {
+                    if (event.archived_at) {
+                      const updated = await unarchiveEvent(event.id);
+                      setEvent({ ...event, ...(updated as Partial<PlannerEvent>) });
+                    } else {
+                      const reason = window.prompt('Reason for archiving (optional):') ?? undefined;
+                      const updated = await archiveEvent(event.id, reason || undefined);
+                      setEvent({ ...event, ...(updated as Partial<PlannerEvent>) });
+                    }
+                  } catch (err) {
+                    setError(err instanceof ApiError ? err.message : 'Failed to update archive state.');
+                  }
+                }}
+              >
+                {event.archived_at ? 'Unarchive' : 'Archive'}
+              </Button>
+            )}
+          </Stack>
         </Box>
       </Paper>
 
@@ -646,6 +700,14 @@ export default function EventDetailPage(): JSX.Element {
           ))}
         </Stack>
       </Paper>
+
+      {/* BRD v2 (#577) — Custom fields editor */}
+      {event && id && (
+        <EventCustomFieldsPanel
+          eventId={id}
+          canEdit={!!user && (user.id === event.created_by || user.roleId >= 2)}
+        />
+      )}
 
       <Tabs value={tab} onChange={(_, v: number) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label={`Tasks (${tasks.length})`} />
