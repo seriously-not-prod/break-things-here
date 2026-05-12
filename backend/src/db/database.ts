@@ -125,13 +125,43 @@ const ROLE_NAMES = {
 const DEV_DEMO_USERS = [
   {
     email: 'admin@festival.local',
-    password: 'festivalAdmin2025',
+    password: 'Admin123!',
     displayName: 'Admin User',
     roleId: 3,
   },
   {
+    email: 'organizer@festival.local',
+    password: 'Organizer123!',
+    displayName: 'Sarah Organizer',
+    roleId: 2,
+  },
+  {
+    email: 'organizer2@festival.local',
+    password: 'Organizer123!',
+    displayName: 'James Organizer',
+    roleId: 2,
+  },
+  {
+    email: 'alice@festival.local',
+    password: 'Password123!',
+    displayName: 'Alice Johnson',
+    roleId: 1,
+  },
+  {
+    email: 'bob@festival.local',
+    password: 'Password123!',
+    displayName: 'Bob Williams',
+    roleId: 1,
+  },
+  {
+    email: 'carol@festival.local',
+    password: 'Password123!',
+    displayName: 'Carol Davis',
+    roleId: 1,
+  },
+  {
     email: 'alice@email.com',
-    password: 'password123',
+    password: 'Password123!',
     displayName: 'Alice',
     roleId: 1,
   },
