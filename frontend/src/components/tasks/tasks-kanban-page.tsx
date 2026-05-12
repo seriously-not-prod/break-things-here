@@ -47,21 +47,27 @@ const COLUMNS: { status: TaskStatus; label: string }[] = [
   { status: 'Pending', label: 'Pending' },
   { status: 'In Progress', label: 'In Progress' },
   { status: 'Blocked', label: 'Blocked' },
+  { status: 'Verification', label: 'Verification' },
   { status: 'Complete', label: 'Complete' },
+  { status: 'Cancelled', label: 'Cancelled' },
 ];
 
 const COLUMN_COLORS: Record<TaskStatus, string> = {
   Pending: '#e3f2fd',
   'In Progress': '#fff8e1',
   Blocked: '#fce4ec',
+  Verification: '#ede7f6',
   Complete: '#e8f5e9',
+  Cancelled: '#f5f5f5',
 };
 
 const COLUMN_HEADER_COLORS: Record<TaskStatus, string> = {
   Pending: 'info.main',
   'In Progress': 'warning.main',
   Blocked: 'error.main',
+  Verification: 'secondary.main',
   Complete: 'success.main',
+  Cancelled: 'text.disabled',
 };
 
 interface AddTaskDialogProps {

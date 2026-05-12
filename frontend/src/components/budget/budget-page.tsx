@@ -29,7 +29,10 @@ import PictureAsPdfRounded from '@mui/icons-material/PictureAsPdfRounded';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../../lib/api-client';
 import {
+  applyExpenseReceiptOcr,
   BudgetCategory,
+  BudgetComparisonResponse,
+  ExpenseWorkflowSummary,
   BudgetSummary,
   computeSummary,
   CreateCategoryPayload,
@@ -37,10 +40,16 @@ import {
   deleteCategory,
   deleteExpense,
   Expense,
+  extractExpenseReceiptOcr,
+  getBudgetComparison,
   listCategories,
   listExpenses,
   createCategory,
   createExpense,
+  getExpenseWorkflowSummary,
+  requestExpenseReimbursement,
+  resolveExpenseReimbursement,
+  reviewExpenseApproval,
   updateCategory,
   updateExpense,
 } from '../../services/budget-service';
@@ -64,6 +73,19 @@ const PAYMENT_COLORS: Record<string, 'default' | 'success' | 'error' | 'warning'
   overdue: 'error',
 };
 
+const APPROVAL_COLORS: Record<string, 'default' | 'success' | 'error' | 'warning'> = {
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'error',
+};
+
+const REIMBURSEMENT_COLORS: Record<string, 'default' | 'success' | 'error' | 'warning'> = {
+  not_requested: 'default',
+  requested: 'warning',
+  reimbursed: 'success',
+  rejected: 'error',
+};
+
 export default function BudgetPage(): JSX.Element {
   const { id: eventId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -82,6 +104,11 @@ export default function BudgetPage(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [comparisonData, setComparisonData] = useState<BudgetComparisonResponse | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
+  const [workflowSummary, setWorkflowSummary] = useState<ExpenseWorkflowSummary | null>(null);
+  const [ocrBusyExpenseId, setOcrBusyExpenseId] = useState<number | null>(null);
 
   // Dialog state
   const [catDialogOpen, setCatDialogOpen] = useState(false);
@@ -94,12 +121,14 @@ export default function BudgetPage(): JSX.Element {
     setLoading(true);
     setError(null);
     try {
-      const [cats, exps] = await Promise.all([
+      const [cats, exps, summaryData] = await Promise.all([
         listCategories(eventId),
         listExpenses(eventId),
+        getExpenseWorkflowSummary(eventId),
       ]);
       setCategories(cats);
       setExpenses(exps);
+      setWorkflowSummary(summaryData);
       setSummary(computeSummary(cats));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load budget data.');
@@ -112,26 +141,46 @@ export default function BudgetPage(): JSX.Element {
     void load();
   }, [load]);
 
+  const loadComparison = useCallback(async (): Promise<void> => {
+    if (!eventId) return;
+    setComparisonLoading(true);
+    setComparisonError(null);
+    try {
+      const data = await getBudgetComparison(eventId);
+      setComparisonData(data);
+    } catch (err) {
+      setComparisonData(null);
+      setComparisonError(err instanceof ApiError ? err.message : 'Failed to load similar event comparisons.');
+    } finally {
+      setComparisonLoading(false);
+    }
+  }, [eventId]);
+
+  useEffect(() => {
+    void loadComparison();
+  }, [loadComparison]);
+
   // ─── Category handlers ──────────────────────────────────────────────────────
 
   async function handleSaveCategory(payload: CreateCategoryPayload): Promise<void> {
     if (!eventId) return;
     if (editingCategory) {
       const updated = await updateCategory(eventId, editingCategory.id, payload);
-      setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      setCategories((prev) => {
+        const next = prev.map((c) => (c.id === updated.id ? updated : c));
+        setSummary(computeSummary(next));
+        return next;
+      });
     } else {
       const created = await createCategory(eventId, payload);
-      setCategories((prev) => [...prev, created]);
+      setCategories((prev) => {
+        const next = [...prev, created];
+        setSummary(computeSummary(next));
+        return next;
+      });
     }
-    setSummary(() => {
-      const cats = editingCategory
-        ? categories.map((c) =>
-            c.id === editingCategory.id ? { ...c, allocated_amount: payload.allocated_amount } : c,
-          )
-        : [...categories, { allocated_amount: payload.allocated_amount, spent: 0 } as BudgetCategory];
-      return computeSummary(cats);
-    });
     setEditingCategory(undefined);
+    void loadComparison();
   }
 
   async function handleDeleteCategory(category: BudgetCategory): Promise<void> {
@@ -141,9 +190,19 @@ export default function BudgetPage(): JSX.Element {
     setCategories((prev) => prev.filter((c) => c.id !== category.id));
     setExpenses((prev) => prev.filter((e) => e.category_id !== category.id));
     void load();
+    void loadComparison();
   }
 
   // ─── Expense handlers ───────────────────────────────────────────────────────
+
+  function upsertExpense(updated: Expense): void {
+    setExpenses((prev) => {
+      const exists = prev.some((expense) => expense.id === updated.id);
+      return exists
+        ? prev.map((expense) => (expense.id === updated.id ? updated : expense))
+        : [updated, ...prev];
+    });
+  }
 
   async function handleSaveExpense(payload: CreateExpensePayload): Promise<void> {
     if (!eventId) return;
@@ -159,6 +218,7 @@ export default function BudgetPage(): JSX.Element {
     setCategories(cats);
     setSummary(computeSummary(cats));
     setEditingExpense(undefined);
+    void loadComparison();
   }
 
   async function handleDeleteExpense(expense: Expense): Promise<void> {
@@ -169,6 +229,95 @@ export default function BudgetPage(): JSX.Element {
     const cats = await listCategories(eventId);
     setCategories(cats);
     setSummary(computeSummary(cats));
+    void loadComparison();
+  }
+
+  async function handleApproveExpense(expense: Expense, decision: 'approved' | 'rejected'): Promise<void> {
+    if (!eventId) return;
+    try {
+      const updated = await reviewExpenseApproval(eventId, expense.id, decision);
+      upsertExpense(updated);
+      setWorkflowSummary(await getExpenseWorkflowSummary(eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to review expense approval.');
+    }
+  }
+
+  async function handleRequestReimbursement(expense: Expense): Promise<void> {
+    if (!eventId) return;
+    try {
+      const updated = await requestExpenseReimbursement(eventId, expense.id);
+      upsertExpense(updated);
+      setWorkflowSummary(await getExpenseWorkflowSummary(eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to request reimbursement.');
+    }
+  }
+
+  async function handleResolveReimbursement(expense: Expense, decision: 'reimbursed' | 'rejected'): Promise<void> {
+    if (!eventId) return;
+    try {
+      const updated = await resolveExpenseReimbursement(eventId, expense.id, decision);
+      upsertExpense(updated);
+      const cats = await listCategories(eventId);
+      setCategories(cats);
+      setSummary(computeSummary(cats));
+      setWorkflowSummary(await getExpenseWorkflowSummary(eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to resolve reimbursement.');
+    }
+  }
+
+  async function handleExtractAndApplyOcr(expense: Expense): Promise<void> {
+    if (!eventId) return;
+    const receiptText = window.prompt(
+      'Paste receipt text for OCR extraction.\nTip: include vendor, date, and total lines.',
+      expense.notes ?? '',
+    );
+    if (receiptText === null) return;
+    if (receiptText.trim().length < 5) {
+      setError('Receipt text must be at least 5 characters long.');
+      return;
+    }
+
+    setOcrBusyExpenseId(expense.id);
+    setError(null);
+    try {
+      const extractedResponse = await extractExpenseReceiptOcr(eventId, expense.id, receiptText.trim());
+      const { extracted, ocr, can_apply } = extractedResponse;
+      const extractedSummary = [
+        `Title: ${extracted.title ?? 'N/A'}`,
+        `Amount: ${extracted.amount ?? 'N/A'}`,
+        `Vendor: ${extracted.vendor_name ?? 'N/A'}`,
+        `Date: ${extracted.receipt_date ?? 'N/A'}`,
+        `Confidence: ${Math.round(extracted.confidence * 100)}%`,
+      ].join('\n');
+
+      if (!can_apply) {
+        window.alert(`OCR extracted fields:\n\n${extractedSummary}\n\nYou do not have permission to apply these values.`);
+        return;
+      }
+
+      const shouldApply = window.confirm(`Apply OCR values to expense "${expense.title}"?\n\n${extractedSummary}`);
+      if (!shouldApply) return;
+
+      const applied = await applyExpenseReceiptOcr(eventId, expense.id, ocr.id, {
+        title: extracted.title ?? expense.title,
+        amount: extracted.amount ?? expense.amount,
+        vendor_name: extracted.vendor_name ?? expense.vendor_name ?? undefined,
+        override_reason: 'Applied OCR extracted fields from budget page review.',
+      });
+
+      upsertExpense(applied.expense);
+      const cats = await listCategories(eventId);
+      setCategories(cats);
+      setSummary(computeSummary(cats));
+      setWorkflowSummary(await getExpenseWorkflowSummary(eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed OCR extraction or apply flow.');
+    } finally {
+      setOcrBusyExpenseId(null);
+    }
   }
 
   // ─── Render helpers ─────────────────────────────────────────────────────────
@@ -276,6 +425,103 @@ export default function BudgetPage(): JSX.Element {
       <Box sx={{ mb: 3 }}>
         <BudgetSummaryCards summary={summary} />
       </Box>
+
+      <Card variant="outlined" sx={{ mb: 3 }}>
+        <CardContent>
+          <Stack
+            direction={{ xs: 'column', md: 'row' }}
+            justifyContent="space-between"
+            alignItems={{ xs: 'flex-start', md: 'center' }}
+            spacing={1}
+            sx={{ mb: 2 }}
+          >
+            <Box>
+              <Typography variant="subtitle1" fontWeight={700}>
+                Similar Event Budget Comparison
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Benchmark this event against similar accessible events using type, location, scale, tags, and timing.
+              </Typography>
+            </Box>
+            <Button variant="outlined" size="small" onClick={() => void loadComparison()} disabled={comparisonLoading}>
+              Refresh Comparison
+            </Button>
+          </Stack>
+
+          {comparisonError && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setComparisonError(null)}>
+              {comparisonError}
+            </Alert>
+          )}
+
+          {comparisonLoading ? (
+            <Stack spacing={1.5}>
+              <Skeleton variant="text" width={220} height={28} />
+              <Skeleton variant="rounded" height={52} />
+              <Skeleton variant="rounded" height={160} />
+            </Stack>
+          ) : comparisonData && comparisonData.comparison.length > 0 ? (
+            <Stack spacing={2}>
+              <Stack direction="row" flexWrap="wrap" gap={1}>
+                <Chip label={`Current planned ${fmt(summary.totalPlanned)}`} size="small" />
+                <Chip label={`Peer avg planned ${fmt(comparisonData.overview.averagePlanned)}`} size="small" variant="outlined" />
+                <Chip label={`Peer avg spent ${fmt(comparisonData.overview.averageSpent)}`} size="small" variant="outlined" />
+                <Chip label={`Peer avg planned used ${comparisonData.overview.averagePlannedPercentUsed}%`} size="small" variant="outlined" />
+              </Stack>
+
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small" aria-label="Similar event budget comparison table">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Event</TableCell>
+                      <TableCell>Match</TableCell>
+                      <TableCell align="right">Categories</TableCell>
+                      <TableCell align="right">Planned</TableCell>
+                      <TableCell align="right">Spent</TableCell>
+                      <TableCell align="right">Planned Remaining</TableCell>
+                      <TableCell align="right">Planned Used</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {comparisonData.comparison.map((item) => (
+                      <TableRow key={item.id} hover>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600}>
+                            {item.title}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {new Date(item.date).toLocaleDateString()} | {item.location}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {item.eventType ?? 'Other'}{item.capacity ? ` | Capacity ${item.capacity}` : ''}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                            <Chip label={`Score ${item.matchScore}`} size="small" color="primary" />
+                            {item.matchReasons.map((reason) => (
+                              <Chip key={`${item.id}-${reason}`} label={reason} size="small" variant="outlined" />
+                            ))}
+                          </Stack>
+                        </TableCell>
+                        <TableCell align="right">{item.summary.categoryCount}</TableCell>
+                        <TableCell align="right">{fmt(item.summary.totalPlanned)}</TableCell>
+                        <TableCell align="right">{fmt(item.summary.totalSpent)}</TableCell>
+                        <TableCell align="right">{fmt(item.summary.plannedRemaining)}</TableCell>
+                        <TableCell align="right">{item.summary.plannedPercentUsed}%</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No comparable events with budget data are available yet.
+            </Typography>
+          )}
+        </CardContent>
+      </Card>
 
       {categories.length === 0 ? (
         <Paper
@@ -424,6 +670,15 @@ export default function BudgetPage(): JSX.Element {
                     No expenses recorded yet.
                   </Typography>
                 ) : (
+                  <Stack spacing={1.5}>
+                    {workflowSummary && (
+                      <Stack direction="row" flexWrap="wrap" gap={1}>
+                        <Chip label={`Approval pending ${workflowSummary.approval.pending}`} size="small" color="warning" />
+                        <Chip label={`Reimbursement requested ${workflowSummary.reimbursement.requested}`} size="small" color="warning" variant="outlined" />
+                        <Chip label={`Reimbursed ${workflowSummary.reimbursement.reimbursed}`} size="small" color="success" variant="outlined" />
+                        <Chip label={`Requested total ${fmt(workflowSummary.reimbursementRequestedAmount)}`} size="small" variant="outlined" />
+                      </Stack>
+                    )}
                   <TableContainer component={Paper} variant="outlined">
                     <Table size="small" aria-label="Expenses table">
                       <TableHead>
@@ -432,6 +687,8 @@ export default function BudgetPage(): JSX.Element {
                           <TableCell>Category</TableCell>
                           <TableCell align="right">Amount</TableCell>
                           <TableCell>Status</TableCell>
+                          <TableCell>Approval</TableCell>
+                          <TableCell>Reimbursement</TableCell>
                           <TableCell>Vendor</TableCell>
                           <TableCell>Date</TableCell>
                           <TableCell align="right">Actions</TableCell>
@@ -447,6 +704,20 @@ export default function BudgetPage(): JSX.Element {
                               <Chip
                                 label={exp.payment_status}
                                 color={PAYMENT_COLORS[exp.payment_status] ?? 'default'}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={exp.approval_status}
+                                color={APPROVAL_COLORS[exp.approval_status] ?? 'default'}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={exp.reimbursement_status}
+                                color={REIMBURSEMENT_COLORS[exp.reimbursement_status] ?? 'default'}
                                 size="small"
                               />
                             </TableCell>
@@ -466,6 +737,58 @@ export default function BudgetPage(): JSX.Element {
                                   <EditRounded fontSize="small" />
                                 </IconButton>
                               </Tooltip>
+                              {exp.can_approve && (
+                                <>
+                                  <Button
+                                    size="small"
+                                    color="success"
+                                    onClick={() => void handleApproveExpense(exp, 'approved')}
+                                  >
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    color="error"
+                                    onClick={() => void handleApproveExpense(exp, 'rejected')}
+                                  >
+                                    Reject
+                                  </Button>
+                                </>
+                              )}
+                              {exp.can_request_reimbursement && (
+                                <Button
+                                  size="small"
+                                  color="warning"
+                                  onClick={() => void handleRequestReimbursement(exp)}
+                                >
+                                  Request Reimbursement
+                                </Button>
+                              )}
+                              {exp.can_resolve_reimbursement && (
+                                <>
+                                  <Button
+                                    size="small"
+                                    color="success"
+                                    onClick={() => void handleResolveReimbursement(exp, 'reimbursed')}
+                                  >
+                                    Mark Reimbursed
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    color="error"
+                                    onClick={() => void handleResolveReimbursement(exp, 'rejected')}
+                                  >
+                                    Reject Request
+                                  </Button>
+                                </>
+                              )}
+                              <Button
+                                size="small"
+                                onClick={() => void handleExtractAndApplyOcr(exp)}
+                                disabled={ocrBusyExpenseId === exp.id}
+                              >
+                                {ocrBusyExpenseId === exp.id ? 'OCR…' : 'OCR Extract'}
+                              </Button>
                               <Tooltip title="Delete expense">
                                 <IconButton
                                   size="small"
@@ -482,6 +805,7 @@ export default function BudgetPage(): JSX.Element {
                       </TableBody>
                     </Table>
                   </TableContainer>
+                  </Stack>
                 )}
               </CardContent>
             </Card>
