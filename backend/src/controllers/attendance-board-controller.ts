@@ -1,0 +1,169 @@
+/**
+ * Real-time attendance board (#595).
+ *
+ * Exposes:
+ *  - `GET /events/:eventId/attendance/summary` — point-in-time stats
+ *  - `GET /events/:eventId/attendance/stream` — server-sent events stream
+ *
+ * The stream is fed by `broadcastAttendanceEvent()` which the QR scan
+ * controller calls after every state change. Stream payloads carry the rsvp
+ * row delta + a `summary` snapshot so the dashboard does not need to
+ * re-query on every event.
+ *
+ * NB: this is intentionally lightweight — a single Node process holds all
+ * subscribers in memory. For horizontal scale the broker would move to
+ * Redis pub/sub; the broadcaster API is shaped to make that swap drop-in.
+ */
+import type { Request, Response } from 'express';
+import { getDatabase } from '../db/database.js';
+import { requireEventAccess } from '../utils/event-access.js';
+
+interface AuthRequest extends Request {
+  user?: { id: number; email: string; role_id: number };
+}
+
+type Subscriber = {
+  eventId: number;
+  res: Response;
+  heartbeat: NodeJS.Timeout;
+};
+
+const subscribers = new Set<Subscriber>();
+
+interface AttendanceStats {
+  invited: number;
+  confirmed: number;
+  declined: number;
+  pending: number;
+  waitlist: number;
+  checked_in: number;
+  no_show: number;
+  late_arrivals: number;
+  attendance_rate: number;
+}
+
+export async function computeAttendanceStats(eventId: number): Promise<AttendanceStats> {
+  const db = getDatabase();
+  const rows = await db.all<{ canonical_status: string | null; checked_in: boolean; late_arrival: boolean | null }>(
+    `SELECT canonical_status, checked_in, late_arrival FROM rsvps WHERE event_id = ?`,
+    [eventId],
+  );
+  const stats: AttendanceStats = {
+    invited: rows.length,
+    confirmed: 0,
+    declined: 0,
+    pending: 0,
+    waitlist: 0,
+    checked_in: 0,
+    no_show: 0,
+    late_arrivals: 0,
+    attendance_rate: 0,
+  };
+  for (const r of rows) {
+    const c = (r.canonical_status ?? 'pending').toLowerCase();
+    if (c === 'confirmed') stats.confirmed++;
+    else if (c === 'declined' || c === 'cancelled') stats.declined++;
+    else if (c === 'waitlist') stats.waitlist++;
+    else if (c === 'no_show') stats.no_show++;
+    else if (c === 'pending' || c === 'maybe') stats.pending++;
+    if (r.checked_in) stats.checked_in++;
+    if (r.late_arrival) stats.late_arrivals++;
+  }
+  stats.attendance_rate = stats.confirmed > 0
+    ? Math.round((stats.checked_in / stats.confirmed) * 100)
+    : 0;
+  return stats;
+}
+
+/** GET /api/events/:eventId/attendance/summary */
+export async function getAttendanceSummary(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId } = req.params;
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+  const stats = await computeAttendanceStats(Number(eventId));
+  return res.json({ stats });
+}
+
+/** GET /api/events/:eventId/attendance/recent — last 50 check-in events */
+export async function listRecentAttendanceEvents(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId } = req.params;
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+  const db = getDatabase();
+  const rows = await db.all(
+    `SELECT a.id, a.action, a.source, a.occurred_at, a.metadata,
+            r.id AS rsvp_id, r.name, r.email, r.late_arrival, r.arrival_delay_minutes
+     FROM attendance_events a
+     JOIN rsvps r ON r.id = a.rsvp_id
+     WHERE a.event_id = ?
+     ORDER BY a.occurred_at DESC
+     LIMIT 50`,
+    [eventId],
+  );
+  return res.json({ events: rows });
+}
+
+/** GET /api/events/:eventId/attendance/stream — SSE for live updates */
+export async function streamAttendance(req: Request, res: Response): Promise<void> {
+  const authReq = req as AuthRequest;
+  const { eventId } = req.params;
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
+
+  // Send an initial summary so the dashboard can render immediately.
+  try {
+    const stats = await computeAttendanceStats(Number(eventId));
+    res.write(`event: summary\ndata: ${JSON.stringify({ stats })}\n\n`);
+  } catch {
+    /* ignore — stream still useful for upcoming check-ins */
+  }
+
+  const heartbeat = setInterval(() => {
+    try { res.write(`:hb ${Date.now()}\n\n`); } catch { /* noop */ }
+  }, 25_000);
+
+  const sub: Subscriber = { eventId: Number(eventId), res, heartbeat };
+  subscribers.add(sub);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    subscribers.delete(sub);
+    try { res.end(); } catch { /* noop */ }
+  });
+}
+
+/** Called by other controllers to push a new event onto the SSE stream. */
+export function broadcastAttendanceEvent(
+  eventId: number,
+  payload: Record<string, unknown>,
+): void {
+  const body = `event: attendance\ndata: ${JSON.stringify(payload)}\n\n`;
+  // Recompute summary asynchronously and push as a second SSE frame so
+  // subscribers stay in sync without an extra round-trip.
+  for (const sub of subscribers) {
+    if (sub.eventId !== eventId) continue;
+    try {
+      sub.res.write(body);
+    } catch {
+      try { clearInterval(sub.heartbeat); } catch { /* noop */ }
+      subscribers.delete(sub);
+    }
+  }
+  void computeAttendanceStats(eventId)
+    .then((stats) => {
+      const summaryFrame = `event: summary\ndata: ${JSON.stringify({ stats })}\n\n`;
+      for (const sub of subscribers) {
+        if (sub.eventId !== eventId) continue;
+        try { sub.res.write(summaryFrame); } catch { /* noop */ }
+      }
+    })
+    .catch(() => undefined);
+}

@@ -407,8 +407,8 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
     await db.run(
       `INSERT INTO expenses (event_id, category_id, title, amount, payment_status, vendor_name, notes, created_by)
        VALUES
-       (?, ?, 'Main stage lighting', 4200, 'Paid', 'Luma Sound Co.', 'Paid deposit confirmed.', ?),
-       (?, ?, 'Artist green room catering', 1500, 'Pending', 'Fresh Plate Catering', 'Final headcount due next week.', ?)`,
+       (?, ?, 'Main stage lighting', 4200, 'paid', 'Luma Sound Co.', 'Paid deposit confirmed.', ?),
+       (?, ?, 'Artist green room catering', 1500, 'pending', 'Fresh Plate Catering', 'Final headcount due next week.', ?)`,
       [event.id, productionCategory.id, admin.id, event.id, cateringCategory.id, admin.id],
     );
   }
@@ -536,6 +536,131 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
   }
 }
 
+async function seedDevelopmentExtraData(db: DatabaseAdapter): Promise<void> {
+  if (process.env.NODE_ENV === 'production') return;
+
+  const admin = await db.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['admin@festival.local']);
+  const attendee = await db.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['alice@email.com']);
+  if (!admin) return;
+
+  const draftTitle = 'Autumn Wine Festival (Draft)';
+  const draft = await db.get<{ id: number }>(
+    'SELECT id FROM events WHERE title = ? AND created_by = ? AND deleted_at IS NULL ORDER BY id LIMIT 1',
+    [draftTitle, admin.id],
+  );
+  if (!draft) {
+    await db.run(
+      `INSERT INTO events (title, date, location, description, capacity, status, created_by,
+        created_at, updated_at, event_type, tags, is_public, end_date)
+       VALUES (?, ?, ?, ?, ?, 'Draft', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Food', 'wine,fall,private', FALSE, ?)`,
+      [draftTitle, '2026-10-12', 'Vine & Hill Estate', 'Planning stage for the autumn invitational tasting.', 120, admin.id, '2026-10-13'],
+    );
+  }
+
+  const completedTitle = 'Spring Tech Conference 2026';
+  const completed = await db.get<{ id: number }>(
+    'SELECT id FROM events WHERE title = ? AND created_by = ? AND deleted_at IS NULL ORDER BY id LIMIT 1',
+    [completedTitle, admin.id],
+  );
+  if (!completed) {
+    await db.run(
+      `INSERT INTO events (title, date, location, description, capacity, status, created_by,
+        created_at, updated_at, event_type, tags, is_public, end_date)
+       VALUES (?, ?, ?, ?, ?, 'Completed', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Conference', 'tech,past', TRUE, ?)`,
+      [completedTitle, '2026-03-04', 'Innovation Hall', 'Annual tech meetup that wrapped up successfully.', 400, admin.id, '2026-03-06'],
+    );
+  }
+
+  const launchEvent = await db.get<{ id: number }>(
+    'SELECT id FROM events WHERE title = ? AND created_by = ? AND deleted_at IS NULL ORDER BY id LIMIT 1',
+    [DEV_DEMO_EVENT.title, admin.id],
+  );
+
+  if (launchEvent?.id) {
+    const musicCategory = await db.get<{ id: number }>('SELECT id FROM categories WHERE name = ?', ['Music']);
+    if (musicCategory) {
+      await db.run(
+        `INSERT INTO event_categories (event_id, category_id) VALUES (?, ?) ON CONFLICT DO NOTHING`,
+        [launchEvent.id, musicCategory.id],
+      );
+    }
+
+    const albumCount = await db.get<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM gallery_albums WHERE event_id = ?',
+      [launchEvent.id],
+    );
+    if (Number(albumCount?.count ?? '0') === 0) {
+      await db.run(
+        `INSERT INTO gallery_albums (event_id, name, description, created_by)
+         VALUES (?, 'Soundcheck Day', 'Behind-the-scenes from rehearsals.', ?)`,
+        [launchEvent.id, admin.id],
+      );
+    }
+
+    const activityCount = await db.get<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM activity_feed WHERE event_id = ?',
+      [launchEvent.id],
+    );
+    if (Number(activityCount?.count ?? '0') === 0) {
+      await db.run(
+        `INSERT INTO activity_feed (event_id, user_id, action_type, description, link)
+         VALUES
+         (?, ?, 'event_created', 'Eventora Launch Festival workspace created.', ?),
+         (?, ?, 'rsvp_added', 'Alice confirmed her RSVP.', ?),
+         (?, ?, 'expense_added', 'Main stage lighting expense recorded.', ?)`,
+        [
+          launchEvent.id, admin.id, `/events/${launchEvent.id}`,
+          launchEvent.id, admin.id, `/events/${launchEvent.id}/rsvps`,
+          launchEvent.id, admin.id, `/events/${launchEvent.id}/budget`,
+        ],
+      );
+    }
+
+    const commLogCount = await db.get<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM communication_log WHERE event_id = ?',
+      [launchEvent.id],
+    );
+    if (Number(commLogCount?.count ?? '0') === 0) {
+      await db.run(
+        `INSERT INTO communication_log (event_id, guest_email, communication_type, subject, content, status, sent_by)
+         VALUES
+         (?, 'alice@email.com', 'rsvp_confirmation', 'Your RSVP is confirmed', 'Thanks for confirming. See you on June 18!', 'sent', ?),
+         (?, 'marcus@example.com', 'reminder', 'Don''t forget to RSVP', 'A friendly reminder to confirm your spot.', 'sent', ?)`,
+        [launchEvent.id, admin.id, launchEvent.id, admin.id],
+      );
+    }
+  }
+
+  const notifCount = await db.get<{ count: string }>(
+    'SELECT COUNT(*)::text AS count FROM notifications WHERE user_id = ?',
+    [admin.id],
+  );
+  if (Number(notifCount?.count ?? '0') === 0) {
+    await db.run(
+      `INSERT INTO notifications (user_id, type, title, body, link, is_read)
+       VALUES
+       (?, 'rsvp', 'New RSVP received', 'Sofia Patel responded Maybe.', '/events', FALSE),
+       (?, 'task', 'Task due soon', 'Confirm headline artist is due in 3 days.', '/events', FALSE),
+       (?, 'budget', 'Budget alert', 'Catering category at 21% of allocated.', '/events', TRUE)`,
+      [admin.id, admin.id, admin.id],
+    );
+  }
+
+  if (attendee) {
+    const attendeeNotif = await db.get<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM notifications WHERE user_id = ?',
+      [attendee.id],
+    );
+    if (Number(attendeeNotif?.count ?? '0') === 0) {
+      await db.run(
+        `INSERT INTO notifications (user_id, type, title, body, link, is_read)
+         VALUES (?, 'invite', 'You were invited', 'Welcome to Eventora Launch Festival.', '/events', FALSE)`,
+        [attendee.id],
+      );
+    }
+  }
+}
+
 export async function initializeDatabase(): Promise<DatabaseAdapter> {
   if (dbWrapper) return dbWrapper;
 
@@ -554,6 +679,7 @@ export async function initializeDatabase(): Promise<DatabaseAdapter> {
   await runMigrations(dbWrapper);
   await seedDevelopmentDemoUsers(dbWrapper);
   await seedDevelopmentDemoWorkspace(dbWrapper);
+  await seedDevelopmentExtraData(dbWrapper);
   return dbWrapper;
 }
 
@@ -906,7 +1032,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       category_id INTEGER REFERENCES budget_categories(id) ON DELETE SET NULL,
       title TEXT NOT NULL,
       amount NUMERIC(10,2) NOT NULL,
-      payment_status TEXT CHECK(payment_status IN ('Pending','Paid','Overdue','Cancelled')) DEFAULT 'Pending',
+      payment_status TEXT CHECK(payment_status IN ('pending','paid','overdue','cancelled')) DEFAULT 'pending',
       vendor_name TEXT,
       notes TEXT,
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -2016,4 +2142,132 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     )
   `);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_template_sections_template_id ON event_template_sections(template_id)`);
+
+  // ── Guest profile completeness fields (#529, #543, #547, #582) ────────────
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS address_line1 TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS address_line2 TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS city TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS state_region TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS postal_code TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS country TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS company TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS title TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS relation_type TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS age_group TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS emergency_contact_name TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS emergency_contact_phone TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS profile_completeness INTEGER DEFAULT 0`);
+
+  // ── RSVP taxonomy alignment (#544, #584) ─────────────────────────────────
+  // Add canonical_status that maps legacy free-text status to the BRD/FRD set:
+  // pending | confirmed | declined | maybe | waitlist | cancelled | checked_in | no_show
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS canonical_status TEXT`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_rsvps_canonical_status ON rsvps(event_id, canonical_status)`,
+  );
+
+  // ── Meal selection (#591) ────────────────────────────────────────────────
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS meal_choice TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS meal_options_locked BOOLEAN DEFAULT FALSE`);
+
+  // ── Late arrival flag (#594) ─────────────────────────────────────────────
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS late_arrival BOOLEAN DEFAULT FALSE`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS arrival_delay_minutes INTEGER`);
+
+  // ── Unsubscribe / communication preferences (#545, #590) ─────────────────
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS unsubscribed_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS unsubscribe_token TEXT`);
+  await db.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_rsvps_unsubscribe_token ON rsvps(unsubscribe_token) WHERE unsubscribe_token IS NOT NULL`,
+  );
+
+  // Per-event meal catalog (#591)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_meal_options (
+      id         SERIAL PRIMARY KEY,
+      event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name       TEXT NOT NULL,
+      description TEXT,
+      is_active  BOOLEAN DEFAULT TRUE,
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (event_id, name)
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_event_meal_options_event ON event_meal_options(event_id)`,
+  );
+
+  // ── Communication templates (#590) ───────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS communication_templates (
+      id         SERIAL PRIMARY KEY,
+      event_id   INTEGER REFERENCES events(id) ON DELETE CASCADE,
+      slug       TEXT NOT NULL,
+      name       TEXT NOT NULL,
+      subject    TEXT NOT NULL,
+      body       TEXT NOT NULL,
+      is_default BOOLEAN DEFAULT FALSE,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (event_id, slug)
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_comm_templates_event ON communication_templates(event_id)`,
+  );
+
+  // ── Attendance audit log (#594, #595) — every scan/check-in event ────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS attendance_events (
+      id           SERIAL PRIMARY KEY,
+      event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      rsvp_id      INTEGER NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
+      action       TEXT NOT NULL CHECK (action IN ('checked_in','undo_checkin','scanned','no_show')),
+      source       TEXT NOT NULL DEFAULT 'manual',
+      occurred_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      actor_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      metadata     JSONB
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_attendance_events_event ON attendance_events(event_id, occurred_at DESC)`,
+  );
+
+  // ── Group seating (#593) ─────────────────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS seating_groups (
+      id          SERIAL PRIMARY KEY,
+      event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name        TEXT NOT NULL,
+      seat_together BOOLEAN DEFAULT TRUE,
+      preferred_table_id INTEGER REFERENCES seating_tables(id) ON DELETE SET NULL,
+      notes       TEXT,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (event_id, name)
+    )
+  `);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS seating_group_id INTEGER`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_rsvps_seating_group ON rsvps(seating_group_id)`,
+  );
+
+  // Backfill canonical_status from legacy free-text status on first run.
+  await db.exec(`
+    UPDATE rsvps SET canonical_status = CASE
+      WHEN canonical_status IS NOT NULL THEN canonical_status
+      WHEN waitlist_position IS NOT NULL THEN 'waitlist'
+      WHEN checked_in = TRUE THEN 'checked_in'
+      WHEN LOWER(status) IN ('going','yes','confirmed','accepted') THEN 'confirmed'
+      WHEN LOWER(status) IN ('not going','declined','no','rejected') THEN 'declined'
+      WHEN LOWER(status) IN ('maybe','tentative') THEN 'maybe'
+      WHEN LOWER(status) IN ('cancelled','canceled') THEN 'cancelled'
+      WHEN LOWER(status) IN ('pending','invited','sent') THEN 'pending'
+      ELSE 'pending'
+    END
+    WHERE canonical_status IS NULL OR canonical_status = ''
+  `);
 }

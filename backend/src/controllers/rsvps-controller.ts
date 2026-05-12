@@ -4,12 +4,111 @@ import { createRsvpNotification } from './notifications-controller.js';
 import { logActivity } from './activity-feed-controller.js';
 import { requireEventAccess } from '../utils/event-access.js';
 import { addToWaitlist, runPromotion } from './waitlist-controller.js';
+import { toCanonicalStatus, type CanonicalRsvpStatus } from '../utils/rsvp-taxonomy.js';
+import {
+  computeProfileCompleteness,
+  type GuestProfileFields,
+} from '../utils/profile-completeness.js';
+import { listMealOptionsForEvent } from './meal-options-controller.js';
 
 interface RsvpRow {
   id: number;
   event_id: number;
   status: string;
   guests: number;
+}
+
+/**
+ * BRD v2 guest profile fields that may be supplied on create/update (#582).
+ * Kept as a single list so create + update + import share the same column
+ * names and the canonical-status / completeness recalculation paths run in
+ * one place.
+ */
+const PROFILE_FIELDS = [
+  'phone',
+  'dietary_restriction',
+  'accessibility_needs',
+  'plus_one',
+  'plus_one_name',
+  'guest_group',
+  'rsvp_deadline',
+  'address_line1',
+  'address_line2',
+  'city',
+  'state_region',
+  'postal_code',
+  'country',
+  'company',
+  'title',
+  'relation_type',
+  'age_group',
+  'emergency_contact_name',
+  'emergency_contact_phone',
+  'meal_choice',
+] as const;
+type ProfileField = (typeof PROFILE_FIELDS)[number];
+
+interface RsvpFull extends RsvpRow, GuestProfileFields {
+  name?: string | null;
+  email?: string | null;
+  checked_in?: boolean;
+  checked_in_at?: string | null;
+  canonical_status?: string | null;
+  late_arrival?: boolean | null;
+  arrival_delay_minutes?: number | null;
+  waitlist_position?: number | null;
+  meal_choice?: string | null;
+  profile_completeness?: number;
+}
+
+async function recomputeCompleteness(rsvpId: number): Promise<void> {
+  const db = getDatabase();
+  const row = await db.get<GuestProfileFields>(
+    `SELECT name, email, phone, address_line1, city, postal_code, country,
+            company, title, relation_type, age_group,
+            emergency_contact_name, emergency_contact_phone,
+            dietary_restriction, accessibility_needs
+     FROM rsvps WHERE id = ?`,
+    [rsvpId],
+  );
+  if (!row) return;
+  const score = computeProfileCompleteness(row);
+  await db.run(`UPDATE rsvps SET profile_completeness = ? WHERE id = ?`, [score, rsvpId]);
+}
+
+async function recomputeCanonicalStatus(rsvpId: number, override?: CanonicalRsvpStatus): Promise<void> {
+  const db = getDatabase();
+  if (override) {
+    await db.run(`UPDATE rsvps SET canonical_status = ? WHERE id = ?`, [override, rsvpId]);
+    return;
+  }
+  const row = await db.get<{ status: string; waitlist_position: number | null; checked_in: boolean }>(
+    `SELECT status, waitlist_position, checked_in FROM rsvps WHERE id = ?`,
+    [rsvpId],
+  );
+  if (!row) return;
+  const canonical = toCanonicalStatus(row.status, {
+    waitlisted: row.waitlist_position !== null,
+    checkedIn: row.checked_in,
+  });
+  await db.run(`UPDATE rsvps SET canonical_status = ? WHERE id = ?`, [canonical, rsvpId]);
+}
+
+/**
+ * Reject RSVP submissions / edits made after the event's RSVP deadline (#585).
+ * Authenticated organizers/admins are still allowed to edit so they can
+ * accommodate phone-in requests after the cutoff.
+ */
+async function isDeadlinePassed(eventId: string | number): Promise<{ passed: boolean; deadline: string | null }> {
+  const db = getDatabase();
+  const row = await db.get<{ rsvp_deadline: string | null }>(
+    `SELECT rsvp_deadline FROM events WHERE id = ? AND deleted_at IS NULL`,
+    [eventId],
+  );
+  if (!row?.rsvp_deadline) return { passed: false, deadline: null };
+  const deadline = new Date(row.rsvp_deadline);
+  if (Number.isNaN(deadline.getTime())) return { passed: false, deadline: row.rsvp_deadline };
+  return { passed: Date.now() > deadline.getTime(), deadline: row.rsvp_deadline };
 }
 
 interface AuthRequest extends Request {
@@ -69,8 +168,14 @@ export async function listRsvps(req: Request, res: Response): Promise<Response> 
 export async function getPublicRsvpContext(req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
   const { eventId } = req.params;
-  const event = await db.get<{ id: number; title: string; description: string | null; location: string | null; date: string; event_date: string; capacity: number | null }>(
-    'SELECT id, title, description, location, date, date AS event_date, capacity FROM events WHERE id = ? AND deleted_at IS NULL',
+  const event = await db.get<{
+    id: number; title: string; description: string | null; location: string | null;
+    date: string; event_date: string; capacity: number | null; rsvp_deadline: string | null;
+    waitlist_enabled: boolean | null;
+  }>(
+    `SELECT id, title, description, location, date, date AS event_date, capacity,
+            rsvp_deadline, waitlist_enabled
+     FROM events WHERE id = ? AND deleted_at IS NULL`,
     [eventId],
   );
   if (!event) return res.status(404).json({ error: 'Event not found.' });
@@ -78,41 +183,33 @@ export async function getPublicRsvpContext(req: Request, res: Response): Promise
   const goingGuests = await getGoingGuestsTotal(db, eventId);
   const remainingCapacity = event.capacity === null ? null : Math.max(event.capacity - goingGuests, 0);
 
-  return res.json({ event, remainingCapacity });
+  // Public-facing meal options (#591) so the no-login RSVP page can render
+  // a meal picker. Inactive options are hidden.
+  const mealOptions = await listMealOptionsForEvent(eventId, true);
+
+  // Deadline indicator drives the public form's read-only state (#585, #588).
+  const deadline = await isDeadlinePassed(eventId);
+
+  return res.json({
+    event,
+    remainingCapacity,
+    mealOptions: mealOptions.map((o) => ({ id: o.id, name: o.name, description: o.description })),
+    rsvpDeadline: event.rsvp_deadline,
+    deadlinePassed: deadline.passed,
+    waitlistEnabled: Boolean(event.waitlist_enabled),
+  });
 }
 
 /** POST /api/events/:eventId/rsvps  (public — no auth) */
 export async function createRsvp(req: Request, res: Response): Promise<Response> {
   const { eventId } = req.params;
-  const {
-    name,
-    email,
-    status,
-    notes,
-    guests,
-    phone,
-    dietary_restriction,
-    accessibility_needs,
-    plus_one,
-    plus_one_name,
-    guest_group,
-    rsvp_deadline,
-    waitlist,
-  } = req.body as {
-    name?: string;
-    email?: string;
-    status?: string;
-    notes?: string;
-    guests?: number | string;
-    phone?: string;
-    dietary_restriction?: string;
-    accessibility_needs?: string;
-    plus_one?: boolean;
-    plus_one_name?: string;
-    guest_group?: string;
-    rsvp_deadline?: string;
-    waitlist?: boolean;
-  };
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const name = body.name as string | undefined;
+  const email = body.email as string | undefined;
+  const status = body.status as string | undefined;
+  const notes = body.notes as string | undefined;
+  const guests = body.guests as number | string | undefined;
+  const waitlist = body.waitlist as boolean | undefined;
 
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required.' });
   if (!email?.trim()) return res.status(400).json({ error: 'Email is required.' });
@@ -127,6 +224,19 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   const db = getDatabase();
   const event = await db.get<{ id: number }>('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
   if (!event) return res.status(404).json({ error: 'Event not found.' });
+
+  // Deadline enforcement (#585) — public submissions are rejected after the
+  // cutoff. Authenticated organizers retain the ability to add late RSVPs.
+  const authReq = req as AuthRequest;
+  if (!authReq.user) {
+    const dl = await isDeadlinePassed(eventId);
+    if (dl.passed) {
+      return res.status(403).json({
+        error: 'The RSVP deadline for this event has passed.',
+        rsvp_deadline: dl.deadline,
+      });
+    }
+  }
 
   // Capacity handling (#442): when full, opt-in waitlisting puts the guest in
   // the queue with status preserved so promotion is a one-step move.
@@ -144,40 +254,67 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   }
 
   // Determine source based on whether request is authenticated
-  const authReq = req as AuthRequest;
   const source = authReq.user ? 'internal' : 'public';
 
+  // Build the optional-field part of the insert dynamically so adding columns
+  // does not require touching every code path.
+  const profileValues: Record<ProfileField, unknown> = {
+    phone: typeof body.phone === 'string' ? body.phone.trim() || null : null,
+    dietary_restriction: typeof body.dietary_restriction === 'string'
+      ? (body.dietary_restriction.trim() || 'None')
+      : 'None',
+    accessibility_needs: typeof body.accessibility_needs === 'string'
+      ? body.accessibility_needs.trim() || null
+      : null,
+    plus_one: Boolean(body.plus_one),
+    plus_one_name: typeof body.plus_one_name === 'string' ? body.plus_one_name.trim() || null : null,
+    guest_group: typeof body.guest_group === 'string' ? body.guest_group.trim() || null : null,
+    rsvp_deadline: typeof body.rsvp_deadline === 'string' && body.rsvp_deadline ? body.rsvp_deadline : null,
+    address_line1: typeof body.address_line1 === 'string' ? body.address_line1.trim() || null : null,
+    address_line2: typeof body.address_line2 === 'string' ? body.address_line2.trim() || null : null,
+    city: typeof body.city === 'string' ? body.city.trim() || null : null,
+    state_region: typeof body.state_region === 'string' ? body.state_region.trim() || null : null,
+    postal_code: typeof body.postal_code === 'string' ? body.postal_code.trim() || null : null,
+    country: typeof body.country === 'string' ? body.country.trim() || null : null,
+    company: typeof body.company === 'string' ? body.company.trim() || null : null,
+    title: typeof body.title === 'string' ? body.title.trim() || null : null,
+    relation_type: typeof body.relation_type === 'string' ? body.relation_type.trim() || null : null,
+    age_group: typeof body.age_group === 'string' ? body.age_group.trim() || null : null,
+    emergency_contact_name: typeof body.emergency_contact_name === 'string' ? body.emergency_contact_name.trim() || null : null,
+    emergency_contact_phone: typeof body.emergency_contact_phone === 'string' ? body.emergency_contact_phone.trim() || null : null,
+    meal_choice: typeof body.meal_choice === 'string' ? body.meal_choice.trim() || null : null,
+  };
+
+  const columns = [
+    'event_id', 'name', 'email', 'guests', 'status', 'notes', 'source',
+    ...PROFILE_FIELDS,
+  ];
+  const placeholders = columns.map(() => '?').join(', ');
+  const values = [
+    eventId,
+    name.trim(),
+    email.trim().toLowerCase(),
+    guestCount,
+    status || 'Pending',
+    notes?.trim() || null,
+    source,
+    ...PROFILE_FIELDS.map((f) => profileValues[f]),
+  ];
+
   const result = await db.run(
-    `INSERT INTO rsvps (
-       event_id, name, email, guests, status, notes, source,
-       phone, dietary_restriction, accessibility_needs,
-       plus_one, plus_one_name, guest_group, rsvp_deadline
-     )
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     RETURNING id`,
-    [
-      eventId,
-      name.trim(),
-      email.trim().toLowerCase(),
-      guestCount,
-      status || 'Pending',
-      notes?.trim() || null,
-      source,
-      phone?.trim() || null,
-      dietary_restriction?.trim() || 'None',
-      accessibility_needs?.trim() || null,
-      Boolean(plus_one),
-      plus_one_name?.trim() || null,
-      guest_group?.trim() || null,
-      rsvp_deadline || null,
-    ],
+    `INSERT INTO rsvps (${columns.join(', ')}) VALUES (${placeholders}) RETURNING id`,
+    values,
   );
 
   if (queueOnCreate && result.lastID) {
     await addToWaitlist(db, result.lastID, Number(eventId));
   }
+  if (result.lastID) {
+    await recomputeCanonicalStatus(result.lastID, queueOnCreate ? 'waitlist' : undefined);
+    await recomputeCompleteness(result.lastID);
+  }
 
-  const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ?', [result.lastID]);
+  const rsvp = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = ?', [result.lastID]);
 
   // Fire notification to event owner when a new RSVP is confirmed
   if ((status || 'Pending') === 'Going' && !queueOnCreate) {
@@ -203,35 +340,22 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
   const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ? AND event_id = ?', [id, eventId]);
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
-  const {
-    name,
-    email,
-    status,
-    notes,
-    guests,
-    phone,
-    dietary_restriction,
-    accessibility_needs,
-    plus_one,
-    plus_one_name,
-    guest_group,
-    rsvp_deadline,
-  } = req.body as Record<string, string | boolean>;
+  const body = (req.body ?? {}) as Record<string, unknown>;
   const fields: string[] = [];
-  const params: (string | number | null)[] = [];
+  const params: (string | number | boolean | null)[] = [];
 
   let nextGuests = Number(rsvp.guests ?? 1);
   let nextStatus = rsvp.status;
-  if (guests !== undefined) {
-    const parsed = parseGuests(guests);
+  if (body.guests !== undefined) {
+    const parsed = parseGuests(body.guests);
     nextGuests = parsed;
     fields.push('guests = ?');
     params.push(parsed);
   }
-  if (status !== undefined) {
-    nextStatus = String(status);
+  if (typeof body.status === 'string') {
+    nextStatus = body.status;
     fields.push('status = ?');
-    params.push(String(status));
+    params.push(body.status);
   }
 
   if (isGoing(nextStatus)) {
@@ -244,25 +368,27 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
     }
   }
 
-  if (name !== undefined) { fields.push('name = ?'); params.push(String(name).trim()); }
-  if (email !== undefined) { fields.push('email = ?'); params.push(String(email).trim().toLowerCase()); }
-  if (notes !== undefined) { fields.push('notes = ?'); params.push(String(notes).trim() || null); }
-  if (phone !== undefined) { fields.push('phone = ?'); params.push(String(phone).trim() || null); }
-  if (dietary_restriction !== undefined) {
-    fields.push('dietary_restriction = ?');
-    params.push(String(dietary_restriction).trim() || 'None');
+  if (typeof body.name === 'string') { fields.push('name = ?'); params.push(body.name.trim()); }
+  if (typeof body.email === 'string') { fields.push('email = ?'); params.push(body.email.trim().toLowerCase()); }
+  if (body.notes !== undefined) { fields.push('notes = ?'); params.push(typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim() : null); }
+
+  for (const field of PROFILE_FIELDS) {
+    if (body[field] === undefined) continue;
+    const raw = body[field];
+    if (field === 'plus_one') {
+      fields.push(`${field} = ?`);
+      params.push(Boolean(raw));
+      continue;
+    }
+    if (field === 'dietary_restriction') {
+      fields.push(`${field} = ?`);
+      params.push(typeof raw === 'string' && raw.trim() ? raw.trim() : 'None');
+      continue;
+    }
+    fields.push(`${field} = ?`);
+    if (raw === null) { params.push(null); continue; }
+    params.push(typeof raw === 'string' ? (raw.trim() || null) : (raw as string));
   }
-  if (accessibility_needs !== undefined) {
-    fields.push('accessibility_needs = ?');
-    params.push(String(accessibility_needs).trim() || null);
-  }
-  if (plus_one !== undefined) { fields.push('plus_one = ?'); params.push(plus_one ? 1 : 0); }
-  if (plus_one_name !== undefined) {
-    fields.push('plus_one_name = ?');
-    params.push(String(plus_one_name).trim() || null);
-  }
-  if (guest_group !== undefined) { fields.push('guest_group = ?'); params.push(String(guest_group).trim() || null); }
-  if (rsvp_deadline !== undefined) { fields.push('rsvp_deadline = ?'); params.push(String(rsvp_deadline).trim() || null); }
 
   if (fields.length === 0) return res.status(400).json({ error: 'No fields to update.' });
 
@@ -270,7 +396,9 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
   params.push(id);
 
   await db.run(`UPDATE rsvps SET ${fields.join(', ')} WHERE id = ?`, params);
-  const updated = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ?', [id]);
+  await recomputeCanonicalStatus(Number(id));
+  await recomputeCompleteness(Number(id));
+  const updated = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = ?', [id]);
 
   if (nextStatus === 'Going') {
     await logActivity(
@@ -326,49 +454,39 @@ export async function exportRsvpsCsv(req: Request, res: Response): Promise<Respo
   const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
   if (!event) return res as Response;
 
-  const rows = await db.all<{
-    name: string;
-    email: string;
-    phone: string | null;
-    status: string;
-    guests: number;
-    notes: string | null;
-    dietary_restriction: string | null;
-    accessibility_needs: string | null;
-    plus_one: boolean;
-    plus_one_name: string | null;
-    guest_group: string | null;
-    checked_in: boolean;
-    created_at: string;
-  }>(
-    `SELECT name, email, phone, status, guests, notes,
-            dietary_restriction, accessibility_needs,
-            plus_one, plus_one_name, guest_group, checked_in, created_at
+  const rows = await db.all<Record<string, unknown>>(
+    `SELECT name, email, phone, status, canonical_status, guests, notes,
+            dietary_restriction, accessibility_needs, meal_choice,
+            plus_one, plus_one_name, guest_group,
+            company, title, relation_type, age_group,
+            address_line1, address_line2, city, state_region, postal_code, country,
+            emergency_contact_name, emergency_contact_phone,
+            checked_in, checked_in_at, late_arrival,
+            profile_completeness, unsubscribed_at, created_at
      FROM rsvps WHERE event_id = ? ORDER BY created_at DESC`,
     [eventId],
   );
 
+  const columns = [
+    'name', 'email', 'phone', 'status', 'canonical_status', 'guests', 'notes',
+    'dietary_restriction', 'accessibility_needs', 'meal_choice',
+    'plus_one', 'plus_one_name', 'guest_group',
+    'company', 'title', 'relation_type', 'age_group',
+    'address_line1', 'address_line2', 'city', 'state_region', 'postal_code', 'country',
+    'emergency_contact_name', 'emergency_contact_phone',
+    'checked_in', 'checked_in_at', 'late_arrival',
+    'profile_completeness', 'unsubscribed_at', 'submitted_at',
+  ];
+
   const csv = [
-    [
-      'name', 'email', 'phone', 'status', 'guests', 'notes',
-      'dietary_restriction', 'accessibility_needs',
-      'plus_one', 'plus_one_name', 'guest_group', 'checked_in', 'submitted_at',
-    ].join(','),
-    ...rows.map((row) => [
-      csvEscape(row.name),
-      csvEscape(row.email),
-      csvEscape(row.phone ?? ''),
-      csvEscape(row.status),
-      csvEscape(row.guests),
-      csvEscape(row.notes ?? ''),
-      csvEscape(row.dietary_restriction ?? 'None'),
-      csvEscape(row.accessibility_needs ?? ''),
-      csvEscape(row.plus_one ? 'true' : 'false'),
-      csvEscape(row.plus_one_name ?? ''),
-      csvEscape(row.guest_group ?? ''),
-      csvEscape(row.checked_in ? 'true' : 'false'),
-      csvEscape(row.created_at),
-    ].join(',')),
+    columns.join(','),
+    ...rows.map((row) => columns.map((col) => {
+      const key = col === 'submitted_at' ? 'created_at' : col;
+      const v = row[key];
+      if (v === null || v === undefined) return csvEscape('');
+      if (typeof v === 'boolean') return csvEscape(v ? 'true' : 'false');
+      return csvEscape(v);
+    }).join(',')),
   ].join('\n');
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -396,18 +514,44 @@ export async function checkInGuest(req: Request, res: Response): Promise<Respons
     return res.json({ rsvp });
   }
 
+  // Compute late-arrival flag against the event start (#594).
+  const ev = await db.get<{ date: string | null }>(
+    `SELECT date FROM events WHERE id = ?`,
+    [eventId],
+  );
+  let isLate = false;
+  let delayMin: number | null = null;
+  if (ev?.date) {
+    const start = new Date(ev.date).getTime();
+    const now = Date.now();
+    if (Number.isFinite(start) && now > start) {
+      isLate = true;
+      delayMin = Math.round((now - start) / 60000);
+    }
+  }
+
   await db.run(
-    'UPDATE rsvps SET checked_in = TRUE, checked_in_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-    [id],
+    `UPDATE rsvps SET checked_in = TRUE, checked_in_at = CURRENT_TIMESTAMP,
+                     canonical_status = 'checked_in',
+                     late_arrival = ?, arrival_delay_minutes = ?,
+                     updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [isLate, delayMin, id],
   );
 
-  const updated = await db.get<RsvpRow & { name?: string }>('SELECT * FROM rsvps WHERE id = ?', [id]);
+  const updated = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = ?', [id]);
+
+  await db.run(
+    `INSERT INTO attendance_events (event_id, rsvp_id, action, source, actor_id, metadata)
+     VALUES (?, ?, 'checked_in', 'manual', ?, ?::jsonb)`,
+    [eventId, id, authReq.user?.id ?? null, JSON.stringify({ late: isLate, delay_minutes: delayMin })],
+  ).catch(() => undefined);
 
   await logActivity(
     eventId,
     authReq.user?.id ?? null,
     'guest_checked_in',
-    `${updated?.name ?? 'A guest'} checked in`,
+    `${(updated as RsvpFull)?.name ?? 'A guest'} checked in${isLate ? ` (late by ${delayMin ?? '?'} min)` : ''}`,
     `/events/${eventId}`,
   );
 
@@ -487,9 +631,15 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
       const result = await db.run(
         `INSERT INTO rsvps (event_id, name, email, guests, status, notes, source,
                             phone, dietary_restriction, accessibility_needs,
-                            plus_one, plus_one_name, guest_group)
-         VALUES (?, ?, ?, ?, ?, ?, 'import', ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (event_id, email) DO NOTHING`,
+                            plus_one, plus_one_name, guest_group,
+                            company, title, relation_type, age_group,
+                            address_line1, city, postal_code, country,
+                            emergency_contact_name, emergency_contact_phone,
+                            meal_choice)
+         VALUES (?, ?, ?, ?, ?, ?, 'import', ?, ?, ?, ?, ?, ?,
+                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (event_id, email) DO NOTHING
+         RETURNING id`,
         [
           eventId,
           name,
@@ -503,10 +653,25 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
           row['plus_one'] === 'true' ? true : false,
           row['plus_one_name'] || null,
           row['guest_group'] || null,
+          row['company'] || null,
+          row['title'] || null,
+          row['relation_type'] || null,
+          row['age_group'] || null,
+          row['address_line1'] || row['address'] || null,
+          row['city'] || null,
+          row['postal_code'] || row['zip'] || null,
+          row['country'] || null,
+          row['emergency_contact_name'] || null,
+          row['emergency_contact_phone'] || null,
+          row['meal_choice'] || null,
         ],
       );
       if ((result.changes ?? 0) > 0) {
         imported++;
+        if (result.lastID) {
+          await recomputeCanonicalStatus(result.lastID);
+          await recomputeCompleteness(result.lastID);
+        }
       } else {
         skipped++;
       }

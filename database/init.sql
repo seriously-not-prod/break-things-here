@@ -386,7 +386,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   category_id    INTEGER REFERENCES budget_categories(id) ON DELETE SET NULL,
   title          TEXT NOT NULL,
   amount         NUMERIC(10,2) NOT NULL,
-  payment_status TEXT CHECK(payment_status IN ('Pending','Paid','Overdue','Cancelled')) DEFAULT 'Pending',
+  payment_status TEXT CHECK(payment_status IN ('pending','paid','overdue','cancelled')) DEFAULT 'pending',
   vendor_name    TEXT,
   notes          TEXT,
   created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -982,6 +982,104 @@ CREATE TABLE IF NOT EXISTS exchange_rates (
   fetched_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (base_currency, quote_currency)
 );
+
+-- ============================================================
+-- Guest, RSVP, communication, check-in, seating parity
+-- (#529 story; tasks #543-#547, #582-#595)
+-- ============================================================
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS address_line1 TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS address_line2 TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS city TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS state_region TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS postal_code TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS country TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS company TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS relation_type TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS age_group TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS emergency_contact_name TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS emergency_contact_phone TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS profile_completeness INTEGER DEFAULT 0;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS canonical_status TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS meal_choice TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS meal_options_locked BOOLEAN DEFAULT FALSE;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS late_arrival BOOLEAN DEFAULT FALSE;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS arrival_delay_minutes INTEGER;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS unsubscribed_at TIMESTAMP;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS unsubscribe_token TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS seating_group_id INTEGER;
+
+CREATE INDEX IF NOT EXISTS idx_rsvps_canonical_status ON rsvps(event_id, canonical_status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rsvps_unsubscribe_token
+  ON rsvps(unsubscribe_token) WHERE unsubscribe_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_rsvps_seating_group ON rsvps(seating_group_id);
+
+CREATE TABLE IF NOT EXISTS event_meal_options (
+  id          SERIAL PRIMARY KEY,
+  event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  description TEXT,
+  is_active   BOOLEAN DEFAULT TRUE,
+  sort_order  INTEGER DEFAULT 0,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (event_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_event_meal_options_event ON event_meal_options(event_id);
+
+CREATE TABLE IF NOT EXISTS communication_templates (
+  id         SERIAL PRIMARY KEY,
+  event_id   INTEGER REFERENCES events(id) ON DELETE CASCADE,
+  slug       TEXT NOT NULL,
+  name       TEXT NOT NULL,
+  subject    TEXT NOT NULL,
+  body       TEXT NOT NULL,
+  is_default BOOLEAN DEFAULT FALSE,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (event_id, slug)
+);
+CREATE INDEX IF NOT EXISTS idx_comm_templates_event ON communication_templates(event_id);
+
+CREATE TABLE IF NOT EXISTS attendance_events (
+  id           SERIAL PRIMARY KEY,
+  event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  rsvp_id      INTEGER NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
+  action       TEXT NOT NULL CHECK (action IN ('checked_in','undo_checkin','scanned','no_show')),
+  source       TEXT NOT NULL DEFAULT 'manual',
+  occurred_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  actor_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  metadata     JSONB
+);
+CREATE INDEX IF NOT EXISTS idx_attendance_events_event
+  ON attendance_events(event_id, occurred_at DESC);
+
+CREATE TABLE IF NOT EXISTS seating_groups (
+  id                  SERIAL PRIMARY KEY,
+  event_id            INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name                TEXT NOT NULL,
+  seat_together       BOOLEAN DEFAULT TRUE,
+  preferred_table_id  INTEGER REFERENCES seating_tables(id) ON DELETE SET NULL,
+  notes               TEXT,
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (event_id, name)
+);
+
+-- Backfill canonical_status from legacy status text on init.
+UPDATE rsvps SET canonical_status = CASE
+  WHEN canonical_status IS NOT NULL THEN canonical_status
+  WHEN waitlist_position IS NOT NULL THEN 'waitlist'
+  WHEN checked_in = TRUE THEN 'checked_in'
+  WHEN LOWER(status) IN ('going','yes','confirmed','accepted') THEN 'confirmed'
+  WHEN LOWER(status) IN ('not going','declined','no','rejected') THEN 'declined'
+  WHEN LOWER(status) IN ('maybe','tentative') THEN 'maybe'
+  WHEN LOWER(status) IN ('cancelled','canceled') THEN 'cancelled'
+  WHEN LOWER(status) IN ('pending','invited','sent') THEN 'pending'
+  ELSE 'pending'
+END
+WHERE canonical_status IS NULL OR canonical_status = '';
 
 -- ============================================================
 -- Gallery albums, moderation queue & slideshows (#417, #459)
