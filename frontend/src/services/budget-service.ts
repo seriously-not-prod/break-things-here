@@ -65,6 +65,30 @@ export interface ExpenseWorkflowSummary {
   reimbursementRequestedAmount: number;
 }
 
+export interface ExpenseOcrExtractedFields {
+  title: string | null;
+  amount: number | null;
+  vendor_name: string | null;
+  receipt_date: string | null;
+  confidence: number;
+}
+
+export interface ExpenseOcrResult {
+  id: number;
+  event_id: number;
+  expense_id: number;
+  status: 'extracted' | 'applied' | 'failed';
+  extracted_title: string | null;
+  extracted_amount: number | null;
+  extracted_vendor_name: string | null;
+  extracted_date: string | null;
+  confidence: number;
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface BudgetSummary {
   totalAllocated: number;
   totalPlanned: number;
@@ -263,6 +287,35 @@ export async function resolveExpenseReimbursement(
     { decision, note },
   );
   return data.expense;
+}
+
+export async function extractExpenseReceiptOcr(
+  eventId: number | string,
+  expenseId: number,
+  receiptText: string,
+): Promise<{ ocr: ExpenseOcrResult; extracted: ExpenseOcrExtractedFields; can_apply: boolean }> {
+  return api.post<{ ocr: ExpenseOcrResult; extracted: ExpenseOcrExtractedFields; can_apply: boolean }>(
+    `/api/events/${eventId}/expenses/${expenseId}/ocr/extract`,
+    { receipt_text: receiptText },
+  );
+}
+
+export async function applyExpenseReceiptOcr(
+  eventId: number | string,
+  expenseId: number,
+  ocrId: number,
+  payload: {
+    title?: string;
+    amount?: number;
+    vendor_name?: string;
+    notes?: string;
+    override_reason?: string;
+  },
+): Promise<{ expense: Expense; reconciliation: { ocr_id: number; overrides: string[]; overrides_count: number } }> {
+  return api.post<{ expense: Expense; reconciliation: { ocr_id: number; overrides: string[]; overrides_count: number } }>(
+    `/api/events/${eventId}/expenses/${expenseId}/ocr/${ocrId}/apply`,
+    payload,
+  );
 }
 
 export async function deleteExpense(

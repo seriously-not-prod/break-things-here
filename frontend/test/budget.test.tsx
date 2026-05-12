@@ -24,6 +24,8 @@ vi.mock('../src/services/budget-service', async () => {
     reviewExpenseApproval: vi.fn(),
     requestExpenseReimbursement: vi.fn(),
     resolveExpenseReimbursement: vi.fn(),
+    extractExpenseReceiptOcr: vi.fn(),
+    applyExpenseReceiptOcr: vi.fn(),
   };
 });
 
@@ -147,6 +149,43 @@ describe('BudgetPage', () => {
         averagePlannedPercentUsed: 0,
       },
     });
+    mockedService.extractExpenseReceiptOcr.mockResolvedValue({
+      ocr: {
+        id: 77,
+        event_id: 42,
+        expense_id: 11,
+        status: 'extracted',
+        extracted_title: 'Receipt - Coffee Corner',
+        extracted_amount: 125.25,
+        extracted_vendor_name: 'Coffee Corner',
+        extracted_date: '2026-02-20',
+        confidence: 0.9,
+        error_code: null,
+        error_message: null,
+        created_at: '2026-02-20T00:00:00Z',
+        updated_at: '2026-02-20T00:00:00Z',
+      },
+      extracted: {
+        title: 'Receipt - Coffee Corner',
+        amount: 125.25,
+        vendor_name: 'Coffee Corner',
+        receipt_date: '2026-02-20',
+        confidence: 0.9,
+      },
+      can_apply: true,
+    });
+    mockedService.applyExpenseReceiptOcr.mockResolvedValue({
+      expense: {
+        ...MOCK_EXPENSES[1],
+        title: 'Receipt - Coffee Corner',
+        amount: 125.25,
+      },
+      reconciliation: {
+        ocr_id: 77,
+        overrides: ['title', 'amount', 'vendor_name'],
+        overrides_count: 3,
+      },
+    });
   });
 
   afterEach(() => {
@@ -258,6 +297,30 @@ describe('BudgetPage', () => {
       expect(mockedService.createExpense).toHaveBeenCalledOnce();
     });
   }, 15000);
+
+  it('runs OCR extract and apply from expense actions', async () => {
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('Coffee Corner\n2026-02-20\nTotal 125.25');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
+    const user = userEvent.setup();
+
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Budget Management')).toBeInTheDocument();
+    });
+
+    const ocrButtons = screen.getAllByRole('button', { name: /ocr extract/i });
+    await user.click(ocrButtons[0]);
+
+    await waitFor(() => {
+      expect(mockedService.extractExpenseReceiptOcr).toHaveBeenCalled();
+      expect(mockedService.applyExpenseReceiptOcr).toHaveBeenCalled();
+    });
+
+    expect(promptSpy).toHaveBeenCalled();
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
 
   it('opens add category dialog and submits', async () => {
     const newCat: budgetService.BudgetCategory = {
