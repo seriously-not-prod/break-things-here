@@ -390,9 +390,49 @@ CREATE TABLE IF NOT EXISTS expenses (
   vendor_name    TEXT,
   notes          TEXT,
   created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  approval_status TEXT NOT NULL DEFAULT 'pending',
+  approval_note  TEXT,
+  approved_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  approved_at    TIMESTAMP,
+  reimbursement_status TEXT NOT NULL DEFAULT 'not_requested',
+  reimbursement_requested_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  reimbursement_requested_at TIMESTAMP,
+  reimbursed_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  reimbursed_at  TIMESTAMP,
   created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+DO $$
+BEGIN
+  ALTER TABLE expenses
+  ADD CONSTRAINT expenses_approval_status_check
+  CHECK (approval_status IN ('pending','approved','rejected'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE expenses
+  ADD CONSTRAINT expenses_reimbursement_status_check
+  CHECK (reimbursement_status IN ('not_requested','requested','reimbursed','rejected'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS expense_workflow_events (
+  id            SERIAL PRIMARY KEY,
+  event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  expense_id    INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+  action        TEXT NOT NULL,
+  actor_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  from_state    TEXT,
+  to_state      TEXT,
+  note          TEXT,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_event_id ON expense_workflow_events(event_id);
+CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_expense_id ON expense_workflow_events(expense_id);
 
 -- ============================================================
 -- Seating
@@ -789,6 +829,48 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT;
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_base NUMERIC(14,4);
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(18,8);
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approval_note TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_status TEXT NOT NULL DEFAULT 'not_requested';
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_requested_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_requested_at TIMESTAMP;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursed_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursed_at TIMESTAMP;
+
+DO $$
+BEGIN
+  ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expenses_approval_status_check;
+  ALTER TABLE expenses
+  ADD CONSTRAINT expenses_approval_status_check
+  CHECK (approval_status IN ('pending','approved','rejected'));
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expenses_reimbursement_status_check;
+  ALTER TABLE expenses
+  ADD CONSTRAINT expenses_reimbursement_status_check
+  CHECK (reimbursement_status IN ('not_requested','requested','reimbursed','rejected'));
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS expense_workflow_events (
+  id            SERIAL PRIMARY KEY,
+  event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  expense_id    INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+  action        TEXT NOT NULL,
+  actor_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  from_state    TEXT,
+  to_state      TEXT,
+  note          TEXT,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_event_id ON expense_workflow_events(event_id);
+CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_expense_id ON expense_workflow_events(expense_id);
 
 CREATE TABLE IF NOT EXISTS exchange_rates (
   base_currency  TEXT NOT NULL,

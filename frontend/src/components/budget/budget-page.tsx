@@ -31,6 +31,7 @@ import { ApiError } from '../../lib/api-client';
 import {
   BudgetCategory,
   BudgetComparisonResponse,
+  ExpenseWorkflowSummary,
   BudgetSummary,
   computeSummary,
   CreateCategoryPayload,
@@ -43,6 +44,10 @@ import {
   listExpenses,
   createCategory,
   createExpense,
+  getExpenseWorkflowSummary,
+  requestExpenseReimbursement,
+  resolveExpenseReimbursement,
+  reviewExpenseApproval,
   updateCategory,
   updateExpense,
 } from '../../services/budget-service';
@@ -66,6 +71,19 @@ const PAYMENT_COLORS: Record<string, 'default' | 'success' | 'error' | 'warning'
   overdue: 'error',
 };
 
+const APPROVAL_COLORS: Record<string, 'default' | 'success' | 'error' | 'warning'> = {
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'error',
+};
+
+const REIMBURSEMENT_COLORS: Record<string, 'default' | 'success' | 'error' | 'warning'> = {
+  not_requested: 'default',
+  requested: 'warning',
+  reimbursed: 'success',
+  rejected: 'error',
+};
+
 export default function BudgetPage(): JSX.Element {
   const { id: eventId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -87,6 +105,7 @@ export default function BudgetPage(): JSX.Element {
   const [comparisonData, setComparisonData] = useState<BudgetComparisonResponse | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
+  const [workflowSummary, setWorkflowSummary] = useState<ExpenseWorkflowSummary | null>(null);
 
   // Dialog state
   const [catDialogOpen, setCatDialogOpen] = useState(false);
@@ -99,12 +118,14 @@ export default function BudgetPage(): JSX.Element {
     setLoading(true);
     setError(null);
     try {
-      const [cats, exps] = await Promise.all([
+      const [cats, exps, summaryData] = await Promise.all([
         listCategories(eventId),
         listExpenses(eventId),
+        getExpenseWorkflowSummary(eventId),
       ]);
       setCategories(cats);
       setExpenses(exps);
+      setWorkflowSummary(summaryData);
       setSummary(computeSummary(cats));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load budget data.');
@@ -171,6 +192,15 @@ export default function BudgetPage(): JSX.Element {
 
   // ─── Expense handlers ───────────────────────────────────────────────────────
 
+  function upsertExpense(updated: Expense): void {
+    setExpenses((prev) => {
+      const exists = prev.some((expense) => expense.id === updated.id);
+      return exists
+        ? prev.map((expense) => (expense.id === updated.id ? updated : expense))
+        : [updated, ...prev];
+    });
+  }
+
   async function handleSaveExpense(payload: CreateExpensePayload): Promise<void> {
     if (!eventId) return;
     if (editingExpense) {
@@ -197,6 +227,42 @@ export default function BudgetPage(): JSX.Element {
     setCategories(cats);
     setSummary(computeSummary(cats));
     void loadComparison();
+  }
+
+  async function handleApproveExpense(expense: Expense, decision: 'approved' | 'rejected'): Promise<void> {
+    if (!eventId) return;
+    try {
+      const updated = await reviewExpenseApproval(eventId, expense.id, decision);
+      upsertExpense(updated);
+      setWorkflowSummary(await getExpenseWorkflowSummary(eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to review expense approval.');
+    }
+  }
+
+  async function handleRequestReimbursement(expense: Expense): Promise<void> {
+    if (!eventId) return;
+    try {
+      const updated = await requestExpenseReimbursement(eventId, expense.id);
+      upsertExpense(updated);
+      setWorkflowSummary(await getExpenseWorkflowSummary(eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to request reimbursement.');
+    }
+  }
+
+  async function handleResolveReimbursement(expense: Expense, decision: 'reimbursed' | 'rejected'): Promise<void> {
+    if (!eventId) return;
+    try {
+      const updated = await resolveExpenseReimbursement(eventId, expense.id, decision);
+      upsertExpense(updated);
+      const cats = await listCategories(eventId);
+      setCategories(cats);
+      setSummary(computeSummary(cats));
+      setWorkflowSummary(await getExpenseWorkflowSummary(eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to resolve reimbursement.');
+    }
   }
 
   // ─── Render helpers ─────────────────────────────────────────────────────────
@@ -549,6 +615,15 @@ export default function BudgetPage(): JSX.Element {
                     No expenses recorded yet.
                   </Typography>
                 ) : (
+                  <Stack spacing={1.5}>
+                    {workflowSummary && (
+                      <Stack direction="row" flexWrap="wrap" gap={1}>
+                        <Chip label={`Approval pending ${workflowSummary.approval.pending}`} size="small" color="warning" />
+                        <Chip label={`Reimbursement requested ${workflowSummary.reimbursement.requested}`} size="small" color="warning" variant="outlined" />
+                        <Chip label={`Reimbursed ${workflowSummary.reimbursement.reimbursed}`} size="small" color="success" variant="outlined" />
+                        <Chip label={`Requested total ${fmt(workflowSummary.reimbursementRequestedAmount)}`} size="small" variant="outlined" />
+                      </Stack>
+                    )}
                   <TableContainer component={Paper} variant="outlined">
                     <Table size="small" aria-label="Expenses table">
                       <TableHead>
@@ -557,6 +632,8 @@ export default function BudgetPage(): JSX.Element {
                           <TableCell>Category</TableCell>
                           <TableCell align="right">Amount</TableCell>
                           <TableCell>Status</TableCell>
+                          <TableCell>Approval</TableCell>
+                          <TableCell>Reimbursement</TableCell>
                           <TableCell>Vendor</TableCell>
                           <TableCell>Date</TableCell>
                           <TableCell align="right">Actions</TableCell>
@@ -572,6 +649,20 @@ export default function BudgetPage(): JSX.Element {
                               <Chip
                                 label={exp.payment_status}
                                 color={PAYMENT_COLORS[exp.payment_status] ?? 'default'}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={exp.approval_status}
+                                color={APPROVAL_COLORS[exp.approval_status] ?? 'default'}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={exp.reimbursement_status}
+                                color={REIMBURSEMENT_COLORS[exp.reimbursement_status] ?? 'default'}
                                 size="small"
                               />
                             </TableCell>
@@ -591,6 +682,51 @@ export default function BudgetPage(): JSX.Element {
                                   <EditRounded fontSize="small" />
                                 </IconButton>
                               </Tooltip>
+                              {exp.can_approve && (
+                                <>
+                                  <Button
+                                    size="small"
+                                    color="success"
+                                    onClick={() => void handleApproveExpense(exp, 'approved')}
+                                  >
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    color="error"
+                                    onClick={() => void handleApproveExpense(exp, 'rejected')}
+                                  >
+                                    Reject
+                                  </Button>
+                                </>
+                              )}
+                              {exp.can_request_reimbursement && (
+                                <Button
+                                  size="small"
+                                  color="warning"
+                                  onClick={() => void handleRequestReimbursement(exp)}
+                                >
+                                  Request Reimbursement
+                                </Button>
+                              )}
+                              {exp.can_resolve_reimbursement && (
+                                <>
+                                  <Button
+                                    size="small"
+                                    color="success"
+                                    onClick={() => void handleResolveReimbursement(exp, 'reimbursed')}
+                                  >
+                                    Mark Reimbursed
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    color="error"
+                                    onClick={() => void handleResolveReimbursement(exp, 'rejected')}
+                                  >
+                                    Reject Request
+                                  </Button>
+                                </>
+                              )}
                               <Tooltip title="Delete expense">
                                 <IconButton
                                   size="small"
@@ -607,6 +743,7 @@ export default function BudgetPage(): JSX.Element {
                       </TableBody>
                     </Table>
                   </TableContainer>
+                  </Stack>
                 )}
               </CardContent>
             </Card>

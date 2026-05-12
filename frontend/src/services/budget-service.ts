@@ -33,9 +33,36 @@ export interface Expense {
   title: string;
   amount: number;
   payment_status: 'pending' | 'paid' | 'overdue';
+  approval_status: 'pending' | 'approved' | 'rejected';
+  approval_note: string | null;
+  approved_by: number | null;
+  approved_at: string | null;
+  reimbursement_status: 'not_requested' | 'requested' | 'reimbursed' | 'rejected';
+  reimbursement_requested_by: number | null;
+  reimbursement_requested_at: string | null;
+  reimbursed_by: number | null;
+  reimbursed_at: string | null;
+  can_approve: boolean;
+  can_request_reimbursement: boolean;
+  can_resolve_reimbursement: boolean;
   vendor_name: string | null;
   notes: string | null;
   created_at: string;
+}
+
+export interface ExpenseWorkflowSummary {
+  approval: {
+    pending: number;
+    approved: number;
+    rejected: number;
+  };
+  reimbursement: {
+    notRequested: number;
+    requested: number;
+    reimbursed: number;
+    rejected: number;
+  };
+  reimbursementRequestedAmount: number;
 }
 
 export interface BudgetSummary {
@@ -158,6 +185,13 @@ export async function listExpenses(eventId: number | string): Promise<Expense[]>
   return data.expenses;
 }
 
+export async function getExpenseWorkflowSummary(
+  eventId: number | string,
+): Promise<ExpenseWorkflowSummary> {
+  const data = await api.get<{ summary: ExpenseWorkflowSummary }>(`/api/events/${eventId}/expenses/workflow-summary`);
+  return data.summary;
+}
+
 export async function getBudgetComparison(
   eventId: number | string,
 ): Promise<BudgetComparisonResponse> {
@@ -191,6 +225,42 @@ export async function updateExpense(
   const data = await api.put<{ expense: Expense }>(
     `/api/events/${eventId}/expenses/${expenseId}`,
     payload,
+  );
+  return data.expense;
+}
+
+export async function reviewExpenseApproval(
+  eventId: number | string,
+  expenseId: number,
+  decision: 'approved' | 'rejected',
+  note?: string,
+): Promise<Expense> {
+  const data = await api.patch<{ expense: Expense }>(
+    `/api/events/${eventId}/expenses/${expenseId}/approval`,
+    { decision, note },
+  );
+  return data.expense;
+}
+
+export async function requestExpenseReimbursement(
+  eventId: number | string,
+  expenseId: number,
+): Promise<Expense> {
+  const data = await api.post<{ expense: Expense }>(
+    `/api/events/${eventId}/expenses/${expenseId}/reimbursement-request`,
+  );
+  return data.expense;
+}
+
+export async function resolveExpenseReimbursement(
+  eventId: number | string,
+  expenseId: number,
+  decision: 'reimbursed' | 'rejected',
+  note?: string,
+): Promise<Expense> {
+  const data = await api.patch<{ expense: Expense }>(
+    `/api/events/${eventId}/expenses/${expenseId}/reimbursement`,
+    { decision, note },
   );
   return data.expense;
 }
