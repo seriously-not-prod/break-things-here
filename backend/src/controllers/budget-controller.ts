@@ -10,6 +10,10 @@ import { logActivity } from './activity-feed-controller.js';
 import { createBudgetAlert } from './notifications-controller.js';
 import { requireEventAccess } from '../utils/event-access.js';
 import { convertAmount, isValidCurrencyCode, normalizeCurrencyCode } from '../utils/currency.js';
+import {
+  calculateBudgetPlanning,
+  isValidBudgetRate,
+} from '../utils/budget-planning.js';
 
 /**
  * Resolve the FX-converted amount and rate for an expense, given its source
@@ -44,6 +48,45 @@ async function resolveExpenseFxAmount(
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
+}
+
+interface BudgetCategoryRow {
+  id: number;
+  event_id: number;
+  name: string;
+  allocated_amount: number | string;
+  color: string | null;
+  created_at: string;
+  spent: number | string;
+  tax_rate: number | string;
+  gratuity_rate: number | string;
+  contingency_rate: number | string;
+}
+
+function toNumber(value: number | string | null | undefined): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function enrichBudgetCategory(category: BudgetCategoryRow): BudgetCategoryRow & ReturnType<typeof calculateBudgetPlanning> {
+  const allocatedAmount = toNumber(category.allocated_amount);
+  const taxRate = toNumber(category.tax_rate);
+  const gratuityRate = toNumber(category.gratuity_rate);
+  const contingencyRate = toNumber(category.contingency_rate);
+
+  return {
+    ...category,
+    allocated_amount: allocatedAmount,
+    spent: toNumber(category.spent),
+    tax_rate: taxRate,
+    gratuity_rate: gratuityRate,
+    contingency_rate: contingencyRate,
+    ...calculateBudgetPlanning(allocatedAmount, {
+      taxRate,
+      gratuityRate,
+      contingencyRate,
+    }),
+  };
 }
 
 // ─── Internal helper ─────────────────────────────────────────────────────────
@@ -105,31 +148,29 @@ export async function listCategories(req: AuthRequest, res: Response): Promise<v
     const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
     if (!event) return;
 
-    const categories = await db.all<{
-      id: number;
-      event_id: number;
-      name: string;
-      allocated_amount: number;
-      color: string | null;
-      created_at: string;
-      spent: number;
-    }>(
+    const categories = await db.all<BudgetCategoryRow>(
       `SELECT bc.id,
               bc.event_id,
               bc.name,
               bc.allocated_amount,
               bc.color,
               bc.created_at,
+              COALESCE(bc.tax_rate, 0)::numeric AS tax_rate,
+              COALESCE(bc.gratuity_rate, 0)::numeric AS gratuity_rate,
+              COALESCE(bc.contingency_rate, 0)::numeric AS contingency_rate,
               COALESCE(SUM(e.amount), 0)::numeric AS spent
        FROM budget_categories bc
        LEFT JOIN expenses e ON e.category_id = bc.id
        WHERE bc.event_id = ?
-       GROUP BY bc.id, bc.event_id, bc.name, bc.allocated_amount, bc.color, bc.created_at
+       GROUP BY bc.id, bc.event_id, bc.name, bc.allocated_amount, bc.color, bc.created_at,
+                bc.tax_rate, bc.gratuity_rate, bc.contingency_rate
        ORDER BY bc.name ASC`,
       [eventId],
     );
 
-    res.json({ categories });
+    res.json({
+      categories: categories.map(enrichBudgetCategory),
+    });
   } catch (error) {
     console.error('Error listing budget categories:', error);
     res.status(500).json({ error: 'Failed to fetch budget categories' });
@@ -148,10 +189,13 @@ export async function createCategory(req: AuthRequest, res: Response): Promise<v
     const event = await requireEventAccess(req, res, eventId, { ownerOnly: true });
     if (!event) return;
 
-    const { name, allocated_amount, color } = req.body as {
+    const { name, allocated_amount, color, tax_rate, gratuity_rate, contingency_rate } = req.body as {
       name?: unknown;
       allocated_amount?: unknown;
       color?: unknown;
+      tax_rate?: unknown;
+      gratuity_rate?: unknown;
+      contingency_rate?: unknown;
     };
 
     if (typeof name !== 'string' || name.trim() === '') {
@@ -164,21 +208,47 @@ export async function createCategory(req: AuthRequest, res: Response): Promise<v
       return;
     }
     const safeColor = typeof color === 'string' ? color.trim() : null;
+    const parsedTaxRate = tax_rate === undefined ? 0 : Number(tax_rate);
+    const parsedGratuityRate = gratuity_rate === undefined ? 0 : Number(gratuity_rate);
+    const parsedContingencyRate = contingency_rate === undefined ? 0 : Number(contingency_rate);
+
+    if (!isValidBudgetRate(parsedTaxRate)) {
+      res.status(400).json({ error: 'tax_rate must be between 0 and 100' });
+      return;
+    }
+    if (!isValidBudgetRate(parsedGratuityRate)) {
+      res.status(400).json({ error: 'gratuity_rate must be between 0 and 100' });
+      return;
+    }
+    if (!isValidBudgetRate(parsedContingencyRate)) {
+      res.status(400).json({ error: 'contingency_rate must be between 0 and 100' });
+      return;
+    }
 
     const result = await db.run(
-      `INSERT INTO budget_categories (event_id, name, allocated_amount, color)
-       VALUES (?, ?, ?, ?) RETURNING id`,
-      [eventId, name.trim(), parsedAmount, safeColor],
+      `INSERT INTO budget_categories (event_id, name, allocated_amount, color, tax_rate, gratuity_rate, contingency_rate)
+       VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [eventId, name.trim(), parsedAmount, safeColor, parsedTaxRate, parsedGratuityRate, parsedContingencyRate],
     );
 
-    const category = await db.get<{ id: number; event_id: number; name: string; allocated_amount: number; color: string | null; created_at: string }>(
+    const category = await db.get<BudgetCategoryRow>(
       `SELECT bc.id, bc.event_id, bc.name, bc.allocated_amount, bc.color, bc.created_at,
+              COALESCE(bc.tax_rate, 0)::numeric AS tax_rate,
+              COALESCE(bc.gratuity_rate, 0)::numeric AS gratuity_rate,
+              COALESCE(bc.contingency_rate, 0)::numeric AS contingency_rate,
               0 AS spent
        FROM budget_categories bc WHERE bc.id = ?`,
       [result.lastID],
     );
 
-    res.status(201).json({ category });
+    if (!category) {
+      res.status(500).json({ error: 'Failed to load created budget category' });
+      return;
+    }
+
+    res.status(201).json({
+      category: enrichBudgetCategory(category),
+    });
   } catch (error) {
     console.error('Error creating budget category:', error);
     res.status(500).json({ error: 'Failed to create budget category' });
@@ -197,14 +267,22 @@ export async function updateCategory(req: AuthRequest, res: Response): Promise<v
     const event = await requireEventAccess(req, res, eventId, { ownerOnly: true });
     if (!event) return;
 
-    const { name, allocated_amount, color } = req.body as {
+    const { name, allocated_amount, color, tax_rate, gratuity_rate, contingency_rate } = req.body as {
       name?: unknown;
       allocated_amount?: unknown;
       color?: unknown;
+      tax_rate?: unknown;
+      gratuity_rate?: unknown;
+      contingency_rate?: unknown;
     };
 
-    const existing = await db.get(
-      'SELECT id FROM budget_categories WHERE id = ? AND event_id = ?',
+    const existing = await db.get<Pick<BudgetCategoryRow, 'id' | 'tax_rate' | 'gratuity_rate' | 'contingency_rate'>>(
+      `SELECT id,
+              COALESCE(tax_rate, 0)::numeric AS tax_rate,
+              COALESCE(gratuity_rate, 0)::numeric AS gratuity_rate,
+              COALESCE(contingency_rate, 0)::numeric AS contingency_rate
+         FROM budget_categories
+        WHERE id = ? AND event_id = ?`,
       [id, eventId],
     );
     if (!existing) {
@@ -222,23 +300,65 @@ export async function updateCategory(req: AuthRequest, res: Response): Promise<v
       return;
     }
     const safeColor = typeof color === 'string' ? color.trim() : null;
+    const parsedTaxRate = tax_rate === undefined ? toNumber(existing.tax_rate) : Number(tax_rate);
+    const parsedGratuityRate = gratuity_rate === undefined ? toNumber(existing.gratuity_rate) : Number(gratuity_rate);
+    const parsedContingencyRate = contingency_rate === undefined ? toNumber(existing.contingency_rate) : Number(contingency_rate);
+
+    if (!isValidBudgetRate(parsedTaxRate)) {
+      res.status(400).json({ error: 'tax_rate must be between 0 and 100' });
+      return;
+    }
+    if (!isValidBudgetRate(parsedGratuityRate)) {
+      res.status(400).json({ error: 'gratuity_rate must be between 0 and 100' });
+      return;
+    }
+    if (!isValidBudgetRate(parsedContingencyRate)) {
+      res.status(400).json({ error: 'contingency_rate must be between 0 and 100' });
+      return;
+    }
 
     await db.run(
-      `UPDATE budget_categories SET name = ?, allocated_amount = ?, color = ? WHERE id = ?`,
-      [name.trim(), parsedAmount, safeColor, id],
+      `UPDATE budget_categories
+          SET name = ?,
+              allocated_amount = ?,
+              color = ?,
+              tax_rate = ?,
+              gratuity_rate = ?,
+              contingency_rate = ?
+        WHERE id = ?`,
+      [
+        name.trim(),
+        parsedAmount,
+        safeColor,
+        parsedTaxRate,
+        parsedGratuityRate,
+        parsedContingencyRate,
+        id,
+      ],
     );
 
-    const category = await db.get(
+    const category = await db.get<BudgetCategoryRow>(
       `SELECT bc.id, bc.event_id, bc.name, bc.allocated_amount, bc.color, bc.created_at,
+              COALESCE(bc.tax_rate, 0)::numeric AS tax_rate,
+              COALESCE(bc.gratuity_rate, 0)::numeric AS gratuity_rate,
+              COALESCE(bc.contingency_rate, 0)::numeric AS contingency_rate,
               COALESCE(SUM(e.amount), 0)::numeric AS spent
        FROM budget_categories bc
        LEFT JOIN expenses e ON e.category_id = bc.id
        WHERE bc.id = ?
-       GROUP BY bc.id, bc.event_id, bc.name, bc.allocated_amount, bc.color, bc.created_at`,
+       GROUP BY bc.id, bc.event_id, bc.name, bc.allocated_amount, bc.color, bc.created_at,
+                bc.tax_rate, bc.gratuity_rate, bc.contingency_rate`,
       [id],
     );
 
-    res.json({ category });
+    if (!category) {
+      res.status(500).json({ error: 'Failed to load updated budget category' });
+      return;
+    }
+
+    res.json({
+      category: enrichBudgetCategory(category),
+    });
   } catch (error) {
     console.error('Error updating budget category:', error);
     res.status(500).json({ error: 'Failed to update budget category' });
