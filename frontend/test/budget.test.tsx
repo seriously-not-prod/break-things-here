@@ -37,6 +37,13 @@ const MOCK_CATEGORIES: budgetService.BudgetCategory[] = [
     event_id: 42,
     name: 'Venue',
     allocated_amount: 50000,
+    tax_rate: 8.25,
+    gratuity_rate: 10,
+    contingency_rate: 5,
+    taxAmount: 4125,
+    gratuityAmount: 5000,
+    contingencyAmount: 2500,
+    plannedTotal: 61625,
     color: '#F97316',
     created_at: '2026-01-01T00:00:00Z',
     spent: 30000,
@@ -46,6 +53,13 @@ const MOCK_CATEGORIES: budgetService.BudgetCategory[] = [
     event_id: 42,
     name: 'Catering',
     allocated_amount: 20000,
+    tax_rate: 7.5,
+    gratuity_rate: 15,
+    contingency_rate: 3,
+    taxAmount: 1500,
+    gratuityAmount: 3000,
+    contingencyAmount: 600,
+    plannedTotal: 25100,
     color: '#10B981',
     created_at: '2026-01-01T00:00:00Z',
     spent: 5000,
@@ -132,12 +146,12 @@ describe('BudgetPage', () => {
         eventType: 'Music',
         summary: {
           totalAllocated: 70000,
-          totalPlanned: 70000,
+          totalPlanned: 86725,
           totalSpent: 35000,
           remaining: 35000,
-          plannedRemaining: 35000,
+          plannedRemaining: 51725,
           percentUsed: 50,
-          plannedPercentUsed: 50,
+          plannedPercentUsed: 40.36,
           categoryCount: 2,
         },
       },
@@ -328,6 +342,13 @@ describe('BudgetPage', () => {
       event_id: 42,
       name: 'Marketing',
       allocated_amount: 10000,
+      tax_rate: 0,
+      gratuity_rate: 0,
+      contingency_rate: 0,
+      taxAmount: 0,
+      gratuityAmount: 0,
+      contingencyAmount: 0,
+      plannedTotal: 10000,
       color: '#3B82F6',
       created_at: '2026-03-01T00:00:00Z',
       spent: 0,
@@ -360,6 +381,48 @@ describe('BudgetPage', () => {
         tax_rate: expect.any(Number),
         gratuity_rate: expect.any(Number),
         contingency_rate: expect.any(Number),
+      });
+    });
+  }, 15000);
+
+  it('edits a category and submits updated planning rates', async () => {
+    const user = userEvent.setup();
+    const updatedCategory: budgetService.BudgetCategory = {
+      ...MOCK_CATEGORIES[0],
+      tax_rate: 9,
+      gratuity_rate: 12,
+      contingency_rate: 4,
+      taxAmount: 4500,
+      gratuityAmount: 6000,
+      contingencyAmount: 2000,
+      plannedTotal: 62500,
+    };
+    mockedService.updateCategory.mockResolvedValue(updatedCategory);
+
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Budget Management')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /edit venue/i }));
+    const dialog = screen.getByRole('dialog', { name: /edit category/i });
+
+    fireEvent.change(within(dialog).getByLabelText(/category name/i), { target: { value: 'Venue Updated' } });
+    fireEvent.change(within(dialog).getByLabelText(/allocated amount/i), { target: { value: '50000' } });
+    fireEvent.change(within(dialog).getByLabelText(/tax rate/i), { target: { value: '9' } });
+    fireEvent.change(within(dialog).getByLabelText(/gratuity rate/i), { target: { value: '12' } });
+    fireEvent.change(within(dialog).getByLabelText(/contingency rate/i), { target: { value: '4' } });
+
+    await user.click(within(dialog).getByRole('button', { name: /^update$/i }));
+
+    await waitFor(() => {
+      expect(mockedService.updateCategory).toHaveBeenCalledWith('42', 1, {
+        name: 'Venue Updated',
+        allocated_amount: 50000,
+        color: '#F97316',
+        tax_rate: 9,
+        gratuity_rate: 12,
+        contingency_rate: 4,
       });
     });
   }, 15000);
