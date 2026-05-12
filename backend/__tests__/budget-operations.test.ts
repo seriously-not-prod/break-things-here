@@ -1,6 +1,6 @@
 /**
- * Budget Operations Integration Tests
- * Tests CRUD operations for budget categories with tax/gratuity/contingency rate calculations
+ * Budget Category Planning Integration Tests
+ * Tests create/update operations and validation for tax/gratuity/contingency planning rates
  * Issue #548: Budget planning controls (tax, gratuity, contingency)
  */
 
@@ -378,7 +378,6 @@ describe('Budget Category Operations with Rate Calculations (#548)', () => {
 
     expect(res.statusCode).toBe(201);
     const { category } = res.body as { category: Record<string, unknown> };
-    // 199.99 * 7.875% should be 15.74 (rounded to cents)
     // 199.99 * 7.875% = 15.7649375 ≈ 15.76 (rounded to cents)
     expect(category.taxAmount).toBe(15.76);
     expect(category.plannedTotal).toBe(215.75); // 199.99 + 15.76
