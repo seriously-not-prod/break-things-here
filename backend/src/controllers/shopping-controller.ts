@@ -249,17 +249,24 @@ export async function updateItemPriceData(req: Request, res: Response): Promise<
     compared_price_high?: number | string;
   };
 
-  // Validate URL when provided
+  // Validate URL: must be a valid http/https URL to prevent javascript:/data: injection
   if (source_store_url?.trim()) {
     try {
-      new URL(source_store_url.trim());
+      const parsed = new URL(source_store_url.trim());
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return res.status(400).json({ error: 'source_store_url must use http or https.' });
+      }
     } catch {
       return res.status(400).json({ error: 'source_store_url must be a valid URL.' });
     }
   }
 
-  const priceLow = compared_price_low !== undefined && compared_price_low !== '' ? Number(compared_price_low) : null;
-  const priceHigh = compared_price_high !== undefined && compared_price_high !== '' ? Number(compared_price_high) : null;
+  // Trim string inputs before conversion so whitespace-only strings become null, not 0
+  const rawLow = typeof compared_price_low === 'string' ? compared_price_low.trim() : compared_price_low;
+  const rawHigh = typeof compared_price_high === 'string' ? compared_price_high.trim() : compared_price_high;
+
+  const priceLow = rawLow !== undefined && rawLow !== '' ? Number(rawLow) : null;
+  const priceHigh = rawHigh !== undefined && rawHigh !== '' ? Number(rawHigh) : null;
 
   if (priceLow !== null && isNaN(priceLow)) {
     return res.status(400).json({ error: 'compared_price_low must be a valid number.' });

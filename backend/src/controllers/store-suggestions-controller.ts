@@ -205,7 +205,7 @@ export async function deleteStoreSuggestion(req: Request, res: Response): Promis
  *   - query (optional): text search against name/notes/location
  *   - limit (optional, default 10, max 50)
  *
- * Ranking: approved first, then by usage_count DESC, then by recency.
+ * Ranking: approved first, then by usage_count DESC, then by last_used_at DESC (most recently used first, nulls last).
  */
 export async function getStoreSuggestionRecommendations(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
@@ -257,7 +257,7 @@ export async function getStoreSuggestionRecommendations(req: Request, res: Respo
      LEFT JOIN users u ON u.id = ss.suggested_by
      WHERE ${whereClause}
        AND ss.status != 'rejected'
-     ORDER BY rank_score DESC, ss.created_at DESC
+     ORDER BY rank_score DESC, ss.last_used_at DESC NULLS LAST, ss.created_at DESC
      LIMIT ?`,
     [...params, parsedLimit],
   );

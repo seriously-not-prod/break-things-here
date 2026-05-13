@@ -427,8 +427,10 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
             v.name,
             vb.status                                                            AS booking_status,
             COALESCE(vb.total_amount, 0)::numeric                               AS contracted_amount,
-            COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'paid'), 0)::numeric AS paid_amount,
-            COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'pending'), 0)::numeric AS pending_amount,
+            COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'paid'), 0)::numeric     AS paid_amount,
+            COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'pending'), 0)::numeric  AS pending_amount,
+            COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'overdue'), 0)::numeric  AS overdue_amount,
+            COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'cancelled'), 0)::numeric AS cancelled_amount,
             COUNT(vps.id)::int                                                   AS payment_schedule_count
            FROM vendors v
            LEFT JOIN vendor_bookings vb ON vb.vendor_id = v.id AND vb.event_id = v.event_id

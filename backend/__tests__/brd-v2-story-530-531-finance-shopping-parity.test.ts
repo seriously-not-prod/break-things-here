@@ -191,8 +191,8 @@ CREATE TABLE IF NOT EXISTS scheduled_reports (
     'financial_detail','expense_workflow','vendor_spend','price_comparison'
   )),
   frequency   TEXT NOT NULL CHECK (frequency IN ('daily','weekly','monthly')),
-  recipients  TEXT NOT NULL,
-  filters     TEXT,
+  recipients  JSONB NOT NULL,
+  filters     JSONB,
   next_run_at TIMESTAMP NOT NULL,
   last_run_at TIMESTAMP,
   is_active   BOOLEAN NOT NULL DEFAULT TRUE,
@@ -856,7 +856,7 @@ describe('brd-v2 story 530/531 — finance, shopping & store suggestion engine',
         const r = await testDb.run(
           `INSERT INTO scheduled_reports
              (event_id, report_type, frequency, recipients, next_run_at, created_by, updated_by)
-           VALUES (?, ?, 'weekly', 'x@x.com', CURRENT_TIMESTAMP + INTERVAL '1 day', ?, ?)
+           VALUES (?, ?, 'weekly', '["x@x.com"]'::jsonb, CURRENT_TIMESTAMP + INTERVAL '1 day', ?, ?)
            RETURNING id`,
           [eventId, rt, ownerId, ownerId],
         );
