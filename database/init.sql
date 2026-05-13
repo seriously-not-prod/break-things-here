@@ -554,17 +554,28 @@ CREATE TABLE IF NOT EXISTS shopping_lists (
 );
 
 CREATE TABLE IF NOT EXISTS shopping_items (
-  id             SERIAL PRIMARY KEY,
-  list_id        INTEGER NOT NULL REFERENCES shopping_lists(id) ON DELETE CASCADE,
-  name           TEXT NOT NULL,
-  quantity       INTEGER DEFAULT 1,
-  unit           TEXT,
-  estimated_cost NUMERIC(10,2),
-  actual_cost    NUMERIC(10,2),
-  status         TEXT CHECK(status IN ('Needed','Purchased','Not Available','Ordered')) DEFAULT 'Needed',
-  assigned_to    INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  notes          TEXT,
-  created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id                  SERIAL PRIMARY KEY,
+  list_id             INTEGER NOT NULL REFERENCES shopping_lists(id) ON DELETE CASCADE,
+  name                TEXT NOT NULL,
+  quantity            INTEGER DEFAULT 1,
+  unit                TEXT,
+  estimated_cost      NUMERIC(10,2),
+  actual_cost         NUMERIC(10,2),
+  status              TEXT CHECK(status IN ('Needed','Purchased','Not Available','Ordered')) DEFAULT 'Needed',
+  assigned_to         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  notes               TEXT,
+  source_store_name   TEXT,
+  source_store_url    TEXT,
+  compared_price_low  NUMERIC(10,2),
+  compared_price_high NUMERIC(10,2),
+  price_checked_at    TIMESTAMP,
+  updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT shopping_items_compared_price_order_check CHECK (
+    compared_price_low IS NULL OR
+    compared_price_high IS NULL OR
+    compared_price_low <= compared_price_high
+  )
 );
 
 -- ============================================================
@@ -782,6 +793,11 @@ CREATE TABLE IF NOT EXISTS store_suggestions (
   website      TEXT,
   notes        TEXT,
   category     TEXT,
+  location     TEXT,
+  latitude     NUMERIC(9,6),
+  longitude    NUMERIC(9,6),
+  usage_count  INTEGER NOT NULL DEFAULT 0 CHECK (usage_count >= 0),
+  last_used_at TIMESTAMP,
   suggested_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   status       TEXT CHECK(status IN ('pending','approved','rejected')) DEFAULT 'pending',
   created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -789,6 +805,10 @@ CREATE TABLE IF NOT EXISTS store_suggestions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_store_suggestions_event_id ON store_suggestions(event_id);
+CREATE INDEX IF NOT EXISTS idx_store_suggestions_usage
+  ON store_suggestions(event_id, usage_count DESC);
+CREATE INDEX IF NOT EXISTS idx_store_suggestions_category
+  ON store_suggestions(event_id, category);
 
 -- Case-insensitive unique store name per event
 CREATE UNIQUE INDEX IF NOT EXISTS idx_store_suggestions_unique
@@ -1155,11 +1175,14 @@ CREATE INDEX IF NOT EXISTS idx_gallery_comments_document_id ON gallery_comments(
 CREATE INDEX IF NOT EXISTS idx_gallery_comments_event_id ON gallery_comments(event_id);
 CREATE INDEX IF NOT EXISTS idx_gallery_comments_parent_id ON gallery_comments(parent_id);
 
--- Scheduled reports (#562)
+-- Scheduled reports (#562, #602)
 CREATE TABLE IF NOT EXISTS scheduled_reports (
   id            SERIAL PRIMARY KEY,
   event_id      INTEGER REFERENCES events(id) ON DELETE CASCADE,
-  report_type   TEXT NOT NULL CHECK (report_type IN ('rsvp_summary','budget_summary','task_summary','storage_summary','full')),
+  report_type   TEXT NOT NULL CHECK (report_type IN (
+                  'rsvp_summary','budget_summary','task_summary','storage_summary','full',
+                  'financial_detail','expense_workflow','vendor_spend','price_comparison'
+                )),
   frequency     TEXT NOT NULL CHECK (frequency IN ('daily','weekly','monthly')),
   recipients    JSONB NOT NULL DEFAULT '[]'::jsonb,
   filters       JSONB,
