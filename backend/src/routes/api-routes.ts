@@ -510,6 +510,10 @@ router.get('/events/:eventId/shopping-lists/:listId/items', authenticateToken, s
 router.post('/events/:eventId/shopping-lists/:listId/items', authenticateToken, shoppingController.createItem);
 router.put('/events/:eventId/shopping-lists/:listId/items/:itemId', authenticateToken, shoppingController.updateItem);
 router.delete('/events/:eventId/shopping-lists/:listId/items/:itemId', authenticateToken, shoppingController.deleteItem);
+// #552/#608 — price comparison endpoints
+router.patch('/events/:eventId/shopping-lists/:listId/items/:itemId/price-data', authenticateToken, shoppingController.updateItemPriceData);
+router.get('/events/:eventId/shopping-lists/:listId/price-comparison', authenticateToken, shoppingController.getListPriceComparison);
+router.get('/events/:eventId/shopping/price-comparison', authenticateToken, shoppingController.getEventPriceComparison);
 
 // ============ TIMELINE ROUTES — BRD 3.8 ============
 // /conflicts and /comparison must be before /:id to avoid being swallowed by a future parameterised GET
@@ -591,6 +595,10 @@ router.get('/events/:eventId/store-suggestions', authenticateToken, storeSuggest
 router.post('/events/:eventId/store-suggestions', authenticateToken, storeSuggestionsController.createStoreSuggestion);
 router.patch('/events/:eventId/store-suggestions/:id', authenticateToken, storeSuggestionsController.updateStoreSuggestionStatus);
 router.delete('/events/:eventId/store-suggestions/:id', authenticateToken, storeSuggestionsController.deleteStoreSuggestion);
+// #607 — store suggestion engine
+router.get('/events/:eventId/store-suggestions/recommendations', authenticateToken, storeSuggestionsController.getStoreSuggestionRecommendations);
+router.get('/events/:eventId/store-suggestions/categories', authenticateToken, storeSuggestionsController.listStoreSuggestionCategories);
+router.post('/events/:eventId/store-suggestions/:id/select', authenticateToken, storeSuggestionsController.selectStoreSuggestion);
 
 // ============ TIMELINE CONFLICT DETECTION — #441 (registered in timeline section above)
 

@@ -25,6 +25,10 @@ const REPORT_TYPES = [
   'task_summary',
   'storage_summary',
   'full',
+  'financial_detail',
+  'expense_workflow',
+  'vendor_spend',
+  'price_comparison',
 ] as const;
 type ReportType = (typeof REPORT_TYPES)[number];
 
@@ -346,6 +350,136 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
         [eventId],
       );
       return { type, storage };
+    }
+    case 'financial_detail': {
+      // Per-category breakdown with tax/gratuity/contingency calculations.
+      const categories = await db.all(
+        `SELECT
+            bc.id,
+            bc.name,
+            bc.allocated_amount::numeric                                          AS allocated,
+            COALESCE(bc.tax_rate, 0)::numeric                                     AS tax_rate,
+            COALESCE(bc.gratuity_rate, 0)::numeric                                AS gratuity_rate,
+            COALESCE(bc.contingency_rate, 0)::numeric                             AS contingency_rate,
+            COALESCE(SUM(e.amount), 0)::numeric                                   AS spent,
+            COUNT(e.id)::int                                                      AS expense_count,
+            ROUND(
+              bc.allocated_amount * (1 + COALESCE(bc.tax_rate,0)/100
+                                       + COALESCE(bc.gratuity_rate,0)/100
+                                       + COALESCE(bc.contingency_rate,0)/100), 2
+            )::numeric                                                            AS effective_allocated
+          FROM budget_categories bc
+          LEFT JOIN expenses e ON e.budget_category_id = bc.id AND e.event_id = bc.event_id
+         WHERE bc.event_id = ?
+         GROUP BY bc.id, bc.name, bc.allocated_amount,
+                  bc.tax_rate, bc.gratuity_rate, bc.contingency_rate
+         ORDER BY bc.name`,
+        [eventId],
+      );
+      const summary = await db.get(
+        `SELECT
+            COALESCE(SUM(bc.allocated_amount), 0)::numeric                       AS total_allocated,
+            COALESCE((SELECT SUM(amount) FROM expenses WHERE event_id = ?), 0)::numeric AS total_spent
+           FROM budget_categories bc WHERE bc.event_id = ?`,
+        [eventId, eventId],
+      );
+      return { type, categories, summary };
+    }
+    case 'expense_workflow': {
+      // Approval and reimbursement status summary.
+      const approval = await db.get(
+        `SELECT
+            COUNT(*) FILTER (WHERE approval_status = 'pending')::int   AS pending,
+            COUNT(*) FILTER (WHERE approval_status = 'approved')::int  AS approved,
+            COUNT(*) FILTER (WHERE approval_status = 'rejected')::int  AS rejected,
+            COUNT(*)::int                                               AS total,
+            COALESCE(SUM(amount) FILTER (WHERE approval_status = 'approved'), 0)::numeric AS approved_amount
+           FROM expenses WHERE event_id = ?`,
+        [eventId],
+      );
+      const reimbursement = await db.get(
+        `SELECT
+            COUNT(*) FILTER (WHERE reimbursement_status = 'not_requested')::int AS not_requested,
+            COUNT(*) FILTER (WHERE reimbursement_status = 'requested')::int     AS requested,
+            COUNT(*) FILTER (WHERE reimbursement_status = 'reimbursed')::int    AS reimbursed,
+            COUNT(*) FILTER (WHERE reimbursement_status = 'rejected')::int      AS rejected,
+            COALESCE(SUM(amount) FILTER (WHERE reimbursement_status = 'reimbursed'), 0)::numeric AS reimbursed_amount
+           FROM expenses WHERE event_id = ?`,
+        [eventId],
+      );
+      const recent = await db.all(
+        `SELECT e.id, e.description, e.amount::numeric, e.approval_status, e.reimbursement_status,
+                u.display_name AS submitter, e.created_at
+           FROM expenses e
+           LEFT JOIN users u ON u.id = e.created_by
+          WHERE e.event_id = ?
+          ORDER BY e.created_at DESC
+          LIMIT 10`,
+        [eventId],
+      );
+      return { type, approval, reimbursement, recent_expenses: recent };
+    }
+    case 'vendor_spend': {
+      // Per-vendor spend from payment schedules and bookings.
+      const vendors = await db.all(
+        `SELECT
+            v.id,
+            v.name,
+            vb.status                                                            AS booking_status,
+            COALESCE(vb.total_amount, 0)::numeric                               AS contracted_amount,
+            COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'paid'), 0)::numeric     AS paid_amount,
+            COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'pending'), 0)::numeric  AS pending_amount,
+            COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'overdue'), 0)::numeric  AS overdue_amount,
+            COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'cancelled'), 0)::numeric AS cancelled_amount,
+            COUNT(vps.id)::int                                                   AS payment_schedule_count
+           FROM vendors v
+           LEFT JOIN vendor_bookings vb ON vb.vendor_id = v.id AND vb.event_id = v.event_id
+           LEFT JOIN vendor_payment_schedules vps ON vps.vendor_id = v.id AND vps.event_id = v.event_id
+          WHERE v.event_id = ?
+          GROUP BY v.id, v.name, vb.status, vb.total_amount
+          ORDER BY contracted_amount DESC`,
+        [eventId],
+      );
+      const totals = await db.get(
+        `SELECT
+            COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'paid'), 0)::numeric    AS total_paid,
+            COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'pending'), 0)::numeric AS total_pending,
+            COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'overdue'), 0)::numeric AS total_overdue
+           FROM vendor_payment_schedules vps WHERE vps.event_id = ?`,
+        [eventId],
+      );
+      return { type, vendors, totals };
+    }
+    case 'price_comparison': {
+      // Shopping estimated vs actual across all lists.
+      const lists = await db.all(
+        `SELECT
+            sl.id   AS list_id,
+            sl.name AS list_name,
+            COALESCE(SUM(si.estimated_cost), 0)::numeric                                    AS total_estimated,
+            COALESCE(SUM(si.actual_cost), 0)::numeric                                       AS total_actual,
+            COUNT(si.id)::int                                                               AS items_count,
+            COUNT(si.id) FILTER (WHERE si.actual_cost IS NOT NULL)::int                     AS items_with_actuals,
+            COUNT(si.id) FILTER (WHERE si.actual_cost > si.estimated_cost
+                                   AND si.estimated_cost IS NOT NULL
+                                   AND si.actual_cost IS NOT NULL)::int                     AS items_over_budget
+           FROM shopping_lists sl
+           LEFT JOIN shopping_items si ON si.list_id = sl.id
+          WHERE sl.event_id = ?
+          GROUP BY sl.id, sl.name
+          ORDER BY sl.created_at ASC`,
+        [eventId],
+      );
+      const eventTotal = await db.get(
+        `SELECT
+            COALESCE(SUM(si.estimated_cost), 0)::numeric AS total_estimated,
+            COALESCE(SUM(si.actual_cost), 0)::numeric    AS total_actual
+           FROM shopping_lists sl
+           JOIN shopping_items si ON si.list_id = sl.id
+          WHERE sl.event_id = ?`,
+        [eventId],
+      );
+      return { type, lists, event_total: eventTotal };
     }
     case 'full':
     default: {
