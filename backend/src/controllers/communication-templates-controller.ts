@@ -114,7 +114,13 @@ export async function deleteTemplate(req: Request, res: Response): Promise<Respo
   const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
   if (!event) return res as Response;
   const db = getDatabase();
-  await db.run('DELETE FROM communication_templates WHERE id = ? AND event_id = ?', [id, eventId]);
+  const result = await db.run(
+    'DELETE FROM communication_templates WHERE id = ? AND event_id = ?',
+    [id, eventId],
+  );
+  if (!result.changes) {
+    return res.status(404).json({ error: 'Template not found.' });
+  }
   return res.json({ deleted: true });
 }
 

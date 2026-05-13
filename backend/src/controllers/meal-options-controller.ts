@@ -115,6 +115,12 @@ export async function deleteMealOption(req: Request, res: Response): Promise<Res
   const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
   if (!event) return res as Response;
   const db = getDatabase();
-  await db.run('DELETE FROM event_meal_options WHERE id = ? AND event_id = ?', [id, eventId]);
+  const result = await db.run(
+    'DELETE FROM event_meal_options WHERE id = ? AND event_id = ?',
+    [id, eventId],
+  );
+  if (!result.changes) {
+    return res.status(404).json({ error: 'Meal option not found.' });
+  }
   return res.json({ deleted: true });
 }

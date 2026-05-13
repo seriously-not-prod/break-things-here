@@ -24,6 +24,7 @@ export interface DatabaseAdapter {
   exec(sql: string): Promise<void>;
   close?(): Promise<void>;
   withUserContext?<T>(userId: number, fn: (db: DatabaseAdapter) => Promise<T>): Promise<T>;
+  transaction?<T>(fn: (tx: DatabaseAdapter) => Promise<T>): Promise<T>;
 }
 
 function convertPlaceholders(sql: string): string {
@@ -65,6 +66,40 @@ class PgWrapper {
 
   async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  async transaction<T>(fn: (tx: DatabaseAdapter) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const txDb: DatabaseAdapter = {
+        async get<R = DatabaseRow>(sql: string, params?: QueryParams): Promise<R | undefined> {
+          const res = await client.query<DatabaseRow>(convertPlaceholders(sql), params ?? []);
+          return res.rows[0] as R | undefined;
+        },
+        async all<R = DatabaseRow>(sql: string, params?: QueryParams): Promise<R[]> {
+          const res = await client.query<DatabaseRow>(convertPlaceholders(sql), params ?? []);
+          return res.rows as R[];
+        },
+        async run(sql: string, params?: QueryParams): Promise<RunResult> {
+          const upper = sql.trim().toUpperCase();
+          const res = await client.query<{ id?: number }>(convertPlaceholders(sql), params ?? []);
+          const lastID = /\bRETURNING\b/.test(upper) ? res.rows[0]?.id : undefined;
+          return { lastID, changes: res.rowCount ?? 0 };
+        },
+        async exec(sql: string): Promise<void> {
+          await client.query(sql);
+        },
+      };
+      const result = await fn(txDb);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async withUserContext<T>(userId: number, fn: (db: DatabaseAdapter) => Promise<T>): Promise<T> {
@@ -1032,13 +1067,35 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       category_id INTEGER REFERENCES budget_categories(id) ON DELETE SET NULL,
       title TEXT NOT NULL,
       amount NUMERIC(10,2) NOT NULL,
-      payment_status TEXT CHECK(payment_status IN ('pending','paid','overdue','cancelled')) DEFAULT 'pending',
+      payment_status TEXT DEFAULT 'pending',
       vendor_name TEXT,
       notes TEXT,
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
+  `);
+
+  // Backfill legacy PascalCase payment_status values BEFORE re-applying the
+  // lowercase CHECK constraint. Idempotent on already-lowercase data.
+  await db.exec(`
+    UPDATE expenses
+       SET payment_status = LOWER(payment_status)
+     WHERE payment_status IN ('Pending', 'Paid', 'Overdue', 'Cancelled')
+  `);
+  // Drop any existing constraint (legacy PascalCase or older variant) and
+  // recreate with the BRD v2 lowercase whitelist.
+  await db.exec(`
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'expenses_payment_status_check') THEN
+        ALTER TABLE expenses DROP CONSTRAINT expenses_payment_status_check;
+      END IF;
+    END $$
+  `);
+  await db.exec(`
+    ALTER TABLE expenses ADD CONSTRAINT expenses_payment_status_check
+      CHECK (payment_status IN ('pending','paid','overdue','cancelled'))
   `);
 
   await db.exec(`

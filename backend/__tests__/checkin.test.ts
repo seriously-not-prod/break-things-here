@@ -51,9 +51,22 @@ CREATE TABLE IF NOT EXISTS rsvps (
   source      TEXT DEFAULT 'public',
   checked_in  BOOLEAN DEFAULT FALSE,
   checked_in_at TIMESTAMP,
+  canonical_status TEXT,
+  late_arrival BOOLEAN DEFAULT FALSE,
+  arrival_delay_minutes INTEGER,
   created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(event_id, email)
+);
+CREATE TABLE IF NOT EXISTS attendance_events (
+  id          SERIAL PRIMARY KEY,
+  event_id    INTEGER NOT NULL,
+  rsvp_id     INTEGER NOT NULL,
+  action      TEXT NOT NULL,
+  source      TEXT NOT NULL DEFAULT 'manual',
+  occurred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  actor_id    INTEGER,
+  metadata    JSONB
 );
 `;
 

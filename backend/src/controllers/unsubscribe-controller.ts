@@ -9,6 +9,12 @@
  */
 import type { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { logAuditEvent } from '../utils/audit-log.js';
+import { requireEventAccess } from '../utils/event-access.js';
+
+interface AuthRequest extends Request {
+  user?: { id: number; email: string; role_id: number };
+}
 
 interface RsvpRow {
   id: number;
@@ -67,8 +73,21 @@ export async function postUnsubscribe(req: Request, res: Response): Promise<Resp
   });
 }
 
-/** POST /api/public/unsubscribe/:token/resubscribe — admin re-enable via guest action */
+/**
+ * POST /api/unsubscribe/:token/resubscribe — authenticated owner/admin only.
+ *
+ * The previous version of this endpoint was reachable on the public router
+ * which violated CAN-SPAM/GDPR by allowing any caller to re-opt-in a guest
+ * after they had unsubscribed. We now require:
+ *   1. an authenticated user (authenticateToken middleware on the route),
+ *   2. event-owner or admin role on the underlying event (re-checked here),
+ *   3. an audit_log entry capturing actor + target for every resubscribe.
+ */
 export async function resubscribe(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  if (!authReq.user) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
   const { token } = req.params;
   const db = getDatabase();
   const row = await db.get<RsvpRow>(
@@ -76,9 +95,28 @@ export async function resubscribe(req: Request, res: Response): Promise<Response
     [token],
   );
   if (!row) return res.status(404).json({ error: 'Token not found.' });
+
+  // Ensure the acting user actually owns/administers the event the RSVP
+  // belongs to. requireEventAccess emits the 403 itself if not.
+  const access = await requireEventAccess(authReq, res, String(row.event_id), { ownerOnly: true });
+  if (!access) return res as Response;
+
   await db.run(
     `UPDATE rsvps SET unsubscribed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
     [row.id],
   );
+  await logAuditEvent({
+    db,
+    userId: authReq.user.id,
+    email: authReq.user.email,
+    actorId: authReq.user.id,
+    action: 'RSVP_RESUBSCRIBE',
+    description: `Resubscribed RSVP ${row.id} (${row.email}) to event ${row.event_id}`,
+    targetType: 'rsvp',
+    targetId: String(row.id),
+    ipAddress: req.ip,
+    context: { event_id: row.event_id, guest_email: row.email },
+    severity: 'WARN',
+  });
   return res.json({ email: row.email, unsubscribed_at: null });
 }

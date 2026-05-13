@@ -198,9 +198,12 @@ router.get('/public/rsvp/:token', rsvpTokenController.lookupRsvpByToken);
 router.post('/public/rsvp/:token/responses', rsvpQuestionsController.submitResponses);
 
 // Public unsubscribe endpoint (#545, #590) — unauthenticated, token-gated.
+// Resubscribe is NOT public — re-opt-in by anyone except the original guest
+// would violate CAN-SPAM/GDPR. The route is registered below under the
+// authenticated section and requires the actor to be the event owner/admin.
 router.get('/public/unsubscribe/:token', unsubscribeController.getUnsubscribe);
 router.post('/public/unsubscribe/:token', unsubscribeController.postUnsubscribe);
-router.post('/public/unsubscribe/:token/resubscribe', unsubscribeController.resubscribe);
+router.post('/unsubscribe/:token/resubscribe', authenticateToken, unsubscribeController.resubscribe);
 // Token refresh and heartbeat
 router.post('/auth/refresh', authController.refreshTokenEndpoint);
 router.post('/auth/session/heartbeat', authenticateToken, authController.sessionHeartbeat);
@@ -285,9 +288,10 @@ router.post('/events/:eventId/checkin/:rsvpId/undo', authenticateToken, qrChecki
 router.post('/events/:eventId/checkin/mark-no-show', authenticateToken, qrCheckinController.markNoShow);
 router.get('/events/:eventId/attendance/summary', authenticateToken, attendanceBoardController.getAttendanceSummary);
 router.get('/events/:eventId/attendance/recent', authenticateToken, attendanceBoardController.listRecentAttendanceEvents);
-// SSE stream — accepts token via query string because the EventSource API
-// can't attach Authorization headers (the rest of the API is authed via
-// cookie too, so this still flows through authenticateToken normally).
+// SSE stream — EventSource cannot set Authorization headers, so auth flows
+// through the HttpOnly `accessToken` cookie that `authenticateToken` already
+// supports (see backend/src/middleware/auth.ts). Unauthenticated subscribers
+// are rejected with 401 before any SSE headers are written.
 router.get('/events/:eventId/attendance/stream', authenticateToken, attendanceBoardController.streamAttendance);
 
 // ============ SEATING GROUPS (#593) ============

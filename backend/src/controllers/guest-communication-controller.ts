@@ -4,12 +4,16 @@ import { requireEventAccess } from '../utils/event-access.js';
 import { embedTracking } from '../utils/embed-tracking.js';
 import { personalize, buildGuestTokens } from '../utils/template-personalization.js';
 import { ensureUnsubscribeToken, buildUnsubscribeUrl } from '../utils/unsubscribe-token.js';
+import { logAuditEvent } from '../utils/audit-log.js';
 
 function getTrackingBaseUrl(): string | null {
   const explicit = process.env.PUBLIC_BASE_URL?.trim();
   if (explicit) return explicit.replace(/\/$/, '');
   return null;
 }
+
+// role_id >= 3 is the admin tier — see backend/src/utils/event-access.ts.
+const ADMIN_ROLE_THRESHOLD = 3;
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -54,7 +58,7 @@ async function bulkSend(
   if (!authorizedEvent) return res as Response;
   const senderUserId = authReq.user!.id;
 
-  const { rsvpIds, subject, body, templateId, ignoreUnsubscribed } = req.body as {
+  const { rsvpIds, subject, body, templateId, ignoreUnsubscribed: rawIgnore } = req.body as {
     rsvpIds?: number[];
     subject?: string;
     body?: string;
@@ -63,6 +67,53 @@ async function bulkSend(
   };
 
   const db = getDatabase();
+
+  // Bulk send must always carry a working unsubscribe footer. Without
+  // PUBLIC_BASE_URL we cannot build that URL and CAN-SPAM compliance breaks.
+  const trackingBaseUrl = getTrackingBaseUrl();
+  if (!trackingBaseUrl) {
+    return res.status(503).json({
+      error: 'Bulk send is disabled: PUBLIC_BASE_URL is not configured.',
+    });
+  }
+
+  // ignoreUnsubscribed is a privileged override: only the event owner or an
+  // admin role may bypass the unsubscribe suppression list. Members may not.
+  const isOwner = authorizedEvent.created_by === senderUserId;
+  const isAdmin = (authReq.user?.role_id ?? 0) >= ADMIN_ROLE_THRESHOLD;
+  let ignoreUnsubscribed = false;
+  if (rawIgnore === true) {
+    if (!isOwner && !isAdmin) {
+      await logAuditEvent({
+        db,
+        userId: senderUserId,
+        email: authReq.user?.email,
+        actorId: senderUserId,
+        action: 'IGNORE_UNSUBSCRIBED_DENIED',
+        description: `Non-owner attempted ignoreUnsubscribed override on event ${eventId}`,
+        targetType: 'event',
+        targetId: String(eventId),
+        ipAddress: req.ip,
+        severity: 'WARN',
+      });
+      return res.status(403).json({
+        error: 'Only the event owner or an admin may override the unsubscribe list.',
+      });
+    }
+    ignoreUnsubscribed = true;
+    await logAuditEvent({
+      db,
+      userId: senderUserId,
+      email: authReq.user?.email,
+      actorId: senderUserId,
+      action: 'IGNORE_UNSUBSCRIBED_APPLIED',
+      description: `ignoreUnsubscribed override applied for event ${eventId}`,
+      targetType: 'event',
+      targetId: String(eventId),
+      ipAddress: req.ip,
+      severity: 'WARN',
+    });
+  }
 
   // If templateId is supplied, hydrate subject + body from the saved template.
   let effectiveSubject = subject ?? '';
@@ -121,8 +172,6 @@ async function bulkSend(
   const transport = await createMailTransport();
   const fromAddress =
     process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@festival-planner.local';
-
-  const trackingBaseUrl = getTrackingBaseUrl();
 
   for (const rsvp of recipients) {
     const unsubToken = trackingBaseUrl

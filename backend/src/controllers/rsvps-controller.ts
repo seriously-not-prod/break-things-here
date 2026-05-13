@@ -98,17 +98,35 @@ async function recomputeCanonicalStatus(rsvpId: number, override?: CanonicalRsvp
  * Reject RSVP submissions / edits made after the event's RSVP deadline (#585).
  * Authenticated organizers/admins are still allowed to edit so they can
  * accommodate phone-in requests after the cutoff.
+ *
+ * Deadlines are stored and compared in UTC. The DB column is a TIMESTAMP; the
+ * `pg` driver returns it as a JS `Date` parsed in UTC. Comparison is therefore
+ * UTC-safe — both sides become millisecond epoch values via `.getTime()`.
  */
 async function isDeadlinePassed(eventId: string | number): Promise<{ passed: boolean; deadline: string | null }> {
   const db = getDatabase();
-  const row = await db.get<{ rsvp_deadline: string | null }>(
+  const row = await db.get<{ rsvp_deadline: string | Date | null }>(
     `SELECT rsvp_deadline FROM events WHERE id = ? AND deleted_at IS NULL`,
     [eventId],
   );
   if (!row?.rsvp_deadline) return { passed: false, deadline: null };
-  const deadline = new Date(row.rsvp_deadline);
-  if (Number.isNaN(deadline.getTime())) return { passed: false, deadline: row.rsvp_deadline };
-  return { passed: Date.now() > deadline.getTime(), deadline: row.rsvp_deadline };
+  const deadline = row.rsvp_deadline instanceof Date
+    ? row.rsvp_deadline
+    : new Date(row.rsvp_deadline);
+  if (Number.isNaN(deadline.getTime())) {
+    return { passed: false, deadline: String(row.rsvp_deadline) };
+  }
+  return { passed: Date.now() > deadline.getTime(), deadline: deadline.toISOString() };
+}
+
+/**
+ * Inbound deadline strings must be RFC-3339 UTC (i.e. ending with `Z`). We
+ * reject ambiguous timezone-less inputs so a guest in one TZ cannot extend
+ * their cutoff for guests in another. Documented contract — see PR #644.
+ */
+const ISO_UTC_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?Z$/;
+function isUtcIso8601(value: unknown): value is string {
+  return typeof value === 'string' && ISO_UTC_REGEX.test(value);
 }
 
 interface AuthRequest extends Request {
@@ -235,6 +253,32 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
         error: 'The RSVP deadline for this event has passed.',
         rsvp_deadline: dl.deadline,
       });
+    }
+  }
+
+  // Per-guest rsvp_deadline override must be UTC-explicit so cross-TZ
+  // submissions are unambiguous (#585).
+  if (body.rsvp_deadline !== undefined && body.rsvp_deadline !== null && body.rsvp_deadline !== '') {
+    if (!isUtcIso8601(body.rsvp_deadline)) {
+      return res.status(400).json({
+        error: 'rsvp_deadline must be a UTC ISO-8601 timestamp ending in "Z".',
+      });
+    }
+  }
+
+  // meal_choice must match an active meal option for the event (#591). Empty
+  // submission is allowed — meals are optional.
+  if (typeof body.meal_choice === 'string' && body.meal_choice.trim()) {
+    const choice = body.meal_choice.trim();
+    const active = await listMealOptionsForEvent(eventId, true);
+    if (active.length > 0) {
+      const allowed = active.map((o) => o.name);
+      if (!allowed.includes(choice)) {
+        return res.status(400).json({
+          error: 'Unknown meal_choice for this event.',
+          allowed,
+        });
+      }
     }
   }
 
@@ -371,6 +415,25 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
   if (typeof body.name === 'string') { fields.push('name = ?'); params.push(body.name.trim()); }
   if (typeof body.email === 'string') { fields.push('email = ?'); params.push(body.email.trim().toLowerCase()); }
   if (body.notes !== undefined) { fields.push('notes = ?'); params.push(typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim() : null); }
+
+  if (body.rsvp_deadline !== undefined && body.rsvp_deadline !== null && body.rsvp_deadline !== '') {
+    if (!isUtcIso8601(body.rsvp_deadline)) {
+      return res.status(400).json({
+        error: 'rsvp_deadline must be a UTC ISO-8601 timestamp ending in "Z".',
+      });
+    }
+  }
+
+  if (typeof body.meal_choice === 'string' && body.meal_choice.trim()) {
+    const choice = body.meal_choice.trim();
+    const active = await listMealOptionsForEvent(String(rsvp.event_id), true);
+    if (active.length > 0 && !active.some((o) => o.name === choice)) {
+      return res.status(400).json({
+        error: 'Unknown meal_choice for this event.',
+        allowed: active.map((o) => o.name),
+      });
+    }
+  }
 
   for (const field of PROFILE_FIELDS) {
     if (body[field] === undefined) continue;

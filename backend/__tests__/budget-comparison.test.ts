@@ -124,17 +124,17 @@ beforeAll(async (): Promise<void> => {
   await db.run(
     `INSERT INTO expenses (event_id, category_id, title, amount, payment_status)
      VALUES (?, ?, ?, ?, ?)`,
-    [currentEventId, currentCategory?.id, 'Deposit', 600, 'Pending'],
+    [currentEventId, currentCategory?.id, 'Deposit', 600, 'pending'],
   );
   await db.run(
     `INSERT INTO expenses (event_id, category_id, title, amount, payment_status)
      VALUES (?, ?, ?, ?, ?)`,
-    [similarEventId, similarCategory?.id, 'Venue hold', 900, 'Pending'],
+    [similarEventId, similarCategory?.id, 'Venue hold', 900, 'pending'],
   );
   await db.run(
     `INSERT INTO expenses (event_id, category_id, title, amount, payment_status)
      VALUES (?, ?, ?, ?, ?)`,
-    [hiddenEventId, hiddenCategory?.id, 'Private deposit', 1500, 'Pending'],
+    [hiddenEventId, hiddenCategory?.id, 'Private deposit', 1500, 'pending'],
   );
 });
 

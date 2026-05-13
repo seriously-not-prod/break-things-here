@@ -44,12 +44,25 @@ interface AttendanceStats {
 
 export async function computeAttendanceStats(eventId: number): Promise<AttendanceStats> {
   const db = getDatabase();
-  const rows = await db.all<{ canonical_status: string | null; checked_in: boolean; late_arrival: boolean | null }>(
-    `SELECT canonical_status, checked_in, late_arrival FROM rsvps WHERE event_id = ?`,
+  // Single GROUP BY query — no full RSVP table load, scales linearly with
+  // distinct statuses per event (typically <10) instead of guest count.
+  const rows = await db.all<{
+    canonical_status: string | null;
+    count: string | number;
+    checked_in_count: string | number;
+    late_count: string | number;
+  }>(
+    `SELECT COALESCE(LOWER(canonical_status), 'pending') AS canonical_status,
+            COUNT(*) AS count,
+            SUM(CASE WHEN checked_in THEN 1 ELSE 0 END) AS checked_in_count,
+            SUM(CASE WHEN late_arrival THEN 1 ELSE 0 END) AS late_count
+       FROM rsvps
+      WHERE event_id = ?
+      GROUP BY COALESCE(LOWER(canonical_status), 'pending')`,
     [eventId],
   );
   const stats: AttendanceStats = {
-    invited: rows.length,
+    invited: 0,
     confirmed: 0,
     declined: 0,
     pending: 0,
@@ -60,14 +73,19 @@ export async function computeAttendanceStats(eventId: number): Promise<Attendanc
     attendance_rate: 0,
   };
   for (const r of rows) {
-    const c = (r.canonical_status ?? 'pending').toLowerCase();
-    if (c === 'confirmed') stats.confirmed++;
-    else if (c === 'declined' || c === 'cancelled') stats.declined++;
-    else if (c === 'waitlist') stats.waitlist++;
-    else if (c === 'no_show') stats.no_show++;
-    else if (c === 'pending' || c === 'maybe') stats.pending++;
-    if (r.checked_in) stats.checked_in++;
-    if (r.late_arrival) stats.late_arrivals++;
+    const count = Number(r.count);
+    const checkedIn = Number(r.checked_in_count);
+    const late = Number(r.late_count);
+    stats.invited += count;
+    stats.checked_in += checkedIn;
+    stats.late_arrivals += late;
+    const c = r.canonical_status ?? 'pending';
+    if (c === 'confirmed') stats.confirmed += count;
+    else if (c === 'declined' || c === 'cancelled') stats.declined += count;
+    else if (c === 'waitlist') stats.waitlist += count;
+    else if (c === 'no_show') stats.no_show += count;
+    else if (c === 'pending' || c === 'maybe') stats.pending += count;
+    else if (c === 'checked_in') stats.confirmed += count; // checked-in implies prior confirmed
   }
   stats.attendance_rate = stats.confirmed > 0
     ? Math.round((stats.checked_in / stats.confirmed) * 100)

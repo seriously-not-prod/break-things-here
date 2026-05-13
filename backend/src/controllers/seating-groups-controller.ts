@@ -141,9 +141,15 @@ export async function setGroupMembers(req: Request, res: Response): Promise<Resp
   const { eventId, id } = req.params;
   const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
   if (!event) return res as Response;
-  const { rsvpIds } = (req.body ?? {}) as { rsvpIds?: number[] };
+  const { rsvpIds } = (req.body ?? {}) as { rsvpIds?: unknown };
   if (!Array.isArray(rsvpIds)) {
     return res.status(400).json({ error: 'rsvpIds[] is required.' });
+  }
+  // Reject null/string/negative/zero entries before constructing the SQL —
+  // we never want raw client input to flow into IN clauses unvalidated.
+  const safeIds = rsvpIds.filter((rid) => Number.isInteger(rid) && (rid as number) > 0) as number[];
+  if (safeIds.length !== rsvpIds.length) {
+    return res.status(400).json({ error: 'Invalid rsvpIds.' });
   }
   const db = getDatabase();
   const group = await db.get<{ id: number }>(
@@ -157,15 +163,15 @@ export async function setGroupMembers(req: Request, res: Response): Promise<Resp
     `UPDATE rsvps SET seating_group_id = NULL WHERE event_id = ? AND seating_group_id = ?`,
     [eventId, id],
   );
-  if (rsvpIds.length > 0) {
-    const placeholders = rsvpIds.map(() => '?').join(', ');
+  if (safeIds.length > 0) {
+    const placeholders = safeIds.map(() => '?').join(', ');
     await db.run(
       `UPDATE rsvps SET seating_group_id = ?, updated_at = CURRENT_TIMESTAMP
        WHERE event_id = ? AND id IN (${placeholders})`,
-      [id, eventId, ...rsvpIds],
+      [id, eventId, ...safeIds],
     );
   }
-  return res.json({ memberCount: rsvpIds.length });
+  return res.json({ memberCount: safeIds.length });
 }
 
 /** POST /api/events/:eventId/seating/groups/:id/seat — bulk assign group members to a table */

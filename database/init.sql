@@ -386,7 +386,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   category_id    INTEGER REFERENCES budget_categories(id) ON DELETE SET NULL,
   title          TEXT NOT NULL,
   amount         NUMERIC(10,2) NOT NULL,
-  payment_status TEXT CHECK(payment_status IN ('pending','paid','overdue','cancelled')) DEFAULT 'pending',
+  payment_status TEXT DEFAULT 'pending',
   vendor_name    TEXT,
   notes          TEXT,
   created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -409,6 +409,27 @@ BEGIN
   ALTER TABLE expenses
   ADD CONSTRAINT expenses_approval_status_check
   CHECK (approval_status IN ('pending','approved','rejected'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Backfill legacy PascalCase payment_status BEFORE applying the lowercase
+-- whitelist (#PR-644). Safe to re-run.
+UPDATE expenses
+   SET payment_status = LOWER(payment_status)
+ WHERE payment_status IN ('Pending', 'Paid', 'Overdue', 'Cancelled');
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'expenses_payment_status_check') THEN
+    ALTER TABLE expenses DROP CONSTRAINT expenses_payment_status_check;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE expenses
+  ADD CONSTRAINT expenses_payment_status_check
+  CHECK (payment_status IN ('pending','paid','overdue','cancelled'));
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
