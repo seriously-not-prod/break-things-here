@@ -79,7 +79,7 @@ beforeAll(async (): Promise<void> => {
   await db.run(
     `INSERT INTO expenses (event_id, category_id, title, amount, payment_status)
      VALUES (?, ?, ?, ?, ?)`,
-    [eventId, categoryId, 'Buffet deposit', 450, 'Pending'],
+    [eventId, categoryId, 'Buffet deposit', 450, 'pending'],
   );
 
   await db.run(

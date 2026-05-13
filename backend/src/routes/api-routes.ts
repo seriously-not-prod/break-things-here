@@ -56,6 +56,13 @@ import * as timelineTemplatesController from '../controllers/timeline-templates-
 import * as collaborationController from '../controllers/collaboration-controller.js';
 import * as eventChatController from '../controllers/event-chat-controller.js';
 import * as entityVersionsController from '../controllers/entity-versions-controller.js';
+import * as guestExportController from '../controllers/guest-export-controller.js';
+import * as mealOptionsController from '../controllers/meal-options-controller.js';
+import * as commTemplatesController from '../controllers/communication-templates-controller.js';
+import * as unsubscribeController from '../controllers/unsubscribe-controller.js';
+import * as qrCheckinController from '../controllers/qr-checkin-controller.js';
+import * as attendanceBoardController from '../controllers/attendance-board-controller.js';
+import * as seatingGroupsController from '../controllers/seating-groups-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
 import multer from 'multer';
@@ -189,6 +196,14 @@ router.post('/public/gallery/:token', gallerySharesController.resolveShareLink);
 // Public RSVP token lookup (#411, #437) — guest-facing, unauthenticated.
 router.get('/public/rsvp/:token', rsvpTokenController.lookupRsvpByToken);
 router.post('/public/rsvp/:token/responses', rsvpQuestionsController.submitResponses);
+
+// Public unsubscribe endpoint (#545, #590) — unauthenticated, token-gated.
+// Resubscribe is NOT public — re-opt-in by anyone except the original guest
+// would violate CAN-SPAM/GDPR. The route is registered below under the
+// authenticated section and requires the actor to be the event owner/admin.
+router.get('/public/unsubscribe/:token', unsubscribeController.getUnsubscribe);
+router.post('/public/unsubscribe/:token', unsubscribeController.postUnsubscribe);
+router.post('/unsubscribe/:token/resubscribe', authenticateToken, unsubscribeController.resubscribe);
 // Token refresh and heartbeat
 router.post('/auth/refresh', authController.refreshTokenEndpoint);
 router.post('/auth/session/heartbeat', authenticateToken, authController.sessionHeartbeat);
@@ -213,6 +228,8 @@ router.get('/events/:eventId/rsvps', authenticateToken, rsvpController.listRsvps
 router.post('/events/:eventId/rsvps', rsvpController.createRsvp);
 // Specific sub-paths must be registered BEFORE /:id parameterized routes
 router.get('/events/:eventId/rsvps/export', authenticateToken, rsvpController.exportRsvpsCsv);
+router.get('/events/:eventId/rsvps/export.xlsx', authenticateToken, guestExportController.exportRsvpsXlsx);
+router.get('/events/:eventId/rsvps/export.pdf', authenticateToken, guestExportController.exportRsvpsPdfData);
 router.post('/events/:eventId/rsvps/import', authenticateToken, csvUpload.single('file'), rsvpController.importCsv);
 router.get('/events/:eventId/rsvps/duplicates', authenticateToken, guestMergeController.listDuplicates);
 router.get('/events/:eventId/guest-merges', authenticateToken, guestMergeController.listMergeAudit);
@@ -251,6 +268,39 @@ router.get('/events/:eventId/budget/forecast', authenticateToken, budgetForecast
 router.get('/events/:eventId/communication', authenticateToken, communicationController.listCommunicationLog);
 router.post('/events/:eventId/communication/invite', authenticateToken, communicationController.bulkSendInvitation);
 router.post('/events/:eventId/communication/reminder', authenticateToken, communicationController.sendReminder);
+
+// ============ COMMUNICATION TEMPLATES (#545, #587, #590) ============
+router.get('/events/:eventId/communication/templates', authenticateToken, commTemplatesController.listTemplates);
+router.post('/events/:eventId/communication/templates', authenticateToken, commTemplatesController.createTemplate);
+router.patch('/events/:eventId/communication/templates/:id', authenticateToken, commTemplatesController.updateTemplate);
+router.delete('/events/:eventId/communication/templates/:id', authenticateToken, commTemplatesController.deleteTemplate);
+router.post('/events/:eventId/communication/templates/:id/preview', authenticateToken, commTemplatesController.previewTemplate);
+
+// ============ MEAL OPTIONS (#591) ============
+router.get('/events/:eventId/meal-options', authenticateToken, mealOptionsController.listMealOptions);
+router.post('/events/:eventId/meal-options', authenticateToken, mealOptionsController.createMealOption);
+router.patch('/events/:eventId/meal-options/:id', authenticateToken, mealOptionsController.updateMealOption);
+router.delete('/events/:eventId/meal-options/:id', authenticateToken, mealOptionsController.deleteMealOption);
+
+// ============ QR CHECK-IN + ATTENDANCE BOARD (#546, #589, #594, #595) ============
+router.post('/events/:eventId/checkin/scan', authenticateToken, qrCheckinController.scanQr);
+router.post('/events/:eventId/checkin/:rsvpId/undo', authenticateToken, qrCheckinController.undoCheckin);
+router.post('/events/:eventId/checkin/mark-no-show', authenticateToken, qrCheckinController.markNoShow);
+router.get('/events/:eventId/attendance/summary', authenticateToken, attendanceBoardController.getAttendanceSummary);
+router.get('/events/:eventId/attendance/recent', authenticateToken, attendanceBoardController.listRecentAttendanceEvents);
+// SSE stream — EventSource cannot set Authorization headers, so auth flows
+// through the HttpOnly `accessToken` cookie that `authenticateToken` already
+// supports (see backend/src/middleware/auth.ts). Unauthenticated subscribers
+// are rejected with 401 before any SSE headers are written.
+router.get('/events/:eventId/attendance/stream', authenticateToken, attendanceBoardController.streamAttendance);
+
+// ============ SEATING GROUPS (#593) ============
+router.get('/events/:eventId/seating/groups', authenticateToken, seatingGroupsController.listGroups);
+router.post('/events/:eventId/seating/groups', authenticateToken, seatingGroupsController.createGroup);
+router.patch('/events/:eventId/seating/groups/:id', authenticateToken, seatingGroupsController.updateGroup);
+router.delete('/events/:eventId/seating/groups/:id', authenticateToken, seatingGroupsController.deleteGroup);
+router.post('/events/:eventId/seating/groups/:id/members', authenticateToken, seatingGroupsController.setGroupMembers);
+router.post('/events/:eventId/seating/groups/:id/seat', authenticateToken, seatingGroupsController.seatGroupAtTable);
 
 // ============ EVENT MEMBERS ROUTES ==========
 router.get('/events/:eventId/members', authenticateToken, eventMembersController.listMembers);

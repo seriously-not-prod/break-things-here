@@ -43,11 +43,27 @@ CREATE TABLE IF NOT EXISTS event_members (
   PRIMARY KEY (event_id, user_id)
 );
 CREATE TABLE IF NOT EXISTS rsvps (
-  id         SERIAL PRIMARY KEY,
-  event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  name       TEXT NOT NULL,
-  email      TEXT NOT NULL,
-  status     TEXT DEFAULT 'Going'
+  id              SERIAL PRIMARY KEY,
+  event_id        INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name            TEXT NOT NULL,
+  email           TEXT NOT NULL,
+  status          TEXT DEFAULT 'Going',
+  unsubscribed_at TIMESTAMP,
+  unsubscribe_token TEXT
+);
+CREATE TABLE IF NOT EXISTS audit_log (
+  id           SERIAL PRIMARY KEY,
+  user_id      INTEGER,
+  email        TEXT,
+  action       TEXT NOT NULL,
+  description  TEXT,
+  ip_address   TEXT,
+  actor_id     INTEGER,
+  target_type  TEXT,
+  target_id    TEXT,
+  context      JSONB,
+  severity     TEXT DEFAULT 'INFO',
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS communication_log (
   id                  SERIAL PRIMARY KEY,
@@ -144,6 +160,10 @@ const validBody = { subject: 'Hello', body: 'Body for {name} re {event}' };
 beforeEach(async () => {
   testDb = await createPostgresTestDatabase(SCHEMA_SQL);
   sendMailMock.mockClear();
+  // PR #644: bulk send refuses to run without PUBLIC_BASE_URL so that the
+  // unsubscribe footer URL can be constructed. Set a dummy value for tests
+  // that exercise the dispatch path.
+  process.env.PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://app.test.local';
 });
 
 afterEach(async () => {
