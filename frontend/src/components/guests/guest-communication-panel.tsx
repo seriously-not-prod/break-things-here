@@ -1,3 +1,10 @@
+/**
+ * Guest Communication Panel — issue #444 (story #413)
+ *
+ * Supports sending invitations, reminders, and post-event thank-you messages.
+ * Displays unsubscribed state on the communication log so planners know which
+ * guests will be automatically suppressed on future bulk sends.
+ */
 import { FormEvent, useEffect, useState } from 'react';
 import {
   Alert,
@@ -18,13 +25,15 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
-import { SendRounded } from '@mui/icons-material';
+import { SendRounded, VolunteerActivismRounded } from '@mui/icons-material';
 import {
   listCommunicationLog,
   sendInvitation,
   sendReminder,
+  sendThankYou,
   type BulkSendPayload,
   type CommunicationLogEntry,
   type RsvpGuest,
@@ -127,6 +136,31 @@ export function GuestCommunicationPanel({
     }
   }
 
+  /**
+   * Send a post-event thank-you message (#444).
+   * Recipients default to confirmed (Going) guests; unsubscribed guests are
+   * automatically suppressed by the backend.
+   */
+  async function handleSendThankYou(): Promise<void> {
+    if (!subject.trim() || !body.trim()) return;
+    setSending(true);
+    setSendError(null);
+    setSendResult(null);
+    try {
+      const result = await sendThankYou(eventId, buildPayload());
+      setSendResult(result);
+      setSubject('');
+      setBody('');
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Send failed.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  // Count unsubscribed guests so the planner can see how many will be suppressed.
+  const unsubscribedCount = guests.filter((g) => g.unsubscribed_at).length;
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* ── Compose form ── */}
@@ -135,9 +169,17 @@ export function GuestCommunicationPanel({
           Send Communication
         </Typography>
 
+        {unsubscribedCount > 0 && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            {unsubscribedCount} guest{unsubscribedCount !== 1 ? 's have' : ' has'} unsubscribed and
+            will be automatically skipped on bulk sends.
+          </Alert>
+        )}
         {sendResult && (
           <Alert severity="success" sx={{ mb: 2 }}>
-            Sent to {sendResult.sent} recipient(s).{sendResult.failed > 0 && ` ${sendResult.failed} failed.`}
+            Sent to {sendResult.sent} recipient(s).
+            {sendResult.failed > 0 && ` ${sendResult.failed} failed.`}
+            {'suppressed' in sendResult && (sendResult as { suppressed?: number }).suppressed ? ` ${(sendResult as { suppressed: number }).suppressed} suppressed (unsubscribed).` : ''}
           </Alert>
         )}
         {sendError && (
@@ -187,7 +229,7 @@ export function GuestCommunicationPanel({
             inputProps={{ 'aria-label': 'Email body' }}
           />
 
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button
               type="submit"
               variant="contained"
@@ -203,6 +245,19 @@ export function GuestCommunicationPanel({
             >
               Send Reminder
             </Button>
+            <Tooltip title="Send post-event thank-you to confirmed (Going) guests. Unsubscribed guests are skipped automatically.">
+              <span>
+                <Button
+                  variant="outlined"
+                  color="success"
+                  disabled={sending}
+                  startIcon={<VolunteerActivismRounded />}
+                  onClick={() => void handleSendThankYou()}
+                >
+                  Send Thank-You
+                </Button>
+              </span>
+            </Tooltip>
           </Box>
         </Box>
       </Box>

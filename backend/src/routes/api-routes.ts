@@ -252,6 +252,8 @@ router.get('/events/:eventId/rsvps/:id/qr.svg', authenticateToken, rsvpConfirmat
 router.post('/events/:eventId/rsvps/:id/token', authenticateToken, rsvpTokenController.issueRsvpToken);
 router.patch('/events/:eventId/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
 router.patch('/events/:eventId/rsvps/:id/checkin', authenticateToken, rsvpController.checkInGuest);
+// Planner-side unsubscribe toggle (#444)
+router.patch('/events/:eventId/rsvps/:id/unsubscribe', authenticateToken, rsvpController.setUnsubscribed);
 router.delete('/events/:eventId/rsvps/:id', authenticateToken, rsvpController.deleteRsvp);
 
 // ============ WAITLIST ROUTES — #413, #442 ============
@@ -280,6 +282,8 @@ router.get('/events/:eventId/budget/forecast', authenticateToken, budgetForecast
 router.get('/events/:eventId/communication', authenticateToken, communicationController.listCommunicationLog);
 router.post('/events/:eventId/communication/invite', authenticateToken, communicationController.bulkSendInvitation);
 router.post('/events/:eventId/communication/reminder', authenticateToken, communicationController.sendReminder);
+// Post-event thank-you send (#444)
+router.post('/events/:eventId/communication/thank-you', authenticateToken, communicationController.sendThankYou);
 
 // ============ COMMUNICATION TEMPLATES (#545, #587, #590) ============
 router.get('/events/:eventId/communication/templates', authenticateToken, commTemplatesController.listTemplates);

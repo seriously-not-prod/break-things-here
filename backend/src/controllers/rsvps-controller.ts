@@ -871,3 +871,43 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
 
   return res.json({ imported, skipped });
 }
+
+/**
+ * PATCH /api/events/:eventId/rsvps/:id/unsubscribe (#444)
+ *
+ * Planner-side unsubscribe toggle. Body: `{ unsubscribed: boolean }`.
+ * Setting unsubscribed=true marks the RSVP with the current timestamp so
+ * future bulk sends automatically skip this guest. Setting unsubscribed=false
+ * clears the timestamp (re-opt-in). Requires event-owner or member access.
+ */
+export async function setUnsubscribed(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const db = getDatabase();
+  const { id, eventId } = req.params;
+
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+
+  const rsvp = await db.get<{ id: number; email: string; unsubscribed_at: string | null }>(
+    'SELECT id, email, unsubscribed_at FROM rsvps WHERE id = ? AND event_id = ?',
+    [id, eventId],
+  );
+  if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
+
+  const { unsubscribed } = (req.body ?? {}) as { unsubscribed?: boolean };
+  if (typeof unsubscribed !== 'boolean') {
+    return res.status(400).json({ error: 'Body must include `unsubscribed` (boolean).' });
+  }
+
+  const newTimestamp = unsubscribed ? 'CURRENT_TIMESTAMP' : 'NULL';
+  await db.run(
+    `UPDATE rsvps SET unsubscribed_at = ${newTimestamp}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [id],
+  );
+
+  const updated = await db.get<{ id: number; email: string; unsubscribed_at: string | null }>(
+    'SELECT id, email, unsubscribed_at FROM rsvps WHERE id = ?',
+    [id],
+  );
+  return res.json({ rsvp: updated });
+}
