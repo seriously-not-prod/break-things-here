@@ -33,9 +33,60 @@ export interface Expense {
   title: string;
   amount: number;
   payment_status: 'pending' | 'paid' | 'overdue';
+  approval_status: 'pending' | 'approved' | 'rejected';
+  approval_note: string | null;
+  approved_by: number | null;
+  approved_at: string | null;
+  reimbursement_status: 'not_requested' | 'requested' | 'reimbursed' | 'rejected';
+  reimbursement_requested_by: number | null;
+  reimbursement_requested_at: string | null;
+  reimbursed_by: number | null;
+  reimbursed_at: string | null;
+  can_approve: boolean;
+  can_request_reimbursement: boolean;
+  can_resolve_reimbursement: boolean;
   vendor_name: string | null;
   notes: string | null;
   created_at: string;
+}
+
+export interface ExpenseWorkflowSummary {
+  approval: {
+    pending: number;
+    approved: number;
+    rejected: number;
+  };
+  reimbursement: {
+    notRequested: number;
+    requested: number;
+    reimbursed: number;
+    rejected: number;
+  };
+  reimbursementRequestedAmount: number;
+}
+
+export interface ExpenseOcrExtractedFields {
+  title: string | null;
+  amount: number | null;
+  vendor_name: string | null;
+  receipt_date: string | null;
+  confidence: number;
+}
+
+export interface ExpenseOcrResult {
+  id: number;
+  event_id: number;
+  expense_id: number;
+  status: 'extracted' | 'applied' | 'failed';
+  extracted_title: string | null;
+  extracted_amount: number | null;
+  extracted_vendor_name: string | null;
+  extracted_date: string | null;
+  confidence: number;
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface BudgetSummary {
@@ -46,6 +97,39 @@ export interface BudgetSummary {
   plannedRemaining: number;
   percentUsed: number;
   plannedPercentUsed: number;
+}
+
+export interface BudgetComparisonOverview {
+  averageAllocated: number;
+  averagePlanned: number;
+  averageSpent: number;
+  averagePlannedPercentUsed: number;
+}
+
+export interface SimilarBudgetComparison {
+  id: number;
+  title: string;
+  date: string;
+  location: string;
+  capacity: number | null;
+  eventType: string | null;
+  matchScore: number;
+  matchReasons: string[];
+  summary: BudgetSummary & { categoryCount: number };
+}
+
+export interface BudgetComparisonResponse {
+  currentEvent: {
+    id: number;
+    title: string;
+    date: string;
+    location: string;
+    capacity: number | null;
+    eventType: string | null;
+    summary: BudgetSummary & { categoryCount: number };
+  };
+  comparison: SimilarBudgetComparison[];
+  overview: BudgetComparisonOverview;
 }
 
 export function computeSummary(categories: BudgetCategory[]): BudgetSummary {
@@ -125,6 +209,19 @@ export async function listExpenses(eventId: number | string): Promise<Expense[]>
   return data.expenses;
 }
 
+export async function getExpenseWorkflowSummary(
+  eventId: number | string,
+): Promise<ExpenseWorkflowSummary> {
+  const data = await api.get<{ summary: ExpenseWorkflowSummary }>(`/api/events/${eventId}/expenses/workflow-summary`);
+  return data.summary;
+}
+
+export async function getBudgetComparison(
+  eventId: number | string,
+): Promise<BudgetComparisonResponse> {
+  return api.get<BudgetComparisonResponse>(`/api/events/${eventId}/budget/compare`);
+}
+
 export interface CreateExpensePayload {
   title: string;
   amount: number;
@@ -154,6 +251,71 @@ export async function updateExpense(
     payload,
   );
   return data.expense;
+}
+
+export async function reviewExpenseApproval(
+  eventId: number | string,
+  expenseId: number,
+  decision: 'approved' | 'rejected',
+  note?: string,
+): Promise<Expense> {
+  const data = await api.patch<{ expense: Expense }>(
+    `/api/events/${eventId}/expenses/${expenseId}/approval`,
+    { decision, note },
+  );
+  return data.expense;
+}
+
+export async function requestExpenseReimbursement(
+  eventId: number | string,
+  expenseId: number,
+): Promise<Expense> {
+  const data = await api.post<{ expense: Expense }>(
+    `/api/events/${eventId}/expenses/${expenseId}/reimbursement-request`,
+  );
+  return data.expense;
+}
+
+export async function resolveExpenseReimbursement(
+  eventId: number | string,
+  expenseId: number,
+  decision: 'reimbursed' | 'rejected',
+  note?: string,
+): Promise<Expense> {
+  const data = await api.patch<{ expense: Expense }>(
+    `/api/events/${eventId}/expenses/${expenseId}/reimbursement`,
+    { decision, note },
+  );
+  return data.expense;
+}
+
+export async function extractExpenseReceiptOcr(
+  eventId: number | string,
+  expenseId: number,
+  receiptText: string,
+): Promise<{ ocr: ExpenseOcrResult; extracted: ExpenseOcrExtractedFields; can_apply: boolean }> {
+  return api.post<{ ocr: ExpenseOcrResult; extracted: ExpenseOcrExtractedFields; can_apply: boolean }>(
+    `/api/events/${eventId}/expenses/${expenseId}/ocr/extract`,
+    { receipt_text: receiptText },
+  );
+}
+
+export async function applyExpenseReceiptOcr(
+  eventId: number | string,
+  expenseId: number,
+  ocrId: number,
+  payload: {
+    title?: string;
+    amount?: number;
+    vendor_name?: string;
+    notes?: string;
+    override_reason?: string;
+  },
+): Promise<{ expense: Expense; reconciliation: { ocr_id: number; overrides: string[]; overrides_count: number } }> {
+  return api.post<{ expense: Expense; reconciliation: { ocr_id: number; overrides: string[]; overrides_count: number } }>(
+    `/api/events/${eventId}/expenses/${expenseId}/ocr/${ocrId}/apply`,
+    payload,
+  );
 }
 
 export async function deleteExpense(

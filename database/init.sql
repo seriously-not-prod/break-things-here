@@ -386,13 +386,117 @@ CREATE TABLE IF NOT EXISTS expenses (
   category_id    INTEGER REFERENCES budget_categories(id) ON DELETE SET NULL,
   title          TEXT NOT NULL,
   amount         NUMERIC(10,2) NOT NULL,
-  payment_status TEXT CHECK(payment_status IN ('Pending','Paid','Overdue','Cancelled')) DEFAULT 'Pending',
+  payment_status TEXT DEFAULT 'pending',
   vendor_name    TEXT,
   notes          TEXT,
   created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  approval_status TEXT NOT NULL DEFAULT 'pending',
+  approval_note  TEXT,
+  approved_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  approved_at    TIMESTAMP,
+  reimbursement_status TEXT NOT NULL DEFAULT 'not_requested',
+  reimbursement_requested_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  reimbursement_requested_at TIMESTAMP,
+  reimbursed_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  reimbursed_at  TIMESTAMP,
   created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+DO $$
+BEGIN
+  ALTER TABLE expenses
+  ADD CONSTRAINT expenses_approval_status_check
+  CHECK (approval_status IN ('pending','approved','rejected'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Backfill legacy PascalCase payment_status BEFORE applying the lowercase
+-- whitelist (#PR-644). Safe to re-run.
+UPDATE expenses
+   SET payment_status = LOWER(payment_status)
+ WHERE payment_status IN ('Pending', 'Paid', 'Overdue', 'Cancelled');
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'expenses_payment_status_check') THEN
+    ALTER TABLE expenses DROP CONSTRAINT expenses_payment_status_check;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE expenses
+  ADD CONSTRAINT expenses_payment_status_check
+  CHECK (payment_status IN ('pending','paid','overdue','cancelled'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE expenses
+  ADD CONSTRAINT expenses_reimbursement_status_check
+  CHECK (reimbursement_status IN ('not_requested','requested','reimbursed','rejected'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS expense_workflow_events (
+  id            SERIAL PRIMARY KEY,
+  event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  expense_id    INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+  action        TEXT NOT NULL,
+  actor_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  from_state    TEXT,
+  to_state      TEXT,
+  note          TEXT,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_event_id ON expense_workflow_events(event_id);
+CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_expense_id ON expense_workflow_events(expense_id);
+
+CREATE TABLE IF NOT EXISTS expense_receipt_ocr (
+  id                  SERIAL PRIMARY KEY,
+  event_id            INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  expense_id          INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+  receipt_text        TEXT NOT NULL,
+  extracted_title     TEXT,
+  extracted_amount    NUMERIC(10,2),
+  extracted_vendor_name TEXT,
+  extracted_date      TEXT,
+  confidence          NUMERIC(4,3) NOT NULL DEFAULT 0,
+  status              TEXT NOT NULL DEFAULT 'extracted',
+  error_code          TEXT,
+  error_message       TEXT,
+  created_by          INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  applied_by          INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  applied_at          TIMESTAMP,
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CHECK (status IN ('extracted','applied','failed')),
+  CHECK (confidence >= 0 AND confidence <= 1)
+);
+CREATE INDEX IF NOT EXISTS idx_expense_receipt_ocr_event_id ON expense_receipt_ocr(event_id);
+CREATE INDEX IF NOT EXISTS idx_expense_receipt_ocr_expense_id ON expense_receipt_ocr(expense_id);
+
+CREATE TABLE IF NOT EXISTS expense_reconciliation_logs (
+  id              SERIAL PRIMARY KEY,
+  event_id        INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  expense_id      INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+  ocr_id          INTEGER NOT NULL REFERENCES expense_receipt_ocr(id) ON DELETE RESTRICT,
+  before_data     JSONB NOT NULL,
+  extracted_data  JSONB NOT NULL,
+  applied_data    JSONB NOT NULL,
+  overrides_count INTEGER NOT NULL DEFAULT 0,
+  override_reason TEXT,
+  created_by      INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  updated_by      INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CHECK (overrides_count >= 0)
+);
+CREATE INDEX IF NOT EXISTS idx_expense_reconciliation_logs_event_id ON expense_reconciliation_logs(event_id);
+CREATE INDEX IF NOT EXISTS idx_expense_reconciliation_logs_expense_id ON expense_reconciliation_logs(expense_id);
 
 -- ============================================================
 -- Seating
@@ -471,17 +575,28 @@ CREATE TABLE IF NOT EXISTS shopping_lists (
 );
 
 CREATE TABLE IF NOT EXISTS shopping_items (
-  id             SERIAL PRIMARY KEY,
-  list_id        INTEGER NOT NULL REFERENCES shopping_lists(id) ON DELETE CASCADE,
-  name           TEXT NOT NULL,
-  quantity       INTEGER DEFAULT 1,
-  unit           TEXT,
-  estimated_cost NUMERIC(10,2),
-  actual_cost    NUMERIC(10,2),
-  status         TEXT CHECK(status IN ('Needed','Purchased','Not Available','Ordered')) DEFAULT 'Needed',
-  assigned_to    INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  notes          TEXT,
-  created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id                  SERIAL PRIMARY KEY,
+  list_id             INTEGER NOT NULL REFERENCES shopping_lists(id) ON DELETE CASCADE,
+  name                TEXT NOT NULL,
+  quantity            INTEGER DEFAULT 1,
+  unit                TEXT,
+  estimated_cost      NUMERIC(10,2),
+  actual_cost         NUMERIC(10,2),
+  status              TEXT CHECK(status IN ('Needed','Purchased','Not Available','Ordered')) DEFAULT 'Needed',
+  assigned_to         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  notes               TEXT,
+  source_store_name   TEXT,
+  source_store_url    TEXT,
+  compared_price_low  NUMERIC(10,2),
+  compared_price_high NUMERIC(10,2),
+  price_checked_at    TIMESTAMP,
+  updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT shopping_items_compared_price_order_check CHECK (
+    compared_price_low IS NULL OR
+    compared_price_high IS NULL OR
+    compared_price_low <= compared_price_high
+  )
 );
 
 -- ============================================================
@@ -631,6 +746,65 @@ CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_vendor_id ON vendor_communication
 CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_event_id  ON vendor_communication_log(event_id);
 
 -- ============================================================
+-- Vendor Lifecycle Parity (Story #531: tasks #553 #609 #610 #611)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS vendor_favorites (
+  id         SERIAL PRIMARY KEY,
+  event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  vendor_id  INTEGER NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(event_id, vendor_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_favorites_event_id ON vendor_favorites(event_id);
+CREATE INDEX IF NOT EXISTS idx_vendor_favorites_vendor_id ON vendor_favorites(vendor_id);
+CREATE INDEX IF NOT EXISTS idx_vendor_favorites_user_id ON vendor_favorites(user_id);
+
+CREATE TABLE IF NOT EXISTS vendor_bookings (
+  id                 SERIAL PRIMARY KEY,
+  event_id           INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  vendor_id          INTEGER NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  status             TEXT NOT NULL DEFAULT 'requested',
+  contract_signed_at TIMESTAMP,
+  service_start_at   TIMESTAMP,
+  service_end_at     TIMESTAMP,
+  total_amount       NUMERIC(10,2),
+  currency_code      TEXT DEFAULT 'USD',
+  notes              TEXT,
+  created_by         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(event_id, vendor_id),
+  CHECK(status IN ('requested','quoted','negotiating','approved','contracted','scheduled','in_progress','completed','cancelled'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_bookings_event_id ON vendor_bookings(event_id);
+CREATE INDEX IF NOT EXISTS idx_vendor_bookings_vendor_id ON vendor_bookings(vendor_id);
+
+CREATE TABLE IF NOT EXISTS vendor_payment_schedules (
+  id                SERIAL PRIMARY KEY,
+  event_id          INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  vendor_id         INTEGER NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  vendor_booking_id INTEGER REFERENCES vendor_bookings(id) ON DELETE SET NULL,
+  due_date          DATE NOT NULL,
+  amount            NUMERIC(10,2) NOT NULL,
+  status            TEXT NOT NULL DEFAULT 'pending',
+  paid_at           TIMESTAMP,
+  note              TEXT,
+  created_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CHECK(status IN ('pending','paid','overdue','cancelled')),
+  CHECK(amount >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_payment_sched_event_id ON vendor_payment_schedules(event_id);
+CREATE INDEX IF NOT EXISTS idx_vendor_payment_sched_vendor_id ON vendor_payment_schedules(vendor_id);
+
+-- ============================================================
 -- Store Suggestions (#464)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS store_suggestions (
@@ -640,6 +814,11 @@ CREATE TABLE IF NOT EXISTS store_suggestions (
   website      TEXT,
   notes        TEXT,
   category     TEXT,
+  location     TEXT,
+  latitude     NUMERIC(9,6),
+  longitude    NUMERIC(9,6),
+  usage_count  INTEGER NOT NULL DEFAULT 0 CHECK (usage_count >= 0),
+  last_used_at TIMESTAMP,
   suggested_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   status       TEXT CHECK(status IN ('pending','approved','rejected')) DEFAULT 'pending',
   created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -647,6 +826,10 @@ CREATE TABLE IF NOT EXISTS store_suggestions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_store_suggestions_event_id ON store_suggestions(event_id);
+CREATE INDEX IF NOT EXISTS idx_store_suggestions_usage
+  ON store_suggestions(event_id, usage_count DESC);
+CREATE INDEX IF NOT EXISTS idx_store_suggestions_category
+  ON store_suggestions(event_id, category);
 
 -- Case-insensitive unique store name per event
 CREATE UNIQUE INDEX IF NOT EXISTS idx_store_suggestions_unique
@@ -789,6 +972,48 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT;
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_base NUMERIC(14,4);
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(18,8);
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approval_note TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_status TEXT NOT NULL DEFAULT 'not_requested';
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_requested_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_requested_at TIMESTAMP;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursed_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursed_at TIMESTAMP;
+
+DO $$
+BEGIN
+  ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expenses_approval_status_check;
+  ALTER TABLE expenses
+  ADD CONSTRAINT expenses_approval_status_check
+  CHECK (approval_status IN ('pending','approved','rejected'));
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expenses_reimbursement_status_check;
+  ALTER TABLE expenses
+  ADD CONSTRAINT expenses_reimbursement_status_check
+  CHECK (reimbursement_status IN ('not_requested','requested','reimbursed','rejected'));
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS expense_workflow_events (
+  id            SERIAL PRIMARY KEY,
+  event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  expense_id    INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+  action        TEXT NOT NULL,
+  actor_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  from_state    TEXT,
+  to_state      TEXT,
+  note          TEXT,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_event_id ON expense_workflow_events(event_id);
+CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_expense_id ON expense_workflow_events(expense_id);
 
 CREATE TABLE IF NOT EXISTS exchange_rates (
   base_currency  TEXT NOT NULL,
@@ -798,6 +1023,104 @@ CREATE TABLE IF NOT EXISTS exchange_rates (
   fetched_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (base_currency, quote_currency)
 );
+
+-- ============================================================
+-- Guest, RSVP, communication, check-in, seating parity
+-- (#529 story; tasks #543-#547, #582-#595)
+-- ============================================================
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS address_line1 TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS address_line2 TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS city TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS state_region TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS postal_code TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS country TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS company TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS relation_type TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS age_group TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS emergency_contact_name TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS emergency_contact_phone TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS profile_completeness INTEGER DEFAULT 0;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS canonical_status TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS meal_choice TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS meal_options_locked BOOLEAN DEFAULT FALSE;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS late_arrival BOOLEAN DEFAULT FALSE;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS arrival_delay_minutes INTEGER;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS unsubscribed_at TIMESTAMP;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS unsubscribe_token TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS seating_group_id INTEGER;
+
+CREATE INDEX IF NOT EXISTS idx_rsvps_canonical_status ON rsvps(event_id, canonical_status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rsvps_unsubscribe_token
+  ON rsvps(unsubscribe_token) WHERE unsubscribe_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_rsvps_seating_group ON rsvps(seating_group_id);
+
+CREATE TABLE IF NOT EXISTS event_meal_options (
+  id          SERIAL PRIMARY KEY,
+  event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  description TEXT,
+  is_active   BOOLEAN DEFAULT TRUE,
+  sort_order  INTEGER DEFAULT 0,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (event_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_event_meal_options_event ON event_meal_options(event_id);
+
+CREATE TABLE IF NOT EXISTS communication_templates (
+  id         SERIAL PRIMARY KEY,
+  event_id   INTEGER REFERENCES events(id) ON DELETE CASCADE,
+  slug       TEXT NOT NULL,
+  name       TEXT NOT NULL,
+  subject    TEXT NOT NULL,
+  body       TEXT NOT NULL,
+  is_default BOOLEAN DEFAULT FALSE,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (event_id, slug)
+);
+CREATE INDEX IF NOT EXISTS idx_comm_templates_event ON communication_templates(event_id);
+
+CREATE TABLE IF NOT EXISTS attendance_events (
+  id           SERIAL PRIMARY KEY,
+  event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  rsvp_id      INTEGER NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
+  action       TEXT NOT NULL CHECK (action IN ('checked_in','undo_checkin','scanned','no_show')),
+  source       TEXT NOT NULL DEFAULT 'manual',
+  occurred_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  actor_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  metadata     JSONB
+);
+CREATE INDEX IF NOT EXISTS idx_attendance_events_event
+  ON attendance_events(event_id, occurred_at DESC);
+
+CREATE TABLE IF NOT EXISTS seating_groups (
+  id                  SERIAL PRIMARY KEY,
+  event_id            INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name                TEXT NOT NULL,
+  seat_together       BOOLEAN DEFAULT TRUE,
+  preferred_table_id  INTEGER REFERENCES seating_tables(id) ON DELETE SET NULL,
+  notes               TEXT,
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (event_id, name)
+);
+
+-- Backfill canonical_status from legacy status text on init.
+UPDATE rsvps SET canonical_status = CASE
+  WHEN canonical_status IS NOT NULL THEN canonical_status
+  WHEN waitlist_position IS NOT NULL THEN 'waitlist'
+  WHEN checked_in = TRUE THEN 'checked_in'
+  WHEN LOWER(status) IN ('going','yes','confirmed','accepted') THEN 'confirmed'
+  WHEN LOWER(status) IN ('not going','declined','no','rejected') THEN 'declined'
+  WHEN LOWER(status) IN ('maybe','tentative') THEN 'maybe'
+  WHEN LOWER(status) IN ('cancelled','canceled') THEN 'cancelled'
+  WHEN LOWER(status) IN ('pending','invited','sent') THEN 'pending'
+  ELSE 'pending'
+END
+WHERE canonical_status IS NULL OR canonical_status = '';
 
 -- ============================================================
 -- Gallery albums, moderation queue & slideshows (#417, #459)
@@ -843,6 +1166,181 @@ CREATE INDEX IF NOT EXISTS idx_slideshow_items_slideshow_id ON slideshow_items(s
 -- Applied only when RLS_PILOT_ENABLED=true at bootstrap time.
 -- The application runtime migration also handles this.
 -- ============================================================
+
+-- ============================================================
+-- BRD v2: Event lifecycle, gallery, reporting parity
+-- Stories #528, #533 — covers tasks #539-#542, #560-#563,
+--   #574-#581, #617-#622.
+-- All deltas are idempotent (IF NOT EXISTS / DO blocks).
+-- ============================================================
+
+-- Widen event status to full BRD v2 lifecycle (#575).
+-- Existing values stay valid; we add 'Planning' and 'Confirmed'.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'events_status_check') THEN
+    ALTER TABLE events DROP CONSTRAINT events_status_check;
+  END IF;
+END$$;
+ALTER TABLE events ADD CONSTRAINT events_status_check
+  CHECK (status IN ('Draft','Planning','Confirmed','Active','Completed','Cancelled'));
+
+-- True archival (#540, #578) — distinct from soft-delete (deleted_at)
+ALTER TABLE events ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS archived_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS archive_reason TEXT;
+CREATE INDEX IF NOT EXISTS idx_events_archived_at ON events(archived_at) WHERE archived_at IS NOT NULL;
+
+-- Audit field (#542, #575) — who last updated the event
+ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+
+-- Gallery permission flags per-event (#618, #621)
+ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_comments_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_guest_uploads BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_public BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Storage quota (#622) — bytes, default 500MB
+ALTER TABLE events ADD COLUMN IF NOT EXISTS storage_quota_bytes BIGINT NOT NULL DEFAULT 524288000;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS storage_used_bytes BIGINT NOT NULL DEFAULT 0;
+
+-- Cover image resize pipeline outputs (#541, #576) — JSON of derived sizes
+ALTER TABLE events ADD COLUMN IF NOT EXISTS cover_image_sizes JSONB;
+
+-- Event custom fields (#541, #577) — flexible per-event metadata
+CREATE TABLE IF NOT EXISTS event_custom_fields (
+  id          SERIAL PRIMARY KEY,
+  event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  field_key   TEXT NOT NULL,
+  label       TEXT NOT NULL,
+  field_type  TEXT NOT NULL CHECK (field_type IN ('text','number','boolean','date','url','select')),
+  options     JSONB,
+  value       TEXT,
+  required    BOOLEAN NOT NULL DEFAULT FALSE,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (event_id, field_key)
+);
+CREATE INDEX IF NOT EXISTS idx_event_custom_fields_event_id ON event_custom_fields(event_id);
+
+-- Extend event_documents (#560, #617, #618, #619) with conversion + permissions metadata.
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'event';
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_documents_visibility_check') THEN
+    ALTER TABLE event_documents DROP CONSTRAINT event_documents_visibility_check;
+  END IF;
+END$$;
+ALTER TABLE event_documents ADD CONSTRAINT event_documents_visibility_check
+  CHECK (visibility IN ('private','event','public'));
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS allow_download BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS allow_comments BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS conversion_status TEXT NOT NULL DEFAULT 'none';
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_documents_conversion_status_check') THEN
+    ALTER TABLE event_documents DROP CONSTRAINT event_documents_conversion_status_check;
+  END IF;
+END$$;
+ALTER TABLE event_documents ADD CONSTRAINT event_documents_conversion_status_check
+  CHECK (conversion_status IN ('none','pending','converted','failed'));
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS original_format TEXT;
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS converted_file_name TEXT;
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS medium_url TEXT;
+ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_event_documents_visibility ON event_documents(event_id, visibility);
+CREATE INDEX IF NOT EXISTS idx_event_documents_conversion ON event_documents(conversion_status) WHERE conversion_status <> 'none';
+
+-- Gallery share links (#619) — public URLs scoped to an event or album
+CREATE TABLE IF NOT EXISTS gallery_share_links (
+  id              SERIAL PRIMARY KEY,
+  event_id        INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  album_id        INTEGER REFERENCES gallery_albums(id) ON DELETE CASCADE,
+  token           TEXT NOT NULL UNIQUE,
+  password_hash   TEXT,
+  allow_download  BOOLEAN NOT NULL DEFAULT TRUE,
+  expires_at      TIMESTAMP,
+  view_count      INTEGER NOT NULL DEFAULT 0,
+  last_viewed_at  TIMESTAMP,
+  revoked_at      TIMESTAMP,
+  created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_gallery_share_links_event_id ON gallery_share_links(event_id);
+CREATE INDEX IF NOT EXISTS idx_gallery_share_links_album_id ON gallery_share_links(album_id);
+CREATE INDEX IF NOT EXISTS idx_gallery_share_links_token_active
+  ON gallery_share_links(token) WHERE revoked_at IS NULL;
+
+-- Gallery comments / discussion threads (#621)
+CREATE TABLE IF NOT EXISTS gallery_comments (
+  id           SERIAL PRIMARY KEY,
+  event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  document_id  INTEGER NOT NULL REFERENCES event_documents(id) ON DELETE CASCADE,
+  parent_id    INTEGER REFERENCES gallery_comments(id) ON DELETE CASCADE,
+  user_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  body         TEXT NOT NULL CHECK (length(body) <= 2000),
+  is_hidden    BOOLEAN NOT NULL DEFAULT FALSE,
+  hidden_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  hidden_at    TIMESTAMP,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by   INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_gallery_comments_document_id ON gallery_comments(document_id);
+CREATE INDEX IF NOT EXISTS idx_gallery_comments_event_id ON gallery_comments(event_id);
+CREATE INDEX IF NOT EXISTS idx_gallery_comments_parent_id ON gallery_comments(parent_id);
+
+-- Scheduled reports (#562, #602)
+CREATE TABLE IF NOT EXISTS scheduled_reports (
+  id            SERIAL PRIMARY KEY,
+  event_id      INTEGER REFERENCES events(id) ON DELETE CASCADE,
+  report_type   TEXT NOT NULL CHECK (report_type IN (
+                  'rsvp_summary','budget_summary','task_summary','storage_summary','full',
+                  'financial_detail','expense_workflow','vendor_spend','price_comparison'
+                )),
+  frequency     TEXT NOT NULL CHECK (frequency IN ('daily','weekly','monthly')),
+  recipients    JSONB NOT NULL DEFAULT '[]'::jsonb,
+  filters       JSONB,
+  next_run_at   TIMESTAMP,
+  last_run_at   TIMESTAMP,
+  is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_scheduled_reports_event_id ON scheduled_reports(event_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_reports_due
+  ON scheduled_reports(next_run_at) WHERE is_active = TRUE;
+
+-- Report deliveries (audit trail for #562)
+CREATE TABLE IF NOT EXISTS scheduled_report_deliveries (
+  id            SERIAL PRIMARY KEY,
+  report_id     INTEGER NOT NULL REFERENCES scheduled_reports(id) ON DELETE CASCADE,
+  delivered_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  recipients    JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status        TEXT NOT NULL CHECK (status IN ('success','partial','failed')),
+  error_message TEXT,
+  payload_kind  TEXT NOT NULL DEFAULT 'json'
+);
+CREATE INDEX IF NOT EXISTS idx_scheduled_report_deliveries_report_id ON scheduled_report_deliveries(report_id);
+
+-- Event template depth (#579) — sections that templates can pre-fill
+CREATE TABLE IF NOT EXISTS event_template_sections (
+  id            SERIAL PRIMARY KEY,
+  template_id   INTEGER NOT NULL REFERENCES event_templates(id) ON DELETE CASCADE,
+  section_key   TEXT NOT NULL CHECK (section_key IN ('tasks','budget','timeline','custom_fields','vendors','shopping','rsvp_questions')),
+  payload       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (template_id, section_key)
+);
+CREATE INDEX IF NOT EXISTS idx_event_template_sections_template_id ON event_template_sections(template_id);
 
 -- ============================================================
 -- DEMO SEED DATA

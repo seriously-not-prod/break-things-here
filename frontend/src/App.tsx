@@ -21,6 +21,8 @@ import VendorsPage from './components/vendors/vendors-page';
 import ShoppingPage from './components/shopping/shopping-page';
 import TimelinePage from './components/timeline/timeline-page';
 import { CheckInPage } from './components/checkin/checkin-page';
+import QrScannerPage from './components/checkin/qr-scanner-page';
+import AttendanceBoardPage from './components/checkin/attendance-board-page';
 import { SeatingPage } from './components/seating/seating-page';
 import GuestsPage from './components/guests/guests-page';
 import BudgetPage from './components/budget/budget-page';
@@ -371,6 +373,8 @@ function AppShell(): JSX.Element {
           <Route path="/events/:id/shopping" element={<EventRouteGuard><ShoppingPage /></EventRouteGuard>} />
           <Route path="/events/:id/timeline" element={<EventRouteGuard><TimelinePage /></EventRouteGuard>} />
           <Route path="/events/:id/checkin" element={<EventRouteGuard><CheckInPage /></EventRouteGuard>} />
+          <Route path="/events/:id/checkin/scan" element={<EventRouteGuard><QrScannerPage /></EventRouteGuard>} />
+          <Route path="/events/:id/attendance" element={<EventRouteGuard><AttendanceBoardPage /></EventRouteGuard>} />
           <Route path="/events/:id/seating" element={<EventRouteGuard><SeatingPage /></EventRouteGuard>} />
           <Route path="/events/:id/guests" element={<EventRouteGuard><GuestsPage /></EventRouteGuard>} />
           <Route path="/events/:id/budget" element={<EventRouteGuard><BudgetPage /></EventRouteGuard>} />

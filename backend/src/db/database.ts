@@ -24,6 +24,7 @@ export interface DatabaseAdapter {
   exec(sql: string): Promise<void>;
   close?(): Promise<void>;
   withUserContext?<T>(userId: number, fn: (db: DatabaseAdapter) => Promise<T>): Promise<T>;
+  transaction?<T>(fn: (tx: DatabaseAdapter) => Promise<T>): Promise<T>;
 }
 
 function convertPlaceholders(sql: string): string {
@@ -65,6 +66,40 @@ class PgWrapper {
 
   async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  async transaction<T>(fn: (tx: DatabaseAdapter) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const txDb: DatabaseAdapter = {
+        async get<R = DatabaseRow>(sql: string, params?: QueryParams): Promise<R | undefined> {
+          const res = await client.query<DatabaseRow>(convertPlaceholders(sql), params ?? []);
+          return res.rows[0] as R | undefined;
+        },
+        async all<R = DatabaseRow>(sql: string, params?: QueryParams): Promise<R[]> {
+          const res = await client.query<DatabaseRow>(convertPlaceholders(sql), params ?? []);
+          return res.rows as R[];
+        },
+        async run(sql: string, params?: QueryParams): Promise<RunResult> {
+          const upper = sql.trim().toUpperCase();
+          const res = await client.query<{ id?: number }>(convertPlaceholders(sql), params ?? []);
+          const lastID = /\bRETURNING\b/.test(upper) ? res.rows[0]?.id : undefined;
+          return { lastID, changes: res.rowCount ?? 0 };
+        },
+        async exec(sql: string): Promise<void> {
+          await client.query(sql);
+        },
+      };
+      const result = await fn(txDb);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async withUserContext<T>(userId: number, fn: (db: DatabaseAdapter) => Promise<T>): Promise<T> {
@@ -410,8 +445,8 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
     await db.run(
       `INSERT INTO expenses (event_id, category_id, title, amount, payment_status, vendor_name, notes, created_by)
        VALUES
-       (?, ?, 'Main stage lighting', 4200, 'Paid', 'Luma Sound Co.', 'Paid deposit confirmed.', ?),
-       (?, ?, 'Artist green room catering', 1500, 'Pending', 'Fresh Plate Catering', 'Final headcount due next week.', ?)`,
+       (?, ?, 'Main stage lighting', 4200, 'paid', 'Luma Sound Co.', 'Paid deposit confirmed.', ?),
+       (?, ?, 'Artist green room catering', 1500, 'pending', 'Fresh Plate Catering', 'Final headcount due next week.', ?)`,
       [event.id, productionCategory.id, admin.id, event.id, cateringCategory.id, admin.id],
     );
   }
@@ -539,6 +574,131 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
   }
 }
 
+async function seedDevelopmentExtraData(db: DatabaseAdapter): Promise<void> {
+  if (process.env.NODE_ENV === 'production') return;
+
+  const admin = await db.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['admin@festival.local']);
+  const attendee = await db.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['alice@email.com']);
+  if (!admin) return;
+
+  const draftTitle = 'Autumn Wine Festival (Draft)';
+  const draft = await db.get<{ id: number }>(
+    'SELECT id FROM events WHERE title = ? AND created_by = ? AND deleted_at IS NULL ORDER BY id LIMIT 1',
+    [draftTitle, admin.id],
+  );
+  if (!draft) {
+    await db.run(
+      `INSERT INTO events (title, date, location, description, capacity, status, created_by,
+        created_at, updated_at, event_type, tags, is_public, end_date)
+       VALUES (?, ?, ?, ?, ?, 'Draft', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Food', 'wine,fall,private', FALSE, ?)`,
+      [draftTitle, '2026-10-12', 'Vine & Hill Estate', 'Planning stage for the autumn invitational tasting.', 120, admin.id, '2026-10-13'],
+    );
+  }
+
+  const completedTitle = 'Spring Tech Conference 2026';
+  const completed = await db.get<{ id: number }>(
+    'SELECT id FROM events WHERE title = ? AND created_by = ? AND deleted_at IS NULL ORDER BY id LIMIT 1',
+    [completedTitle, admin.id],
+  );
+  if (!completed) {
+    await db.run(
+      `INSERT INTO events (title, date, location, description, capacity, status, created_by,
+        created_at, updated_at, event_type, tags, is_public, end_date)
+       VALUES (?, ?, ?, ?, ?, 'Completed', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Conference', 'tech,past', TRUE, ?)`,
+      [completedTitle, '2026-03-04', 'Innovation Hall', 'Annual tech meetup that wrapped up successfully.', 400, admin.id, '2026-03-06'],
+    );
+  }
+
+  const launchEvent = await db.get<{ id: number }>(
+    'SELECT id FROM events WHERE title = ? AND created_by = ? AND deleted_at IS NULL ORDER BY id LIMIT 1',
+    [DEV_DEMO_EVENT.title, admin.id],
+  );
+
+  if (launchEvent?.id) {
+    const musicCategory = await db.get<{ id: number }>('SELECT id FROM categories WHERE name = ?', ['Music']);
+    if (musicCategory) {
+      await db.run(
+        `INSERT INTO event_categories (event_id, category_id) VALUES (?, ?) ON CONFLICT DO NOTHING`,
+        [launchEvent.id, musicCategory.id],
+      );
+    }
+
+    const albumCount = await db.get<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM gallery_albums WHERE event_id = ?',
+      [launchEvent.id],
+    );
+    if (Number(albumCount?.count ?? '0') === 0) {
+      await db.run(
+        `INSERT INTO gallery_albums (event_id, name, description, created_by)
+         VALUES (?, 'Soundcheck Day', 'Behind-the-scenes from rehearsals.', ?)`,
+        [launchEvent.id, admin.id],
+      );
+    }
+
+    const activityCount = await db.get<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM activity_feed WHERE event_id = ?',
+      [launchEvent.id],
+    );
+    if (Number(activityCount?.count ?? '0') === 0) {
+      await db.run(
+        `INSERT INTO activity_feed (event_id, user_id, action_type, description, link)
+         VALUES
+         (?, ?, 'event_created', 'Eventora Launch Festival workspace created.', ?),
+         (?, ?, 'rsvp_added', 'Alice confirmed her RSVP.', ?),
+         (?, ?, 'expense_added', 'Main stage lighting expense recorded.', ?)`,
+        [
+          launchEvent.id, admin.id, `/events/${launchEvent.id}`,
+          launchEvent.id, admin.id, `/events/${launchEvent.id}/rsvps`,
+          launchEvent.id, admin.id, `/events/${launchEvent.id}/budget`,
+        ],
+      );
+    }
+
+    const commLogCount = await db.get<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM communication_log WHERE event_id = ?',
+      [launchEvent.id],
+    );
+    if (Number(commLogCount?.count ?? '0') === 0) {
+      await db.run(
+        `INSERT INTO communication_log (event_id, guest_email, communication_type, subject, content, status, sent_by)
+         VALUES
+         (?, 'alice@email.com', 'rsvp_confirmation', 'Your RSVP is confirmed', 'Thanks for confirming. See you on June 18!', 'sent', ?),
+         (?, 'marcus@example.com', 'reminder', 'Don''t forget to RSVP', 'A friendly reminder to confirm your spot.', 'sent', ?)`,
+        [launchEvent.id, admin.id, launchEvent.id, admin.id],
+      );
+    }
+  }
+
+  const notifCount = await db.get<{ count: string }>(
+    'SELECT COUNT(*)::text AS count FROM notifications WHERE user_id = ?',
+    [admin.id],
+  );
+  if (Number(notifCount?.count ?? '0') === 0) {
+    await db.run(
+      `INSERT INTO notifications (user_id, type, title, body, link, is_read)
+       VALUES
+       (?, 'rsvp', 'New RSVP received', 'Sofia Patel responded Maybe.', '/events', FALSE),
+       (?, 'task', 'Task due soon', 'Confirm headline artist is due in 3 days.', '/events', FALSE),
+       (?, 'budget', 'Budget alert', 'Catering category at 21% of allocated.', '/events', TRUE)`,
+      [admin.id, admin.id, admin.id],
+    );
+  }
+
+  if (attendee) {
+    const attendeeNotif = await db.get<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM notifications WHERE user_id = ?',
+      [attendee.id],
+    );
+    if (Number(attendeeNotif?.count ?? '0') === 0) {
+      await db.run(
+        `INSERT INTO notifications (user_id, type, title, body, link, is_read)
+         VALUES (?, 'invite', 'You were invited', 'Welcome to Eventora Launch Festival.', '/events', FALSE)`,
+        [attendee.id],
+      );
+    }
+  }
+}
+
 export async function initializeDatabase(): Promise<DatabaseAdapter> {
   if (dbWrapper) return dbWrapper;
 
@@ -557,6 +717,7 @@ export async function initializeDatabase(): Promise<DatabaseAdapter> {
   await runMigrations(dbWrapper);
   await seedDevelopmentDemoUsers(dbWrapper);
   await seedDevelopmentDemoWorkspace(dbWrapper);
+  await seedDevelopmentExtraData(dbWrapper);
   return dbWrapper;
 }
 
@@ -909,13 +1070,35 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       category_id INTEGER REFERENCES budget_categories(id) ON DELETE SET NULL,
       title TEXT NOT NULL,
       amount NUMERIC(10,2) NOT NULL,
-      payment_status TEXT CHECK(payment_status IN ('Pending','Paid','Overdue','Cancelled')) DEFAULT 'Pending',
+      payment_status TEXT DEFAULT 'pending',
       vendor_name TEXT,
       notes TEXT,
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
+  `);
+
+  // Backfill legacy PascalCase payment_status values BEFORE re-applying the
+  // lowercase CHECK constraint. Idempotent on already-lowercase data.
+  await db.exec(`
+    UPDATE expenses
+       SET payment_status = LOWER(payment_status)
+     WHERE payment_status IN ('Pending', 'Paid', 'Overdue', 'Cancelled')
+  `);
+  // Drop any existing constraint (legacy PascalCase or older variant) and
+  // recreate with the BRD v2 lowercase whitelist.
+  await db.exec(`
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'expenses_payment_status_check') THEN
+        ALTER TABLE expenses DROP CONSTRAINT expenses_payment_status_check;
+      END IF;
+    END $$
+  `);
+  await db.exec(`
+    ALTER TABLE expenses ADD CONSTRAINT expenses_payment_status_check
+      CHECK (payment_status IN ('pending','paid','overdue','cancelled'))
   `);
 
   await db.exec(`
@@ -1314,6 +1497,66 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_vendor_id ON vendor_communication_log(vendor_id)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_event_id ON vendor_communication_log(event_id)`);
 
+  // ── Vendor lifecycle parity (#553, #609, #610, #611) ───────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS vendor_favorites (
+      id         SERIAL PRIMARY KEY,
+      event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      vendor_id  INTEGER NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(event_id, vendor_id, user_id)
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_favorites_event_id ON vendor_favorites(event_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_favorites_vendor_id ON vendor_favorites(vendor_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_favorites_user_id ON vendor_favorites(user_id)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS vendor_bookings (
+      id                 SERIAL PRIMARY KEY,
+      event_id           INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      vendor_id          INTEGER NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+      status             TEXT NOT NULL DEFAULT 'requested',
+      contract_signed_at TIMESTAMP,
+      service_start_at   TIMESTAMP,
+      service_end_at     TIMESTAMP,
+      total_amount       NUMERIC(10,2),
+      currency_code      TEXT DEFAULT 'USD',
+      notes              TEXT,
+      created_by         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_by         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(event_id, vendor_id),
+      CHECK(status IN ('requested','quoted','negotiating','approved','contracted','scheduled','in_progress','completed','cancelled'))
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_bookings_event_id ON vendor_bookings(event_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_bookings_vendor_id ON vendor_bookings(vendor_id)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS vendor_payment_schedules (
+      id             SERIAL PRIMARY KEY,
+      event_id       INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      vendor_id      INTEGER NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+      vendor_booking_id INTEGER REFERENCES vendor_bookings(id) ON DELETE SET NULL,
+      due_date       DATE NOT NULL,
+      amount         NUMERIC(10,2) NOT NULL,
+      status         TEXT NOT NULL DEFAULT 'pending',
+      paid_at        TIMESTAMP,
+      note           TEXT,
+      created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CHECK(status IN ('pending','paid','overdue','cancelled')),
+      CHECK(amount >= 0)
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_payment_sched_event_id ON vendor_payment_schedules(event_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_payment_sched_vendor_id ON vendor_payment_schedules(vendor_id)`);
+
   // ── Store suggestions (#464) ──────────────────────────────────────────────
   await db.exec(`
     CREATE TABLE IF NOT EXISTS store_suggestions (
@@ -1603,6 +1846,83 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT`);
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_base NUMERIC(14,4)`);
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(18,8)`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'pending'`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approval_note TEXT`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_status TEXT NOT NULL DEFAULT 'not_requested'`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_requested_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_requested_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursed_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursed_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expenses_approval_status_check`);
+  await db.exec(`ALTER TABLE expenses ADD CONSTRAINT expenses_approval_status_check CHECK (approval_status IN ('pending','approved','rejected'))`);
+  await db.exec(`ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expenses_reimbursement_status_check`);
+  await db.exec(`ALTER TABLE expenses ADD CONSTRAINT expenses_reimbursement_status_check CHECK (reimbursement_status IN ('not_requested','requested','reimbursed','rejected'))`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS expense_workflow_events (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      expense_id INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+      action TEXT NOT NULL,
+      actor_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      from_state TEXT,
+      to_state TEXT,
+      note TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_event_id ON expense_workflow_events(event_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_expense_id ON expense_workflow_events(expense_id)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS expense_receipt_ocr (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      expense_id INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+      receipt_text TEXT NOT NULL,
+      extracted_title TEXT,
+      extracted_amount NUMERIC(10,2),
+      extracted_vendor_name TEXT,
+      extracted_date TEXT,
+      confidence NUMERIC(4,3) NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'extracted',
+      error_code TEXT,
+      error_message TEXT,
+      created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      applied_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      applied_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CHECK (status IN ('extracted','applied','failed')),
+      CHECK (confidence >= 0 AND confidence <= 1)
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_receipt_ocr_event_id ON expense_receipt_ocr(event_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_receipt_ocr_expense_id ON expense_receipt_ocr(expense_id)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS expense_reconciliation_logs (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      expense_id INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+      ocr_id INTEGER NOT NULL REFERENCES expense_receipt_ocr(id) ON DELETE RESTRICT,
+      before_data JSONB NOT NULL,
+      extracted_data JSONB NOT NULL,
+      applied_data JSONB NOT NULL,
+      overrides_count INTEGER NOT NULL DEFAULT 0,
+      override_reason TEXT,
+      created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      updated_by INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CHECK (overrides_count >= 0)
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_reconciliation_logs_event_id ON expense_reconciliation_logs(event_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_reconciliation_logs_expense_id ON expense_reconciliation_logs(expense_id)`);
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS exchange_rates (
@@ -1613,5 +1933,401 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       fetched_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (base_currency, quote_currency)
     )
+  `);
+
+  // ─── Pre-BRD v2 tables mirrored from init.sql (#417, #459, #432, #454) ────
+  // These tables exist in init.sql but were not previously mirrored in the
+  // runtime migration. BRD v2 (#619, #579) adds FKs into them, so they must
+  // precede the BRD v2 section to keep the runtime migration self-contained
+  // on fresh databases (e.g. CI integration tests).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_templates (
+      id           SERIAL PRIMARY KEY,
+      name         TEXT NOT NULL,
+      description  TEXT,
+      default_title TEXT,
+      default_location TEXT,
+      default_capacity INTEGER,
+      default_event_type TEXT,
+      default_status   TEXT DEFAULT 'Draft',
+      default_tags TEXT,
+      default_is_public BOOLEAN DEFAULT FALSE,
+      default_waitlist_enabled BOOLEAN DEFAULT FALSE,
+      created_by   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      deleted_at   TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_templates_created_by ON event_templates(created_by)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_filter_presets (
+      id          SERIAL PRIMARY KEY,
+      name        TEXT NOT NULL,
+      filters     TEXT NOT NULL,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_filter_presets_user ON event_filter_presets(user_id)`);
+  await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_event_filter_presets_user_name ON event_filter_presets(user_id, name)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS gallery_albums (
+      id          SERIAL PRIMARY KEY,
+      event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name        TEXT NOT NULL,
+      description TEXT,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_albums_event_id ON gallery_albums(event_id)`);
+
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS album_id INTEGER REFERENCES gallery_albums(id) ON DELETE SET NULL`);
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS moderation_status TEXT NOT NULL DEFAULT 'approved'`);
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS submitted_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_documents_album_id ON event_documents(album_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_documents_moderation ON event_documents(event_id, moderation_status)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS gallery_slideshows (
+      id          SERIAL PRIMARY KEY,
+      event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name        TEXT NOT NULL,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_slideshows_event_id ON gallery_slideshows(event_id)`);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS slideshow_items (
+      id           SERIAL PRIMARY KEY,
+      slideshow_id INTEGER NOT NULL REFERENCES gallery_slideshows(id) ON DELETE CASCADE,
+      document_id  INTEGER NOT NULL REFERENCES event_documents(id) ON DELETE CASCADE,
+      sort_order   INTEGER NOT NULL DEFAULT 0,
+      UNIQUE (slideshow_id, document_id)
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_slideshow_items_slideshow_id ON slideshow_items(slideshow_id)`);
+
+  // ─── BRD v2 parity: lifecycle, archive, custom fields, gallery, reports ────
+  // Stories #528, #533 — tasks #539-#542, #560-#563, #574-#581, #617-#622.
+
+  // Widen the event status constraint to full BRD v2 lifecycle (#575).
+  await db.exec(`
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'events_status_check') THEN
+        ALTER TABLE events DROP CONSTRAINT events_status_check;
+      END IF;
+    END $$
+  `);
+  await db.exec(`
+    ALTER TABLE events ADD CONSTRAINT events_status_check
+      CHECK (status IN ('Draft','Planning','Confirmed','Active','Completed','Cancelled'))
+  `);
+
+  // Archival fields distinct from soft-delete (#540, #578).
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS archived_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS archive_reason TEXT`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_events_archived_at ON events(archived_at) WHERE archived_at IS NOT NULL`);
+
+  // Audit field (#542) — who last updated the event.
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+
+  // Gallery permission flags per-event (#618, #621).
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_comments_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_guest_uploads BOOLEAN NOT NULL DEFAULT FALSE`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_public BOOLEAN NOT NULL DEFAULT FALSE`);
+
+  // Storage quota (#622) — bytes, default 500MB.
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS storage_quota_bytes BIGINT NOT NULL DEFAULT 524288000`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS storage_used_bytes BIGINT NOT NULL DEFAULT 0`);
+
+  // Cover image resize pipeline (#541, #576).
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS cover_image_sizes JSONB`);
+
+  // Event custom fields (#577).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_custom_fields (
+      id          SERIAL PRIMARY KEY,
+      event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      field_key   TEXT NOT NULL,
+      label       TEXT NOT NULL,
+      field_type  TEXT NOT NULL CHECK (field_type IN ('text','number','boolean','date','url','select')),
+      options     JSONB,
+      value       TEXT,
+      required    BOOLEAN NOT NULL DEFAULT FALSE,
+      sort_order  INTEGER NOT NULL DEFAULT 0,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (event_id, field_key)
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_custom_fields_event_id ON event_custom_fields(event_id)`);
+
+  // Gallery per-photo permissions + conversion metadata (#560, #617, #618).
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'event'`);
+  await db.exec(`
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_documents_visibility_check') THEN
+        ALTER TABLE event_documents DROP CONSTRAINT event_documents_visibility_check;
+      END IF;
+    END $$
+  `);
+  await db.exec(`
+    ALTER TABLE event_documents ADD CONSTRAINT event_documents_visibility_check
+      CHECK (visibility IN ('private','event','public'))
+  `);
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS allow_download BOOLEAN NOT NULL DEFAULT TRUE`);
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS allow_comments BOOLEAN NOT NULL DEFAULT TRUE`);
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS conversion_status TEXT NOT NULL DEFAULT 'none'`);
+  await db.exec(`
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_documents_conversion_status_check') THEN
+        ALTER TABLE event_documents DROP CONSTRAINT event_documents_conversion_status_check;
+      END IF;
+    END $$
+  `);
+  await db.exec(`
+    ALTER TABLE event_documents ADD CONSTRAINT event_documents_conversion_status_check
+      CHECK (conversion_status IN ('none','pending','converted','failed'))
+  `);
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS original_format TEXT`);
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS converted_file_name TEXT`);
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS thumbnail_url TEXT`);
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS medium_url TEXT`);
+  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_documents_visibility ON event_documents(event_id, visibility)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_documents_conversion ON event_documents(conversion_status) WHERE conversion_status <> 'none'`);
+
+  // Gallery share links (#619).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS gallery_share_links (
+      id              SERIAL PRIMARY KEY,
+      event_id        INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      album_id        INTEGER REFERENCES gallery_albums(id) ON DELETE CASCADE,
+      token           TEXT NOT NULL UNIQUE,
+      password_hash   TEXT,
+      allow_download  BOOLEAN NOT NULL DEFAULT TRUE,
+      expires_at      TIMESTAMP,
+      view_count      INTEGER NOT NULL DEFAULT 0,
+      last_viewed_at  TIMESTAMP,
+      revoked_at      TIMESTAMP,
+      created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_share_links_event_id ON gallery_share_links(event_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_share_links_album_id ON gallery_share_links(album_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_share_links_token_active ON gallery_share_links(token) WHERE revoked_at IS NULL`);
+
+  // Gallery comments (#621).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS gallery_comments (
+      id           SERIAL PRIMARY KEY,
+      event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      document_id  INTEGER NOT NULL REFERENCES event_documents(id) ON DELETE CASCADE,
+      parent_id    INTEGER REFERENCES gallery_comments(id) ON DELETE CASCADE,
+      user_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      body         TEXT NOT NULL CHECK (length(body) <= 2000),
+      is_hidden    BOOLEAN NOT NULL DEFAULT FALSE,
+      hidden_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      hidden_at    TIMESTAMP,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_by   INTEGER REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_comments_document_id ON gallery_comments(document_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_comments_event_id ON gallery_comments(event_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_comments_parent_id ON gallery_comments(parent_id)`);
+
+  // Scheduled reports (#562).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS scheduled_reports (
+      id            SERIAL PRIMARY KEY,
+      event_id      INTEGER REFERENCES events(id) ON DELETE CASCADE,
+      report_type   TEXT NOT NULL CHECK (report_type IN ('rsvp_summary','budget_summary','task_summary','storage_summary','full')),
+      frequency     TEXT NOT NULL CHECK (frequency IN ('daily','weekly','monthly')),
+      recipients    JSONB NOT NULL DEFAULT '[]'::jsonb,
+      filters       JSONB,
+      next_run_at   TIMESTAMP,
+      last_run_at   TIMESTAMP,
+      is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+      created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_scheduled_reports_event_id ON scheduled_reports(event_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_scheduled_reports_due ON scheduled_reports(next_run_at) WHERE is_active = TRUE`);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS scheduled_report_deliveries (
+      id            SERIAL PRIMARY KEY,
+      report_id     INTEGER NOT NULL REFERENCES scheduled_reports(id) ON DELETE CASCADE,
+      delivered_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      recipients    JSONB NOT NULL DEFAULT '[]'::jsonb,
+      status        TEXT NOT NULL CHECK (status IN ('success','partial','failed')),
+      error_message TEXT,
+      payload_kind  TEXT NOT NULL DEFAULT 'json'
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_scheduled_report_deliveries_report_id ON scheduled_report_deliveries(report_id)`);
+
+  // Event template depth (#579).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_template_sections (
+      id            SERIAL PRIMARY KEY,
+      template_id   INTEGER NOT NULL REFERENCES event_templates(id) ON DELETE CASCADE,
+      section_key   TEXT NOT NULL CHECK (section_key IN ('tasks','budget','timeline','custom_fields','vendors','shopping','rsvp_questions')),
+      payload       JSONB NOT NULL DEFAULT '{}'::jsonb,
+      sort_order    INTEGER NOT NULL DEFAULT 0,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (template_id, section_key)
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_template_sections_template_id ON event_template_sections(template_id)`);
+
+  // ── Guest profile completeness fields (#529, #543, #547, #582) ────────────
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS address_line1 TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS address_line2 TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS city TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS state_region TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS postal_code TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS country TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS company TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS title TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS relation_type TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS age_group TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS emergency_contact_name TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS emergency_contact_phone TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS profile_completeness INTEGER DEFAULT 0`);
+
+  // ── RSVP taxonomy alignment (#544, #584) ─────────────────────────────────
+  // Add canonical_status that maps legacy free-text status to the BRD/FRD set:
+  // pending | confirmed | declined | maybe | waitlist | cancelled | checked_in | no_show
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS canonical_status TEXT`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_rsvps_canonical_status ON rsvps(event_id, canonical_status)`,
+  );
+
+  // ── Meal selection (#591) ────────────────────────────────────────────────
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS meal_choice TEXT`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS meal_options_locked BOOLEAN DEFAULT FALSE`);
+
+  // ── Late arrival flag (#594) ─────────────────────────────────────────────
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS late_arrival BOOLEAN DEFAULT FALSE`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS arrival_delay_minutes INTEGER`);
+
+  // ── Unsubscribe / communication preferences (#545, #590) ─────────────────
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS unsubscribed_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS unsubscribe_token TEXT`);
+  await db.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_rsvps_unsubscribe_token ON rsvps(unsubscribe_token) WHERE unsubscribe_token IS NOT NULL`,
+  );
+
+  // Per-event meal catalog (#591)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS event_meal_options (
+      id         SERIAL PRIMARY KEY,
+      event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name       TEXT NOT NULL,
+      description TEXT,
+      is_active  BOOLEAN DEFAULT TRUE,
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (event_id, name)
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_event_meal_options_event ON event_meal_options(event_id)`,
+  );
+
+  // ── Communication templates (#590) ───────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS communication_templates (
+      id         SERIAL PRIMARY KEY,
+      event_id   INTEGER REFERENCES events(id) ON DELETE CASCADE,
+      slug       TEXT NOT NULL,
+      name       TEXT NOT NULL,
+      subject    TEXT NOT NULL,
+      body       TEXT NOT NULL,
+      is_default BOOLEAN DEFAULT FALSE,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (event_id, slug)
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_comm_templates_event ON communication_templates(event_id)`,
+  );
+
+  // ── Attendance audit log (#594, #595) — every scan/check-in event ────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS attendance_events (
+      id           SERIAL PRIMARY KEY,
+      event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      rsvp_id      INTEGER NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
+      action       TEXT NOT NULL CHECK (action IN ('checked_in','undo_checkin','scanned','no_show')),
+      source       TEXT NOT NULL DEFAULT 'manual',
+      occurred_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      actor_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      metadata     JSONB
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_attendance_events_event ON attendance_events(event_id, occurred_at DESC)`,
+  );
+
+  // ── Group seating (#593) ─────────────────────────────────────────────────
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS seating_groups (
+      id          SERIAL PRIMARY KEY,
+      event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name        TEXT NOT NULL,
+      seat_together BOOLEAN DEFAULT TRUE,
+      preferred_table_id INTEGER REFERENCES seating_tables(id) ON DELETE SET NULL,
+      notes       TEXT,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (event_id, name)
+    )
+  `);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS seating_group_id INTEGER`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_rsvps_seating_group ON rsvps(seating_group_id)`,
+  );
+
+  // Backfill canonical_status from legacy free-text status on first run.
+  await db.exec(`
+    UPDATE rsvps SET canonical_status = CASE
+      WHEN canonical_status IS NOT NULL THEN canonical_status
+      WHEN waitlist_position IS NOT NULL THEN 'waitlist'
+      WHEN checked_in = TRUE THEN 'checked_in'
+      WHEN LOWER(status) IN ('going','yes','confirmed','accepted') THEN 'confirmed'
+      WHEN LOWER(status) IN ('not going','declined','no','rejected') THEN 'declined'
+      WHEN LOWER(status) IN ('maybe','tentative') THEN 'maybe'
+      WHEN LOWER(status) IN ('cancelled','canceled') THEN 'cancelled'
+      WHEN LOWER(status) IN ('pending','invited','sent') THEN 'pending'
+      ELSE 'pending'
+    END
+    WHERE canonical_status IS NULL OR canonical_status = ''
   `);
 }

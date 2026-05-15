@@ -44,6 +44,25 @@ import * as waitlistController from '../controllers/waitlist-controller.js';
 import * as rsvpQuestionsController from '../controllers/rsvp-questions-controller.js';
 import * as currencyController from '../controllers/currency-controller.js';
 import * as budgetForecastController from '../controllers/budget-forecast-controller.js';
+import * as eventCustomFieldsController from '../controllers/event-custom-fields-controller.js';
+import * as galleryPermissionsController from '../controllers/gallery-permissions-controller.js';
+import * as gallerySharesController from '../controllers/gallery-shares-controller.js';
+import * as galleryCommentsController from '../controllers/gallery-comments-controller.js';
+import * as galleryDownloadsController from '../controllers/gallery-downloads-controller.js';
+import * as reportsController from '../controllers/reports-controller.js';
+import * as globalSearchController from '../controllers/global-search-controller.js';
+import * as taskMultiAssigneeController from '../controllers/task-multi-assignee-controller.js';
+import * as timelineTemplatesController from '../controllers/timeline-templates-controller.js';
+import * as collaborationController from '../controllers/collaboration-controller.js';
+import * as eventChatController from '../controllers/event-chat-controller.js';
+import * as entityVersionsController from '../controllers/entity-versions-controller.js';
+import * as guestExportController from '../controllers/guest-export-controller.js';
+import * as mealOptionsController from '../controllers/meal-options-controller.js';
+import * as commTemplatesController from '../controllers/communication-templates-controller.js';
+import * as unsubscribeController from '../controllers/unsubscribe-controller.js';
+import * as qrCheckinController from '../controllers/qr-checkin-controller.js';
+import * as attendanceBoardController from '../controllers/attendance-board-controller.js';
+import * as seatingGroupsController from '../controllers/seating-groups-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
 import multer from 'multer';
@@ -170,9 +189,21 @@ router.get('/public/events/:eventId', rsvpController.getPublicRsvpContext);
 router.get('/tracking/open/:token', trackingController.recordOpen);
 router.get('/tracking/click/:token', trackingController.recordClick);
 
+// ── Public gallery share resolution (#619) — unauthenticated, token-gated ──
+router.get('/public/gallery/:token', gallerySharesController.resolveShareLink);
+router.post('/public/gallery/:token', gallerySharesController.resolveShareLink);
+
 // Public RSVP token lookup (#411, #437) — guest-facing, unauthenticated.
 router.get('/public/rsvp/:token', rsvpTokenController.lookupRsvpByToken);
 router.post('/public/rsvp/:token/responses', rsvpQuestionsController.submitResponses);
+
+// Public unsubscribe endpoint (#545, #590) — unauthenticated, token-gated.
+// Resubscribe is NOT public — re-opt-in by anyone except the original guest
+// would violate CAN-SPAM/GDPR. The route is registered below under the
+// authenticated section and requires the actor to be the event owner/admin.
+router.get('/public/unsubscribe/:token', unsubscribeController.getUnsubscribe);
+router.post('/public/unsubscribe/:token', unsubscribeController.postUnsubscribe);
+router.post('/unsubscribe/:token/resubscribe', authenticateToken, unsubscribeController.resubscribe);
 // Token refresh and heartbeat
 router.post('/auth/refresh', authController.refreshTokenEndpoint);
 router.post('/auth/session/heartbeat', authenticateToken, authController.sessionHeartbeat);
@@ -197,6 +228,8 @@ router.get('/events/:eventId/rsvps', authenticateToken, rsvpController.listRsvps
 router.post('/events/:eventId/rsvps', rsvpController.createRsvp);
 // Specific sub-paths must be registered BEFORE /:id parameterized routes
 router.get('/events/:eventId/rsvps/export', authenticateToken, rsvpController.exportRsvpsCsv);
+router.get('/events/:eventId/rsvps/export.xlsx', authenticateToken, guestExportController.exportRsvpsXlsx);
+router.get('/events/:eventId/rsvps/export.pdf', authenticateToken, guestExportController.exportRsvpsPdfData);
 router.post('/events/:eventId/rsvps/import', authenticateToken, csvUpload.single('file'), rsvpController.importCsv);
 router.get('/events/:eventId/rsvps/duplicates', authenticateToken, guestMergeController.listDuplicates);
 router.get('/events/:eventId/guest-merges', authenticateToken, guestMergeController.listMergeAudit);
@@ -235,6 +268,39 @@ router.get('/events/:eventId/budget/forecast', authenticateToken, budgetForecast
 router.get('/events/:eventId/communication', authenticateToken, communicationController.listCommunicationLog);
 router.post('/events/:eventId/communication/invite', authenticateToken, communicationController.bulkSendInvitation);
 router.post('/events/:eventId/communication/reminder', authenticateToken, communicationController.sendReminder);
+
+// ============ COMMUNICATION TEMPLATES (#545, #587, #590) ============
+router.get('/events/:eventId/communication/templates', authenticateToken, commTemplatesController.listTemplates);
+router.post('/events/:eventId/communication/templates', authenticateToken, commTemplatesController.createTemplate);
+router.patch('/events/:eventId/communication/templates/:id', authenticateToken, commTemplatesController.updateTemplate);
+router.delete('/events/:eventId/communication/templates/:id', authenticateToken, commTemplatesController.deleteTemplate);
+router.post('/events/:eventId/communication/templates/:id/preview', authenticateToken, commTemplatesController.previewTemplate);
+
+// ============ MEAL OPTIONS (#591) ============
+router.get('/events/:eventId/meal-options', authenticateToken, mealOptionsController.listMealOptions);
+router.post('/events/:eventId/meal-options', authenticateToken, mealOptionsController.createMealOption);
+router.patch('/events/:eventId/meal-options/:id', authenticateToken, mealOptionsController.updateMealOption);
+router.delete('/events/:eventId/meal-options/:id', authenticateToken, mealOptionsController.deleteMealOption);
+
+// ============ QR CHECK-IN + ATTENDANCE BOARD (#546, #589, #594, #595) ============
+router.post('/events/:eventId/checkin/scan', authenticateToken, qrCheckinController.scanQr);
+router.post('/events/:eventId/checkin/:rsvpId/undo', authenticateToken, qrCheckinController.undoCheckin);
+router.post('/events/:eventId/checkin/mark-no-show', authenticateToken, qrCheckinController.markNoShow);
+router.get('/events/:eventId/attendance/summary', authenticateToken, attendanceBoardController.getAttendanceSummary);
+router.get('/events/:eventId/attendance/recent', authenticateToken, attendanceBoardController.listRecentAttendanceEvents);
+// SSE stream — EventSource cannot set Authorization headers, so auth flows
+// through the HttpOnly `accessToken` cookie that `authenticateToken` already
+// supports (see backend/src/middleware/auth.ts). Unauthenticated subscribers
+// are rejected with 401 before any SSE headers are written.
+router.get('/events/:eventId/attendance/stream', authenticateToken, attendanceBoardController.streamAttendance);
+
+// ============ SEATING GROUPS (#593) ============
+router.get('/events/:eventId/seating/groups', authenticateToken, seatingGroupsController.listGroups);
+router.post('/events/:eventId/seating/groups', authenticateToken, seatingGroupsController.createGroup);
+router.patch('/events/:eventId/seating/groups/:id', authenticateToken, seatingGroupsController.updateGroup);
+router.delete('/events/:eventId/seating/groups/:id', authenticateToken, seatingGroupsController.deleteGroup);
+router.post('/events/:eventId/seating/groups/:id/members', authenticateToken, seatingGroupsController.setGroupMembers);
+router.post('/events/:eventId/seating/groups/:id/seat', authenticateToken, seatingGroupsController.seatGroupAtTable);
 
 // ============ EVENT MEMBERS ROUTES ==========
 router.get('/events/:eventId/members', authenticateToken, eventMembersController.listMembers);
@@ -294,6 +360,10 @@ router.get('/event-templates/:id', authenticateToken, eventTemplatesController.g
 router.patch('/event-templates/:id', authenticateToken, eventTemplatesController.updateTemplate);
 router.delete('/event-templates/:id', authenticateToken, eventTemplatesController.deleteTemplate);
 router.post('/event-templates/:id/apply', authenticateToken, eventTemplatesController.applyTemplate);
+// Template depth (#579)
+router.get('/event-templates/:id/sections', authenticateToken, eventTemplatesController.listTemplateSections);
+router.put('/event-templates/:id/sections/:sectionKey', authenticateToken, eventTemplatesController.upsertTemplateSection);
+router.delete('/event-templates/:id/sections/:sectionKey', authenticateToken, eventTemplatesController.deleteTemplateSection);
 
 // ============ EVENT FILTER PRESETS — story #416, task #454 ============
 router.get('/event-filter-presets', authenticateToken, eventFilterPresetsController.listPresets);
@@ -313,6 +383,15 @@ router.delete('/events/:id', authenticateToken, eventController.deleteEvent);
 router.post('/events/:id/clone', authenticateToken, eventController.cloneEvent);
 router.patch('/events/:id/cover', authenticateToken, eventController.setCoverImage);
 router.post('/events/:id/restore', authenticateToken, eventController.restoreEvent);
+// BRD v2 (#540, #578) — true archive workflow distinct from soft-delete
+router.post('/events/:id/archive', authenticateToken, eventController.archiveEvent);
+router.post('/events/:id/unarchive', authenticateToken, eventController.unarchiveEvent);
+
+// ── Event custom fields (#541, #577) ───────────────────────────────────────
+router.get('/events/:eventId/custom-fields', authenticateToken, eventCustomFieldsController.listFields);
+router.post('/events/:eventId/custom-fields', authenticateToken, eventCustomFieldsController.createField);
+router.patch('/events/:eventId/custom-fields/:fieldId', authenticateToken, eventCustomFieldsController.updateField);
+router.delete('/events/:eventId/custom-fields/:fieldId', authenticateToken, eventCustomFieldsController.deleteField);
 router.get('/events/:eventId/feed', authenticateToken, activityFeedController.listFeed);
 router.get('/events/:eventId/documents', authenticateToken, eventDocumentsController.listEventDocuments);
 router.post('/events/:eventId/documents', authenticateToken, documentUpload.single('document'), eventDocumentsController.uploadEventDocument);
@@ -340,6 +419,25 @@ router.post('/events/:eventId/gallery/slideshows', authenticateToken, galleryCon
 router.get('/events/:eventId/gallery/slideshows/:slideshowId/items', authenticateToken, galleryController.getSlideshowItems);
 router.patch('/events/:eventId/gallery/slideshows/:slideshowId', authenticateToken, galleryController.updateSlideshow);
 router.delete('/events/:eventId/gallery/slideshows/:slideshowId', authenticateToken, galleryController.deleteSlideshow);
+
+// ── BRD v2 gallery permissions, share links, comments, downloads, quota ───
+// #560 #618 — per-photo permission granularity
+router.patch('/events/:eventId/gallery/:documentId/permissions', authenticateToken, galleryPermissionsController.updatePhotoPermissions);
+router.post('/events/:eventId/gallery/:documentId/recompute-conversion', authenticateToken, galleryPermissionsController.recomputeConversion);
+// #622 — storage quota reporting
+router.get('/events/:eventId/gallery/storage', authenticateToken, galleryPermissionsController.getStorageUsage);
+// #619 — public share-link controls
+router.get('/events/:eventId/gallery/share-links', authenticateToken, gallerySharesController.listShareLinks);
+router.post('/events/:eventId/gallery/share-links', authenticateToken, gallerySharesController.createShareLink);
+router.delete('/events/:eventId/gallery/share-links/:id', authenticateToken, gallerySharesController.revokeShareLink);
+// #621 — photo comments
+router.get('/events/:eventId/gallery/:documentId/comments', authenticateToken, galleryCommentsController.listComments);
+router.post('/events/:eventId/gallery/:documentId/comments', authenticateToken, galleryCommentsController.addComment);
+router.patch('/events/:eventId/gallery/comments/:commentId', authenticateToken, galleryCommentsController.moderateComment);
+router.delete('/events/:eventId/gallery/comments/:commentId', authenticateToken, galleryCommentsController.deleteComment);
+// #620 — album / event download manifest
+router.get('/events/:eventId/gallery/download', authenticateToken, galleryDownloadsController.getEventDownloadManifest);
+router.get('/events/:eventId/gallery/albums/:albumId/download', authenticateToken, galleryDownloadsController.getAlbumDownloadManifest);
 
 // ============ ADMIN ROUTES — issues #260 #279 ============
 // All admin routes require authentication + Admin role
@@ -388,11 +486,17 @@ router.get('/notifications/digest', authenticateToken, notificationsController.g
 // Static sub-paths must be registered BEFORE parameterised /:id routes
 router.get('/events/:eventId/vendors', authenticateToken, vendorsController.listVendors);
 router.post('/events/:eventId/vendors', authenticateToken, vendorsController.createVendor);
+router.get('/events/:eventId/vendors/favorites', authenticateToken, vendorsController.listFavoriteVendors);
 router.get('/events/:eventId/vendors/compare', authenticateToken, vendorCommController.compareVendors);
 router.get('/events/:eventId/vendors/performance', authenticateToken, vendorPerfController.listVendorPerformance);
 router.put('/events/:eventId/vendors/:id', authenticateToken, vendorsController.updateVendor);
 router.delete('/events/:eventId/vendors/:id', authenticateToken, vendorsController.deleteVendor);
+router.put('/events/:eventId/vendors/:id/favorite', authenticateToken, vendorsController.setVendorFavorite);
 router.post('/events/:eventId/vendors/:id/contract', authenticateToken, contractUpload.single('file'), vendorsController.uploadContract);
+router.get('/events/:eventId/vendors/:id/booking', authenticateToken, vendorsController.getVendorBooking);
+router.put('/events/:eventId/vendors/:id/booking', authenticateToken, vendorsController.upsertVendorBooking);
+router.get('/events/:eventId/vendors/:id/payment-schedules', authenticateToken, vendorsController.listVendorPaymentSchedules);
+router.post('/events/:eventId/vendors/:id/payment-schedules', authenticateToken, vendorsController.createVendorPaymentSchedule);
 router.get('/events/:eventId/vendors/:vendorId/communication', authenticateToken, vendorCommController.listVendorCommunication);
 router.post('/events/:eventId/vendors/:vendorId/communication', authenticateToken, vendorCommController.addVendorCommunication);
 router.delete('/events/:eventId/vendors/:vendorId/communication/:logId', authenticateToken, vendorCommController.deleteVendorCommunication);
@@ -406,6 +510,10 @@ router.get('/events/:eventId/shopping-lists/:listId/items', authenticateToken, s
 router.post('/events/:eventId/shopping-lists/:listId/items', authenticateToken, shoppingController.createItem);
 router.put('/events/:eventId/shopping-lists/:listId/items/:itemId', authenticateToken, shoppingController.updateItem);
 router.delete('/events/:eventId/shopping-lists/:listId/items/:itemId', authenticateToken, shoppingController.deleteItem);
+// #552/#608 — price comparison endpoints
+router.patch('/events/:eventId/shopping-lists/:listId/items/:itemId/price-data', authenticateToken, shoppingController.updateItemPriceData);
+router.get('/events/:eventId/shopping-lists/:listId/price-comparison', authenticateToken, shoppingController.getListPriceComparison);
+router.get('/events/:eventId/shopping/price-comparison', authenticateToken, shoppingController.getEventPriceComparison);
 
 // ============ TIMELINE ROUTES — BRD 3.8 ============
 // /conflicts and /comparison must be before /:id to avoid being swallowed by a future parameterised GET
@@ -432,12 +540,19 @@ router.delete('/events/:eventId/messages/:id', authenticateToken, messagesContro
 
 // ============ BUDGET ROUTES — BRD 3.4, issue #374 ============
 router.get('/events/:eventId/budget/categories', authenticateToken, budgetController.listCategories);
+router.get('/events/:eventId/budget/compare', authenticateToken, budgetController.compareSimilarEvents);
 router.post('/events/:eventId/budget/categories', authenticateToken, budgetController.createCategory);
 router.put('/events/:eventId/budget/categories/:id', authenticateToken, budgetController.updateCategory);
 router.delete('/events/:eventId/budget/categories/:id', authenticateToken, budgetController.deleteCategory);
 router.get('/events/:eventId/expenses', authenticateToken, budgetController.listExpenses);
+router.get('/events/:eventId/expenses/workflow-summary', authenticateToken, budgetController.getExpenseWorkflowSummary);
 router.post('/events/:eventId/expenses', authenticateToken, budgetController.createExpense);
 router.put('/events/:eventId/expenses/:id', authenticateToken, budgetController.updateExpense);
+router.post('/events/:eventId/expenses/:id/ocr/extract', authenticateToken, budgetController.extractExpenseReceiptOcr);
+router.post('/events/:eventId/expenses/:id/ocr/:ocrId/apply', authenticateToken, budgetController.applyExpenseReceiptOcr);
+router.patch('/events/:eventId/expenses/:id/approval', authenticateToken, budgetController.reviewExpenseApproval);
+router.post('/events/:eventId/expenses/:id/reimbursement-request', authenticateToken, budgetController.requestExpenseReimbursement);
+router.patch('/events/:eventId/expenses/:id/reimbursement', authenticateToken, budgetController.resolveExpenseReimbursement);
 router.delete('/events/:eventId/expenses/:id', authenticateToken, budgetController.deleteExpense);
 
 // ============ BUDGET TEMPLATES — #438 ============
@@ -480,8 +595,78 @@ router.get('/events/:eventId/store-suggestions', authenticateToken, storeSuggest
 router.post('/events/:eventId/store-suggestions', authenticateToken, storeSuggestionsController.createStoreSuggestion);
 router.patch('/events/:eventId/store-suggestions/:id', authenticateToken, storeSuggestionsController.updateStoreSuggestionStatus);
 router.delete('/events/:eventId/store-suggestions/:id', authenticateToken, storeSuggestionsController.deleteStoreSuggestion);
+// #607 — store suggestion engine
+router.get('/events/:eventId/store-suggestions/recommendations', authenticateToken, storeSuggestionsController.getStoreSuggestionRecommendations);
+router.get('/events/:eventId/store-suggestions/categories', authenticateToken, storeSuggestionsController.listStoreSuggestionCategories);
+router.post('/events/:eventId/store-suggestions/:id/select', authenticateToken, storeSuggestionsController.selectStoreSuggestion);
 
 // ============ TIMELINE CONFLICT DETECTION — #441 (registered in timeline section above)
+
+// ============ SCHEDULED REPORTS — #562 ============
+router.get('/events/:eventId/reports', authenticateToken, reportsController.listReports);
+router.post('/events/:eventId/reports', authenticateToken, reportsController.createReport);
+router.patch('/events/:eventId/reports/:reportId', authenticateToken, reportsController.updateReport);
+router.delete('/events/:eventId/reports/:reportId', authenticateToken, reportsController.deleteReport);
+router.get('/events/:eventId/reports/:reportId/render', authenticateToken, reportsController.renderReport);
+router.post('/events/:eventId/reports/:reportId/delivery', authenticateToken, reportsController.recordDelivery);
+router.get('/admin/reports/due', authenticateToken, authorizeRole(['Admin']), reportsController.listDueReports);
+
+// ============ POWER-USER GLOBAL SEARCH — #581 ============
+router.get('/search', authenticateToken, globalSearchController.globalSearch);
+
+// ============ #532 STORY: Tasks / Timeline / Collaboration / Notification Parity ============
+
+// ── #603/#604/#605/#606: Multi-assignee, full status lifecycle, escalation, my tasks ──────
+router.get('/tasks/my-tasks', authenticateToken, taskMultiAssigneeController.getMyTasks);
+router.get('/tasks/capacity', authenticateToken, taskMultiAssigneeController.getCapacityPlanning);
+router.get('/events/:eventId/tasks/:taskId/assignees', authenticateToken, taskMultiAssigneeController.listTaskAssignees);
+router.post('/events/:eventId/tasks/:taskId/assignees', authenticateToken, taskMultiAssigneeController.addTaskAssignee);
+router.delete('/events/:eventId/tasks/:taskId/assignees/:userId', authenticateToken, taskMultiAssigneeController.removeTaskAssignee);
+router.patch('/events/:eventId/tasks/:taskId/status', authenticateToken, taskMultiAssigneeController.updateTaskStatus);
+router.post('/events/:eventId/tasks/:taskId/verify', authenticateToken, taskMultiAssigneeController.verifyTaskCompletion);
+router.get('/events/:eventId/escalation-policy', authenticateToken, taskMultiAssigneeController.getEscalationPolicy);
+router.put('/events/:eventId/escalation-policy', authenticateToken, taskMultiAssigneeController.upsertEscalationPolicy);
+router.post('/events/:eventId/tasks/escalate-overdue', authenticateToken, taskMultiAssigneeController.escalateOverdueTasks);
+
+// ── #612/#613/#614/#615/#616: Timeline templates, buffer-time, reorder, execution ──────────
+router.get('/timeline-templates', authenticateToken, timelineTemplatesController.listTimelineTemplates);
+router.get('/timeline-templates/:id', authenticateToken, timelineTemplatesController.getTimelineTemplate);
+router.post('/timeline-templates', authenticateToken, timelineTemplatesController.createTimelineTemplate);
+router.delete('/timeline-templates/:id', authenticateToken, timelineTemplatesController.deleteTimelineTemplate);
+router.post('/events/:eventId/timeline/apply-template', authenticateToken, timelineTemplatesController.applyTimelineTemplate);
+router.patch('/events/:eventId/timeline/reorder', authenticateToken, timelineTemplatesController.reorderTimeline);
+router.patch('/events/:eventId/timeline/:id/buffer', authenticateToken, timelineTemplatesController.updateActivityBuffer);
+router.patch('/events/:eventId/timeline/:id/execution', authenticateToken, timelineTemplatesController.updateExecutionStatus);
+
+// ── #623/#624: Notification preferences and batching ─────────────────────────────────────
+router.get('/notifications/preferences', authenticateToken, notificationsController.listNotificationPreferences);
+router.put('/notifications/preferences/:type', authenticateToken, notificationsController.upsertNotificationPreference);
+router.get('/notifications/batch-rules', authenticateToken, notificationsController.listBatchRules);
+
+// ── #625/#626/#627: Collaboration — presence and conflict resolution ──────────────────────
+router.post('/presence', authenticateToken, collaborationController.heartbeatPresence);
+router.get('/presence', authenticateToken, collaborationController.getPresence);
+router.delete('/presence', authenticateToken, collaborationController.leavePresence);
+router.get('/events/:eventId/presence', authenticateToken, collaborationController.getEventPresence);
+
+// ── #628: Event team chat ─────────────────────────────────────────────────────────────────
+router.get('/events/:eventId/chat', authenticateToken, eventChatController.listChatMessages);
+router.post('/events/:eventId/chat', authenticateToken, eventChatController.postChatMessage);
+router.patch('/events/:eventId/chat/:id', authenticateToken, eventChatController.editChatMessage);
+router.delete('/events/:eventId/chat/:id', authenticateToken, eventChatController.deleteChatMessage);
+
+// ── #629: Version history and rollback ───────────────────────────────────────────────────
+router.get('/entity-versions/:id', authenticateToken, entityVersionsController.getEntityVersion);
+router.get('/events/:eventId/tasks/:entityId/versions', authenticateToken, entityVersionsController.listEntityVersions);
+router.get('/events/:eventId/timeline/:entityId/versions', authenticateToken, (req, res) => {
+  req.query.entity_type = 'timeline_activity';
+  return entityVersionsController.listEntityVersions(req, res);
+});
+router.post('/events/:eventId/tasks/:entityId/rollback', authenticateToken, entityVersionsController.rollbackEntityVersion);
+router.post('/events/:eventId/timeline/:entityId/rollback', authenticateToken, (req, res) => {
+  (req.body as Record<string, unknown>).entity_type = 'timeline_activity';
+  return entityVersionsController.rollbackEntityVersion(req, res);
+});
 
 export default router;
 

@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
+import { isHeicFile, stageHeicForConversion } from '../utils/image-processing.js';
 import { scanFile } from '../utils/virus-scan.js';
 import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
 
@@ -77,7 +78,8 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
 
   const db = getDatabase();
 
-  // Virus / malware scan (#565, #634)
+  // Virus / malware scan first (#565, #634) — refuse to persist a file we
+  // haven't cleared. Scan failures terminate the upload before we hit the DB.
   const scanResult = await scanFile(authReq.file.path);
   if (!scanResult.clean) {
     await cleanupUploadedFile(authReq.file.path);
@@ -104,10 +106,37 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
     context: { scanner: scanResult.scanner, scannedAt: scanResult.scannedAt },
   });
 
+  // Storage quota enforcement (#622). Atomic check-and-reserve so a flurry of
+  // parallel uploads cannot collectively exceed the quota.
+  const eventRow = await db.get<{ storage_quota_bytes: number; storage_used_bytes: number }>(
+    `SELECT storage_quota_bytes, storage_used_bytes FROM events WHERE id = ?`,
+    [req.params.eventId],
+  );
+  if (eventRow) {
+    const quota = Number(eventRow.storage_quota_bytes ?? 0);
+    const used = Number(eventRow.storage_used_bytes ?? 0);
+    if (quota > 0 && used + authReq.file.size > quota) {
+      await cleanupUploadedFile(authReq.file.path);
+      return res.status(413).json({
+        error: 'Event storage quota exceeded.',
+        quotaBytes: quota,
+        usedBytes: used,
+        attemptedBytes: authReq.file.size,
+      });
+    }
+  }
+
+  // HEIC conversion pipeline (#617). Mark as pending and defer; the
+  // converted_file_name + mime_type are updated once a worker rewrites it.
+  const heic = isHeicFile(safeOriginalName, authReq.file.mimetype);
+  const staged = heic ? stageHeicForConversion(safeOriginalName) : null;
+
   try {
     const result = await db.run(
-      `INSERT INTO event_documents (event_id, original_name, file_name, mime_type, file_size, created_by)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO event_documents (event_id, original_name, file_name, mime_type, file_size,
+                                    conversion_status, original_format, converted_file_name,
+                                    created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        RETURNING id`,
       [
         req.params.eventId,
@@ -115,12 +144,26 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
         authReq.file.filename,
         authReq.file.mimetype,
         authReq.file.size,
+        staged?.conversionStatus ?? 'none',
+        staged?.originalFormat ?? null,
+        staged?.convertedFileName ?? null,
+        authReq.user!.id,
         authReq.user!.id,
       ],
     );
 
+    // Increment used storage. Wrapping in a single UPDATE keeps the running
+    // total consistent without a separate trigger.
+    await db.run(
+      `UPDATE events SET storage_used_bytes = COALESCE(storage_used_bytes, 0) + ?,
+                          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`,
+      [authReq.file.size, req.params.eventId],
+    );
+
     const document = await db.get(
-      `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at
+      `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at,
+              conversion_status, original_format
        FROM event_documents WHERE id = ?`,
       [result.lastID],
     );
@@ -128,6 +171,7 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
     return res.status(201).json({
       document,
       downloadUrl: `/api/events/${req.params.eventId}/documents/${result.lastID}`,
+      conversionPending: heic,
     });
   } catch (error) {
     console.error('Failed to save uploaded document to database:', error);
@@ -166,8 +210,13 @@ export async function deleteEventDocument(req: Request, res: Response): Promise<
   if (!event) return res as Response;
 
   const db = getDatabase();
-  const document = await db.get<{ id: number; original_name: string; file_name: string }>(
-    `SELECT id, original_name, file_name FROM event_documents WHERE id = ? AND event_id = ?`,
+  const document = await db.get<{
+    id: number;
+    original_name: string;
+    file_name: string;
+    file_size: number;
+  }>(
+    `SELECT id, original_name, file_name, file_size FROM event_documents WHERE id = ? AND event_id = ?`,
     [req.params.id, req.params.eventId],
   );
 
@@ -180,6 +229,15 @@ export async function deleteEventDocument(req: Request, res: Response): Promise<
   }
 
   await db.run('DELETE FROM event_documents WHERE id = ? AND event_id = ?', [req.params.id, req.params.eventId]);
+  // Reclaim storage on the event. GREATEST keeps the counter non-negative if
+  // a stale upload left the counter out of sync.
+  await db.run(
+    `UPDATE events
+        SET storage_used_bytes = GREATEST(COALESCE(storage_used_bytes, 0) - ?, 0),
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?`,
+    [Number(document.file_size ?? 0), req.params.eventId],
+  );
   return res.json({ message: 'Document deleted.' });
 }
 

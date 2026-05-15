@@ -1,7 +1,12 @@
-# Local WSL2 override: removes bind mounts that fail in WSL2
-# Only directory bind mounts fail in WSL2 — single-file mounts (like init.sql) work fine.
-# The backend src dir bind mount is removed so the baked-in image files are used.
+# Local WSL2 override: removes bind mounts that fail in WSL2.
+# Keeps the init.sql bind mount so a fresh postgres volume gets the schema.
+# The backend src bind mount is removed so the baked-in image files are used.
 services:
+  db:
+    volumes: !reset
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
   backend:
     volumes: !reset
       - uploads-data:/app/uploads

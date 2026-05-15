@@ -69,6 +69,7 @@ import {
   type SlideshowItem,
 } from '../../services/gallery-service';
 import { MediaPreviewDialog } from './media-preview-dialog';
+import GalleryShareDownloadPanel from './gallery-share-panel';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
@@ -487,13 +488,22 @@ export function GalleryPage(): JSX.Element {
           <input
             ref={uploadRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
             hidden
             onChange={(e) => void handleUpload(e)}
           />
         </Button>
       ) : undefined}
     >
+
+      {/* BRD v2 (#619, #620, #622) — share links, manifest, quota indicator */}
+      {eventId && (
+        <GalleryShareDownloadPanel
+          eventId={eventId}
+          albums={albums}
+          canManage
+        />
+      )}
 
       <Tabs
         value={tab}
