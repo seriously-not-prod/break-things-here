@@ -42,6 +42,8 @@ import {
   ViewKanbanRounded,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
+import { PageLayout } from '../layout/page-layout';
+import { setLastEventId } from '../../hooks/use-last-event';
 import { api, apiFetch, ApiError, getAuthHeaders } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
 import { canEditEvent } from '../../utils/roles';
@@ -259,6 +261,9 @@ export default function EventDetailPage(): JSX.Element {
   }
 
   useEffect(() => { void load(); }, [id]);
+
+  // Persist last-visited event id so sidebar workspace links resolve correctly
+  useEffect(() => { if (id) setLastEventId(id); }, [id]);
 
   // ---- Tasks ----
   function openAddTask(): void {
@@ -503,10 +508,11 @@ export default function EventDetailPage(): JSX.Element {
   }
 
   return (
-    <Box sx={{ p: 4 }}>
-      <Button startIcon={<ArrowBackRounded />} onClick={() => navigate('/events')} sx={{ mb: 2 }}>
-        Back to Events
-      </Button>
+    <PageLayout
+      title={event.title}
+      subtitle={event.date ? new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : undefined}
+      breadcrumbs={[{ label: 'Events', to: '/events' }, { label: event.title }]}
+    >
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
@@ -978,6 +984,6 @@ export default function EventDetailPage(): JSX.Element {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </PageLayout>
   );
 }

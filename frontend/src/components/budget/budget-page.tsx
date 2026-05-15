@@ -27,6 +27,7 @@ import DeleteRounded from '@mui/icons-material/DeleteRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import PictureAsPdfRounded from '@mui/icons-material/PictureAsPdfRounded';
 import { useNavigate, useParams } from 'react-router-dom';
+import { PageLayout } from '../layout/page-layout';
 import { ApiError } from '../../lib/api-client';
 import {
   BudgetCategory,
@@ -225,17 +226,10 @@ export default function BudgetPage(): JSX.Element {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Stack direction="row" alignItems="center" gap={1}>
-          <IconButton onClick={() => navigate(-1)} size="small" aria-label="Go back">
-            <ArrowBackRounded />
-          </IconButton>
-          <Typography variant="h5" fontWeight={700}>
-            Budget Management
-          </Typography>
-        </Stack>
+    <PageLayout
+      title="Budget Management"
+      breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Budget' }]}
+      actions={
         <Stack direction="row" gap={1}>
           <Button
             variant="outlined"
@@ -264,7 +258,8 @@ export default function BudgetPage(): JSX.Element {
             Add Expense
           </Button>
         </Stack>
-      </Stack>
+      }
+    >
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -509,6 +504,6 @@ export default function BudgetPage(): JSX.Element {
         categories={categories}
         initialValues={editingExpense}
       />
-    </Box>
+    </PageLayout>
   );
 }

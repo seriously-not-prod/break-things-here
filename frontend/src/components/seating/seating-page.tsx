@@ -40,6 +40,7 @@ import {
   PictureAsPdfRounded,
 } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
+import { PageLayout } from '../layout/page-layout';
 import * as guestService from '../../services/guest-service';
 import type { Rsvp, SeatingTable } from '../../services/guest-service';
 import { ApiError } from '../../lib/api-client';
@@ -507,17 +508,12 @@ export function SeatingPage(): JSX.Element {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 3 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700}>
-            Seating Chart Editor
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 720 }}>
-            Drag tables to arrange the room, then drag guests between tables or back to the unassigned list.
-          </Typography>
-        </Box>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+    <PageLayout
+      title="Seating Chart Editor"
+      subtitle="Drag tables to arrange the room, then drag guests between tables or back to the unassigned list"
+      breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Seating' }]}
+      actions={
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           <Button
             variant="outlined"
             startIcon={<PictureAsPdfRounded />}
@@ -536,7 +532,8 @@ export function SeatingPage(): JSX.Element {
             New Table
           </Button>
         </Stack>
-      </Stack>
+      }
+    >
 
       {error && (
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
@@ -847,6 +844,6 @@ export function SeatingPage(): JSX.Element {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </PageLayout>
   );
 }

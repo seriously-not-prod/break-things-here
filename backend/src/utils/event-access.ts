@@ -29,6 +29,12 @@ export async function requireEventAccess(
     return null;
   }
 
+  const numericId = parseInt(eventId, 10);
+  if (isNaN(numericId) || numericId <= 0) {
+    res.status(400).json({ error: 'Invalid event ID.' });
+    return null;
+  }
+
   const db = getDatabase();
   const event = await db.get<AuthorizedEvent>(
     'SELECT id, created_by, deleted_at FROM events WHERE id = ? AND deleted_at IS NULL',

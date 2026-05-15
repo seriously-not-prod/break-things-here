@@ -1,5 +1,14 @@
 import './config/load-env.js';
 import { validateEntraConfigAtStartup } from './config/entra.js';
+
+// Prevent unhandled promise rejections from crashing the server process.
+// Log the error and keep running so a single bad query doesn't take the app down.
+process.on('unhandledRejection', (reason: unknown) => {
+  console.error('[UNHANDLED REJECTION] An unhandled promise rejection was caught:', reason);
+});
+process.on('uncaughtException', (err: Error) => {
+  console.error('[UNCAUGHT EXCEPTION] An uncaught exception was caught:', err);
+});
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';

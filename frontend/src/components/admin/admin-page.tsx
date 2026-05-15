@@ -20,6 +20,7 @@ import {
 import { LockRounded, LockOpenRounded, DeleteRounded, RestoreRounded } from '@mui/icons-material';
 import { api, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
+import { PageLayout } from '../layout/page-layout';
 
 interface AdminUser {
   id: number;
@@ -117,23 +118,25 @@ export default function AdminPage(): JSX.Element {
   }
 
   return (
-    <Box sx={{ p: 4 }}>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 3 }}>User Management</Typography>
-
+    <PageLayout
+      title="User Management"
+      subtitle="Manage user accounts, roles, and access control"
+      breadcrumbs={[{ label: 'Admin' }, { label: 'User Management' }]}
+    >
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} elevation={1}>
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell><strong>Name</strong></TableCell>
-              <TableCell><strong>Email</strong></TableCell>
-              <TableCell><strong>Role</strong></TableCell>
-              <TableCell><strong>Verified</strong></TableCell>
-              <TableCell><strong>Status</strong></TableCell>
-              <TableCell><strong>Joined</strong></TableCell>
-              <TableCell align="right"><strong>Actions</strong></TableCell>
+              <TableCell>Name</TableCell>
+              <TableCell>Email</TableCell>
+              <TableCell>Role</TableCell>
+              <TableCell>Verified</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Joined</TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -206,6 +209,6 @@ export default function AdminPage(): JSX.Element {
           </TableBody>
         </Table>
       </TableContainer>
-    </Box>
+    </PageLayout>
   );
 }

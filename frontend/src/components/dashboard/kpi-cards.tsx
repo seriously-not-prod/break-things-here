@@ -21,33 +21,52 @@ interface KpiCardProps {
 
 function KpiCard({ label, value, sub, icon, color }: KpiCardProps): JSX.Element {
   return (
-    <Card elevation={2} sx={{ height: '100%' }}>
-      <CardContent sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-        <Box
-          sx={{
-            p: 1.5,
-            borderRadius: 2,
-            bgcolor: `${color}20`,
-            color,
-            display: 'flex',
-            alignItems: 'center',
-            flexShrink: 0,
-          }}
-          aria-hidden="true"
-        >
-          {icon}
+    <Card
+      elevation={1}
+      sx={{
+        height: '100%',
+        position: 'relative',
+        overflow: 'hidden',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '3px',
+          background: color,
+          borderRadius: '12px 12px 0 0',
+        },
+      }}
+    >
+      <CardContent sx={{ p: 2.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 1.5 }}>
+          <Box>
+            <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: '0.08em', fontSize: '0.6875rem' }}>
+              {label}
+            </Typography>
+            <Typography variant="h4" fontWeight={800} aria-label={`${label}: ${value}`} sx={{ lineHeight: 1.1, mt: 0.25 }}>
+              {value}
+            </Typography>
+          </Box>
+          <Box
+            sx={{
+              p: 1.25,
+              borderRadius: 2,
+              bgcolor: `${color}18`,
+              color,
+              display: 'flex',
+              alignItems: 'center',
+              flexShrink: 0,
+            }}
+            aria-hidden="true"
+          >
+            {icon}
+          </Box>
         </Box>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            {label}
-          </Typography>
-          <Typography variant="h5" fontWeight={700} aria-label={`${label}: ${value}`}>
-            {value}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {sub}
-          </Typography>
-        </Box>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+          {sub}
+        </Typography>
       </CardContent>
     </Card>
   );

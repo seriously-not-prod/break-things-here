@@ -1,6 +1,7 @@
-import { Avatar, Box, CircularProgress, Paper, Typography } from '@mui/material';
+import { Box, CircularProgress, Paper, Typography } from '@mui/material';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/auth-context';
+import { ThemeModeProvider } from './theme/theme-mode-context';
 import { LoginForm } from './components/login-form/login-form';
 import { RegisterForm } from './components/register-form/register-form';
 import { ForgotPasswordForm } from './components/forgot-password-form/forgot-password-form';
@@ -25,11 +26,13 @@ import GuestsPage from './components/guests/guests-page';
 import BudgetPage from './components/budget/budget-page';
 import TasksKanbanPage from './components/tasks/tasks-kanban-page';
 import { GalleryPage } from './components/gallery/gallery-page';
+import { EventRouteGuard } from './components/layout/event-route-guard';
 import { MessagesInbox } from './components/messages/messages-inbox';
 import { EntraCallbackPage } from './components/auth/entra-callback';
 import { useKeyboardShortcuts, type ShortcutDefinition } from './hooks/use-keyboard-shortcuts';
 import { KeyboardShortcutsOverlay } from './components/keyboard-shortcuts/keyboard-shortcuts-overlay';
 import { useState, useMemo } from 'react';
+import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './theme/app-theme';
 
 type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password';
 
@@ -38,8 +41,15 @@ function AuthShell(): JSX.Element {
   const [view, setView] = useState<AuthView>('login');
   const navigate = useNavigate();
 
-  const TITLES: Record<AuthView, string> = {
-    login: 'Sign in',
+  const VIEW_SUBTITLES: Record<AuthView, string> = {
+    login: 'Sign in to access your workspace',
+    register: 'Create your account to get started',
+    'forgot-password': 'Enter your email to receive a reset link',
+    'reset-password': 'Set your new password',
+  };
+
+  const VIEW_TITLES: Record<AuthView, string> = {
+    login: 'Welcome back',
     register: 'Create account',
     'forgot-password': 'Forgot password',
     'reset-password': 'Reset password',
@@ -49,52 +59,89 @@ function AuthShell(): JSX.Element {
     <Box
       sx={{
         minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         px: 2,
-        background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+        py: 4,
+        background: 'linear-gradient(145deg, #0f172a 0%, #1e3a5f 40%, #1d4ed8 100%)',
+        position: 'relative',
+        overflow: 'hidden',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: '-20%',
+          right: '-10%',
+          width: '60%',
+          height: '60%',
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.03)',
+          pointerEvents: 'none',
+        },
+        '&::after': {
+          content: '""',
+          position: 'absolute',
+          bottom: '-10%',
+          left: '-5%',
+          width: '40%',
+          height: '40%',
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.04)',
+          pointerEvents: 'none',
+        },
       }}
     >
       <Paper
-        elevation={12}
+        elevation={0}
         sx={{
           width: '100%',
-          maxWidth: 480,
-          p: 4,
+          maxWidth: 460,
+          p: { xs: 3, sm: 4 },
           borderRadius: 3,
           bgcolor: 'background.paper',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.35)',
+          position: 'relative',
+          zIndex: 1,
         }}
       >
         {/* Brand header */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-          <Avatar
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
+          <Box
             sx={{
-              width: 44,
-              height: 44,
-              bgcolor: '#4f46e5',
-              borderRadius: 2,
-              fontSize: '0.85rem',
+              width: 40,
+              height: 40,
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #2563EB 0%, #0ea5e9 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.8125rem',
               fontWeight: 800,
+              color: '#fff',
               letterSpacing: '-0.5px',
+              flexShrink: 0,
             }}
           >
-              EV
-          </Avatar>
-          <Typography component="h1" variant="h5" fontWeight={700} color="text.primary">
-              Eventora
-          </Typography>
+            EF
+          </Box>
+          <Box>
+            <Typography component="h1" variant="h6" fontWeight={800} color="text.primary" sx={{ lineHeight: 1.1 }}>
+              eQuip Fest
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1 }}>
+              Festival Event Management
+            </Typography>
+          </Box>
         </Box>
 
-        {view === 'login' && (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3, mt: 0.5 }}>
-            Sign in to access your workspace
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h5" fontWeight={700} color="text.primary" sx={{ mb: 0.5 }}>
+            {VIEW_TITLES[view]}
           </Typography>
-        )}
-        {view !== 'login' && (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3, mt: 0.5 }}>
-            {TITLES[view]}
+          <Typography variant="body2" color="text.secondary">
+            {VIEW_SUBTITLES[view]}
           </Typography>
-        )}
+        </Box>
 
         {view === 'login' && (
           <LoginForm
@@ -119,8 +166,6 @@ function AuthShell(): JSX.Element {
     </Box>
   );
 }
-
-const DRAWER_WIDTH = 260;
 
 /**
  * Inner component that registers all application-wide keyboard shortcuts.
@@ -215,10 +260,12 @@ function GlobalShortcuts({
 function AppShell(): JSX.Element {
   const { user, loading } = useAuth();
   const [helpOpen, setHelpOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const handleToggleHelp = useMemo(() => () => setHelpOpen((v) => !v), []);
   const handleOpenHelp = useMemo(() => () => setHelpOpen(true), []);
   const handleCloseHelp = useMemo(() => () => setHelpOpen(false), []);
+  const handleToggleSidebar = useMemo(() => () => setSidebarCollapsed((v) => !v), []);
 
   if (loading) {
     return (
@@ -298,27 +345,40 @@ function AppShell(): JSX.Element {
     },
   ];
 
+  const navWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH;
+
   return (
-    <Box sx={{ display: 'flex' }}>
-      <AppNav />
-      <Box component="main" sx={{ flexGrow: 1, ml: `${DRAWER_WIDTH}px`, minHeight: '100vh', bgcolor: 'background.default' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+      <AppNav collapsed={sidebarCollapsed} onToggleCollapse={handleToggleSidebar} />
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          minHeight: '100vh',
+          bgcolor: 'background.default',
+          transition: 'margin-left 250ms cubic-bezier(0.4,0,0.2,1)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
         <Routes>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/events/new" element={<EventFormPage />} />
           <Route path="/events/calendar" element={<CalendarPage />} />
           <Route path="/events/my" element={<EventsPage ownerOnly />} />
-          <Route path="/events/:id" element={<EventDetailPage />} />
-          <Route path="/events/:id/analytics" element={<AnalyticsPage />} />
-          <Route path="/events/:id/vendors" element={<VendorsPage />} />
-          <Route path="/events/:id/shopping" element={<ShoppingPage />} />
-          <Route path="/events/:id/timeline" element={<TimelinePage />} />
-          <Route path="/events/:id/checkin" element={<CheckInPage />} />
-          <Route path="/events/:id/seating" element={<SeatingPage />} />
-          <Route path="/events/:id/guests" element={<GuestsPage />} />
-          <Route path="/events/:id/budget" element={<BudgetPage />} />
-          <Route path="/events/:id/tasks" element={<TasksKanbanPage />} />
-          <Route path="/events/:id/gallery" element={<GalleryPage />} />
+          <Route path="/events/:id" element={<EventRouteGuard><EventDetailPage /></EventRouteGuard>} />
+          <Route path="/events/:id/analytics" element={<EventRouteGuard><AnalyticsPage /></EventRouteGuard>} />
+          <Route path="/events/:id/vendors" element={<EventRouteGuard><VendorsPage /></EventRouteGuard>} />
+          <Route path="/events/:id/shopping" element={<EventRouteGuard><ShoppingPage /></EventRouteGuard>} />
+          <Route path="/events/:id/timeline" element={<EventRouteGuard><TimelinePage /></EventRouteGuard>} />
+          <Route path="/events/:id/checkin" element={<EventRouteGuard><CheckInPage /></EventRouteGuard>} />
+          <Route path="/events/:id/seating" element={<EventRouteGuard><SeatingPage /></EventRouteGuard>} />
+          <Route path="/events/:id/guests" element={<EventRouteGuard><GuestsPage /></EventRouteGuard>} />
+          <Route path="/events/:id/budget" element={<EventRouteGuard><BudgetPage /></EventRouteGuard>} />
+          <Route path="/events/:id/tasks" element={<EventRouteGuard><TasksKanbanPage /></EventRouteGuard>} />
+          <Route path="/events/:id/gallery" element={<EventRouteGuard><GalleryPage /></EventRouteGuard>} />
           <Route path="/messages" element={<MessagesInbox />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin" element={<AdminPage />} />
@@ -367,9 +427,11 @@ function RootRouter(): JSX.Element {
 function App(): JSX.Element {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <RootRouter />
-      </AuthProvider>
+      <ThemeModeProvider>
+        <AuthProvider>
+          <RootRouter />
+        </AuthProvider>
+      </ThemeModeProvider>
     </BrowserRouter>
   );
 }

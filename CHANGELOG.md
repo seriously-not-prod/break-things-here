@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **UI Overhaul — Professional Design System**: Comprehensive MUI theme rewrite with enterprise-grade design tokens, Inter + Plus Jakarta Sans typography, refined color palette (`#4f46e5` primary), and consistent component overrides for buttons, inputs, cards, tables, dialogs, and more (`frontend/src/theme/app-theme.ts`)
+- **UI Overhaul — Collapsible Sidebar Navigation**: Full rewrite of `app-nav.tsx` with collapsible drawer (256px ↔ 68px), grouped nav sections ("Event Hub", "Workspace") with expand/collapse, dark sidebar background, user avatar, dark/light mode toggle, and smooth CSS transitions
+- **UI Overhaul — PageLayout Component**: New `frontend/src/components/layout/page-layout.tsx` wrapper providing consistent sticky header with breadcrumbs, page title/subtitle, and actions slot across all authenticated pages
+- **UI Overhaul — Login Screen**: Modernised auth shell with deep indigo gradient background, refined brand logo, improved typography hierarchy, and polished card layout
+- **UI Overhaul — All Pages**: Applied `PageLayout` wrapper with breadcrumbs and action buttons to all 17 authenticated pages: Dashboard, Events, Create Event, Event Detail, Calendar, Budget, Tasks, Guests, Vendors, Timeline, Gallery, Messages, Check-In, Seating, Analytics, Profile, Admin
+
+### Added
 - **BRD v2 — 5-Role Model** (#537, #573): Added Collaborator (id=4), Guest (id=5), and Viewer (id=6) roles alongside existing Attendee/Organizer/Admin; role-permission matrix extended with scopes for rsvp, tasks, guests, budget, gallery, checkin, and reports; `database/migrations/v2-brd-auth-rbac-rls-parity.sql` migration applied idempotently
 - **BRD v2 — Comprehensive Audit Logging** (#538, #572): `audit_log` table extended with `actor_id`, `target_type`, `target_id`, `context` (JSONB), and `severity` (INFO/WARN/ERROR/CRITICAL) columns; `backend/src/utils/audit-log.ts` centralised utility; audit events emitted for login success/failure/lock, logout, token refresh, session expiry, role changes, permission denials, and file upload scans
 - **BRD v2 — Session Inactivity Policy** (#536, #571): 30-min SESSION_TIMEOUT_MS enforced in `authenticateToken` middleware; `SESSION_EXPIRED` audit event emitted on inactivity timeout; configurable via `SESSION_TIMEOUT_MS` env var

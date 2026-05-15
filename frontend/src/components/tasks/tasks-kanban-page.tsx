@@ -30,6 +30,7 @@ import {
 } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { PageLayout } from '../layout/page-layout';
 import type { SelectChangeEvent } from '@mui/material';
 import {
   type Task,
@@ -282,10 +283,10 @@ export default function TasksKanbanPage(): JSX.Element {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h5" fontWeight={700} gutterBottom>
-        Tasks Board
-      </Typography>
+    <PageLayout
+      title="Tasks Board"
+      breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Tasks' }]}
+    >
 
       <DndContext
         sensors={sensors}
@@ -405,6 +406,6 @@ export default function TasksKanbanPage(): JSX.Element {
         onTaskUpdated={handleTaskUpdated}
         onTaskDeleted={handleTaskDeleted}
       />
-    </Box>
+    </PageLayout>
   );
 }

@@ -14,6 +14,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api-client';
 import EventLocationMap from './event-location-map';
+import { PageLayout } from '../layout/page-layout';
 
 interface CreatedEventResponse {
   id?: number;
@@ -97,17 +98,14 @@ export default function EventFormPage(): JSX.Element {
   }
 
   return (
-    <Box sx={{ p: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" fontWeight={700}>
-          Create Event
-        </Typography>
-        <Button onClick={() => navigate('/events')}>Back to events</Button>
-      </Box>
-
-      <Paper sx={{ p: 3 }}>
+    <PageLayout
+      title="Create Event"
+      breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Create Event' }]}
+      actions={<Button onClick={() => navigate('/events')}>Back to Events</Button>}
+    >
+      <Paper elevation={1} sx={{ p: 3, maxWidth: 720 }}>
         <form onSubmit={handleSubmit} id="create-event-form">
-          <Stack spacing={2}>
+          <Stack spacing={2.5}>
             {error && <Alert severity="error">{error}</Alert>}
 
             <TextField
@@ -247,6 +245,6 @@ export default function EventFormPage(): JSX.Element {
           </Stack>
         </form>
       </Paper>
-    </Box>
+    </PageLayout>
   );
 }

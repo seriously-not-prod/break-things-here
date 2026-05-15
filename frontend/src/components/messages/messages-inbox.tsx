@@ -13,6 +13,7 @@ import {
 import type { Conversation, Message } from '../../types/message';
 import { useAuth } from '../../contexts/auth-context';
 import { ApiError } from '../../lib/api-client';
+import { PageLayout } from '../layout/page-layout';
 
 /** Convert any thrown value into a UI-friendly error message. */
 function describeError(err: unknown, fallback: string): string {
@@ -164,13 +165,8 @@ export function MessagesInbox(): JSX.Element {
   }
 
   return (
-    <Box sx={{ p: 3, height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <MailRounded color="primary" />
-        <Typography variant="h5" fontWeight={700}>
-          Messages
-        </Typography>
-      </Box>
+    <PageLayout title="Messages" breadcrumbs={[{ label: 'Messages' }]} noPadding>
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', px: 3, pb: 3, pt: 1 }}>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -251,6 +247,7 @@ export function MessagesInbox(): JSX.Element {
           </Box>
         </Paper>
       )}
-    </Box>
+      </Box>
+    </PageLayout>
   );
 }

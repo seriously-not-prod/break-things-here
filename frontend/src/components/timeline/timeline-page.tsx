@@ -64,6 +64,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useNavigate, useParams } from 'react-router-dom';
+import { PageLayout } from '../layout/page-layout';
 import {
   type ActivityStatus,
   type CreateActivityInput,
@@ -467,27 +468,27 @@ export default function TimelinePage(): JSX.Element {
   }
 
   return (
-    <Box sx={{ p: 3, maxWidth: 900, mx: 'auto' }}>
-      <Stack direction="row" alignItems="center" spacing={1} mb={2}>
-        <IconButton onClick={() => navigate(`/events/${eventId}`)} aria-label="Back to event">
-          <ArrowBackRounded />
-        </IconButton>
-        <Typography variant="h5" component="h1">Event Timeline</Typography>
-        <Box flex={1} />
-        {conflictIds.size > 0 && (
-          <Chip
-            icon={<WarningAmberRounded />}
-            label={`${conflictIds.size} conflict${conflictIds.size > 1 ? 's' : ''}`}
-            color="warning"
-            size="small"
-          />
-        )}
-        {activeTab === 0 && (
-          <Button variant="contained" startIcon={<AddRounded />} onClick={openAddDialog}>
-            Add Activity
-          </Button>
-        )}
-      </Stack>
+    <PageLayout
+      title="Event Timeline"
+      breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Timeline' }]}
+      actions={
+        <Stack direction="row" spacing={1} alignItems="center">
+          {conflictIds.size > 0 && (
+            <Chip
+              icon={<WarningAmberRounded />}
+              label={`${conflictIds.size} conflict${conflictIds.size > 1 ? 's' : ''}`}
+              color="warning"
+              size="small"
+            />
+          )}
+          {activeTab === 0 && (
+            <Button variant="contained" startIcon={<AddRounded />} onClick={openAddDialog}>
+              Add Activity
+            </Button>
+          )}
+        </Stack>
+      }
+    >
 
       <Tabs
         value={activeTab}
@@ -775,6 +776,6 @@ export default function TimelinePage(): JSX.Element {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </PageLayout>
   );
 }
