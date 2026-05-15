@@ -32,7 +32,6 @@ import { EntraCallbackPage } from './components/auth/entra-callback';
 import { useKeyboardShortcuts, type ShortcutDefinition } from './hooks/use-keyboard-shortcuts';
 import { KeyboardShortcutsOverlay } from './components/keyboard-shortcuts/keyboard-shortcuts-overlay';
 import { useState, useMemo } from 'react';
-import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './theme/app-theme';
 
 type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password';
 
@@ -344,8 +343,6 @@ function AppShell(): JSX.Element {
       action: () => undefined,
     },
   ];
-
-  const navWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH;
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>

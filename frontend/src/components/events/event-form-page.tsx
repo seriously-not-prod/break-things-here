@@ -9,7 +9,6 @@ import {
   Stack,
   Switch,
   TextField,
-  Typography,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api-client';

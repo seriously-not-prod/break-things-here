@@ -14,9 +14,7 @@ import {
   ImageRounded,
   LogoutRounded,
   MailRounded,
-  MenuRounded,
   PersonRounded,
-  ReceiptLongRounded,
   ShoppingCartRounded,
   StorefrontRounded,
   TaskAltRounded,
@@ -240,14 +238,14 @@ function NavGroupSection({
     <Box sx={{ mb: 0.5 }}>
       <ListItemButton
         onClick={() => setOpen((v) => !v)}
-        sx={(theme) => ({
+        sx={{
           mx: 1,
           px: 1.25,
           minHeight: 36,
           borderRadius: 8,
           color: isGroupActive ? '#fff' : 'rgba(255,255,255,0.45)',
           '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff' },
-        })}
+        }}
       >
         <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>{group.icon}</ListItemIcon>
         <ListItemText

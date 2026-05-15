@@ -22,11 +22,10 @@ import {
   Typography,
 } from '@mui/material';
 import AddRounded from '@mui/icons-material/AddRounded';
-import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import DeleteRounded from '@mui/icons-material/DeleteRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import PictureAsPdfRounded from '@mui/icons-material/PictureAsPdfRounded';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { PageLayout } from '../layout/page-layout';
 import { ApiError } from '../../lib/api-client';
 import {
@@ -67,7 +66,6 @@ const PAYMENT_COLORS: Record<string, 'default' | 'success' | 'error' | 'warning'
 
 export default function BudgetPage(): JSX.Element {
   const { id: eventId } = useParams<{ id: string }>();
-  const navigate = useNavigate();
 
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);

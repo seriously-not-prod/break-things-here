@@ -15,7 +15,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Typography,
 } from '@mui/material';
 import { LockRounded, LockOpenRounded, DeleteRounded, RestoreRounded } from '@mui/icons-material';
 import { api, ApiError } from '../../lib/api-client';

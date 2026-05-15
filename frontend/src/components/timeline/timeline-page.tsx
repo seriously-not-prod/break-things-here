@@ -39,7 +39,6 @@ import {
   TimelineSeparator,
 } from '@mui/lab';
 import AddRounded from '@mui/icons-material/AddRounded';
-import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import AssessmentRounded from '@mui/icons-material/AssessmentRounded';
 import DeleteRounded from '@mui/icons-material/DeleteRounded';
 import DragIndicatorRounded from '@mui/icons-material/DragIndicatorRounded';
@@ -63,7 +62,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { PageLayout } from '../layout/page-layout';
 import {
   type ActivityStatus,
@@ -275,7 +274,6 @@ const emptyForm: CreateActivityInput = {
 export default function TimelinePage(): JSX.Element {
   const { id: eventIdStr } = useParams<{ id: string }>();
   const eventId = Number(eventIdStr);
-  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState(0);
   const [activities, setActivities] = useState<TimelineActivity[]>([]);

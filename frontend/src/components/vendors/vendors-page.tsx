@@ -26,11 +26,10 @@ import {
   Typography,
 } from '@mui/material';
 import AddRounded from '@mui/icons-material/AddRounded';
-import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import DeleteRounded from '@mui/icons-material/DeleteRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import UploadFileRounded from '@mui/icons-material/UploadFileRounded';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { PageLayout } from '../layout/page-layout';
 import {
   type CreateVendorInput,
@@ -76,7 +75,6 @@ const emptyForm: CreateVendorInput = {
 export default function VendorsPage(): JSX.Element {
   const { id: eventIdStr } = useParams<{ id: string }>();
   const eventId = Number(eventIdStr);
-  const navigate = useNavigate();
 
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
