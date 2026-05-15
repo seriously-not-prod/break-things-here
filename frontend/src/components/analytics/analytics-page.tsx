@@ -19,6 +19,7 @@ import {
 } from '@mui/material';
 import DownloadRounded from '@mui/icons-material/DownloadRounded';
 import { useParams } from 'react-router-dom';
+import { PageLayout } from '../layout/page-layout';
 import {
   Bar,
   BarChart,
@@ -176,27 +177,22 @@ export function AnalyticsPage(): JSX.Element {
   }
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1400 }}>
+    <PageLayout
+      title="Event Analytics"
+      subtitle="RSVP, budget, and task reporting for this event"
+      breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Analytics' }]}
+      actions={
+        <Button
+          variant="contained"
+          startIcon={<DownloadRounded />}
+          onClick={() => void handleExport()}
+          disabled={exporting || !id}
+        >
+          {exporting ? 'Exporting...' : 'Export CSV'}
+        </Button>
+      }
+    >
       <Stack spacing={3}>
-        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
-          <Box>
-            <Typography component="h1" variant="h4" fontWeight={900}>
-              Event Analytics
-            </Typography>
-            <Typography color="text.secondary">
-              RSVP, budget, and task reporting for this event.
-            </Typography>
-          </Box>
-          <Button
-            variant="contained"
-            startIcon={<DownloadRounded />}
-            onClick={() => void handleExport()}
-            disabled={exporting || !id}
-          >
-            {exporting ? 'Exporting...' : 'Export CSV'}
-          </Button>
-        </Stack>
-
         {error ? <Alert severity="error">{error}</Alert> : null}
 
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -315,6 +311,6 @@ export function AnalyticsPage(): JSX.Element {
           )}
         </Grid>
       </Stack>
-    </Box>
+    </PageLayout>
   );
 }

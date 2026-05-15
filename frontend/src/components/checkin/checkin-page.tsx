@@ -9,7 +9,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Alert,
-  Box,
   Button,
   Chip,
   InputAdornment,
@@ -29,6 +28,7 @@ import {
 } from '@mui/material';
 import { CheckCircleOutlineRounded, SearchRounded } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
+import { PageLayout } from '../layout/page-layout';
 import * as guestService from '../../services/guest-service';
 import type { Rsvp } from '../../services/guest-service';
 import { ApiError } from '../../lib/api-client';
@@ -115,10 +115,10 @@ export function CheckInPage(): JSX.Element {
   const progressPct = total > 0 ? (checkedInCount / total) * 100 : 0;
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1100 }}>
-      <Typography variant="h5" fontWeight={700} gutterBottom>
-        Guest Check-In
-      </Typography>
+    <PageLayout
+      title="Guest Check-In"
+      breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Check-In' }]}
+    >
 
       {/* Progress bar */}
       <Paper sx={{ p: 2, mb: 3 }} variant="outlined">
@@ -256,6 +256,6 @@ export function CheckInPage(): JSX.Element {
           </TableBody>
         </Table>
       </TableContainer>
-    </Box>
+    </PageLayout>
   );
 }

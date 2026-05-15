@@ -7,6 +7,7 @@ import {
   CircularProgress,
   Divider,
   IconButton,
+  Paper,
   Stack,
   TextField,
   Tooltip,
@@ -15,6 +16,7 @@ import {
 import { CameraAltRounded, DeleteRounded, SaveRounded } from '@mui/icons-material';
 import { api, apiFetch, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
+import { PageLayout } from '../layout/page-layout';
 
 interface ProfileData {
   bio: string | null;
@@ -126,76 +128,81 @@ export default function ProfilePage(): JSX.Element {
   }
 
   return (
-    <Box sx={{ p: 4, maxWidth: 640 }}>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 3 }}>My Profile</Typography>
-
-      {/* Avatar */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-        {/* Profile photos are served from a protected API route, so normalize the URL for the browser. */}
-        <Avatar
-          src={profile?.profile_photo_url ?? undefined}
-          sx={{ width: 80, height: 80, fontSize: 32 }}
-        >
-          {user?.displayName?.[0]?.toUpperCase()}
-        </Avatar>
-        <Box>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            style={{ display: 'none' }}
-            onChange={handlePhotoUpload}
-          />
-          <Stack direction="row" spacing={1}>
-            <Tooltip title="Upload photo">
-              <span>
-                <IconButton onClick={() => fileRef.current?.click()} disabled={uploading}>
-                  {uploading ? <CircularProgress size={20} /> : <CameraAltRounded />}
-                </IconButton>
-              </span>
-            </Tooltip>
-            {profile?.profile_photo_url && (
-              <Tooltip title="Remove photo">
-                <IconButton color="error" onClick={handleDeletePhoto}>
-                  <DeleteRounded />
-                </IconButton>
-              </Tooltip>
-            )}
-          </Stack>
-          <Typography variant="caption" color="text.secondary">JPEG, PNG, WebP · max 2 MB</Typography>
-        </Box>
-      </Box>
-
-      <Divider sx={{ mb: 3 }} />
-
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
-
-      <Box component="form" onSubmit={handleSave} noValidate>
-        <Stack spacing={2}>
-          <TextField label="Display Name" value={displayName} onChange={(e: ChangeEvent<HTMLInputElement>) => setDisplayName(e.target.value)} required fullWidth />
-          <TextField label="Email" value={user?.email ?? ''} disabled fullWidth helperText="Email changes are managed separately via account settings." />
-          <TextField label="Bio" value={form.bio} onChange={field('bio')} multiline rows={3} fullWidth />
-          <TextField label="Phone Number" value={form.phone_number} onChange={field('phone_number')} fullWidth />
-          <TextField label="Address" value={form.address} onChange={field('address')} fullWidth />
-          <Stack direction="row" spacing={2}>
-            <TextField label="City" value={form.city} onChange={field('city')} fullWidth />
-            <TextField label="State / Province" value={form.state} onChange={field('state')} fullWidth />
-          </Stack>
-          <Stack direction="row" spacing={2}>
-            <TextField label="Zip / Postal Code" value={form.zip_code} onChange={field('zip_code')} fullWidth />
-            <TextField label="Country" value={form.country} onChange={field('country')} fullWidth />
-          </Stack>
-          <Button
-            type="submit"
-            variant="contained"
-            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveRounded />}
-            disabled={saving}
+    <PageLayout
+      title="My Profile"
+      subtitle="Manage your account information and preferences"
+      breadcrumbs={[{ label: 'Profile' }]}
+    >
+      <Paper elevation={1} sx={{ p: 3, maxWidth: 680 }}>
+        {/* Avatar */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, mb: 3 }}>
+          <Avatar
+            src={profile?.profile_photo_url ?? undefined}
+            sx={{ width: 80, height: 80, fontSize: 32 }}
           >
-            {saving ? 'Saving…' : 'Save Changes'}
-          </Button>
-        </Stack>
-      </Box>
-    </Box>
+            {user?.displayName?.[0]?.toUpperCase()}
+          </Avatar>
+          <Box>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              style={{ display: 'none' }}
+              onChange={handlePhotoUpload}
+            />
+            <Stack direction="row" spacing={1} mb={0.5}>
+              <Tooltip title="Upload photo">
+                <span>
+                  <IconButton onClick={() => fileRef.current?.click()} disabled={uploading} size="small">
+                    {uploading ? <CircularProgress size={18} /> : <CameraAltRounded fontSize="small" />}
+                  </IconButton>
+                </span>
+              </Tooltip>
+              {profile?.profile_photo_url && (
+                <Tooltip title="Remove photo">
+                  <IconButton color="error" onClick={handleDeletePhoto} size="small">
+                    <DeleteRounded fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Stack>
+            <Typography variant="caption" color="text.secondary">JPEG, PNG, WebP · max 2 MB</Typography>
+          </Box>
+        </Box>
+
+        <Divider sx={{ mb: 3 }} />
+
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+
+        <Box component="form" onSubmit={handleSave} noValidate>
+          <Stack spacing={2.5}>
+            <TextField label="Display Name" value={displayName} onChange={(e: ChangeEvent<HTMLInputElement>) => setDisplayName(e.target.value)} required fullWidth />
+            <TextField label="Email" value={user?.email ?? ''} disabled fullWidth helperText="Email changes are managed separately via account settings." />
+            <TextField label="Bio" value={form.bio} onChange={field('bio')} multiline rows={3} fullWidth />
+            <TextField label="Phone Number" value={form.phone_number} onChange={field('phone_number')} fullWidth />
+            <TextField label="Address" value={form.address} onChange={field('address')} fullWidth />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField label="City" value={form.city} onChange={field('city')} fullWidth />
+              <TextField label="State / Province" value={form.state} onChange={field('state')} fullWidth />
+            </Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField label="Zip / Postal Code" value={form.zip_code} onChange={field('zip_code')} fullWidth />
+              <TextField label="Country" value={form.country} onChange={field('country')} fullWidth />
+            </Stack>
+            <Box>
+              <Button
+                type="submit"
+                variant="contained"
+                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveRounded />}
+                disabled={saving}
+              >
+                {saving ? 'Saving…' : 'Save Changes'}
+              </Button>
+            </Box>
+          </Stack>
+        </Box>
+      </Paper>
+    </PageLayout>
   );
 }

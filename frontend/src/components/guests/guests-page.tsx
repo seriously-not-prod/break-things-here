@@ -39,6 +39,7 @@ import {
   SendRounded,
 } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
+import { PageLayout } from '../layout/page-layout';
 import {
   checkInGuest,
   createRsvp,
@@ -246,11 +247,10 @@ export default function GuestsPage(): JSX.Element {
   const selectedIds = Array.from(selected);
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h5" fontWeight={700} gutterBottom>
-        Guest List
-      </Typography>
-
+    <PageLayout
+      title="Guest List"
+      breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Guests' }]}
+    >
       {pageError && <Alert severity="error" sx={{ mb: 2 }}>{pageError}</Alert>}
 
       <Tabs value={tab} onChange={(_, v: number) => setTab(v)} sx={{ mb: 2 }}>
@@ -559,6 +559,6 @@ export default function GuestsPage(): JSX.Element {
         onClose={() => setToast(null)}
         message={toast}
       />
-    </Box>
+    </PageLayout>
   );
 }

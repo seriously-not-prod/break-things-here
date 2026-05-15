@@ -205,7 +205,7 @@ const ROLE_NAMES = {
 const DEV_DEMO_USERS = [
   {
     email: 'admin@festival.local',
-    password: 'Admin123!',
+    password: 'festivalAdmin2025',
     displayName: 'Admin User',
     roleId: 3,
   },
@@ -248,11 +248,11 @@ const DEV_DEMO_USERS = [
 ] as const;
 
 const DEV_DEMO_EVENT = {
-  title: 'Eventora Launch Festival',
+  title: 'eQuip Fest Launch Festival',
   date: '2026-06-18',
   endDate: '2026-06-20',
   location: 'Riverfront Park',
-  description: 'Seeded demo event for exploring the full Eventora workspace.',
+  description: 'Seeded demo event for exploring the full eQuip Fest workspace.',
   capacity: 250,
   status: 'Active',
   eventType: 'Music',
@@ -352,6 +352,9 @@ async function seedDevelopmentDemoUsers(db: DatabaseAdapter): Promise<void> {
          email_verified = 1,
          role_id = EXCLUDED.role_id,
          deleted_at = NULL,
+         account_locked = 0,
+         locked_until = NULL,
+         login_attempts = 0,
          updated_at = CURRENT_TIMESTAMP`,
       [user.email, passwordHash, user.displayName, user.roleId],
     );

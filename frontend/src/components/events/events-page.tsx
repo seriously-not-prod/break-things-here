@@ -67,6 +67,7 @@ import {
   type FilterPreset,
 } from '../../services/event-filter-presets-service';
 import EventTemplatesDialog from './event-templates-dialog';
+import { PageLayout } from '../layout/page-layout';
 import PowerUserSearch from './power-user-search';
 
 interface PlannerEvent extends Omit<
@@ -582,16 +583,11 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
   ).length;
 
   return (
-    <Box sx={{ p: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 1 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700}>{pageTitle}</Typography>
-          {isMyEvents && (
-            <Typography variant="caption" color="text.secondary">
-              Showing only events you created
-            </Typography>
-          )}
-        </Box>
+    <PageLayout
+      title={pageTitle}
+      subtitle={isMyEvents ? 'Showing only events you created' : undefined}
+      breadcrumbs={isMyEvents ? [{ label: 'Events', to: '/events' }, { label: 'My Events' }] : [{ label: 'Events' }]}
+      actions={
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
           <ButtonGroup size="small" variant="outlined" aria-label="View toggle">
             <Button
@@ -667,8 +663,8 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
             </>
           )}
         </Stack>
-      </Box>
-
+      }
+    >
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
       {feedback && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setFeedback(null)}>{feedback}</Alert>}
       {bulkSummary && bulkSummary.results.some((r) => r.status !== 'ok') && (
@@ -1276,6 +1272,6 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
       </Dialog>
 
       <PowerUserSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
-    </Box>
+    </PageLayout>
   );
 }

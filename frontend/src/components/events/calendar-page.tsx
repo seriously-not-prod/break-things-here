@@ -13,6 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { PageLayout } from '../layout/page-layout';
 import { api, ApiError } from '../../lib/api-client';
 
 interface PlannerEvent {
@@ -64,11 +65,10 @@ export default function CalendarPage(): JSX.Element {
   }
 
   return (
-    <Box sx={{ p: 4 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Typography variant="h5" fontWeight={700}>
-          Calendar
-        </Typography>
+    <PageLayout
+      title="Calendar"
+      breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Calendar' }]}
+      actions={
         <Stack direction="row" spacing={1} alignItems="center">
           <Select
             value={view}
@@ -83,7 +83,8 @@ export default function CalendarPage(): JSX.Element {
             Create
           </Button>
         </Stack>
-      </Stack>
+      }
+    >
 
       {grouped.size === 0 ? (
         <Box sx={{ textAlign: 'center', mt: 8 }}>
@@ -124,6 +125,6 @@ export default function CalendarPage(): JSX.Element {
             ))}
         </Grid>
       )}
-    </Box>
+    </PageLayout>
   );
 }

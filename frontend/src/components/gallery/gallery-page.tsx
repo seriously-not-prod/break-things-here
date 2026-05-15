@@ -45,6 +45,7 @@ import {
   SlideshowRounded,
 } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
+import { PageLayout } from '../layout/page-layout';
 import { apiFetch } from '../../lib/api-client';
 import {
   assignItemToAlbum,
@@ -472,33 +473,28 @@ export function GalleryPage(): JSX.Element {
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <PhotoLibraryRounded color="primary" />
-          <Typography variant="h5" fontWeight={700}>
-            Gallery
-          </Typography>
-        </Box>
-        {tab === 0 && (
-          <Button
-            variant="contained"
-            startIcon={<AddPhotoAlternateRounded />}
-            component="label"
-            disabled={uploading}
-            aria-label="Upload image"
-          >
-            {uploading ? 'Uploading…' : 'Upload Image'}
-            <input
-              ref={uploadRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-              hidden
-              onChange={(e) => void handleUpload(e)}
-            />
-          </Button>
-        )}
-      </Box>
+    <PageLayout
+      title="Gallery"
+      breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Gallery' }]}
+      actions={tab === 0 ? (
+        <Button
+          variant="contained"
+          startIcon={<AddPhotoAlternateRounded />}
+          component="label"
+          disabled={uploading}
+          aria-label="Upload image"
+        >
+          {uploading ? 'Uploading…' : 'Upload Image'}
+          <input
+            ref={uploadRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+            hidden
+            onChange={(e) => void handleUpload(e)}
+          />
+        </Button>
+      ) : undefined}
+    >
 
       {/* BRD v2 (#619, #620, #622) — share links, manifest, quota indicator */}
       {eventId && (
@@ -1330,7 +1326,7 @@ export function GalleryPage(): JSX.Element {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </PageLayout>
   );
 }
 

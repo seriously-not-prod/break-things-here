@@ -2,7 +2,7 @@ import rateLimit from 'express-rate-limit';
 
 export const apiLimiter = rateLimit({
   windowMs: 60_000,
-  max: 100,
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000,
   skip: (req) => req.path.startsWith('/auth/'),
 });
 

@@ -26,11 +26,11 @@ import {
   Typography,
 } from '@mui/material';
 import AddRounded from '@mui/icons-material/AddRounded';
-import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import DeleteRounded from '@mui/icons-material/DeleteRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import UploadFileRounded from '@mui/icons-material/UploadFileRounded';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { PageLayout } from '../layout/page-layout';
 import {
   type CreateVendorInput,
   type Vendor,
@@ -75,7 +75,6 @@ const emptyForm: CreateVendorInput = {
 export default function VendorsPage(): JSX.Element {
   const { id: eventIdStr } = useParams<{ id: string }>();
   const eventId = Number(eventIdStr);
-  const navigate = useNavigate();
 
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -216,17 +215,15 @@ export default function VendorsPage(): JSX.Element {
   });
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
-      <Stack direction="row" alignItems="center" spacing={1} mb={3}>
-        <IconButton onClick={() => navigate(`/events/${eventId}`)} aria-label="Back to event">
-          <ArrowBackRounded />
-        </IconButton>
-        <Typography variant="h5" component="h1">Vendors</Typography>
-        <Box flex={1} />
+    <PageLayout
+      title="Vendors"
+      breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Vendors' }]}
+      actions={
         <Button variant="contained" startIcon={<AddRounded />} onClick={openAddDialog}>
           Add Vendor
         </Button>
-      </Stack>
+      }
+    >
 
       {/* Filters */}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} mb={3}>
@@ -427,6 +424,6 @@ export default function VendorsPage(): JSX.Element {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </PageLayout>
   );
 }
