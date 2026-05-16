@@ -71,7 +71,19 @@ services:
       - SMTP_PASS=${SMTP_PASS:-}
       - SMTP_FROM=${SMTP_FROM:-noreply@festivalplanner.local}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - CORS_ALLOWED_ORIGINS=http://localhost:${FRONTEND_PORT:-8081}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT:-8081},http://localhost}
+      - ENTRA_AUTH_ENABLED=${ENTRA_AUTH_ENABLED:-false}
+      - ENTRA_MFA_REQUIRED=${ENTRA_MFA_REQUIRED:-false}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET:-}
+      - AZURE_REDIRECT_URI=${AZURE_REDIRECT_URI:-http://localhost:8081/auth/callback}
+      - ENTRA_GROUP_ADMINS=${ENTRA_GROUP_ADMINS:-}
+      - ENTRA_GROUP_ORGANIZERS=${ENTRA_GROUP_ORGANIZERS:-}
+      - ENTRA_GROUP_COLLABORATORS=${ENTRA_GROUP_COLLABORATORS:-}
+      - ENTRA_GROUP_GUESTS=${ENTRA_GROUP_GUESTS:-}
+      - ENTRA_GROUP_VIEWERS=${ENTRA_GROUP_VIEWERS:-}
+      - RLS_PILOT_ENABLED=${RLS_PILOT_ENABLED:-false}
     depends_on:
       db:
         condition: service_healthy

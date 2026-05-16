@@ -423,6 +423,7 @@ function RootRouter(): JSX.Element {
       <Route path="/reset-password" element={<AuthShell />} />
       <Route path="/rsvp/:eventId" element={<PublicRsvpPage />} />
       <Route path="/auth/entra/callback" element={<EntraCallbackPage />} />
+      <Route path="/auth/callback" element={<EntraCallbackPage />} />
       <Route path="/*" element={<AppShell />} />
     </Routes>
   );

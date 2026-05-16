@@ -26,8 +26,17 @@ export function initiateEntraLogin(_req: Request, res: Response): void {
   const config = getEntraConfig();
   const state = crypto.randomBytes(16).toString('hex');
   const nonce = crypto.randomBytes(16).toString('hex');
+  const codeVerifier = crypto.randomBytes(32).toString('base64url');
+  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
 
   res.cookie('entra_state', state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 10 * 60 * 1000,
+  });
+
+  res.cookie('entra_pkce_verifier', codeVerifier, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -41,6 +50,8 @@ export function initiateEntraLogin(_req: Request, res: Response): void {
     scope: 'openid profile email',
     state,
     nonce,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
     response_mode: 'query',
   });
 
@@ -53,8 +64,9 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
     return;
   }
 
-  const { code, id_token: directIdToken } = req.body as {
+  const { code, state, id_token: directIdToken } = req.body as {
     code?: string;
+    state?: string;
     id_token?: string;
   };
 
@@ -69,10 +81,24 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
   if (directIdToken) {
     idToken = directIdToken;
   } else {
+    const expectedState = (req.cookies?.entra_state as string | undefined) ?? '';
+    const codeVerifier = (req.cookies?.entra_pkce_verifier as string | undefined) ?? '';
+
+    if (!state || !expectedState || state !== expectedState) {
+      res.status(401).json({ error: 'Invalid or missing Entra state.' });
+      return;
+    }
+
+    if (!codeVerifier) {
+      res.status(400).json({ error: 'Missing PKCE verifier cookie. Restart Entra sign-in and try again.' });
+      return;
+    }
+
     const body = new URLSearchParams({
       client_id: config.clientId,
       client_secret: config.clientSecret,
       code: code!,
+      code_verifier: codeVerifier,
       redirect_uri: config.redirectUri,
       grant_type: 'authorization_code',
     });
@@ -85,17 +111,24 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
 
     if (!tokenRes.ok) {
       const err = await tokenRes.json().catch(() => ({})) as Record<string, unknown>;
+      res.clearCookie('entra_state');
+      res.clearCookie('entra_pkce_verifier');
       res.status(401).json({ error: 'Failed to exchange code for token.', details: err });
       return;
     }
 
     const tokenData = await tokenRes.json() as { id_token?: string };
     if (!tokenData.id_token) {
+      res.clearCookie('entra_state');
+      res.clearCookie('entra_pkce_verifier');
       res.status(401).json({ error: 'No ID token received from Azure.' });
       return;
     }
     idToken = tokenData.id_token;
   }
+
+  res.clearCookie('entra_state');
+  res.clearCookie('entra_pkce_verifier');
 
   const claims = await validateEntraIdToken(
     idToken,

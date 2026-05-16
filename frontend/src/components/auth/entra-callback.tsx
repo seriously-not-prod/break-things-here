@@ -16,6 +16,7 @@ export function EntraCallbackPage(): JSX.Element {
     called.current = true;
 
     const code = searchParams.get('code');
+    const state = searchParams.get('state');
     const errorParam = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
 
@@ -33,7 +34,7 @@ export function EntraCallbackPage(): JSX.Element {
       try {
         const data = await api.post<{ accessToken?: string; user?: unknown }>(
           '/api/auth/entra/callback',
-          { code },
+          { code, state },
         );
         if (data?.accessToken) setToken(data.accessToken as string);
         navigate('/dashboard', { replace: true });
