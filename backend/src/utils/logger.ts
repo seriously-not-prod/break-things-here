@@ -39,8 +39,8 @@ function log(level: LogLevel, message: string, meta?: Record<string, unknown>, c
 
   if (isDev) {
     const prefix = { debug: '🔵', info: '🟢', warn: '🟡', error: '🔴' }[level] ?? level.toUpperCase();
-    // Still structured for log parsing but slightly more readable in dev
-    console.log(`${prefix} [${record.timestamp}] ${message}`, meta ?? '');
+    // Use structured write even in dev to avoid format-string injection risk (CodeQL)
+    process.stdout.write(JSON.stringify({ ...record, _prefix: prefix }) + '\n');
     return;
   }
 
