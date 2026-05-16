@@ -1,5 +1,6 @@
 import { Box, CircularProgress, Paper, Typography } from '@mui/material';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
 import { AuthProvider, useAuth } from './contexts/auth-context';
 import { ThemeModeProvider } from './theme/theme-mode-context';
 import { LoginForm } from './components/login-form/login-form';
@@ -361,6 +362,7 @@ function AppShell(): JSX.Element {
           overflow: 'hidden',
         }}
       >
+        <ErrorBoundary>
         <Routes>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/events" element={<EventsPage />} />
@@ -385,6 +387,7 @@ function AppShell(): JSX.Element {
           <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        </ErrorBoundary>
       </Box>
       <AiAssistant />
       <GlobalShortcuts

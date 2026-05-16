@@ -36,7 +36,7 @@ export async function getVendorPerformance(req: Request, res: Response): Promise
     created_at: string;
   }>(
     `SELECT id, name, category, status, quoted_amount, rating, contract_file, created_at
-     FROM vendors WHERE id = ? AND event_id = ?`,
+     FROM vendors WHERE id = $1 AND event_id = $2`,
     [vendorId, eventId],
   );
   if (!vendor) return res.status(404).json({ error: 'Vendor not found in this event.' });
@@ -48,7 +48,7 @@ export async function getVendorPerformance(req: Request, res: Response): Promise
   }>(
     `SELECT COUNT(*)::int AS total_communications, MAX(created_at) AS last_contact_at
      FROM vendor_communication_log
-     WHERE vendor_id = ? AND event_id = ?`,
+     WHERE vendor_id = $1 AND event_id = $2`,
     [vendorId, eventId],
   );
 
@@ -63,7 +63,7 @@ export async function getVendorPerformance(req: Request, res: Response): Promise
        COALESCE(SUM(amount) FILTER (WHERE payment_status = 'Paid'), 0)::float  AS total_paid,
        COALESCE(SUM(amount) FILTER (WHERE payment_status = 'Pending'), 0)::float AS total_pending
      FROM expenses
-     WHERE vendor_name = ? AND event_id = ?`,
+     WHERE vendor_name = $1 AND event_id = $2`,
     [vendor.name, eventId],
   );
 
@@ -71,7 +71,7 @@ export async function getVendorPerformance(req: Request, res: Response): Promise
   const timelineCount = await db.get<{ timeline_items: number }>(
     `SELECT COUNT(*)::int AS timeline_items
      FROM timeline_activities
-     WHERE vendor_id = ? AND event_id = ?`,
+     WHERE vendor_id = $1 AND event_id = $2`,
     [vendorId, eventId],
   );
 
@@ -148,7 +148,7 @@ export async function listVendorPerformance(req: Request, res: Response): Promis
      FROM vendors v
      LEFT JOIN vendor_communication_log vcl ON vcl.vendor_id = v.id
      LEFT JOIN timeline_activities ta       ON ta.vendor_id = v.id
-     WHERE v.event_id = ?
+     WHERE v.event_id = $1
      GROUP BY v.id
      ORDER BY v.name ASC`,
     [eventId],

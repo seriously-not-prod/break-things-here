@@ -57,7 +57,7 @@ export async function computeAttendanceStats(eventId: number): Promise<Attendanc
             SUM(CASE WHEN checked_in THEN 1 ELSE 0 END) AS checked_in_count,
             SUM(CASE WHEN late_arrival THEN 1 ELSE 0 END) AS late_count
        FROM rsvps
-      WHERE event_id = ?
+      WHERE event_id = $1
       GROUP BY COALESCE(LOWER(canonical_status), 'pending')`,
     [eventId],
   );
@@ -115,7 +115,7 @@ export async function listRecentAttendanceEvents(req: Request, res: Response): P
             r.id AS rsvp_id, r.name, r.email, r.late_arrival, r.arrival_delay_minutes
      FROM attendance_events a
      JOIN rsvps r ON r.id = a.rsvp_id
-     WHERE a.event_id = ?
+     WHERE a.event_id = $1
      ORDER BY a.occurred_at DESC
      LIMIT 50`,
     [eventId],

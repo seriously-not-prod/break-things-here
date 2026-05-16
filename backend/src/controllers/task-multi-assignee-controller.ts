@@ -34,14 +34,14 @@ export async function listTaskAssignees(req: Request, res: Response): Promise<Re
   if (!event) return res as Response;
 
   const db = getDatabase();
-  const task = await db.get('SELECT id FROM tasks WHERE id = ? AND event_id = ?', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const assignees = await db.all(
     `SELECT ta.*, COALESCE(u.display_name, u.email) AS display_name, u.email
      FROM task_assignees ta
      JOIN users u ON u.id = ta.user_id
-     WHERE ta.task_id = ?
+     WHERE ta.task_id = $1
      ORDER BY ta.assigned_at ASC`,
     [taskId],
   );
@@ -60,25 +60,25 @@ export async function addTaskAssignee(req: Request, res: Response): Promise<Resp
   if (!event) return res as Response;
 
   const db = getDatabase();
-  const task = await db.get('SELECT id FROM tasks WHERE id = ? AND event_id = ?', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   // Verify target user is a member of the event
   const member = await db.get(
-    'SELECT user_id FROM event_members WHERE event_id = ? AND user_id = ?',
+    'SELECT user_id FROM event_members WHERE event_id = $1 AND user_id = $2',
     [eventId, user_id],
   );
   if (!member) return res.status(400).json({ error: 'User must be a member of this event.' });
 
   const user = await db.get<{ display_name: string; email: string }>(
-    'SELECT display_name, email FROM users WHERE id = ? AND deleted_at IS NULL',
+    'SELECT display_name, email FROM users WHERE id = $1 AND deleted_at IS NULL',
     [user_id],
   );
   if (!user) return res.status(404).json({ error: 'User not found.' });
 
   await db.run(
     `INSERT INTO task_assignees (task_id, user_id, assigned_by)
-     VALUES (?, ?, ?)
+     VALUES ($1, $2, $3)
      ON CONFLICT (task_id, user_id) DO NOTHING`,
     [taskId, user_id, authReq.user?.id ?? null],
   );
@@ -94,7 +94,7 @@ export async function addTaskAssignee(req: Request, res: Response): Promise<Resp
   const assignees = await db.all(
     `SELECT ta.*, COALESCE(u.display_name, u.email) AS display_name, u.email
      FROM task_assignees ta JOIN users u ON u.id = ta.user_id
-     WHERE ta.task_id = ? ORDER BY ta.assigned_at ASC`,
+     WHERE ta.task_id = $1 ORDER BY ta.assigned_at ASC`,
     [taskId],
   );
   return res.status(201).json({ assignees });
@@ -109,10 +109,10 @@ export async function removeTaskAssignee(req: Request, res: Response): Promise<R
   if (!event) return res as Response;
 
   const db = getDatabase();
-  const task = await db.get('SELECT id FROM tasks WHERE id = ? AND event_id = ?', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
-  await db.run('DELETE FROM task_assignees WHERE task_id = ? AND user_id = ?', [taskId, userId]);
+  await db.run('DELETE FROM task_assignees WHERE task_id = $1 AND user_id = $2', [taskId, userId]);
 
   return res.json({ message: 'Assignee removed.' });
 }
@@ -141,7 +141,7 @@ export async function updateTaskStatus(req: Request, res: Response): Promise<Res
 
   const db = getDatabase();
   const task = await db.get<{ id: number; status: string; version: number; title: string }>(
-    'SELECT id, status, version, title FROM tasks WHERE id = ? AND event_id = ?',
+    'SELECT id, status, version, title FROM tasks WHERE id = $1 AND event_id = $2',
     [taskId, eventId],
   );
   if (!task) return res.status(404).json({ error: 'Task not found.' });
@@ -171,9 +171,9 @@ export async function updateTaskStatus(req: Request, res: Response): Promise<Res
   }
 
   params.push(taskId);
-  await db.run(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`, params);
+  await db.run(`UPDATE tasks SET ${fields.join(', ')} WHERE id = $1`, params);
 
-  const updated = await db.get('SELECT * FROM tasks WHERE id = ?', [taskId]);
+  const updated = await db.get('SELECT * FROM tasks WHERE id = $1', [taskId]);
 
   await logActivity(
     eventId,
@@ -198,7 +198,7 @@ export async function verifyTaskCompletion(req: Request, res: Response): Promise
 
   const db = getDatabase();
   const task = await db.get<{ id: number; status: string; title: string }>(
-    'SELECT id, status, title FROM tasks WHERE id = ? AND event_id = ?',
+    'SELECT id, status, title FROM tasks WHERE id = $1 AND event_id = $2',
     [taskId, eventId],
   );
   if (!task) return res.status(404).json({ error: 'Task not found.' });
@@ -208,13 +208,13 @@ export async function verifyTaskCompletion(req: Request, res: Response): Promise
 
   await db.run(
     `UPDATE tasks
-     SET status = 'Complete', verified_by = ?, verified_at = CURRENT_TIMESTAMP,
+     SET status = 'Complete', verified_by = $1, verified_at = CURRENT_TIMESTAMP,
          version = version + 1, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
+     WHERE id = $2`,
     [authReq.user?.id ?? null, taskId],
   );
 
-  const updated = await db.get('SELECT * FROM tasks WHERE id = ?', [taskId]);
+  const updated = await db.get('SELECT * FROM tasks WHERE id = $1', [taskId]);
 
   await logActivity(
     eventId,
@@ -239,7 +239,7 @@ export async function getEscalationPolicy(req: Request, res: Response): Promise<
 
   const db = getDatabase();
   const policy = await db.get(
-    'SELECT * FROM task_escalation_policies WHERE event_id = ?',
+    'SELECT * FROM task_escalation_policies WHERE event_id = $1',
     [eventId],
   );
   return res.json({ policy: policy ?? null });
@@ -272,7 +272,7 @@ export async function upsertEscalationPolicy(req: Request, res: Response): Promi
   await db.run(
     `INSERT INTO task_escalation_policies
        (event_id, overdue_hours, escalate_to_user_id, escalate_to_role_id, notify_on_escalation, created_by)
-     VALUES (?, ?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (event_id) DO UPDATE SET
        overdue_hours        = EXCLUDED.overdue_hours,
        escalate_to_user_id  = EXCLUDED.escalate_to_user_id,
@@ -289,7 +289,7 @@ export async function upsertEscalationPolicy(req: Request, res: Response): Promi
     ],
   );
 
-  const policy = await db.get('SELECT * FROM task_escalation_policies WHERE event_id = ?', [eventId]);
+  const policy = await db.get('SELECT * FROM task_escalation_policies WHERE event_id = $1', [eventId]);
   return res.json({ policy });
 }
 
@@ -306,16 +306,16 @@ export async function escalateOverdueTasks(req: Request, res: Response): Promise
     overdue_hours: number;
     escalate_to_user_id: number | null;
     notify_on_escalation: boolean;
-  }>('SELECT * FROM task_escalation_policies WHERE event_id = ?', [eventId]);
+  }>('SELECT * FROM task_escalation_policies WHERE event_id = $1', [eventId]);
 
   if (!policy) return res.status(404).json({ error: 'No escalation policy configured for this event.' });
 
   const overdueTasks = await db.all<{ id: number; title: string }>(
     `SELECT id, title FROM tasks
-     WHERE event_id = ?
+     WHERE event_id = $1
        AND status NOT IN ('Complete', 'Cancelled')
        AND due_date IS NOT NULL
-       AND due_date < datetime('now', ?)
+       AND due_date < datetime('now', $2)
        AND escalated_at IS NULL`,
     [eventId, `-${policy.overdue_hours} hours`],
   );
@@ -323,15 +323,15 @@ export async function escalateOverdueTasks(req: Request, res: Response): Promise
   let escalated = 0;
   for (const task of overdueTasks) {
     await db.run(
-      `UPDATE tasks SET escalated_at = CURRENT_TIMESTAMP, escalated_to = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
+      `UPDATE tasks SET escalated_at = CURRENT_TIMESTAMP, escalated_to = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
       [policy.escalate_to_user_id, task.id],
     );
 
     if (policy.notify_on_escalation && policy.escalate_to_user_id) {
       await db.run(
         `INSERT INTO notifications (user_id, type, title, body, notification_type)
-         VALUES (?, 'task_overdue', ?, ?, 'task_overdue')`,
+         VALUES ($1, 'task_overdue', $2, $3, 'task_overdue')`,
         [
           policy.escalate_to_user_id,
           `Overdue task escalated: ${task.title}`,
@@ -364,7 +364,7 @@ export async function getMyTasks(req: Request, res: Response): Promise<Response>
      FROM tasks t
      JOIN events e ON e.id = t.event_id
      LEFT JOIN task_assignees ta ON ta.task_id = t.id
-     WHERE (t.assigned_user_id = ? OR ta.user_id = ?)
+     WHERE (t.assigned_user_id = $1 OR ta.user_id = $2)
        AND t.status NOT IN ('Complete', 'Cancelled')
      ORDER BY t.due_date ASC NULLS LAST, t.priority DESC`,
     [userId, userId],
@@ -394,7 +394,7 @@ export async function getCapacityPlanning(req: Request, res: Response): Promise<
        COALESCE(SUM(t.estimated_hours), 0)            AS total_estimated_hours
      FROM tasks t
      LEFT JOIN task_assignees ta ON ta.task_id = t.id
-     WHERE (t.assigned_user_id = ? OR ta.user_id = ?)
+     WHERE (t.assigned_user_id = $1 OR ta.user_id = $2)
        AND t.status NOT IN ('Complete', 'Cancelled')`,
     [userId, userId],
   );

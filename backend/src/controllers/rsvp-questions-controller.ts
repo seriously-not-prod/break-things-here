@@ -134,7 +134,7 @@ export async function fetchQuestionsForEvent(
     sort_order: number;
   }>(
     `SELECT id, event_id, prompt, question_type, options, required, sort_order
-     FROM rsvp_questions WHERE event_id = ? ORDER BY sort_order ASC, id ASC`,
+     FROM rsvp_questions WHERE event_id = $1 ORDER BY sort_order ASC, id ASC`,
     [eventId],
   );
   return rows.map((r) => ({
@@ -189,7 +189,7 @@ export async function createQuestion(req: Request, res: Response): Promise<Respo
   const db = getDatabase();
   const result = await db.run(
     `INSERT INTO rsvp_questions (event_id, prompt, question_type, options, required, sort_order)
-     VALUES (?, ?, ?, ?::jsonb, ?, ?) RETURNING id`,
+     VALUES ($1, $2, $3, $4::jsonb, $5, $6) RETURNING id`,
     [
       eventId,
       prompt.trim(),
@@ -201,7 +201,7 @@ export async function createQuestion(req: Request, res: Response): Promise<Respo
   );
   const row = await db.get(
     `SELECT id, event_id, prompt, question_type, options, required, sort_order, created_at
-     FROM rsvp_questions WHERE id = ?`,
+     FROM rsvp_questions WHERE id = $1`,
     [result.lastID],
   );
   return res.status(201).json({ question: row });
@@ -216,7 +216,7 @@ export async function updateQuestion(req: Request, res: Response): Promise<Respo
 
   const db = getDatabase();
   const existing = await db.get<{ id: number; question_type: QuestionType }>(
-    'SELECT id, question_type FROM rsvp_questions WHERE id = ? AND event_id = ?',
+    'SELECT id, question_type FROM rsvp_questions WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Question not found.' });
@@ -237,7 +237,7 @@ export async function updateQuestion(req: Request, res: Response): Promise<Respo
     params.push(body.required);
   }
   if (Number.isInteger(body.sort_order)) {
-    fields.push('sort_order = ?');
+    fields.push('sort_order = $1');
     params.push(body.sort_order as number);
   }
   if (Array.isArray(body.options)) {
@@ -257,10 +257,10 @@ export async function updateQuestion(req: Request, res: Response): Promise<Respo
   }
   fields.push('updated_at = CURRENT_TIMESTAMP');
   params.push(id);
-  await db.run(`UPDATE rsvp_questions SET ${fields.join(', ')} WHERE id = ?`, params);
+  await db.run(`UPDATE rsvp_questions SET ${fields.join(', ')} WHERE id = $1`, params);
   const updated = await db.get(
     `SELECT id, event_id, prompt, question_type, options, required, sort_order
-     FROM rsvp_questions WHERE id = ?`,
+     FROM rsvp_questions WHERE id = $1`,
     [id],
   );
   return res.json({ question: updated });
@@ -274,7 +274,7 @@ export async function deleteQuestion(req: Request, res: Response): Promise<Respo
   if (!event) return res as Response;
   const db = getDatabase();
   const r = await db.run(
-    'DELETE FROM rsvp_questions WHERE id = ? AND event_id = ?',
+    'DELETE FROM rsvp_questions WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if ((r.changes ?? 0) === 0) return res.status(404).json({ error: 'Question not found.' });
@@ -294,7 +294,7 @@ export async function submitResponses(req: Request, res: Response): Promise<Resp
     `SELECT t.rsvp_id, r.event_id
      FROM rsvp_access_tokens t
      JOIN rsvps r ON r.id = t.rsvp_id
-     WHERE t.token = ? AND t.revoked_at IS NULL`,
+     WHERE t.token = $1 AND t.revoked_at IS NULL`,
     [token],
   );
   if (!tokenRow) return res.status(404).json({ error: 'Token not found.' });
@@ -326,7 +326,7 @@ export async function submitResponses(req: Request, res: Response): Promise<Resp
   for (const { questionId, value } of accepted) {
     await db.run(
       `INSERT INTO rsvp_question_responses (rsvp_id, question_id, response, created_at, updated_at)
-       VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
        ON CONFLICT (rsvp_id, question_id)
        DO UPDATE SET response = EXCLUDED.response, updated_at = CURRENT_TIMESTAMP`,
       [tokenRow.rsvp_id, questionId, value],
@@ -349,7 +349,7 @@ export async function listResponses(req: Request, res: Response): Promise<Respon
      FROM rsvp_question_responses r
      JOIN rsvp_questions q ON q.id = r.question_id
      JOIN rsvps rs        ON rs.id = r.rsvp_id
-     WHERE q.event_id = ?
+     WHERE q.event_id = $1
      ORDER BY q.sort_order ASC, r.updated_at DESC`,
     [eventId],
   );

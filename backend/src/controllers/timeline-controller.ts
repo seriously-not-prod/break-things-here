@@ -47,7 +47,7 @@ export async function listActivities(req: Request, res: Response): Promise<Respo
 
   const db = getDatabase();
   const activities = await db.all<TimelineActivityRow>(
-    `SELECT * FROM timeline_activities WHERE event_id = ? ORDER BY start_time ASC NULLS LAST, sort_order ASC`,
+    `SELECT * FROM timeline_activities WHERE event_id = $1 ORDER BY start_time ASC NULLS LAST, sort_order ASC`,
     [eventId],
   );
   return res.json({ activities });
@@ -104,7 +104,7 @@ export async function createActivity(req: Request, res: Response): Promise<Respo
        planned_start_time, planned_end_time,
        actual_start_time, actual_end_time,
        status, location, vendor_id, sort_order, created_by
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
      RETURNING id`,
     [
       eventId,
@@ -125,7 +125,7 @@ export async function createActivity(req: Request, res: Response): Promise<Respo
   );
 
   const activity = await db.get<TimelineActivityRow>(
-    'SELECT * FROM timeline_activities WHERE id = ?',
+    'SELECT * FROM timeline_activities WHERE id = $1',
     [result.lastID],
   );
   return res.status(201).json({ activity });
@@ -140,7 +140,7 @@ export async function updateActivity(req: Request, res: Response): Promise<Respo
 
   const db = getDatabase();
   const existing = await db.get<TimelineActivityRow>(
-    'SELECT * FROM timeline_activities WHERE id = ? AND event_id = ?',
+    'SELECT * FROM timeline_activities WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Timeline activity not found.' });
@@ -184,12 +184,12 @@ export async function updateActivity(req: Request, res: Response): Promise<Respo
 
   await db.run(
     `UPDATE timeline_activities SET
-       title = ?, description = ?, start_time = ?, end_time = ?,
-       planned_start_time = ?, planned_end_time = ?,
-       actual_start_time = ?, actual_end_time = ?,
-       status = ?, location = ?, vendor_id = ?, sort_order = ?,
+       title = $1, description = $2, start_time = $3, end_time = $4,
+       planned_start_time = $5, planned_end_time = $6,
+       actual_start_time = $7, actual_end_time = $8,
+       status = $9, location = $10, vendor_id = $11, sort_order = $12,
        updated_at = CURRENT_TIMESTAMP
-     WHERE id = ? AND event_id = ?`,
+     WHERE id = $13 AND event_id = $14`,
     [
       title?.trim() ?? existing.title,
       description !== undefined ? (description.trim() || null) : existing.description,
@@ -209,7 +209,7 @@ export async function updateActivity(req: Request, res: Response): Promise<Respo
   );
 
   const activity = await db.get<TimelineActivityRow>(
-    'SELECT * FROM timeline_activities WHERE id = ?',
+    'SELECT * FROM timeline_activities WHERE id = $1',
     [id],
   );
   return res.json({ activity });
@@ -223,10 +223,10 @@ export async function deleteActivity(req: Request, res: Response): Promise<Respo
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const existing = await db.get<{ id: number }>('SELECT id FROM timeline_activities WHERE id = ? AND event_id = ?', [id, eventId]);
+  const existing = await db.get<{ id: number }>('SELECT id FROM timeline_activities WHERE id = $1 AND event_id = $2', [id, eventId]);
   if (!existing) return res.status(404).json({ error: 'Timeline activity not found.' });
 
-  await db.run('DELETE FROM timeline_activities WHERE id = ? AND event_id = ?', [id, eventId]);
+  await db.run('DELETE FROM timeline_activities WHERE id = $1 AND event_id = $2', [id, eventId]);
   return res.status(204).send('');
 }
 
@@ -274,7 +274,7 @@ export async function detectConflicts(req: Request, res: Response): Promise<Resp
       AND b.end_time   IS NOT NULL
       AND a.start_time < b.end_time
       AND a.end_time   > b.start_time
-     WHERE a.event_id = ?
+     WHERE a.event_id = $1
      ORDER BY a.start_time ASC`,
     [eventId],
   );
@@ -295,7 +295,7 @@ export async function getTimelineComparison(req: Request, res: Response): Promis
 
   const db = getDatabase();
   const activities = await db.all<TimelineActivityRow>(
-    `SELECT * FROM timeline_activities WHERE event_id = ? ORDER BY sort_order ASC, start_time ASC NULLS LAST`,
+    `SELECT * FROM timeline_activities WHERE event_id = $1 ORDER BY sort_order ASC, start_time ASC NULLS LAST`,
     [eventId],
   );
 

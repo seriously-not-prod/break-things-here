@@ -82,7 +82,7 @@ export async function listPresets(req: Request, res: Response): Promise<void> {
     }
     const db = getDatabase();
     const rows = await db.all<FilterPresetRow>(
-      `SELECT * FROM event_filter_presets WHERE user_id = ? ORDER BY updated_at DESC`,
+      `SELECT * FROM event_filter_presets WHERE user_id = $1 ORDER BY updated_at DESC`,
       [user.id],
     );
     res.json({ presets: rows.map(toView) });
@@ -122,7 +122,7 @@ export async function createPreset(req: Request, res: Response): Promise<void> {
     const db = getDatabase();
     // Enforce per-user uniqueness (same as DB unique index)
     const dup = await db.get<FilterPresetRow>(
-      'SELECT id FROM event_filter_presets WHERE user_id = ? AND name = ?',
+      'SELECT id FROM event_filter_presets WHERE user_id = $1 AND name = $2',
       [user.id, name],
     );
     if (dup) {
@@ -132,12 +132,12 @@ export async function createPreset(req: Request, res: Response): Promise<void> {
 
     const result = await db.run(
       `INSERT INTO event_filter_presets (name, filters, user_id)
-       VALUES (?, ?, ?)
+       VALUES ($1, $2, $3)
        RETURNING id`,
       [name, filtersText, user.id],
     );
     const created = await db.get<FilterPresetRow>(
-      'SELECT * FROM event_filter_presets WHERE id = ?',
+      'SELECT * FROM event_filter_presets WHERE id = $1',
       [result.lastID],
     );
     if (!created) {
@@ -161,7 +161,7 @@ export async function updatePreset(req: Request, res: Response): Promise<void> {
     }
     const db = getDatabase();
     const existing = await db.get<FilterPresetRow>(
-      'SELECT * FROM event_filter_presets WHERE id = ?',
+      'SELECT * FROM event_filter_presets WHERE id = $1',
       [req.params['id']],
     );
     if (!existing) {
@@ -192,7 +192,7 @@ export async function updatePreset(req: Request, res: Response): Promise<void> {
 
     if (name !== existing.name) {
       const dup = await db.get<FilterPresetRow>(
-        'SELECT id FROM event_filter_presets WHERE user_id = ? AND name = ? AND id <> ?',
+        'SELECT id FROM event_filter_presets WHERE user_id = $1 AND name = $2 AND id <> $3',
         [user.id, name, existing.id],
       );
       if (dup) {
@@ -203,12 +203,12 @@ export async function updatePreset(req: Request, res: Response): Promise<void> {
 
     await db.run(
       `UPDATE event_filter_presets
-          SET name = ?, filters = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?`,
+          SET name = $1, filters = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3`,
       [name, filtersText, existing.id],
     );
     const updated = await db.get<FilterPresetRow>(
-      'SELECT * FROM event_filter_presets WHERE id = ?',
+      'SELECT * FROM event_filter_presets WHERE id = $1',
       [existing.id],
     );
     res.json(updated ? toView(updated) : null);
@@ -228,7 +228,7 @@ export async function deletePreset(req: Request, res: Response): Promise<void> {
     }
     const db = getDatabase();
     const existing = await db.get<FilterPresetRow>(
-      'SELECT * FROM event_filter_presets WHERE id = ?',
+      'SELECT * FROM event_filter_presets WHERE id = $1',
       [req.params['id']],
     );
     if (!existing) {
@@ -239,7 +239,7 @@ export async function deletePreset(req: Request, res: Response): Promise<void> {
       res.status(403).json({ error: 'Not authorised to delete this preset.' });
       return;
     }
-    await db.run('DELETE FROM event_filter_presets WHERE id = ?', [existing.id]);
+    await db.run('DELETE FROM event_filter_presets WHERE id = $1', [existing.id]);
     res.json({ message: 'Preset deleted' });
   } catch (error) {
     console.error('Error deleting filter preset:', error);

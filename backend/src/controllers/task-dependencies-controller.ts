@@ -39,7 +39,7 @@ async function wouldCreateCycle(
     visited.add(current);
 
     const upstreams = await db.all<{ depends_on_id: number }>(
-      `SELECT depends_on_id FROM task_dependencies WHERE task_id = ?`,
+      `SELECT depends_on_id FROM task_dependencies WHERE task_id = $1`,
       [current],
     );
     for (const row of upstreams) queue.push(row.depends_on_id);
@@ -65,7 +65,7 @@ export async function listDependencies(req: Request, res: Response): Promise<Res
 
   // Verify task belongs to this event
   const taskCheck = await db.get<{ id: number }>(
-    `SELECT id FROM tasks WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM tasks WHERE id = $1 AND event_id = $2`,
     [taskId, eventId],
   );
   if (!taskCheck) return res.status(404).json({ error: 'Task not found in this event.' });
@@ -75,7 +75,7 @@ export async function listDependencies(req: Request, res: Response): Promise<Res
     `SELECT t.id, t.title, t.status, t.priority, td.id AS dep_id
      FROM task_dependencies td
      JOIN tasks t ON t.id = td.depends_on_id
-     WHERE td.task_id = ? AND t.event_id = ?
+     WHERE td.task_id = $1 AND t.event_id = $2
      ORDER BY t.title ASC`,
     [taskId, eventId],
   );
@@ -85,7 +85,7 @@ export async function listDependencies(req: Request, res: Response): Promise<Res
     `SELECT t.id, t.title, t.status, t.priority, td.id AS dep_id
      FROM task_dependencies td
      JOIN tasks t ON t.id = td.task_id
-     WHERE td.depends_on_id = ? AND t.event_id = ?
+     WHERE td.depends_on_id = $1 AND t.event_id = $2
      ORDER BY t.title ASC`,
     [taskId, eventId],
   );
@@ -118,8 +118,8 @@ export async function addDependency(req: Request, res: Response): Promise<Respon
 
   // Verify both tasks belong to this event
   const [task, dep] = await Promise.all([
-    db.get<{ id: number }>(`SELECT id FROM tasks WHERE id = ? AND event_id = ?`, [taskId, eventId]),
-    db.get<{ id: number }>(`SELECT id FROM tasks WHERE id = ? AND event_id = ?`, [depends_on_id, eventId]),
+    db.get<{ id: number }>(`SELECT id FROM tasks WHERE id = $1 AND event_id = $2`, [taskId, eventId]),
+    db.get<{ id: number }>(`SELECT id FROM tasks WHERE id = $1 AND event_id = $2`, [depends_on_id, eventId]),
   ]);
 
   if (!task) return res.status(404).json({ error: 'Task not found in this event.' });
@@ -133,7 +133,7 @@ export async function addDependency(req: Request, res: Response): Promise<Respon
 
   // Check for existing dependency
   const existing = await db.get<TaskDependency>(
-    `SELECT id FROM task_dependencies WHERE task_id = ? AND depends_on_id = ?`,
+    `SELECT id FROM task_dependencies WHERE task_id = $1 AND depends_on_id = $2`,
     [taskId, depends_on_id],
   );
   if (existing) {
@@ -141,12 +141,12 @@ export async function addDependency(req: Request, res: Response): Promise<Respon
   }
 
   const result = await db.run(
-    `INSERT INTO task_dependencies (task_id, depends_on_id, created_by) VALUES (?, ?, ?) RETURNING id`,
+    `INSERT INTO task_dependencies (task_id, depends_on_id, created_by) VALUES ($1, $2, $3) RETURNING id`,
     [taskId, depends_on_id, authReq.user.id],
   );
 
   const dependency = await db.get<TaskDependency>(
-    `SELECT * FROM task_dependencies WHERE id = ?`,
+    `SELECT * FROM task_dependencies WHERE id = $1`,
     [result.lastID],
   );
   return res.status(201).json({ dependency });
@@ -169,7 +169,7 @@ export async function removeDependency(req: Request, res: Response): Promise<Res
 
   // Verify the task belongs to this event before deleting its dependency
   const taskCheck = await db.get<{ id: number }>(
-    `SELECT id FROM tasks WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM tasks WHERE id = $1 AND event_id = $2`,
     [taskId, eventId],
   );
   if (!taskCheck) return res.status(404).json({ error: 'Task not found in this event.' });
@@ -177,11 +177,11 @@ export async function removeDependency(req: Request, res: Response): Promise<Res
   const dep = await db.get<TaskDependency>(
     `SELECT td.* FROM task_dependencies td
      JOIN tasks t ON t.id = td.task_id
-     WHERE td.id = ? AND td.task_id = ? AND t.event_id = ?`,
+     WHERE td.id = $1 AND td.task_id = $2 AND t.event_id = $3`,
     [depId, taskId, eventId],
   );
   if (!dep) return res.status(404).json({ error: 'Dependency not found.' });
 
-  await db.run(`DELETE FROM task_dependencies WHERE id = ?`, [depId]);
+  await db.run(`DELETE FROM task_dependencies WHERE id = $1`, [depId]);
   return res.json({ message: 'Dependency removed.' });
 }

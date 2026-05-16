@@ -46,7 +46,7 @@ export async function getEventSummary(req: AuthRequest, res: Response): Promise<
          COUNT(*) FILTER (WHERE status = 'Pending')                   AS pending_rsvps,
          COUNT(*) FILTER (WHERE checked_in = TRUE)                    AS checked_in_count
        FROM rsvps
-       WHERE event_id = ?`,
+       WHERE event_id = $1`,
       [eventId],
     );
 
@@ -69,7 +69,7 @@ export async function getEventSummary(req: AuthRequest, res: Response): Promise<
          COALESCE(SUM(ex.amount), 0)::numeric              AS total_spent
        FROM budget_categories bc
        LEFT JOIN expenses ex ON ex.category_id = bc.id
-       WHERE bc.event_id = ?`,
+       WHERE bc.event_id = $1`,
       [eventId],
     );
 
@@ -81,7 +81,7 @@ export async function getEventSummary(req: AuthRequest, res: Response): Promise<
 
     // ── Tasks ──────────────────────────────────────────────────────────────────
     const taskRows = await db.all<{ status: string; cnt: string }>(
-      `SELECT status, COUNT(*) AS cnt FROM tasks WHERE event_id = ? GROUP BY status`,
+      `SELECT status, COUNT(*) AS cnt FROM tasks WHERE event_id = $1 GROUP BY status`,
       [eventId],
     );
     const tasksByStatus = { Pending: 0, InProgress: 0, Blocked: 0, Complete: 0 };
@@ -116,7 +116,7 @@ export async function getEventSummary(req: AuthRequest, res: Response): Promise<
               COALESCE(SUM(ex.amount), 0)::numeric AS spent
        FROM budget_categories bc
        LEFT JOIN expenses ex ON ex.category_id = bc.id
-       WHERE bc.event_id = ?
+       WHERE bc.event_id = $1
        GROUP BY bc.id, bc.name
        ORDER BY spent DESC
        LIMIT 5`,
@@ -175,15 +175,15 @@ export async function getGlobalAnalytics(req: AuthRequest, res: Response): Promi
     }>(
       `SELECT
          COUNT(DISTINCT e.id)                                          AS total_events,
-         COUNT(DISTINCT e.id) FILTER (WHERE e.date >= ?)               AS upcoming_events,
+         COUNT(DISTINCT e.id) FILTER (WHERE e.date >= $1)               AS upcoming_events,
          COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'Completed')    AS completed_events,
          COALESCE(SUM(r.guests) FILTER (WHERE r.status = 'Going'), 0)  AS total_guests
        FROM events e
        LEFT JOIN rsvps r ON r.event_id = e.id
        WHERE e.deleted_at IS NULL
-         AND (e.created_by = ?
+         AND (e.created_by = $2
               OR EXISTS (SELECT 1 FROM event_members em
-                         WHERE em.event_id = e.id AND em.user_id = ?))`,
+                         WHERE em.event_id = e.id AND em.user_id = $3))`,
       [today, userId, userId],
     );
 
@@ -192,9 +192,9 @@ export async function getGlobalAnalytics(req: AuthRequest, res: Response): Promi
        FROM budget_categories bc
        JOIN events e ON e.id = bc.event_id
        WHERE e.deleted_at IS NULL
-         AND (e.created_by = ?
+         AND (e.created_by = $1
               OR EXISTS (SELECT 1 FROM event_members em
-                         WHERE em.event_id = e.id AND em.user_id = ?))`,
+                         WHERE em.event_id = e.id AND em.user_id = $2))`,
       [userId, userId],
     );
 
@@ -210,9 +210,9 @@ export async function getGlobalAnalytics(req: AuthRequest, res: Response): Promi
          FROM rsvps r
          JOIN events e ON r.event_id = e.id
          WHERE e.deleted_at IS NULL
-           AND (e.created_by = ?
+           AND (e.created_by = $1
                 OR EXISTS (SELECT 1 FROM event_members em
-                           WHERE em.event_id = e.id AND em.user_id = ?))
+                           WHERE em.event_id = e.id AND em.user_id = $2))
          GROUP BY r.event_id
        ) sub`,
       [userId, userId],
@@ -254,7 +254,7 @@ export async function exportEventReport(req: AuthRequest, res: Response): Promis
 
     const db = getDatabase();
     const event = await db.get<{ title: string }>(
-      'SELECT title FROM events WHERE id = ? AND deleted_at IS NULL',
+      'SELECT title FROM events WHERE id = $1 AND deleted_at IS NULL',
       [eventId],
     );
     if (!event) {
@@ -278,7 +278,7 @@ export async function exportEventReport(req: AuthRequest, res: Response): Promis
       `SELECT id, name, email, guests, status, notes, source,
               checked_in, checked_in_at, created_at
        FROM rsvps
-       WHERE event_id = ?
+       WHERE event_id = $1
        ORDER BY created_at ASC`,
       [eventId],
     );
@@ -294,7 +294,7 @@ export async function exportEventReport(req: AuthRequest, res: Response): Promis
               COALESCE(SUM(ex.amount), 0)::numeric      AS spent
        FROM budget_categories bc
        LEFT JOIN expenses ex ON ex.category_id = bc.id
-       WHERE bc.event_id = ?
+       WHERE bc.event_id = $1
        GROUP BY bc.id, bc.name, bc.allocated_amount
        ORDER BY bc.name ASC`,
       [eventId],
@@ -402,7 +402,7 @@ export async function getCommunicationMetrics(
        FROM communication_log cl
        LEFT JOIN communication_tracking_events te
          ON te.communication_log_id = cl.id
-       WHERE cl.event_id = ?`,
+       WHERE cl.event_id = $1`,
       [eventId],
     );
 
@@ -415,7 +415,7 @@ export async function getCommunicationMetrics(
        FROM communication_log cl
        LEFT JOIN communication_tracking_events te
          ON te.communication_log_id = cl.id
-       WHERE cl.event_id = ?
+       WHERE cl.event_id = $1
        GROUP BY cl.communication_type
        ORDER BY cl.communication_type`,
       [eventId],

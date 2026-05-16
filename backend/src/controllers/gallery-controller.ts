@@ -57,7 +57,7 @@ export async function listGallery(req: Request, res: Response): Promise<Response
   const rows = await db.all<GalleryRow>(
     `SELECT id, original_name, file_name, mime_type, file_size, created_at, caption
      FROM event_documents
-     WHERE event_id = ? AND mime_type LIKE 'image/%'
+     WHERE event_id = $1 AND mime_type LIKE 'image/%'
      ORDER BY created_at DESC`,
     [eventId],
   );
@@ -88,7 +88,7 @@ export async function deleteGalleryItem(req: Request, res: Response): Promise<Re
 
   const db = getDatabase();
   const row = await db.get<{ id: number; file_name: string; mime_type: string }>(
-    `SELECT id, file_name, mime_type FROM event_documents WHERE id = ? AND event_id = ?`,
+    `SELECT id, file_name, mime_type FROM event_documents WHERE id = $1 AND event_id = $2`,
     [id, eventId],
   );
 
@@ -104,7 +104,7 @@ export async function deleteGalleryItem(req: Request, res: Response): Promise<Re
     console.error('Failed to delete gallery file from disk:', err);
   }
 
-  await db.run('DELETE FROM event_documents WHERE id = ? AND event_id = ?', [id, eventId]);
+  await db.run('DELETE FROM event_documents WHERE id = $1 AND event_id = $2', [id, eventId]);
   return res.json({ message: 'Gallery item deleted.' });
 }
 
@@ -137,7 +137,7 @@ export async function updateGalleryCaption(req: Request, res: Response): Promise
 
   // Fetch without MIME filter so we can distinguish 404 from 400.
   const existing = await db.get<{ id: number; mime_type: string }>(
-    `SELECT id, mime_type FROM event_documents WHERE id = ? AND event_id = ?`,
+    `SELECT id, mime_type FROM event_documents WHERE id = $1 AND event_id = $2`,
     [id, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Gallery item not found.' });
@@ -147,7 +147,7 @@ export async function updateGalleryCaption(req: Request, res: Response): Promise
   }
 
   await db.run(
-    `UPDATE event_documents SET caption = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?`,
+    `UPDATE event_documents SET caption = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND event_id = $3`,
     [sanitizedCaption, id, eventId],
   );
 
@@ -178,7 +178,7 @@ export async function listAlbums(req: Request, res: Response): Promise<Response>
   const db = getDatabase();
   const rows = await db.all<AlbumRow>(
     `SELECT id, event_id, name, description, created_by, created_at, updated_at
-     FROM gallery_albums WHERE event_id = ? ORDER BY created_at ASC`,
+     FROM gallery_albums WHERE event_id = $1 ORDER BY created_at ASC`,
     [eventId],
   );
   return res.json({ albums: rows });
@@ -203,12 +203,12 @@ export async function createAlbum(req: Request, res: Response): Promise<Response
   const db = getDatabase();
   const userId = authReq.user?.id ?? null;
   await db.run(
-    `INSERT INTO gallery_albums (event_id, name, description, created_by) VALUES (?, ?, ?, ?)`,
+    `INSERT INTO gallery_albums (event_id, name, description, created_by) VALUES ($1, $2, $3, $4)`,
     [eventId, safeName, safeDesc, userId],
   );
   const created = await db.get<AlbumRow>(
     `SELECT id, event_id, name, description, created_by, created_at, updated_at
-     FROM gallery_albums WHERE event_id = ? AND name = ? ORDER BY created_at DESC LIMIT 1`,
+     FROM gallery_albums WHERE event_id = $1 AND name = $2 ORDER BY created_at DESC LIMIT 1`,
     [eventId, safeName],
   );
   return res.status(201).json(created);
@@ -222,7 +222,7 @@ export async function updateAlbum(req: Request, res: Response): Promise<Response
 
   const db = getDatabase();
   const existing = await db.get<AlbumRow>(
-    `SELECT id FROM gallery_albums WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM gallery_albums WHERE id = $1 AND event_id = $2`,
     [albumId, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Album not found.' });
@@ -239,20 +239,20 @@ export async function updateAlbum(req: Request, res: Response): Promise<Response
 
   if (safeName !== null) {
     await db.run(
-      `UPDATE gallery_albums SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?`,
+      `UPDATE gallery_albums SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND event_id = $3`,
       [safeName, albumId, eventId],
     );
   }
   if (safeDesc !== undefined) {
     await db.run(
-      `UPDATE gallery_albums SET description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?`,
+      `UPDATE gallery_albums SET description = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND event_id = $3`,
       [safeDesc, albumId, eventId],
     );
   }
 
   const updated = await db.get<AlbumRow>(
     `SELECT id, event_id, name, description, created_by, created_at, updated_at
-     FROM gallery_albums WHERE id = ? AND event_id = ?`,
+     FROM gallery_albums WHERE id = $1 AND event_id = $2`,
     [albumId, eventId],
   );
   return res.json(updated);
@@ -266,14 +266,14 @@ export async function deleteAlbum(req: Request, res: Response): Promise<Response
 
   const db = getDatabase();
   const existing = await db.get<{ id: number }>(
-    `SELECT id FROM gallery_albums WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM gallery_albums WHERE id = $1 AND event_id = $2`,
     [albumId, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Album not found.' });
 
   // Null out album_id on items that belong to this album
-  await db.run(`UPDATE event_documents SET album_id = NULL WHERE album_id = ?`, [albumId]);
-  await db.run(`DELETE FROM gallery_albums WHERE id = ? AND event_id = ?`, [albumId, eventId]);
+  await db.run(`UPDATE event_documents SET album_id = NULL WHERE album_id = $1`, [albumId]);
+  await db.run(`DELETE FROM gallery_albums WHERE id = $1 AND event_id = $2`, [albumId, eventId]);
   return res.json({ message: 'Album deleted.' });
 }
 
@@ -293,7 +293,7 @@ export async function assignItemToAlbum(req: Request, res: Response): Promise<Re
 
   const db = getDatabase();
   const item = await db.get<{ id: number; mime_type: string }>(
-    `SELECT id, mime_type FROM event_documents WHERE id = ? AND event_id = ?`,
+    `SELECT id, mime_type FROM event_documents WHERE id = $1 AND event_id = $2`,
     [id, eventId],
   );
   if (!item) return res.status(404).json({ error: 'Gallery item not found.' });
@@ -303,14 +303,14 @@ export async function assignItemToAlbum(req: Request, res: Response): Promise<Re
 
   if (targetAlbumId !== null) {
     const album = await db.get<{ id: number }>(
-      `SELECT id FROM gallery_albums WHERE id = ? AND event_id = ?`,
+      `SELECT id FROM gallery_albums WHERE id = $1 AND event_id = $2`,
       [targetAlbumId, eventId],
     );
     if (!album) return res.status(404).json({ error: 'Album not found.' });
   }
 
   await db.run(
-    `UPDATE event_documents SET album_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?`,
+    `UPDATE event_documents SET album_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND event_id = $3`,
     [targetAlbumId, id, eventId],
   );
   return res.json({ id: Number(id), albumId: targetAlbumId });
@@ -335,7 +335,7 @@ export async function listModerationQueue(req: Request, res: Response): Promise<
     `SELECT id, original_name, file_name, mime_type, file_size, created_at, caption,
             moderation_status, submitted_by, album_id
      FROM event_documents
-     WHERE event_id = ? AND mime_type LIKE 'image/%' AND moderation_status = 'pending'
+     WHERE event_id = $1 AND mime_type LIKE 'image/%' AND moderation_status = 'pending'
      ORDER BY created_at ASC`,
     [eventId],
   );
@@ -370,7 +370,7 @@ export async function moderateItem(req: Request, res: Response): Promise<Respons
 
   const db = getDatabase();
   const item = await db.get<{ id: number; mime_type: string }>(
-    `SELECT id, mime_type FROM event_documents WHERE id = ? AND event_id = ?`,
+    `SELECT id, mime_type FROM event_documents WHERE id = $1 AND event_id = $2`,
     [id, eventId],
   );
   if (!item) return res.status(404).json({ error: 'Gallery item not found.' });
@@ -379,7 +379,7 @@ export async function moderateItem(req: Request, res: Response): Promise<Respons
   }
 
   await db.run(
-    `UPDATE event_documents SET moderation_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?`,
+    `UPDATE event_documents SET moderation_status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND event_id = $3`,
     [status, id, eventId],
   );
   return res.json({ id: Number(id), moderationStatus: status });
@@ -396,7 +396,7 @@ export async function submitGuestPhoto(req: Request, res: Response): Promise<Res
 
   const db = getDatabase();
   const item = await db.get<{ id: number; mime_type: string }>(
-    `SELECT id, mime_type FROM event_documents WHERE id = ? AND event_id = ?`,
+    `SELECT id, mime_type FROM event_documents WHERE id = $1 AND event_id = $2`,
     [id, eventId],
   );
   if (!item) return res.status(404).json({ error: 'Gallery item not found.' });
@@ -406,7 +406,7 @@ export async function submitGuestPhoto(req: Request, res: Response): Promise<Res
 
   const userId = authReq.user?.id ?? null;
   await db.run(
-    `UPDATE event_documents SET moderation_status = 'pending', submitted_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?`,
+    `UPDATE event_documents SET moderation_status = 'pending', submitted_by = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND event_id = $3`,
     [userId, id, eventId],
   );
   return res.json({ id: Number(id), moderationStatus: 'pending' });
@@ -445,7 +445,7 @@ export async function listSlideshows(req: Request, res: Response): Promise<Respo
   const db = getDatabase();
   const rows = await db.all<SlideshowRow>(
     `SELECT id, event_id, name, created_by, created_at, updated_at
-     FROM gallery_slideshows WHERE event_id = ? ORDER BY created_at DESC`,
+     FROM gallery_slideshows WHERE event_id = $1 ORDER BY created_at DESC`,
     [eventId],
   );
   return res.json({ slideshows: rows });
@@ -467,12 +467,12 @@ export async function createSlideshow(req: Request, res: Response): Promise<Resp
   const db = getDatabase();
   const userId = authReq.user?.id ?? null;
   await db.run(
-    `INSERT INTO gallery_slideshows (event_id, name, created_by) VALUES (?, ?, ?)`,
+    `INSERT INTO gallery_slideshows (event_id, name, created_by) VALUES ($1, $2, $3)`,
     [eventId, safeName, userId],
   );
   const created = await db.get<SlideshowRow>(
     `SELECT id, event_id, name, created_by, created_at, updated_at
-     FROM gallery_slideshows WHERE event_id = ? AND name = ? ORDER BY created_at DESC LIMIT 1`,
+     FROM gallery_slideshows WHERE event_id = $1 AND name = $2 ORDER BY created_at DESC LIMIT 1`,
     [eventId, safeName],
   );
   if (!created) return res.status(500).json({ error: 'Failed to create slideshow.' });
@@ -480,7 +480,7 @@ export async function createSlideshow(req: Request, res: Response): Promise<Resp
   if (ids.length > 0) {
     for (let i = 0; i < ids.length; i++) {
       await db.run(
-        `INSERT INTO slideshow_items (slideshow_id, document_id, sort_order) VALUES (?, ?, ?)
+        `INSERT INTO slideshow_items (slideshow_id, document_id, sort_order) VALUES ($1, $2, $3)
          ON CONFLICT (slideshow_id, document_id) DO NOTHING`,
         [created.id, ids[i], i],
       );
@@ -498,7 +498,7 @@ export async function getSlideshowItems(req: Request, res: Response): Promise<Re
 
   const db = getDatabase();
   const slideshow = await db.get<{ id: number }>(
-    `SELECT id FROM gallery_slideshows WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM gallery_slideshows WHERE id = $1 AND event_id = $2`,
     [slideshowId, eventId],
   );
   if (!slideshow) return res.status(404).json({ error: 'Slideshow not found.' });
@@ -508,7 +508,7 @@ export async function getSlideshowItems(req: Request, res: Response): Promise<Re
             ed.file_name, ed.original_name, ed.mime_type, ed.caption
      FROM slideshow_items si
      JOIN event_documents ed ON ed.id = si.document_id
-     WHERE si.slideshow_id = ?
+     WHERE si.slideshow_id = $1
      ORDER BY si.sort_order ASC`,
     [slideshowId],
   );
@@ -536,7 +536,7 @@ export async function updateSlideshow(req: Request, res: Response): Promise<Resp
 
   const db = getDatabase();
   const existing = await db.get<SlideshowRow>(
-    `SELECT id FROM gallery_slideshows WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM gallery_slideshows WHERE id = $1 AND event_id = $2`,
     [slideshowId, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Slideshow not found.' });
@@ -545,17 +545,17 @@ export async function updateSlideshow(req: Request, res: Response): Promise<Resp
   if (typeof name === 'string' && name.trim()) {
     const safeName = name.trim().substring(0, MAX_SLIDESHOW_NAME_LENGTH);
     await db.run(
-      `UPDATE gallery_slideshows SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?`,
+      `UPDATE gallery_slideshows SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND event_id = $3`,
       [safeName, slideshowId, eventId],
     );
   }
 
   if (Array.isArray(itemIds)) {
-    await db.run(`DELETE FROM slideshow_items WHERE slideshow_id = ?`, [slideshowId]);
+    await db.run(`DELETE FROM slideshow_items WHERE slideshow_id = $1`, [slideshowId]);
     const ids = (itemIds as number[]).map(Number);
     for (let i = 0; i < ids.length; i++) {
       await db.run(
-        `INSERT INTO slideshow_items (slideshow_id, document_id, sort_order) VALUES (?, ?, ?)
+        `INSERT INTO slideshow_items (slideshow_id, document_id, sort_order) VALUES ($1, $2, $3)
          ON CONFLICT (slideshow_id, document_id) DO NOTHING`,
         [slideshowId, ids[i], i],
       );
@@ -564,7 +564,7 @@ export async function updateSlideshow(req: Request, res: Response): Promise<Resp
 
   const updated = await db.get<SlideshowRow>(
     `SELECT id, event_id, name, created_by, created_at, updated_at
-     FROM gallery_slideshows WHERE id = ? AND event_id = ?`,
+     FROM gallery_slideshows WHERE id = $1 AND event_id = $2`,
     [slideshowId, eventId],
   );
   return res.json(updated);
@@ -578,11 +578,11 @@ export async function deleteSlideshow(req: Request, res: Response): Promise<Resp
 
   const db = getDatabase();
   const existing = await db.get<{ id: number }>(
-    `SELECT id FROM gallery_slideshows WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM gallery_slideshows WHERE id = $1 AND event_id = $2`,
     [slideshowId, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Slideshow not found.' });
 
-  await db.run(`DELETE FROM gallery_slideshows WHERE id = ? AND event_id = ?`, [slideshowId, eventId]);
+  await db.run(`DELETE FROM gallery_slideshows WHERE id = $1 AND event_id = $2`, [slideshowId, eventId]);
   return res.json({ message: 'Slideshow deleted.' });
 }

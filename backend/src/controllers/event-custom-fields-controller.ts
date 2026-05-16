@@ -117,7 +117,7 @@ export async function listFields(req: Request, res: Response): Promise<Response>
     `SELECT id, event_id, field_key, label, field_type, options, value, required, sort_order,
             created_at, updated_at
        FROM event_custom_fields
-      WHERE event_id = ?
+      WHERE event_id = $1
       ORDER BY sort_order ASC, id ASC`,
     [eventId],
   );
@@ -169,7 +169,7 @@ export async function createField(req: Request, res: Response): Promise<Response
   const db = getDatabase();
   // Uniqueness on (event_id, field_key) — surface as 409 instead of 500.
   const dup = await db.get<{ id: number }>(
-    'SELECT id FROM event_custom_fields WHERE event_id = ? AND field_key = ?',
+    'SELECT id FROM event_custom_fields WHERE event_id = $1 AND field_key = $2',
     [eventId, cleanKey],
   );
   if (dup) return res.status(409).json({ error: 'A field with this key already exists.' });
@@ -178,7 +178,7 @@ export async function createField(req: Request, res: Response): Promise<Response
     `INSERT INTO event_custom_fields
        (event_id, field_key, label, field_type, options, value, required, sort_order,
         created_by, updated_by)
-     VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)
      RETURNING id`,
     [
       eventId,
@@ -197,7 +197,7 @@ export async function createField(req: Request, res: Response): Promise<Response
   const created = await db.get<CustomFieldRow>(
     `SELECT id, event_id, field_key, label, field_type, options, value, required, sort_order,
             created_at, updated_at
-       FROM event_custom_fields WHERE id = ?`,
+       FROM event_custom_fields WHERE id = $1`,
     [result.lastID],
   );
   return res.status(201).json(created);
@@ -213,7 +213,7 @@ export async function updateField(req: Request, res: Response): Promise<Response
   const existing = await db.get<CustomFieldRow>(
     `SELECT id, event_id, field_key, label, field_type, options, value, required, sort_order
        FROM event_custom_fields
-      WHERE id = ? AND event_id = ?`,
+      WHERE id = $1 AND event_id = $2`,
     [fieldId, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Custom field not found.' });
@@ -257,9 +257,9 @@ export async function updateField(req: Request, res: Response): Promise<Response
 
   await db.run(
     `UPDATE event_custom_fields
-        SET label = ?, options = ?::jsonb, value = ?, required = ?, sort_order = ?,
-            updated_by = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND event_id = ?`,
+        SET label = $1, options = $2::jsonb, value = $3, required = $4, sort_order = $5,
+            updated_by = $6, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7 AND event_id = $8`,
     [
       nextLabel,
       nextOptions ? JSON.stringify(nextOptions) : null,
@@ -275,7 +275,7 @@ export async function updateField(req: Request, res: Response): Promise<Response
   const updated = await db.get<CustomFieldRow>(
     `SELECT id, event_id, field_key, label, field_type, options, value, required, sort_order,
             created_at, updated_at
-       FROM event_custom_fields WHERE id = ?`,
+       FROM event_custom_fields WHERE id = $1`,
     [fieldId],
   );
   return res.json(updated);
@@ -289,13 +289,13 @@ export async function deleteField(req: Request, res: Response): Promise<Response
 
   const db = getDatabase();
   const existing = await db.get<{ id: number }>(
-    'SELECT id FROM event_custom_fields WHERE id = ? AND event_id = ?',
+    'SELECT id FROM event_custom_fields WHERE id = $1 AND event_id = $2',
     [fieldId, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Custom field not found.' });
 
   await db.run(
-    'DELETE FROM event_custom_fields WHERE id = ? AND event_id = ?',
+    'DELETE FROM event_custom_fields WHERE id = $1 AND event_id = $2',
     [fieldId, eventId],
   );
   return res.json({ message: 'Custom field deleted.' });

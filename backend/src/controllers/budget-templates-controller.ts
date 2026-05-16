@@ -57,13 +57,13 @@ export async function getTemplate(req: Request, res: Response): Promise<Response
   const db = getDatabase();
 
   const template = await db.get<BudgetTemplate>(
-    `SELECT * FROM budget_templates WHERE id = ?`,
+    `SELECT * FROM budget_templates WHERE id = $1`,
     [id],
   );
   if (!template) return res.status(404).json({ error: 'Budget template not found.' });
 
   const items = await db.all<BudgetTemplateItem>(
-    `SELECT * FROM budget_template_items WHERE template_id = ? ORDER BY id ASC`,
+    `SELECT * FROM budget_template_items WHERE template_id = $1 ORDER BY id ASC`,
     [id],
   );
   return res.json({ template, items });
@@ -96,7 +96,7 @@ export async function createTemplate(req: Request, res: Response): Promise<Respo
   const db = getDatabase();
 
   const result = await db.run(
-    `INSERT INTO budget_templates (name, description, created_by) VALUES (?, ?, ?) RETURNING id`,
+    `INSERT INTO budget_templates (name, description, created_by) VALUES ($1, $2, $3) RETURNING id`,
     [name.trim(), description?.trim() ?? null, authReq.user.id],
   );
   const templateId = result.lastID!;
@@ -104,17 +104,17 @@ export async function createTemplate(req: Request, res: Response): Promise<Respo
   for (const item of items) {
     await db.run(
       `INSERT INTO budget_template_items (template_id, name, allocated_amount, color)
-       VALUES (?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4)`,
       [templateId, item.name.trim(), item.allocated_amount, item.color ?? '#6366f1'],
     );
   }
 
   const template = await db.get<BudgetTemplate>(
-    `SELECT * FROM budget_templates WHERE id = ?`,
+    `SELECT * FROM budget_templates WHERE id = $1`,
     [templateId],
   );
   const savedItems = await db.all<BudgetTemplateItem>(
-    `SELECT * FROM budget_template_items WHERE template_id = ? ORDER BY id ASC`,
+    `SELECT * FROM budget_template_items WHERE template_id = $1 ORDER BY id ASC`,
     [templateId],
   );
 
@@ -132,7 +132,7 @@ export async function deleteTemplate(req: Request, res: Response): Promise<Respo
   const db = getDatabase();
 
   const template = await db.get<{ id: number; created_by: number | null }>(
-    `SELECT id, created_by FROM budget_templates WHERE id = ?`,
+    `SELECT id, created_by FROM budget_templates WHERE id = $1`,
     [id],
   );
   if (!template) return res.status(404).json({ error: 'Budget template not found.' });
@@ -144,7 +144,7 @@ export async function deleteTemplate(req: Request, res: Response): Promise<Respo
     return res.status(403).json({ error: 'Not authorised to delete this budget template.' });
   }
 
-  await db.run(`DELETE FROM budget_templates WHERE id = ?`, [id]);
+  await db.run(`DELETE FROM budget_templates WHERE id = $1`, [id]);
   return res.json({ message: 'Budget template deleted.' });
 }
 
@@ -170,13 +170,13 @@ export async function applyTemplate(req: Request, res: Response): Promise<Respon
   const db = getDatabase();
 
   const template = await db.get<{ id: number }>(
-    `SELECT id FROM budget_templates WHERE id = ?`,
+    `SELECT id FROM budget_templates WHERE id = $1`,
     [template_id],
   );
   if (!template) return res.status(404).json({ error: 'Budget template not found.' });
 
   const templateItems = await db.all<BudgetTemplateItem>(
-    `SELECT * FROM budget_template_items WHERE template_id = ? ORDER BY id ASC`,
+    `SELECT * FROM budget_template_items WHERE template_id = $1 ORDER BY id ASC`,
     [template_id],
   );
   if (templateItems.length === 0) {
@@ -187,11 +187,11 @@ export async function applyTemplate(req: Request, res: Response): Promise<Respon
   for (const item of templateItems) {
     const result = await db.run(
       `INSERT INTO budget_categories (event_id, name, allocated_amount, color)
-       VALUES (?, ?, ?, ?) RETURNING id`,
+       VALUES ($1, $2, $3, $4) RETURNING id`,
       [eventId, item.name, item.allocated_amount, item.color ?? '#6366f1'],
     );
     const category = await db.get(
-      `SELECT *, 0 AS spent FROM budget_categories WHERE id = ?`,
+      `SELECT *, 0 AS spent FROM budget_categories WHERE id = $1`,
       [result.lastID],
     );
     if (category) created.push(category);

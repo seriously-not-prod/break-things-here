@@ -43,7 +43,7 @@ export async function syncItemToBudget(req: Request, res: Response): Promise<Res
     `SELECT si.*
      FROM shopping_items si
      JOIN shopping_lists sl ON sl.id = si.list_id
-     WHERE si.id = ? AND si.list_id = ? AND sl.event_id = ?`,
+     WHERE si.id = $1 AND si.list_id = $2 AND sl.event_id = $3`,
     [itemId, listId, eventId],
   );
 
@@ -67,7 +67,7 @@ export async function syncItemToBudget(req: Request, res: Response): Promise<Res
 
   // Check if an expense already exists for this shopping item
   const existing = await db.get<{ id: number; amount: number }>(
-    `SELECT id, amount FROM expenses WHERE event_id = ? AND notes LIKE ?`,
+    `SELECT id, amount FROM expenses WHERE event_id = $1 AND notes LIKE $2`,
     [eventId, `%${sourceTag}%`],
   );
 
@@ -75,11 +75,11 @@ export async function syncItemToBudget(req: Request, res: Response): Promise<Res
     // Update the amount if cost has changed
     if (Number(existing.amount) !== cost) {
       await db.run(
-        `UPDATE expenses SET amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE expenses SET amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
         [cost, existing.id],
       );
     }
-    const updated = await db.get(`SELECT * FROM expenses WHERE id = ?`, [existing.id]);
+    const updated = await db.get(`SELECT * FROM expenses WHERE id = $1`, [existing.id]);
     return res.json({ expense: updated, synced: true, updated: true });
   }
 
@@ -88,10 +88,10 @@ export async function syncItemToBudget(req: Request, res: Response): Promise<Res
   const result = await db.run(
     `INSERT INTO expenses
        (event_id, category_id, title, amount, payment_status, notes, created_by)
-     VALUES (?, ?, ?, ?, 'Paid', ?, ?) RETURNING id`,
+     VALUES ($1, $2, $3, $4, 'Paid', $5, $6) RETURNING id`,
     [eventId, category_id ?? null, item.name, cost, notes, authReq.user.id],
   );
 
-  const expense = await db.get(`SELECT * FROM expenses WHERE id = ?`, [result.lastID]);
+  const expense = await db.get(`SELECT * FROM expenses WHERE id = $1`, [result.lastID]);
   return res.status(201).json({ expense, synced: true, updated: false });
 }

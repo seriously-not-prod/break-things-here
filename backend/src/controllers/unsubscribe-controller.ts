@@ -35,13 +35,13 @@ h1{font-size:1.4rem;margin-bottom:.5rem}p{line-height:1.5;color:#4b5563}</style>
 async function applyUnsubscribe(token: string): Promise<RsvpRow | null> {
   const db = getDatabase();
   const row = await db.get<RsvpRow>(
-    `SELECT id, event_id, name, email, unsubscribed_at FROM rsvps WHERE unsubscribe_token = ?`,
+    `SELECT id, event_id, name, email, unsubscribed_at FROM rsvps WHERE unsubscribe_token = $1`,
     [token],
   );
   if (!row) return null;
   if (!row.unsubscribed_at) {
     await db.run(
-      `UPDATE rsvps SET unsubscribed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      `UPDATE rsvps SET unsubscribed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [row.id],
     );
     return { ...row, unsubscribed_at: new Date().toISOString() };
@@ -91,7 +91,7 @@ export async function resubscribe(req: Request, res: Response): Promise<Response
   const { token } = req.params;
   const db = getDatabase();
   const row = await db.get<RsvpRow>(
-    `SELECT id, event_id, name, email, unsubscribed_at FROM rsvps WHERE unsubscribe_token = ?`,
+    `SELECT id, event_id, name, email, unsubscribed_at FROM rsvps WHERE unsubscribe_token = $1`,
     [token],
   );
   if (!row) return res.status(404).json({ error: 'Token not found.' });
@@ -102,7 +102,7 @@ export async function resubscribe(req: Request, res: Response): Promise<Response
   if (!access) return res as Response;
 
   await db.run(
-    `UPDATE rsvps SET unsubscribed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    `UPDATE rsvps SET unsubscribed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
     [row.id],
   );
   await logAuditEvent({

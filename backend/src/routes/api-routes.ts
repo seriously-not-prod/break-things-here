@@ -11,6 +11,10 @@ import * as legacyRsvpController from '../controllers/rsvp-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
 import * as adminController from '../controllers/admin-controller.js';
+import * as gdprController from '../controllers/gdpr-controller.js';
+import * as announcementController from '../controllers/announcement-controller.js';
+import * as budgetController from '../controllers/budget-controller.js';
+import * as guestGroupsController from '../controllers/guest-groups-controller.js';
 import * as eventDocumentsController from '../controllers/event-documents-controller.js';
 import * as analyticsController from '../controllers/analytics-controller.js';
 import * as notificationsController from '../controllers/notifications-controller.js';
@@ -207,6 +211,8 @@ router.post('/unsubscribe/:token/resubscribe', authenticateToken, unsubscribeCon
 // Token refresh and heartbeat
 router.post('/auth/refresh', authController.refreshTokenEndpoint);
 router.post('/auth/session/heartbeat', authenticateToken, authController.sessionHeartbeat);
+router.post('/auth/resend-verification', authController.resendVerification);
+router.post('/auth/entra/backchannel-logout', authController.entraBackchannelLogout);
 
 // Password reset routes
 router.post('/auth/forgot-password', createAuthLimiter(), passwordResetController.forgotPassword);
@@ -450,6 +456,12 @@ router.delete('/admin/users/:id', authenticateToken, authorizeRole(['Admin']), a
 router.post('/admin/users/:id/restore', authenticateToken, authorizeRole(['Admin']), adminController.restoreUser);
 router.get('/admin/roles', authenticateToken, authorizeRole(['Admin']), adminController.listRoles);
 
+// ============ ADMIN ROUTES — #665 #677 ============
+router.get('/admin/audit-log', authenticateToken, authorizeRole(['Admin']), adminController.searchAuditLog);
+router.get('/admin/audit-log/export', authenticateToken, authorizeRole(['Admin']), adminController.exportAuditLog);
+router.post('/admin/users/:id/deactivate', authenticateToken, authorizeRole(['Admin']), adminController.deactivateUser);
+router.post('/admin/users/:id/force-logout', authenticateToken, authorizeRole(['Admin']), adminController.forceLogoutUser);
+
 // ============ LEGACY TASK ROUTES (backward compat) ============
 router.get('/tasks', authenticateToken, taskController.getAllTasks);
 router.get('/tasks/:id', authenticateToken, taskController.getTaskById);
@@ -668,6 +680,34 @@ router.post('/events/:eventId/timeline/:entityId/rollback', authenticateToken, (
   return entityVersionsController.rollbackEntityVersion(req, res);
 });
 
+// ============ GUEST GROUPS & BULK OPS — #667 ============
+router.get('/events/:eventId/guest-groups', authenticateToken, guestGroupsController.listGuestGroups);
+router.post('/events/:eventId/guest-groups', authenticateToken, guestGroupsController.createGuestGroup);
+router.put('/events/:eventId/guest-groups/:id', authenticateToken, guestGroupsController.updateGuestGroup);
+router.delete('/events/:eventId/guest-groups/:id', authenticateToken, guestGroupsController.deleteGuestGroup);
+router.post('/events/:eventId/guest-groups/:id/members', authenticateToken, guestGroupsController.addGroupMembers);
+router.delete('/events/:eventId/guest-groups/:id/members', authenticateToken, guestGroupsController.removeGroupMembers);
+router.post('/events/:eventId/guest-groups/csv-import', authenticateToken, guestGroupsController.csvImportGuests);
+router.post('/events/:eventId/guest-groups/bulk-checkin', authenticateToken, guestGroupsController.bulkCheckIn);
+
+// ============ GDPR — #680 ============
+router.get('/profile/data-export', authenticateToken, gdprController.exportPersonalData);
+router.delete('/profile/erase', authenticateToken, gdprController.erasePersonalData);
+router.post('/admin/users/:id/erase', authenticateToken, authorizeRole(['Admin']), gdprController.adminErasePersonalData);
+
+// ============ ANNOUNCEMENTS & EMAIL WEBHOOKS — #671 ============
+router.post('/events/:eventId/announcements', authenticateToken, announcementController.sendAnnouncement);
+router.get('/events/:eventId/communication/stats', authenticateToken, announcementController.getCommunicationStats);
+// Bounce webhook is public (called by email provider) — no auth required
+router.post('/webhooks/email/bounce', announcementController.handleEmailBounce);
+
+// ============ BUDGET EXTENSIONS — #668 ============
+router.get('/events/:eventId/budget/expenses/export', authenticateToken, budgetController.exportExpensesAsCsv);
+router.get('/events/:eventId/budget/fx-status', authenticateToken, budgetController.getFxStatus);
+
+// ============ ADMIN EXTENSIONS — #677 ============
+router.get('/admin/stats', authenticateToken, authorizeRole(['Admin']), adminController.getSystemStats);
+
 export default router;
 
 // Development-only: seed a verified demo user for local testing
@@ -680,7 +720,7 @@ if (process.env.NODE_ENV !== 'production') {
       const passwordHash = await hashPassword(password);
       await db.run(
         `INSERT INTO users (email, password_hash, display_name, email_verified, role_id, created_at, updated_at)
-         VALUES (?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         VALUES ($1, $2, $3, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
          ON CONFLICT (email) DO UPDATE SET
            password_hash = EXCLUDED.password_hash,
            display_name = EXCLUDED.display_name,

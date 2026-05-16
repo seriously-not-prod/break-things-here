@@ -29,7 +29,7 @@ async function resolveExpenseFxAmount(
   expenseCurrency: string | null,
 ): Promise<{ baseCurrency: string; baseAmount: number | null; rate: number | null; currency: string }> {
   const evRow = await db.get<{ currency_code: string }>(
-    `SELECT COALESCE(currency_code, 'USD') AS currency_code FROM events WHERE id = ?`,
+    `SELECT COALESCE(currency_code, 'USD') AS currency_code FROM events WHERE id = $1`,
     [eventId],
   );
   const baseCurrency = normalizeCurrencyCode(evRow?.currency_code ?? 'USD');
@@ -301,7 +301,7 @@ async function checkAndFireBudgetAlert(
        FROM budget_categories bc
        JOIN events ev ON ev.id = bc.event_id
        LEFT JOIN expenses ex ON ex.category_id = bc.id
-       WHERE bc.id = ? AND bc.event_id = ?
+       WHERE bc.id = $1 AND bc.event_id = $2
        GROUP BY bc.id, bc.name, bc.allocated_amount, ev.created_by`,
       [categoryId, eventId],
     );
@@ -347,7 +347,7 @@ export async function listCategories(req: AuthRequest, res: Response): Promise<v
               COALESCE(SUM(e.amount), 0)::numeric AS spent
        FROM budget_categories bc
        LEFT JOIN expenses e ON e.category_id = bc.id
-       WHERE bc.event_id = ?
+       WHERE bc.event_id = $1
        GROUP BY bc.id, bc.event_id, bc.name, bc.allocated_amount, bc.color, bc.created_at,
                 bc.tax_rate, bc.gratuity_rate, bc.contingency_rate
        ORDER BY bc.name ASC`,
@@ -374,7 +374,7 @@ export async function compareSimilarEvents(req: AuthRequest, res: Response): Pro
     const currentEvent = await db.get<BudgetComparisonEventRow>(
       `SELECT id, title, date, location, capacity, event_type, tags, created_by
          FROM events
-        WHERE id = ? AND deleted_at IS NULL`,
+        WHERE id = $1 AND deleted_at IS NULL`,
       [eventId],
     );
     if (!currentEvent) {
@@ -408,7 +408,7 @@ export async function compareSimilarEvents(req: AuthRequest, res: Response): Pro
       ? await db.all<BudgetComparisonEventRow>(
           `SELECT id, title, date, location, capacity, event_type, tags, created_by
              FROM events
-            WHERE id <> ?
+            WHERE id <> $1
               AND deleted_at IS NULL
               ${adminFilterSql}
             ORDER BY date DESC, id DESC
@@ -432,10 +432,10 @@ export async function compareSimilarEvents(req: AuthRequest, res: Response): Pro
              FROM events e
              LEFT JOIN event_members em
                ON em.event_id = e.id
-              AND em.user_id = ?
-            WHERE e.id <> ?
+              AND em.user_id = $1
+            WHERE e.id <> $2
               AND e.deleted_at IS NULL
-              AND (e.created_by = ? OR em.user_id IS NOT NULL)`,
+              AND (e.created_by = $3 OR em.user_id IS NOT NULL)`,
           [req.user.id, eventId, req.user.id],
         );
 
@@ -571,7 +571,7 @@ export async function createCategory(req: AuthRequest, res: Response): Promise<v
               COALESCE(bc.gratuity_rate, 0)::numeric AS gratuity_rate,
               COALESCE(bc.contingency_rate, 0)::numeric AS contingency_rate,
               0 AS spent
-       FROM budget_categories bc WHERE bc.id = ?`,
+       FROM budget_categories bc WHERE bc.id = $1`,
       [result.lastID],
     );
 
@@ -616,7 +616,7 @@ export async function updateCategory(req: AuthRequest, res: Response): Promise<v
               COALESCE(gratuity_rate, 0)::numeric AS gratuity_rate,
               COALESCE(contingency_rate, 0)::numeric AS contingency_rate
          FROM budget_categories
-        WHERE id = ? AND event_id = ?`,
+        WHERE id = $1 AND event_id = $2`,
       [id, eventId],
     );
     if (!existing) {
@@ -679,7 +679,7 @@ export async function updateCategory(req: AuthRequest, res: Response): Promise<v
               COALESCE(SUM(e.amount), 0)::numeric AS spent
        FROM budget_categories bc
        LEFT JOIN expenses e ON e.category_id = bc.id
-       WHERE bc.id = ?
+       WHERE bc.id = $1
        GROUP BY bc.id, bc.event_id, bc.name, bc.allocated_amount, bc.color, bc.created_at,
                 bc.tax_rate, bc.gratuity_rate, bc.contingency_rate`,
       [id],
@@ -751,7 +751,7 @@ export async function listExpenses(req: AuthRequest, res: Response): Promise<voi
               COALESCE(e.reimbursement_status, 'not_requested') AS reimbursement_status
        FROM expenses e
        LEFT JOIN budget_categories bc ON bc.id = e.category_id
-       WHERE e.event_id = ?
+       WHERE e.event_id = $1
        ORDER BY e.created_at DESC`,
       [eventId],
     );
@@ -766,7 +766,7 @@ export async function listExpenses(req: AuthRequest, res: Response): Promise<voi
               COUNT(*) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'rejected')::int AS reimbursement_rejected,
               COALESCE(SUM(amount) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'requested'), 0)::float AS reimbursement_requested_amount
          FROM expenses
-        WHERE event_id = ?`,
+        WHERE event_id = $1`,
       [eventId],
     );
 
@@ -946,7 +946,7 @@ async function getExpenseForEvent(
             COALESCE(e.reimbursement_status, 'not_requested') AS reimbursement_status
        FROM expenses e
        LEFT JOIN budget_categories bc ON bc.id = e.category_id
-      WHERE e.id = ? AND e.event_id = ?`,
+      WHERE e.id = $1 AND e.event_id = $2`,
     [expenseId, eventId],
   );
   return row ?? null;
@@ -1419,7 +1419,7 @@ export async function getExpenseWorkflowSummary(req: AuthRequest, res: Response)
               COUNT(*) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'rejected')::int AS reimbursement_rejected,
               COALESCE(SUM(amount) FILTER (WHERE COALESCE(reimbursement_status, 'not_requested') = 'requested'), 0)::float AS reimbursement_requested_amount
          FROM expenses
-        WHERE event_id = ?`,
+        WHERE event_id = $1`,
       [eventId],
     );
 
@@ -1509,7 +1509,7 @@ export async function extractExpenseReceiptOcr(req: AuthRequest, res: Response):
     );
 
     const ocr = await db.get<ExpenseOcrRow>(
-      `SELECT * FROM expense_receipt_ocr WHERE id = ? AND event_id = ?`,
+      `SELECT * FROM expense_receipt_ocr WHERE id = $1 AND event_id = $2`,
       [result.lastID, eventId],
     );
 
@@ -1562,7 +1562,7 @@ export async function applyExpenseReceiptOcr(req: AuthRequest, res: Response): P
     const ocr = await db.get<ExpenseOcrRow>(
       `SELECT *
          FROM expense_receipt_ocr
-        WHERE id = ? AND event_id = ? AND expense_id = ?`,
+        WHERE id = $1 AND event_id = $2 AND expense_id = $3`,
       [ocrId, eventId, id],
     );
     if (!ocr) {
@@ -1720,4 +1720,64 @@ export async function deleteExpense(req: AuthRequest, res: Response): Promise<vo
     console.error('Error deleting expense:', error);
     res.status(500).json({ error: 'Failed to delete expense' });
   }
+}
+
+/**
+ * GET /api/events/:eventId/budget/expenses/export
+ * Exports all expenses for an event as CSV (#668).
+ */
+export async function exportExpensesAsCsv(req: AuthRequest, res: Response): Promise<void> {
+  const { eventId } = req.params;
+  const db = getDatabase();
+
+  const expenses = await db.all(
+    `SELECT e.id, e.title, e.amount, e.currency, e.status, e.submitted_by,
+            c.name AS category, e.created_at, e.updated_at
+     FROM budget_expenses e
+     LEFT JOIN budget_categories c ON c.id = e.category_id
+     WHERE e.event_id = $1 AND e.deleted_at IS NULL
+     ORDER BY e.created_at DESC`,
+    [eventId],
+  );
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="expenses-event-${eventId}.csv"`);
+
+  const headers = ['id', 'title', 'amount', 'currency', 'category', 'status', 'submitted_by', 'created_at'];
+  res.write(headers.join(',') + '\n');
+
+  for (const row of expenses as Record<string, unknown>[]) {
+    const line = headers.map(h => {
+      const val = row[h];
+      if (val === null || val === undefined) return '';
+      const s = String(val).replace(/"/g, '""');
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
+    }).join(',');
+    res.write(line + '\n');
+  }
+
+  res.end();
+}
+
+/**
+ * GET /api/events/:eventId/budget/fx-status
+ * Returns staleness warning if exchange rates are older than 24 hours (#668).
+ */
+export async function getFxStatus(req: AuthRequest, res: Response): Promise<Response> {
+  const db = getDatabase();
+  const rate = await db.get<{ updated_at: string }>(
+    `SELECT MAX(updated_at) AS updated_at FROM exchange_rates`,
+  );
+
+  const lastUpdated = rate?.updated_at ? new Date(rate.updated_at) : null;
+  const staleThresholdMs = 24 * 60 * 60 * 1000;
+  const isStale = !lastUpdated || (Date.now() - lastUpdated.getTime()) > staleThresholdMs;
+
+  return res.json({
+    lastUpdated: lastUpdated?.toISOString() ?? null,
+    isStale,
+    message: isStale
+      ? 'Exchange rates are stale (older than 24 hours). Displayed amounts may be inaccurate.'
+      : 'Exchange rates are current.',
+  });
 }

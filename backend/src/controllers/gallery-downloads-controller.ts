@@ -45,7 +45,7 @@ export async function getAlbumDownloadManifest(req: Request, res: Response): Pro
 
   const db = getDatabase();
   const album = await db.get<{ id: number; name: string }>(
-    'SELECT id, name FROM gallery_albums WHERE id = ? AND event_id = ?',
+    'SELECT id, name FROM gallery_albums WHERE id = $1 AND event_id = $2',
     [albumId, eventId],
   );
   if (!album) return res.status(404).json({ error: 'Album not found.' });
@@ -53,7 +53,7 @@ export async function getAlbumDownloadManifest(req: Request, res: Response): Pro
   const items = await db.all<ItemRow>(
     `SELECT id, file_name, original_name, mime_type, file_size, caption, album_id, allow_download
        FROM event_documents
-      WHERE event_id = ? AND album_id = ?
+      WHERE event_id = $1 AND album_id = $2
         AND mime_type LIKE 'image/%'
         AND moderation_status = 'approved'
         AND visibility IN ('event','public')
@@ -99,7 +99,7 @@ export async function getEventDownloadManifest(req: Request, res: Response): Pro
   const items = await db.all<ItemRow>(
     `SELECT id, file_name, original_name, mime_type, file_size, caption, album_id, allow_download
        FROM event_documents
-      WHERE event_id = ?
+      WHERE event_id = $1
         AND mime_type LIKE 'image/%'
         AND moderation_status = 'approved'
         AND visibility IN ('event','public')

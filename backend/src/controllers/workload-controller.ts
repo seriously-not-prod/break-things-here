@@ -49,7 +49,7 @@ export async function getWorkload(req: Request, res: Response): Promise<Response
        COALESCE(SUM(t.estimated_hours) FILTER (WHERE t.status <> 'Complete'), 0)::float AS estimated_hours
      FROM tasks t
      LEFT JOIN users u ON u.id = t.assigned_user_id
-     WHERE t.event_id = ?
+     WHERE t.event_id = $1
      GROUP BY t.assigned_user_id, t.assignee_name, u.display_name
      ORDER BY total_tasks DESC`,
     [eventId],
@@ -68,7 +68,7 @@ export async function getWorkload(req: Request, res: Response): Promise<Response
      FROM task_time_entries tte
      JOIN tasks t ON t.id = tte.task_id
      JOIN users u ON u.id = tte.user_id
-     WHERE t.event_id = ?
+     WHERE t.event_id = $1
      GROUP BY tte.user_id, u.display_name`,
     [eventId],
   );

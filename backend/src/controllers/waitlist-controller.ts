@@ -46,7 +46,7 @@ async function getEventCapacity(
   eventId: number,
 ): Promise<number | null> {
   const ev = await db.get<{ capacity: number | null }>(
-    'SELECT capacity FROM events WHERE id = ? AND deleted_at IS NULL',
+    'SELECT capacity FROM events WHERE id = $1 AND deleted_at IS NULL',
     [eventId],
   );
   return ev?.capacity ?? null;
@@ -58,7 +58,7 @@ async function getGoingTotal(
 ): Promise<number> {
   const row = await db.get<{ total: number }>(
     `SELECT COALESCE(SUM(guests), 0)::int AS total FROM rsvps
-     WHERE event_id = ? AND status = 'Going' AND waitlist_position IS NULL`,
+     WHERE event_id = $1 AND status = 'Going' AND waitlist_position IS NULL`,
     [eventId],
   );
   return row?.total ?? 0;
@@ -74,20 +74,20 @@ export async function addToWaitlist(
   eventId: number,
 ): Promise<number> {
   const existing = await db.get<{ waitlist_position: number | null }>(
-    'SELECT waitlist_position FROM rsvps WHERE id = ? AND event_id = ?',
+    'SELECT waitlist_position FROM rsvps WHERE id = $1 AND event_id = $2',
     [rsvpId, eventId],
   );
   if (existing?.waitlist_position) return existing.waitlist_position;
 
   const max = await db.get<{ max: number | null }>(
-    'SELECT MAX(waitlist_position) AS max FROM rsvps WHERE event_id = ?',
+    'SELECT MAX(waitlist_position) AS max FROM rsvps WHERE event_id = $1',
     [eventId],
   );
   const nextPos = (max?.max ?? 0) + 1;
   await db.run(
     `UPDATE rsvps
-     SET waitlist_position = ?, waitlisted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
+     SET waitlist_position = $1, waitlisted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $2`,
     [nextPos, rsvpId],
   );
   return nextPos;
@@ -165,7 +165,7 @@ export async function runPromotion(eventId: number): Promise<PromotionResult> {
   const waitlistSize =
     (
       await db.get<{ n: number }>(
-        'SELECT COUNT(*)::int AS n FROM rsvps WHERE event_id = ? AND waitlist_position IS NOT NULL',
+        'SELECT COUNT(*)::int AS n FROM rsvps WHERE event_id = $1 AND waitlist_position IS NOT NULL',
         [eventId],
       )
     )?.n ?? 0;
@@ -188,7 +188,7 @@ export async function listWaitlist(req: Request, res: Response): Promise<Respons
   const rows = await db.all(
     `SELECT id, name, email, phone, guests, status, waitlist_position, waitlisted_at, created_at
      FROM rsvps
-     WHERE event_id = ? AND waitlist_position IS NOT NULL
+     WHERE event_id = $1 AND waitlist_position IS NOT NULL
      ORDER BY waitlist_position ASC, id ASC`,
     [eventId],
   );
@@ -215,7 +215,7 @@ export async function addRsvpToWaitlist(req: Request, res: Response): Promise<Re
   }
   const db = getDatabase();
   const exists = await db.get<{ id: number }>(
-    'SELECT id FROM rsvps WHERE id = ? AND event_id = ?',
+    'SELECT id FROM rsvps WHERE id = $1 AND event_id = $2',
     [rsvpId, eventId],
   );
   if (!exists) return res.status(404).json({ error: 'RSVP not found.' });
@@ -246,13 +246,13 @@ export async function removeFromWaitlist(req: Request, res: Response): Promise<R
   if (!event) return res as Response;
   const db = getDatabase();
   const row = await db.get<{ id: number }>(
-    'SELECT id FROM rsvps WHERE id = ? AND event_id = ? AND waitlist_position IS NOT NULL',
+    'SELECT id FROM rsvps WHERE id = $1 AND event_id = $2 AND waitlist_position IS NOT NULL',
     [id, eventId],
   );
   if (!row) return res.status(404).json({ error: 'Waitlist entry not found.' });
   await db.run(
     `UPDATE rsvps SET waitlist_position = NULL, waitlisted_at = NULL, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
+     WHERE id = $1`,
     [id],
   );
   return res.json({ removed: true });

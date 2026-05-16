@@ -594,7 +594,7 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
     const updatedEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`, [id]);
     await db.run(
       'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
-      [userId, authReq.user?.email ?? null, 'event.updated', `Updated event #${id}: ${updatedEvent?.title ?? existingEvent.title}`, authReq.ip ?? null],
+      [userId, authReq.user?.email ?? null, 'event.updated', `Updated event #${id}: ${updatedEvent$1.title $2$3 existingEvent.title}`, authReq.ip ?? null],
     );
     
     res.json(updatedEvent);

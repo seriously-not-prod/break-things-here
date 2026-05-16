@@ -54,8 +54,8 @@ export async function globalSearch(req: Request, res: Response): Promise<Respons
     accessibleClause = 'TRUE';
     accessibleParams = [];
   } else {
-    accessibleClause = `(e.created_by = ? OR EXISTS (
-      SELECT 1 FROM event_members em WHERE em.event_id = e.id AND em.user_id = ?
+    accessibleClause = `(e.created_by = $1 OR EXISTS (
+      SELECT 1 FROM event_members em WHERE em.event_id = e.id AND em.user_id = $2
     ))`;
     accessibleParams = [authReq.user.id, authReq.user.id];
   }
@@ -70,8 +70,8 @@ export async function globalSearch(req: Request, res: Response): Promise<Respons
         FROM events e
        WHERE e.deleted_at IS NULL ${archiveClause}
          AND ${accessibleClause}
-         AND (e.title ILIKE ? OR COALESCE(e.description, '') ILIKE ? OR e.location ILIKE ?
-              OR COALESCE(e.tags, '') ILIKE ?)
+         AND (e.title ILIKE $1 OR COALESCE(e.description, '') ILIKE $2 OR e.location ILIKE $3
+              OR COALESCE(e.tags, '') ILIKE $4)
        ORDER BY e.date DESC
        LIMIT ${limit}
     `;
@@ -86,7 +86,7 @@ export async function globalSearch(req: Request, res: Response): Promise<Respons
         JOIN events e ON e.id = t.event_id
        WHERE e.deleted_at IS NULL ${archiveClause}
          AND ${accessibleClause}
-         AND (t.title ILIKE ? OR COALESCE(t.notes, '') ILIKE ?)
+         AND (t.title ILIKE $1 OR COALESCE(t.notes, '') ILIKE $2)
        ORDER BY t.due_date ASC NULLS LAST, t.id DESC
        LIMIT ${limit}
     `;
@@ -101,7 +101,7 @@ export async function globalSearch(req: Request, res: Response): Promise<Respons
         JOIN events e ON e.id = r.event_id
        WHERE e.deleted_at IS NULL ${archiveClause}
          AND ${accessibleClause}
-         AND (r.name ILIKE ? OR r.email ILIKE ?)
+         AND (r.name ILIKE $1 OR r.email ILIKE $2)
        ORDER BY r.created_at DESC
        LIMIT ${limit}
     `;
@@ -116,7 +116,7 @@ export async function globalSearch(req: Request, res: Response): Promise<Respons
         JOIN events e ON e.id = v.event_id
        WHERE e.deleted_at IS NULL ${archiveClause}
          AND ${accessibleClause}
-         AND (v.name ILIKE ? OR v.category ILIKE ? OR COALESCE(v.notes, '') ILIKE ?)
+         AND (v.name ILIKE $1 OR v.category ILIKE $2 OR COALESCE(v.notes, '') ILIKE $3)
        ORDER BY v.created_at DESC
        LIMIT ${limit}
     `;
@@ -132,7 +132,7 @@ export async function globalSearch(req: Request, res: Response): Promise<Respons
        WHERE e.deleted_at IS NULL ${archiveClause}
          AND ${accessibleClause}
          AND d.mime_type LIKE 'image/%'
-         AND (d.original_name ILIKE ? OR COALESCE(d.caption, '') ILIKE ?)
+         AND (d.original_name ILIKE $1 OR COALESCE(d.caption, '') ILIKE $2)
        ORDER BY d.created_at DESC
        LIMIT ${limit}
     `;

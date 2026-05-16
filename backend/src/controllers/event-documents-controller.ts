@@ -51,7 +51,7 @@ export async function listEventDocuments(req: Request, res: Response): Promise<R
   const documents = await db.all(
     `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at
      FROM event_documents
-     WHERE event_id = ?
+     WHERE event_id = $1
      ORDER BY created_at DESC`,
     [req.params.eventId],
   );
@@ -109,7 +109,7 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
   // Storage quota enforcement (#622). Atomic check-and-reserve so a flurry of
   // parallel uploads cannot collectively exceed the quota.
   const eventRow = await db.get<{ storage_quota_bytes: number; storage_used_bytes: number }>(
-    `SELECT storage_quota_bytes, storage_used_bytes FROM events WHERE id = ?`,
+    `SELECT storage_quota_bytes, storage_used_bytes FROM events WHERE id = $1`,
     [req.params.eventId],
   );
   if (eventRow) {
@@ -136,7 +136,7 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
       `INSERT INTO event_documents (event_id, original_name, file_name, mime_type, file_size,
                                     conversion_status, original_format, converted_file_name,
                                     created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id`,
       [
         req.params.eventId,
@@ -155,16 +155,16 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
     // Increment used storage. Wrapping in a single UPDATE keeps the running
     // total consistent without a separate trigger.
     await db.run(
-      `UPDATE events SET storage_used_bytes = COALESCE(storage_used_bytes, 0) + ?,
+      `UPDATE events SET storage_used_bytes = COALESCE(storage_used_bytes, 0) + $1,
                           updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?`,
+        WHERE id = $2`,
       [authReq.file.size, req.params.eventId],
     );
 
     const document = await db.get(
       `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at,
               conversion_status, original_format
-       FROM event_documents WHERE id = ?`,
+       FROM event_documents WHERE id = $1`,
       [result.lastID],
     );
 
@@ -190,7 +190,7 @@ export async function downloadEventDocument(req: Request, res: Response): Promis
 
   const db = getDatabase();
   const document = await db.get<{ id: number; original_name: string; file_name: string }>(
-    `SELECT id, original_name, file_name FROM event_documents WHERE id = ? AND event_id = ?`,
+    `SELECT id, original_name, file_name FROM event_documents WHERE id = $1 AND event_id = $2`,
     [req.params.id, req.params.eventId],
   );
 
@@ -216,7 +216,7 @@ export async function deleteEventDocument(req: Request, res: Response): Promise<
     file_name: string;
     file_size: number;
   }>(
-    `SELECT id, original_name, file_name, file_size FROM event_documents WHERE id = ? AND event_id = ?`,
+    `SELECT id, original_name, file_name, file_size FROM event_documents WHERE id = $1 AND event_id = $2`,
     [req.params.id, req.params.eventId],
   );
 
@@ -228,14 +228,14 @@ export async function deleteEventDocument(req: Request, res: Response): Promise<
     console.error('Failed to delete event document file:', error);
   }
 
-  await db.run('DELETE FROM event_documents WHERE id = ? AND event_id = ?', [req.params.id, req.params.eventId]);
+  await db.run('DELETE FROM event_documents WHERE id = $1 AND event_id = $2', [req.params.id, req.params.eventId]);
   // Reclaim storage on the event. GREATEST keeps the counter non-negative if
   // a stale upload left the counter out of sync.
   await db.run(
     `UPDATE events
-        SET storage_used_bytes = GREATEST(COALESCE(storage_used_bytes, 0) - ?, 0),
+        SET storage_used_bytes = GREATEST(COALESCE(storage_used_bytes, 0) - $1, 0),
             updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?`,
+      WHERE id = $2`,
     [Number(document.file_size ?? 0), req.params.eventId],
   );
   return res.json({ message: 'Document deleted.' });
@@ -251,7 +251,7 @@ export async function getEventDocumentFile(req: Request, res: Response): Promise
   const document = await db.get<{ event_id: number; original_name: string; file_name: string; mime_type: string }>(
     `SELECT event_id, original_name, file_name, mime_type
      FROM event_documents
-     WHERE file_name = ?`,
+     WHERE file_name = $1`,
     [req.params.filename],
   );
 

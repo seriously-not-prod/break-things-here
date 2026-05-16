@@ -45,7 +45,7 @@ export async function listLists(req: Request, res: Response): Promise<Response> 
 
   const db = getDatabase();
   const lists = await db.all<ShoppingListRow>(
-    `SELECT * FROM shopping_lists WHERE event_id = ? ORDER BY created_at ASC`,
+    `SELECT * FROM shopping_lists WHERE event_id = $1 ORDER BY created_at ASC`,
     [eventId],
   );
   return res.json({ lists });
@@ -63,11 +63,11 @@ export async function createList(req: Request, res: Response): Promise<Response>
 
   const db = getDatabase();
   const result = await db.run(
-    `INSERT INTO shopping_lists (event_id, name, created_by) VALUES (?, ?, ?) RETURNING id`,
+    `INSERT INTO shopping_lists (event_id, name, created_by) VALUES ($1, $2, $3) RETURNING id`,
     [eventId, name.trim(), authReq.user!.id],
   );
 
-  const list = await db.get<ShoppingListRow>('SELECT * FROM shopping_lists WHERE id = ?', [result.lastID]);
+  const list = await db.get<ShoppingListRow>('SELECT * FROM shopping_lists WHERE id = $1', [result.lastID]);
   return res.status(201).json({ list });
 }
 
@@ -79,10 +79,10 @@ export async function deleteList(req: Request, res: Response): Promise<Response>
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const existing = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = ? AND event_id = ?', [listId, eventId]);
+  const existing = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
   if (!existing) return res.status(404).json({ error: 'Shopping list not found.' });
 
-  await db.run('DELETE FROM shopping_lists WHERE id = ? AND event_id = ?', [listId, eventId]);
+  await db.run('DELETE FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
   return res.status(204).send('');
 }
 
@@ -94,11 +94,11 @@ export async function listItems(req: Request, res: Response): Promise<Response> 
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = ? AND event_id = ?', [listId, eventId]);
+  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
   if (!list) return res.status(404).json({ error: 'Shopping list not found.' });
 
   const items = await db.all<ShoppingItemRow>(
-    `SELECT * FROM shopping_items WHERE list_id = ? ORDER BY created_at ASC`,
+    `SELECT * FROM shopping_items WHERE list_id = $1 ORDER BY created_at ASC`,
     [listId],
   );
   return res.json({ items });
@@ -112,7 +112,7 @@ export async function createItem(req: Request, res: Response): Promise<Response>
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = ? AND event_id = ?', [listId, eventId]);
+  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
   if (!list) return res.status(404).json({ error: 'Shopping list not found.' });
 
   const { name, quantity, unit, estimated_cost, notes } = req.body as {
@@ -137,12 +137,12 @@ export async function createItem(req: Request, res: Response): Promise<Response>
 
   const result = await db.run(
     `INSERT INTO shopping_items (list_id, name, quantity, unit, estimated_cost, notes)
-     VALUES (?, ?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING id`,
     [listId, name.trim(), parsedQty, unit?.trim() || null, parsedCost, notes?.trim() || null],
   );
 
-  const item = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = ?', [result.lastID]);
+  const item = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = $1', [result.lastID]);
   return res.status(201).json({ item });
 }
 
@@ -154,10 +154,10 @@ export async function updateItem(req: Request, res: Response): Promise<Response>
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = ? AND event_id = ?', [listId, eventId]);
+  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
   if (!list) return res.status(404).json({ error: 'Shopping list not found.' });
 
-  const existing = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = ? AND list_id = ?', [itemId, listId]);
+  const existing = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = $1 AND list_id = $2', [itemId, listId]);
   if (!existing) return res.status(404).json({ error: 'Shopping item not found.' });
 
   const { status, actual_cost, assigned_to, name, quantity, unit, estimated_cost, notes } = req.body as {
@@ -183,9 +183,9 @@ export async function updateItem(req: Request, res: Response): Promise<Response>
 
   await db.run(
     `UPDATE shopping_items SET
-       name = ?, quantity = ?, unit = ?, estimated_cost = ?, actual_cost = ?,
-       status = ?, assigned_to = ?, notes = ?
-     WHERE id = ? AND list_id = ?`,
+       name = $1, quantity = $2, unit = $3, estimated_cost = $4, actual_cost = $5,
+       status = $6, assigned_to = $7, notes = $8
+     WHERE id = $9 AND list_id = $10`,
     [
       name?.trim() ?? existing.name,
       parsedQty,
@@ -200,7 +200,7 @@ export async function updateItem(req: Request, res: Response): Promise<Response>
     ],
   );
 
-  const item = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = ?', [itemId]);
+  const item = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = $1', [itemId]);
   return res.json({ item });
 }
 
@@ -212,13 +212,13 @@ export async function deleteItem(req: Request, res: Response): Promise<Response>
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = ? AND event_id = ?', [listId, eventId]);
+  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
   if (!list) return res.status(404).json({ error: 'Shopping list not found.' });
 
-  const existing = await db.get<{ id: number }>('SELECT id FROM shopping_items WHERE id = ? AND list_id = ?', [itemId, listId]);
+  const existing = await db.get<{ id: number }>('SELECT id FROM shopping_items WHERE id = $1 AND list_id = $2', [itemId, listId]);
   if (!existing) return res.status(404).json({ error: 'Shopping item not found.' });
 
-  await db.run('DELETE FROM shopping_items WHERE id = ? AND list_id = ?', [itemId, listId]);
+  await db.run('DELETE FROM shopping_items WHERE id = $1 AND list_id = $2', [itemId, listId]);
   return res.status(204).send('');
 }
 
@@ -236,10 +236,10 @@ export async function updateItemPriceData(req: Request, res: Response): Promise<
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = ? AND event_id = ?', [listId, eventId]);
+  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
   if (!list) return res.status(404).json({ error: 'Shopping list not found.' });
 
-  const existing = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = ? AND list_id = ?', [itemId, listId]);
+  const existing = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = $1 AND list_id = $2', [itemId, listId]);
   if (!existing) return res.status(404).json({ error: 'Shopping item not found.' });
 
   const { source_store_name, source_store_url, compared_price_low, compared_price_high } = req.body as {
@@ -280,13 +280,13 @@ export async function updateItemPriceData(req: Request, res: Response): Promise<
 
   await db.run(
     `UPDATE shopping_items SET
-       source_store_name  = COALESCE(?, source_store_name),
-       source_store_url   = COALESCE(?, source_store_url),
-       compared_price_low  = COALESCE(?, compared_price_low),
-       compared_price_high = COALESCE(?, compared_price_high),
+       source_store_name  = COALESCE($1, source_store_name),
+       source_store_url   = COALESCE($2, source_store_url),
+       compared_price_low  = COALESCE($3, compared_price_low),
+       compared_price_high = COALESCE($4, compared_price_high),
        price_checked_at   = CURRENT_TIMESTAMP,
        updated_at         = CURRENT_TIMESTAMP
-     WHERE id = ? AND list_id = ?`,
+     WHERE id = $5 AND list_id = $6`,
     [
       source_store_name?.trim() ?? null,
       source_store_url?.trim() ?? null,
@@ -303,7 +303,7 @@ export async function updateItemPriceData(req: Request, res: Response): Promise<
     compared_price_low: number | null;
     compared_price_high: number | null;
     price_checked_at: string | null;
-  }>('SELECT * FROM shopping_items WHERE id = ?', [itemId]);
+  }>('SELECT * FROM shopping_items WHERE id = $1', [itemId]);
   return res.json({ item });
 }
 
@@ -322,7 +322,7 @@ export async function getListPriceComparison(req: Request, res: Response): Promi
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const list = await db.get<ShoppingListRow>('SELECT * FROM shopping_lists WHERE id = ? AND event_id = ?', [listId, eventId]);
+  const list = await db.get<ShoppingListRow>('SELECT * FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
   if (!list) return res.status(404).json({ error: 'Shopping list not found.' });
 
   const items = await db.all<{
@@ -344,7 +344,7 @@ export async function getListPriceComparison(req: Request, res: Response): Promi
             source_store_name, source_store_url,
             compared_price_low, compared_price_high, price_checked_at
        FROM shopping_items
-      WHERE list_id = ?
+      WHERE list_id = $1
       ORDER BY created_at ASC`,
     [listId],
   );
@@ -436,7 +436,7 @@ export async function getEventPriceComparison(req: Request, res: Response): Prom
                               AND si.actual_cost IS NOT NULL)::int                     AS items_over_budget
      FROM shopping_lists sl
      LEFT JOIN shopping_items si ON si.list_id = sl.id
-     WHERE sl.event_id = ?
+     WHERE sl.event_id = $1
      GROUP BY sl.id, sl.name
      ORDER BY sl.created_at ASC`,
     [eventId],

@@ -126,19 +126,19 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
   const db = getDatabase();
 
   let user = await db.get<UserRow>(
-    'SELECT id, email, role_id, entra_oid FROM users WHERE entra_oid = ? AND deleted_at IS NULL',
+    'SELECT id, email, role_id, entra_oid FROM users WHERE entra_oid = $1 AND deleted_at IS NULL',
     [entraOid],
   );
 
   if (!user) {
     user = await db.get<UserRow>(
-      'SELECT id, email, role_id, entra_oid FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL',
+      'SELECT id, email, role_id, entra_oid FROM users WHERE LOWER(email) = $1 AND deleted_at IS NULL',
       [email],
     );
 
     if (user) {
       await db.run(
-        `UPDATE users SET entra_oid = ?, auth_provider = 'entra', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE users SET entra_oid = $1, auth_provider = 'entra', updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
         [entraOid, user.id],
       );
     }
@@ -148,7 +148,7 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
     const dummyHash = await hashPassword(crypto.randomBytes(32).toString('hex'));
     const result = await db.run(
       `INSERT INTO users (email, password_hash, display_name, email_verified, email_verified_at, entra_oid, auth_provider)
-       VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP, ?, 'entra')
+       VALUES ($1, $2, $3, 1, CURRENT_TIMESTAMP, $4, 'entra')
        RETURNING id`,
       [email, dummyHash, displayName, entraOid],
     );
@@ -159,7 +159,7 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
     }
 
     user = await db.get<UserRow>(
-      'SELECT id, email, role_id, entra_oid FROM users WHERE id = ?',
+      'SELECT id, email, role_id, entra_oid FROM users WHERE id = $1',
       [result.lastID],
     );
   }
@@ -177,7 +177,7 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
 
   await db.run(
     `INSERT INTO sessions (user_id, token, refresh_token, expires_at, last_activity)
-     VALUES (?, ?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4, $5)`,
     [user.id, tokenHash, refreshTokenHash, expiresAt, new Date().toISOString()],
   );
 

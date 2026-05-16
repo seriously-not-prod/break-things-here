@@ -23,7 +23,7 @@ export async function getRoleWithPermissions(req: AuthRequest, res: Response): P
   const { roleId } = req.params;
   const db = getDatabase();
 
-  const role = await db.get('SELECT id, name, description FROM roles WHERE id = ?', [roleId]);
+  const role = await db.get('SELECT id, name, description FROM roles WHERE id = $1', [roleId]);
   if (!role) {
     return res.status(404).json({ error: 'Role not found' });
   }
@@ -31,7 +31,7 @@ export async function getRoleWithPermissions(req: AuthRequest, res: Response): P
   const permissions = await db.all(
     `SELECT p.id, p.name, p.description FROM permissions p
      JOIN role_permissions rp ON rp.permission_id = p.id
-     WHERE rp.role_id = ?`,
+     WHERE rp.role_id = $1`,
     [roleId],
   );
 
@@ -50,13 +50,13 @@ export async function createRole(req: AuthRequest, res: Response): Promise<Respo
   }
 
   const db = getDatabase();
-  const existing = await db.get('SELECT id FROM roles WHERE name = ?', [name]);
+  const existing = await db.get('SELECT id FROM roles WHERE name = $1', [name]);
   if (existing) {
     return res.status(409).json({ error: 'Role already exists' });
   }
 
   const result = await db.run(
-    'INSERT INTO roles (name, description) VALUES (?, ?) RETURNING id',
+    'INSERT INTO roles (name, description) VALUES ($1, $2) RETURNING id',
     [name, description || ''],
   );
 
@@ -76,17 +76,17 @@ export async function assignRoleToUser(req: AuthRequest, res: Response): Promise
 
   const db = getDatabase();
 
-  const role = await db.get('SELECT id FROM roles WHERE id = ?', [roleId]);
+  const role = await db.get('SELECT id FROM roles WHERE id = $1', [roleId]);
   if (!role) {
     return res.status(404).json({ error: 'Role not found' });
   }
 
-  const user = await db.get('SELECT id FROM users WHERE id = ? AND deleted_at IS NULL', [userId]);
+  const user = await db.get('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [userId]);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
 
-  await db.run('UPDATE users SET role_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [roleId, userId]);
+  await db.run('UPDATE users SET role_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [roleId, userId]);
 
   return res.status(200).json({ message: 'Role assigned successfully' });
 }
@@ -105,7 +105,7 @@ export async function addPermissionToRole(req: AuthRequest, res: Response): Prom
   const db = getDatabase();
 
   const existing = await db.get(
-    'SELECT 1 FROM role_permissions WHERE role_id = ? AND permission_id = ?',
+    'SELECT 1 FROM role_permissions WHERE role_id = $1 AND permission_id = $2',
     [roleId, permissionId],
   );
   if (existing) {
@@ -113,7 +113,7 @@ export async function addPermissionToRole(req: AuthRequest, res: Response): Prom
   }
 
   await db.run(
-    'INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)',
+    'INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)',
     [roleId, permissionId],
   );
 
@@ -133,7 +133,7 @@ export async function removePermissionFromRole(req: AuthRequest, res: Response):
 
   const db = getDatabase();
   await db.run(
-    'DELETE FROM role_permissions WHERE role_id = ? AND permission_id = ?',
+    'DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2',
     [roleId, permissionId],
   );
 
@@ -160,12 +160,12 @@ export async function getUserRoleAndPermissions(req: AuthRequest, res: Response)
   }
 
   const db = getDatabase();
-  const role = await db.get('SELECT id, name, description FROM roles WHERE id = ?', [req.user.role_id]);
+  const role = await db.get('SELECT id, name, description FROM roles WHERE id = $1', [req.user.role_id]);
 
   const permissions = await db.all(
     `SELECT p.id, p.name, p.description FROM permissions p
      JOIN role_permissions rp ON rp.permission_id = p.id
-     WHERE rp.role_id = ?`,
+     WHERE rp.role_id = $1`,
     [req.user.role_id],
   );
 

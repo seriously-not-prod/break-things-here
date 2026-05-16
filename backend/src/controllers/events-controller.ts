@@ -65,17 +65,17 @@ export async function getEvent(req: Request, res: Response): Promise<Response> {
   const event = await db.get<EventRow>(
     `SELECT e.*, u.display_name AS creator_name
      FROM events e LEFT JOIN users u ON e.created_by = u.id
-     WHERE e.id = ? AND e.deleted_at IS NULL`,
+     WHERE e.id = $1 AND e.deleted_at IS NULL`,
     [id],
   );
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
-  const tasks = await db.all('SELECT * FROM tasks WHERE event_id = ? ORDER BY due_date ASC', [id]);
-  const rsvps = await db.all('SELECT * FROM rsvps WHERE event_id = ? ORDER BY created_at DESC', [id]);
+  const tasks = await db.all('SELECT * FROM tasks WHERE event_id = $1 ORDER BY due_date ASC', [id]);
+  const rsvps = await db.all('SELECT * FROM rsvps WHERE event_id = $1 ORDER BY created_at DESC', [id]);
   const documents = await db.all<EventDocumentRow[]>(
     `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at
      FROM event_documents
-     WHERE event_id = ?
+     WHERE event_id = $1
      ORDER BY created_at DESC`,
     [id],
   );
@@ -99,7 +99,7 @@ export async function createEvent(req: AuthRequest, res: Response): Promise<Resp
   const db = getDatabase();
   const result = await db.run(
     `INSERT INTO events (title, description, location, event_date, status, created_by)
-     VALUES (?, ?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING id`,
     [
       title.trim(),
@@ -111,7 +111,7 @@ export async function createEvent(req: AuthRequest, res: Response): Promise<Resp
     ],
   );
 
-  const event = await db.get('SELECT * FROM events WHERE id = ?', [result.lastID]);
+  const event = await db.get('SELECT * FROM events WHERE id = $1', [result.lastID]);
   return res.status(201).json({ event });
 }
 
@@ -120,7 +120,7 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<Resp
   const db = getDatabase();
   const { id } = req.params;
 
-  const event = await db.get<EventRow>('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL', [id]);
+  const event = await db.get<EventRow>('SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL', [id]);
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
   // Organizers can only edit their own events; Admins (role_id=3) can edit all
@@ -143,8 +143,8 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<Resp
   fields.push('updated_at = CURRENT_TIMESTAMP');
   params.push(id);
 
-  await db.run(`UPDATE events SET ${fields.join(', ')} WHERE id = ?`, params);
-  const updated = await db.get('SELECT * FROM events WHERE id = ?', [id]);
+  await db.run(`UPDATE events SET ${fields.join(', ')} WHERE id = $1`, params);
+  const updated = await db.get('SELECT * FROM events WHERE id = $1', [id]);
   return res.json({ event: updated });
 }
 
@@ -153,14 +153,14 @@ export async function deleteEvent(req: AuthRequest, res: Response): Promise<Resp
   const db = getDatabase();
   const { id } = req.params;
 
-  const event = await db.get<EventRow>('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL', [id]);
+  const event = await db.get<EventRow>('SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL', [id]);
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
   if (req.user!.role_id < 3 && event.created_by !== req.user!.id) {
     return res.status(403).json({ error: 'Not authorised to delete this event.' });
   }
 
-  await db.run('UPDATE events SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+  await db.run('UPDATE events SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
   return res.json({ message: 'Event deleted.' });
 }
 

@@ -100,20 +100,20 @@ export async function sendRsvpConfirmation(req: Request, res: Response): Promise
 
   const db = getDatabase();
   const eventRow = await db.get<EventRow>(
-    'SELECT id, title, description, location, date, end_date FROM events WHERE id = ? AND deleted_at IS NULL',
+    'SELECT id, title, description, location, date, end_date FROM events WHERE id = $1 AND deleted_at IS NULL',
     [eventId],
   );
   if (!eventRow) return res.status(404).json({ error: 'Event not found.' });
 
   const rsvp = await db.get<RsvpRow>(
-    'SELECT id, name, email, status, guests FROM rsvps WHERE id = ? AND event_id = ?',
+    'SELECT id, name, email, status, guests FROM rsvps WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
   if (!rsvp.email) return res.status(400).json({ error: 'RSVP has no email address.' });
 
   const ownerEmail = await db.get<{ email: string }>(
-    'SELECT u.email FROM events e JOIN users u ON u.id = e.created_by WHERE e.id = ?',
+    'SELECT u.email FROM events e JOIN users u ON u.id = e.created_by WHERE e.id = $1',
     [eventId],
   );
 
@@ -138,7 +138,7 @@ export async function sendRsvpConfirmation(req: Request, res: Response): Promise
   // Log the message before send so analytics counts a confirmed attempt.
   const logResult = await db.run(
     `INSERT INTO communication_log (event_id, guest_email, communication_type, subject, content, status, sent_by, sent_at)
-     VALUES (?, ?, 'rsvp_confirmation', ?, ?, 'pending', ?, CURRENT_TIMESTAMP) RETURNING id`,
+     VALUES ($1, $2, 'rsvp_confirmation', $3, $4, 'pending', $5, CURRENT_TIMESTAMP) RETURNING id`,
     [eventId, rsvp.email, subject, text, authReq.user?.id ?? null],
   );
 
@@ -160,13 +160,13 @@ export async function sendRsvpConfirmation(req: Request, res: Response): Promise
       ],
     });
     if (logResult.lastID) {
-      await db.run('UPDATE communication_log SET status = ? WHERE id = ?', ['sent', logResult.lastID]);
+      await db.run('UPDATE communication_log SET status = $1 WHERE id = $2', ['sent', logResult.lastID]);
     }
     return res.json({ sent: true, accessToken, rsvpLink });
   } catch (err) {
     if (logResult.lastID) {
       await db
-        .run('UPDATE communication_log SET status = ? WHERE id = ?', ['failed', logResult.lastID])
+        .run('UPDATE communication_log SET status = $1 WHERE id = $2', ['failed', logResult.lastID])
         .catch(() => undefined);
     }
     console.error('sendRsvpConfirmation failed:', err);
@@ -183,17 +183,17 @@ export async function downloadRsvpIcs(req: Request, res: Response): Promise<Resp
 
   const db = getDatabase();
   const eventRow = await db.get<EventRow>(
-    'SELECT id, title, description, location, date, end_date FROM events WHERE id = ? AND deleted_at IS NULL',
+    'SELECT id, title, description, location, date, end_date FROM events WHERE id = $1 AND deleted_at IS NULL',
     [eventId],
   );
   const rsvp = await db.get<RsvpRow>(
-    'SELECT id, name, email, status, guests FROM rsvps WHERE id = ? AND event_id = ?',
+    'SELECT id, name, email, status, guests FROM rsvps WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!eventRow || !rsvp) return res.status(404).json({ error: 'Not found.' });
 
   const ownerEmail = await db.get<{ email: string }>(
-    'SELECT u.email FROM events e JOIN users u ON u.id = e.created_by WHERE e.id = ?',
+    'SELECT u.email FROM events e JOIN users u ON u.id = e.created_by WHERE e.id = $1',
     [eventId],
   );
   const ics = buildRsvpInviteIcs(eventRow, rsvp, ownerEmail?.email ?? null);
@@ -214,7 +214,7 @@ export async function getRsvpQr(req: Request, res: Response): Promise<Response> 
 
   const db = getDatabase();
   const rsvp = await db.get<{ id: number }>(
-    'SELECT id FROM rsvps WHERE id = ? AND event_id = ?',
+    'SELECT id FROM rsvps WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });

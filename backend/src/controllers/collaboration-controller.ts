@@ -37,7 +37,7 @@ export async function heartbeatPresence(req: Request, res: Response): Promise<Re
   const db = getDatabase();
   await db.run(
     `INSERT INTO edit_sessions (entity_type, entity_id, user_id, last_seen_at)
-     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
      ON CONFLICT (entity_type, entity_id, user_id) DO UPDATE SET
        last_seen_at = CURRENT_TIMESTAMP`,
     [entity_type, Number(entity_id), authReq.user.id],
@@ -46,7 +46,7 @@ export async function heartbeatPresence(req: Request, res: Response): Promise<Re
   // Clean up stale sessions (older than PRESENCE_TIMEOUT_SECS)
   await db.run(
     `DELETE FROM edit_sessions
-     WHERE last_seen_at < datetime('now', ?)`,
+     WHERE last_seen_at < datetime('now', $1)`,
     [`-${PRESENCE_TIMEOUT_SECS} seconds`],
   );
 
@@ -55,7 +55,7 @@ export async function heartbeatPresence(req: Request, res: Response): Promise<Re
             es.started_at, es.last_seen_at
      FROM edit_sessions es
      JOIN users u ON u.id = es.user_id
-     WHERE es.entity_type = ? AND es.entity_id = ?`,
+     WHERE es.entity_type = $1 AND es.entity_id = $2`,
     [entity_type, Number(entity_id)],
   );
 
@@ -78,7 +78,7 @@ export async function getPresence(req: Request, res: Response): Promise<Response
 
   // Purge stale sessions before returning
   await db.run(
-    `DELETE FROM edit_sessions WHERE last_seen_at < datetime('now', ?)`,
+    `DELETE FROM edit_sessions WHERE last_seen_at < datetime('now', $1)`,
     [`-${PRESENCE_TIMEOUT_SECS} seconds`],
   );
 
@@ -87,7 +87,7 @@ export async function getPresence(req: Request, res: Response): Promise<Response
             es.started_at, es.last_seen_at
      FROM edit_sessions es
      JOIN users u ON u.id = es.user_id
-     WHERE es.entity_type = ? AND es.entity_id = ?`,
+     WHERE es.entity_type = $1 AND es.entity_id = $2`,
     [entity_type, Number(entity_id)],
   );
 
@@ -105,7 +105,7 @@ export async function leavePresence(req: Request, res: Response): Promise<Respon
 
   const db = getDatabase();
   await db.run(
-    'DELETE FROM edit_sessions WHERE entity_type = ? AND entity_id = ? AND user_id = ?',
+    'DELETE FROM edit_sessions WHERE entity_type = $1 AND entity_id = $2 AND user_id = $3',
     [entity_type, Number(entity_id), authReq.user.id],
   );
 
@@ -125,7 +125,7 @@ export async function getEventPresence(req: Request, res: Response): Promise<Res
   const db = getDatabase();
 
   await db.run(
-    `DELETE FROM edit_sessions WHERE last_seen_at < datetime('now', ?)`,
+    `DELETE FROM edit_sessions WHERE last_seen_at < datetime('now', $1)`,
     [`-${PRESENCE_TIMEOUT_SECS} seconds`],
   );
 
@@ -136,11 +136,11 @@ export async function getEventPresence(req: Request, res: Response): Promise<Res
      FROM edit_sessions es
      JOIN users u ON u.id = es.user_id
      WHERE es.entity_id IN (
-       SELECT id FROM tasks WHERE event_id = ?
+       SELECT id FROM tasks WHERE event_id = $1
        UNION ALL
-       SELECT id FROM timeline_activities WHERE event_id = ?
+       SELECT id FROM timeline_activities WHERE event_id = $2
        UNION ALL
-       SELECT ? AS id WHERE es.entity_type = 'event'
+       SELECT $3 AS id WHERE es.entity_type = 'event'
      )`,
     [eventId, eventId, eventId],
   );

@@ -35,7 +35,7 @@ async function loadPhotoCtx(eventId: string, documentId: string): Promise<PhotoC
   return (
     (await db.get<PhotoCtx>(
       `SELECT id, event_id, allow_comments FROM event_documents
-        WHERE id = ? AND event_id = ?`,
+        WHERE id = $1 AND event_id = $2`,
       [documentId, eventId],
     )) ?? null
   );
@@ -46,7 +46,7 @@ async function loadEventCtx(eventId: string): Promise<EventCtx | null> {
   return (
     (await db.get<EventCtx>(
       `SELECT id, gallery_comments_enabled, created_by FROM events
-        WHERE id = ? AND deleted_at IS NULL`,
+        WHERE id = $1 AND deleted_at IS NULL`,
       [eventId],
     )) ?? null
   );
@@ -69,7 +69,7 @@ export async function listComments(req: Request, res: Response): Promise<Respons
             u.display_name AS author_name, u.email AS author_email
        FROM gallery_comments c
        LEFT JOIN users u ON u.id = c.user_id
-      WHERE c.document_id = ? AND c.event_id = ?
+      WHERE c.document_id = $1 AND c.event_id = $2
       ORDER BY c.created_at ASC`,
     [documentId, eventId],
   );
@@ -126,7 +126,7 @@ export async function addComment(req: Request, res: Response): Promise<Response>
     }
     const db = getDatabase();
     const existing = await db.get<{ id: number }>(
-      'SELECT id FROM gallery_comments WHERE id = ? AND document_id = ?',
+      'SELECT id FROM gallery_comments WHERE id = $1 AND document_id = $2',
       [n, documentId],
     );
     if (!existing) return res.status(404).json({ error: 'Parent comment not found.' });
@@ -137,14 +137,14 @@ export async function addComment(req: Request, res: Response): Promise<Response>
   const result = await db.run(
     `INSERT INTO gallery_comments
        (event_id, document_id, parent_id, user_id, body)
-     VALUES (?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING id`,
     [eventId, documentId, parent, authReq.user?.id ?? null, safeBody],
   );
 
   const created = await db.get(
     `SELECT id, event_id, document_id, parent_id, user_id, body, is_hidden, created_at
-       FROM gallery_comments WHERE id = ?`,
+       FROM gallery_comments WHERE id = $1`,
     [result.lastID],
   );
   return res.status(201).json(created);
@@ -164,7 +164,7 @@ export async function moderateComment(req: Request, res: Response): Promise<Resp
 
   const db = getDatabase();
   const existing = await db.get<{ id: number; is_hidden: boolean }>(
-    'SELECT id, is_hidden FROM gallery_comments WHERE id = ? AND event_id = ?',
+    'SELECT id, is_hidden FROM gallery_comments WHERE id = $1 AND event_id = $2',
     [commentId, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Comment not found.' });
@@ -172,17 +172,17 @@ export async function moderateComment(req: Request, res: Response): Promise<Resp
   if (hide) {
     await db.run(
       `UPDATE gallery_comments
-          SET is_hidden = TRUE, hidden_by = ?, hidden_at = CURRENT_TIMESTAMP,
-              updated_at = CURRENT_TIMESTAMP, updated_by = ?
-        WHERE id = ?`,
+          SET is_hidden = TRUE, hidden_by = $1, hidden_at = CURRENT_TIMESTAMP,
+              updated_at = CURRENT_TIMESTAMP, updated_by = $2
+        WHERE id = $3`,
       [authReq.user?.id ?? null, authReq.user?.id ?? null, commentId],
     );
   } else {
     await db.run(
       `UPDATE gallery_comments
           SET is_hidden = FALSE, hidden_by = NULL, hidden_at = NULL,
-              updated_at = CURRENT_TIMESTAMP, updated_by = ?
-        WHERE id = ?`,
+              updated_at = CURRENT_TIMESTAMP, updated_by = $1
+        WHERE id = $2`,
       [authReq.user?.id ?? null, commentId],
     );
   }
@@ -199,7 +199,7 @@ export async function deleteComment(req: Request, res: Response): Promise<Respon
 
   const db = getDatabase();
   const existing = await db.get<{ id: number; user_id: number | null }>(
-    'SELECT id, user_id FROM gallery_comments WHERE id = ? AND event_id = ?',
+    'SELECT id, user_id FROM gallery_comments WHERE id = $1 AND event_id = $2',
     [commentId, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Comment not found.' });
@@ -211,6 +211,6 @@ export async function deleteComment(req: Request, res: Response): Promise<Respon
     return res.status(403).json({ error: 'Only the author, event owner, or an admin can delete.' });
   }
 
-  await db.run('DELETE FROM gallery_comments WHERE id = ?', [commentId]);
+  await db.run('DELETE FROM gallery_comments WHERE id = $1', [commentId]);
   return res.json({ message: 'Comment deleted.' });
 }

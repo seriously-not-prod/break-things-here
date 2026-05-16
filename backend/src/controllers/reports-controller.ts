@@ -73,7 +73,7 @@ export async function listReports(req: Request, res: Response): Promise<Response
   const rows = await db.all(
     `SELECT id, event_id, report_type, frequency, recipients, filters,
             next_run_at, last_run_at, is_active, created_by, created_at, updated_at
-       FROM scheduled_reports WHERE event_id = ? ORDER BY created_at DESC`,
+       FROM scheduled_reports WHERE event_id = $1 ORDER BY created_at DESC`,
     [eventId],
   );
   return res.json({ reports: rows });
@@ -109,7 +109,7 @@ export async function createReport(req: Request, res: Response): Promise<Respons
   const result = await db.run(
     `INSERT INTO scheduled_reports
        (event_id, report_type, frequency, recipients, filters, next_run_at, created_by, updated_by)
-     VALUES (?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?)
+     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8)
      RETURNING id`,
     [
       eventId,
@@ -126,7 +126,7 @@ export async function createReport(req: Request, res: Response): Promise<Respons
   const created = await db.get(
     `SELECT id, event_id, report_type, frequency, recipients, filters,
             next_run_at, last_run_at, is_active, created_at
-       FROM scheduled_reports WHERE id = ?`,
+       FROM scheduled_reports WHERE id = $1`,
     [result.lastID],
   );
   return res.status(201).json(created);
@@ -147,7 +147,7 @@ export async function updateReport(req: Request, res: Response): Promise<Respons
     is_active: boolean;
   }>(
     `SELECT id, recipients, filters, frequency, is_active
-       FROM scheduled_reports WHERE id = ? AND event_id = ?`,
+       FROM scheduled_reports WHERE id = $1 AND event_id = $2`,
     [reportId, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Report not found.' });
@@ -185,9 +185,9 @@ export async function updateReport(req: Request, res: Response): Promise<Respons
 
   await db.run(
     `UPDATE scheduled_reports
-        SET frequency = ?, recipients = ?::jsonb, filters = ?::jsonb,
-            is_active = ?, next_run_at = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND event_id = ?`,
+        SET frequency = $1, recipients = $2::jsonb, filters = $3::jsonb,
+            is_active = $4, next_run_at = $5, updated_by = $6, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7 AND event_id = $8`,
     [
       nextFrequency,
       nextRecipients ? JSON.stringify(nextRecipients) : JSON.stringify(existing.recipients ?? []),
@@ -203,7 +203,7 @@ export async function updateReport(req: Request, res: Response): Promise<Respons
   const updated = await db.get(
     `SELECT id, event_id, report_type, frequency, recipients, filters,
             next_run_at, last_run_at, is_active, updated_at
-       FROM scheduled_reports WHERE id = ?`,
+       FROM scheduled_reports WHERE id = $1`,
     [reportId],
   );
   return res.json(updated);
@@ -217,11 +217,11 @@ export async function deleteReport(req: Request, res: Response): Promise<Respons
 
   const db = getDatabase();
   const existing = await db.get<{ id: number }>(
-    'SELECT id FROM scheduled_reports WHERE id = ? AND event_id = ?',
+    'SELECT id FROM scheduled_reports WHERE id = $1 AND event_id = $2',
     [reportId, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Report not found.' });
-  await db.run('DELETE FROM scheduled_reports WHERE id = ?', [reportId]);
+  await db.run('DELETE FROM scheduled_reports WHERE id = $1', [reportId]);
   return res.json({ message: 'Report deleted.' });
 }
 
@@ -241,7 +241,7 @@ export async function renderReport(req: Request, res: Response): Promise<Respons
     report_type: ReportType;
     filters: unknown;
   }>(
-    'SELECT id, report_type, filters FROM scheduled_reports WHERE id = ? AND event_id = ?',
+    'SELECT id, report_type, filters FROM scheduled_reports WHERE id = $1 AND event_id = $2',
     [reportId, eventId],
   );
   if (!report) return res.status(404).json({ error: 'Report not found.' });
@@ -273,14 +273,14 @@ export async function recordDelivery(req: Request, res: Response): Promise<Respo
 
   const db = getDatabase();
   const report = await db.get<{ id: number; frequency: Frequency; is_active: boolean }>(
-    'SELECT id, frequency, is_active FROM scheduled_reports WHERE id = ? AND event_id = ?',
+    'SELECT id, frequency, is_active FROM scheduled_reports WHERE id = $1 AND event_id = $2',
     [reportId, eventId],
   );
   if (!report) return res.status(404).json({ error: 'Report not found.' });
 
   await db.run(
     `INSERT INTO scheduled_report_deliveries (report_id, recipients, status, error_message)
-     VALUES (?, ?::jsonb, ?, ?)`,
+     VALUES ($1, $2::jsonb, $3, $4)`,
     [reportId, JSON.stringify(recipientList), status, safeError],
   );
 
@@ -288,9 +288,9 @@ export async function recordDelivery(req: Request, res: Response): Promise<Respo
     await db.run(
       `UPDATE scheduled_reports
           SET last_run_at = CURRENT_TIMESTAMP,
-              next_run_at = ?,
+              next_run_at = $1,
               updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?`,
+        WHERE id = $2`,
       [nextRunDate(report.frequency).toISOString(), reportId],
     );
   }
@@ -310,7 +310,7 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
             COUNT(*) FILTER (WHERE status = 'Declined')::int   AS declined,
             COUNT(*) FILTER (WHERE checked_in = TRUE)::int     AS checked_in,
             COUNT(*)::int                                      AS total
-           FROM rsvps WHERE event_id = ?`,
+           FROM rsvps WHERE event_id = $1`,
         [eventId],
       );
       return { type, counts };
@@ -319,9 +319,9 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
       const totals = await db.get(
         `SELECT
             COALESCE(SUM(allocated_amount), 0)::numeric AS allocated,
-            (SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE event_id = ?)::numeric AS spent,
+            (SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE event_id = $1)::numeric AS spent,
             COUNT(*)::int AS categories
-           FROM budget_categories WHERE event_id = ?`,
+           FROM budget_categories WHERE event_id = $2`,
         [eventId, eventId],
       );
       return { type, totals };
@@ -334,7 +334,7 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
             COUNT(*) FILTER (WHERE status = 'Blocked')::int AS blocked,
             COUNT(*) FILTER (WHERE status = 'Pending')::int AS pending,
             COUNT(*)::int AS total
-           FROM tasks WHERE event_id = ?`,
+           FROM tasks WHERE event_id = $1`,
         [eventId],
       );
       return { type, counts };
@@ -346,7 +346,7 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
             e.storage_used_bytes  AS used,
             (SELECT COUNT(*) FROM event_documents WHERE event_id = e.id)::int AS document_count,
             (SELECT COUNT(*) FROM event_documents WHERE event_id = e.id AND mime_type LIKE 'image/%')::int AS image_count
-           FROM events e WHERE e.id = ?`,
+           FROM events e WHERE e.id = $1`,
         [eventId],
       );
       return { type, storage };
@@ -370,7 +370,7 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
             )::numeric                                                            AS effective_allocated
           FROM budget_categories bc
           LEFT JOIN expenses e ON e.budget_category_id = bc.id AND e.event_id = bc.event_id
-         WHERE bc.event_id = ?
+         WHERE bc.event_id = $1
          GROUP BY bc.id, bc.name, bc.allocated_amount,
                   bc.tax_rate, bc.gratuity_rate, bc.contingency_rate
          ORDER BY bc.name`,
@@ -379,8 +379,8 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
       const summary = await db.get(
         `SELECT
             COALESCE(SUM(bc.allocated_amount), 0)::numeric                       AS total_allocated,
-            COALESCE((SELECT SUM(amount) FROM expenses WHERE event_id = ?), 0)::numeric AS total_spent
-           FROM budget_categories bc WHERE bc.event_id = ?`,
+            COALESCE((SELECT SUM(amount) FROM expenses WHERE event_id = $1), 0)::numeric AS total_spent
+           FROM budget_categories bc WHERE bc.event_id = $2`,
         [eventId, eventId],
       );
       return { type, categories, summary };
@@ -394,7 +394,7 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
             COUNT(*) FILTER (WHERE approval_status = 'rejected')::int  AS rejected,
             COUNT(*)::int                                               AS total,
             COALESCE(SUM(amount) FILTER (WHERE approval_status = 'approved'), 0)::numeric AS approved_amount
-           FROM expenses WHERE event_id = ?`,
+           FROM expenses WHERE event_id = $1`,
         [eventId],
       );
       const reimbursement = await db.get(
@@ -404,7 +404,7 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
             COUNT(*) FILTER (WHERE reimbursement_status = 'reimbursed')::int    AS reimbursed,
             COUNT(*) FILTER (WHERE reimbursement_status = 'rejected')::int      AS rejected,
             COALESCE(SUM(amount) FILTER (WHERE reimbursement_status = 'reimbursed'), 0)::numeric AS reimbursed_amount
-           FROM expenses WHERE event_id = ?`,
+           FROM expenses WHERE event_id = $1`,
         [eventId],
       );
       const recent = await db.all(
@@ -412,7 +412,7 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
                 u.display_name AS submitter, e.created_at
            FROM expenses e
            LEFT JOIN users u ON u.id = e.created_by
-          WHERE e.event_id = ?
+          WHERE e.event_id = $1
           ORDER BY e.created_at DESC
           LIMIT 10`,
         [eventId],
@@ -435,7 +435,7 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
            FROM vendors v
            LEFT JOIN vendor_bookings vb ON vb.vendor_id = v.id AND vb.event_id = v.event_id
            LEFT JOIN vendor_payment_schedules vps ON vps.vendor_id = v.id AND vps.event_id = v.event_id
-          WHERE v.event_id = ?
+          WHERE v.event_id = $1
           GROUP BY v.id, v.name, vb.status, vb.total_amount
           ORDER BY contracted_amount DESC`,
         [eventId],
@@ -445,7 +445,7 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
             COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'paid'), 0)::numeric    AS total_paid,
             COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'pending'), 0)::numeric AS total_pending,
             COALESCE(SUM(vps.amount) FILTER (WHERE vps.status = 'overdue'), 0)::numeric AS total_overdue
-           FROM vendor_payment_schedules vps WHERE vps.event_id = ?`,
+           FROM vendor_payment_schedules vps WHERE vps.event_id = $1`,
         [eventId],
       );
       return { type, vendors, totals };
@@ -465,7 +465,7 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
                                    AND si.actual_cost IS NOT NULL)::int                     AS items_over_budget
            FROM shopping_lists sl
            LEFT JOIN shopping_items si ON si.list_id = sl.id
-          WHERE sl.event_id = ?
+          WHERE sl.event_id = $1
           GROUP BY sl.id, sl.name
           ORDER BY sl.created_at ASC`,
         [eventId],
@@ -476,7 +476,7 @@ async function renderPayload(eventId: string, type: ReportType): Promise<Record<
             COALESCE(SUM(si.actual_cost), 0)::numeric    AS total_actual
            FROM shopping_lists sl
            JOIN shopping_items si ON si.list_id = sl.id
-          WHERE sl.event_id = ?`,
+          WHERE sl.event_id = $1`,
         [eventId],
       );
       return { type, lists, event_total: eventTotal };

@@ -135,7 +135,7 @@ export async function buildBudgetForecast(
 ): Promise<BudgetForecast | null> {
   const event = await db.get<EventRow>(
     `SELECT id, date, end_date, COALESCE(currency_code, 'USD') AS currency_code
-     FROM events WHERE id = ? AND deleted_at IS NULL`,
+     FROM events WHERE id = $1 AND deleted_at IS NULL`,
     [eventId],
   );
   if (!event) return null;
@@ -143,7 +143,7 @@ export async function buildBudgetForecast(
 
   const categories = await db.all<CategoryRow>(
     `SELECT id, event_id, name, allocated_amount, color
-     FROM budget_categories WHERE event_id = ? ORDER BY name`,
+     FROM budget_categories WHERE event_id = $1 ORDER BY name`,
     [eventId],
   );
   const expenses = await db.all<ExpenseRow>(
@@ -151,7 +151,7 @@ export async function buildBudgetForecast(
             is_recurring, recurrence_pattern, recurrence_end_date,
             is_installment, installment_total, installment_number,
             created_at, updated_at
-     FROM expenses WHERE event_id = ?`,
+     FROM expenses WHERE event_id = $1`,
     [eventId],
   );
 

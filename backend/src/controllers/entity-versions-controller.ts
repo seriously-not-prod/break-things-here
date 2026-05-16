@@ -26,13 +26,13 @@ export async function captureEntityVersion(
   try {
     const db = getDatabase();
     const latest = await db.get<{ version: number }>(
-      'SELECT MAX(version) AS version FROM entity_versions WHERE entity_type = ? AND entity_id = ?',
+      'SELECT MAX(version) AS version FROM entity_versions WHERE entity_type = $1 AND entity_id = $2',
       [entityType, entityId],
     );
     const nextVersion = (latest?.version ?? 0) + 1;
     await db.run(
       `INSERT INTO entity_versions (entity_type, entity_id, version, snapshot, changed_by, change_note)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [entityType, entityId, nextVersion, JSON.stringify(snapshot), changedBy, changeNote ?? null],
     );
   } catch (err) {
@@ -63,7 +63,7 @@ export async function listEntityVersions(req: Request, res: Response): Promise<R
             COALESCE(u.display_name, u.email) AS changed_by_name
      FROM entity_versions ev
      LEFT JOIN users u ON u.id = ev.changed_by
-     WHERE ev.entity_type = ? AND ev.entity_id = ?
+     WHERE ev.entity_type = $1 AND ev.entity_id = $2
      ORDER BY ev.version DESC`,
     [resolvedType, entityId],
   );
@@ -83,7 +83,7 @@ export async function getEntityVersion(req: Request, res: Response): Promise<Res
     `SELECT ev.*, COALESCE(u.display_name, u.email) AS changed_by_name
      FROM entity_versions ev
      LEFT JOIN users u ON u.id = ev.changed_by
-     WHERE ev.id = ?`,
+     WHERE ev.id = $1`,
     [id],
   );
 
@@ -109,7 +109,7 @@ export async function rollbackEntityVersion(req: Request, res: Response): Promis
 
   const db = getDatabase();
   const versionRow = await db.get<{ snapshot: string; entity_type: string; entity_id: number }>(
-    'SELECT * FROM entity_versions WHERE id = ? AND entity_type = ? AND entity_id = ?',
+    'SELECT * FROM entity_versions WHERE id = $1 AND entity_type = $2 AND entity_id = $3',
     [version_id, resolvedType, entityId],
   );
 
@@ -134,8 +134,8 @@ export async function rollbackEntityVersion(req: Request, res: Response): Promis
     sets.push('version = version + 1', 'updated_at = CURRENT_TIMESTAMP');
     vals.push(entityId);
 
-    await db.run(`UPDATE tasks SET ${sets.join(', ')} WHERE id = ?`, vals);
-    const restored = await db.get('SELECT * FROM tasks WHERE id = ?', [entityId]);
+    await db.run(`UPDATE tasks SET ${sets.join(', ')} WHERE id = $1`, vals);
+    const restored = await db.get('SELECT * FROM tasks WHERE id = $1', [entityId]);
     // Capture the rollback as a new version
     await captureEntityVersion(resolvedType, Number(entityId), snapshot, authReq.user?.id ?? null, `Rolled back to version #${version_id}`);
     return res.json({ entity: restored, rolled_back_to_version: version_id });
@@ -157,8 +157,8 @@ export async function rollbackEntityVersion(req: Request, res: Response): Promis
     sets.push('version = version + 1', 'updated_at = CURRENT_TIMESTAMP');
     vals.push(entityId);
 
-    await db.run(`UPDATE timeline_activities SET ${sets.join(', ')} WHERE id = ?`, vals);
-    const restored = await db.get('SELECT * FROM timeline_activities WHERE id = ?', [entityId]);
+    await db.run(`UPDATE timeline_activities SET ${sets.join(', ')} WHERE id = $1`, vals);
+    const restored = await db.get('SELECT * FROM timeline_activities WHERE id = $1', [entityId]);
     await captureEntityVersion(resolvedType, Number(entityId), snapshot, authReq.user?.id ?? null, `Rolled back to version #${version_id}`);
     return res.json({ entity: restored, rolled_back_to_version: version_id });
   }

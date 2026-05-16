@@ -61,18 +61,18 @@ export async function listMessages(req: Request, res: Response): Promise<Respons
     const db = getDatabase();
     messages = await db.all(
       `${MESSAGE_SELECT}
-       WHERE  m.event_id = ? AND m.deleted_at IS NULL AND m.id < ?
+       WHERE  m.event_id = $1 AND m.deleted_at IS NULL AND m.id < $2
        ORDER  BY m.id DESC
-       LIMIT  ?`,
+       LIMIT  $3`,
       [eventId, before, limit],
     );
   } else {
     const db = getDatabase();
     messages = await db.all(
       `${MESSAGE_SELECT}
-       WHERE  m.event_id = ? AND m.deleted_at IS NULL
+       WHERE  m.event_id = $1 AND m.deleted_at IS NULL
        ORDER  BY m.id DESC
-       LIMIT  ?`,
+       LIMIT  $2`,
       [eventId, limit],
     );
   }
@@ -100,12 +100,12 @@ export async function postMessage(req: Request, res: Response): Promise<Response
 
   const db = getDatabase();
   const result = await db.run(
-    `INSERT INTO event_messages (event_id, sender_id, body) VALUES (?, ?, ?) RETURNING id`,
+    `INSERT INTO event_messages (event_id, sender_id, body) VALUES ($1, $2, $3) RETURNING id`,
     [eventId, authReq.user!.id, body.trim()],
   );
 
   const message = await db.get(
-    `${MESSAGE_SELECT} WHERE m.id = ?`,
+    `${MESSAGE_SELECT} WHERE m.id = $1`,
     [result.lastID],
   );
 
@@ -126,7 +126,7 @@ export async function editMessage(req: Request, res: Response): Promise<Response
 
   const db = getDatabase();
   const existing = await db.get<{ id: number; sender_id: number }>(
-    'SELECT id, sender_id FROM event_messages WHERE id = ? AND event_id = ? AND deleted_at IS NULL',
+    'SELECT id, sender_id FROM event_messages WHERE id = $1 AND event_id = $2 AND deleted_at IS NULL',
     [id, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Message not found.' });
@@ -144,11 +144,11 @@ export async function editMessage(req: Request, res: Response): Promise<Response
   }
 
   await db.run(
-    'UPDATE event_messages SET body = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    'UPDATE event_messages SET body = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
     [body.trim(), id],
   );
 
-  const updated = await db.get(`${MESSAGE_SELECT} WHERE m.id = ?`, [id]);
+  const updated = await db.get(`${MESSAGE_SELECT} WHERE m.id = $1`, [id]);
   return res.json({ message: updated });
 }
 
@@ -166,7 +166,7 @@ export async function deleteMessage(req: Request, res: Response): Promise<Respon
 
   const db = getDatabase();
   const existing = await db.get<{ id: number; sender_id: number }>(
-    'SELECT id, sender_id FROM event_messages WHERE id = ? AND event_id = ? AND deleted_at IS NULL',
+    'SELECT id, sender_id FROM event_messages WHERE id = $1 AND event_id = $2 AND deleted_at IS NULL',
     [id, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Message not found.' });
@@ -178,7 +178,7 @@ export async function deleteMessage(req: Request, res: Response): Promise<Respon
   }
 
   await db.run(
-    'UPDATE event_messages SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?',
+    'UPDATE event_messages SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1',
     [id],
   );
 

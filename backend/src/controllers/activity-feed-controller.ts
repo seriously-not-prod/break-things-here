@@ -37,7 +37,7 @@ export async function listFeed(req: Request, res: Response): Promise<void> {
               u.display_name AS actor_name
        FROM activity_feed af
        LEFT JOIN users u ON af.user_id = u.id
-       WHERE af.event_id = ?
+       WHERE af.event_id = $1
        ORDER BY af.created_at DESC
        LIMIT 50`,
       [eventId],
@@ -66,7 +66,7 @@ export async function logActivity(
     const db = getDatabase();
     await db.run(
       `INSERT INTO activity_feed (event_id, user_id, action_type, description, link)
-       VALUES (?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5)`,
       [eventId, userId ?? null, actionType, description, link ?? null],
     );
   } catch (err) {
