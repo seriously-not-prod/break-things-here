@@ -102,9 +102,28 @@ export async function validateEntraIdToken(
 
   const pem = jwkToPem(signingKey);
 
+  const lowerTenantId = tenantId.trim().toLowerCase();
+  const supportsAnyTenant =
+    lowerTenantId === 'common' || lowerTenantId === 'organizations' || lowerTenantId === 'consumers';
+
+  let issuerTenant = tenantId;
+  if (supportsAnyTenant) {
+    const rawPayload = decoded.payload;
+    const tokenPayload =
+      typeof rawPayload === 'object' && rawPayload !== null
+        ? (rawPayload as Partial<EntraTokenClaims>)
+        : undefined;
+
+    if (!tokenPayload?.tid) {
+      throw new Error('Invalid token: missing tid claim for multi-tenant issuer validation');
+    }
+
+    issuerTenant = tokenPayload.tid;
+  }
+
   const validIssuers: [string, ...string[]] = [
-    `https://login.microsoftonline.com/${tenantId}/v2.0`,
-    `https://sts.windows.net/${tenantId}/`,
+    `https://login.microsoftonline.com/${issuerTenant}/v2.0`,
+    `https://sts.windows.net/${issuerTenant}/`,
   ];
 
   const verified = jwt.verify(idToken, pem, {

@@ -1766,11 +1766,10 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
         ) THEN
           CREATE POLICY rls_rsvps_access ON rsvps
             USING (
-              user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
-              OR event_id IN (
+              event_id IN (
                 SELECT event_id FROM event_members
                 WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
-                  AND role IN ('organizer', 'admin', 'collaborator')
+                  AND LOWER(role) IN ('organizer', 'admin', 'collaborator', 'owner', 'co-organizer', 'helper')
               )
             );
         END IF;
