@@ -561,7 +561,7 @@ export async function createCategory(req: AuthRequest, res: Response): Promise<v
 
     const result = await db.run(
       `INSERT INTO budget_categories (event_id, name, allocated_amount, color, tax_rate, gratuity_rate, contingency_rate)
-       VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
       [eventId, name.trim(), parsedAmount, safeColor, parsedTaxRate, parsedGratuityRate, parsedContingencyRate],
     );
 
@@ -653,13 +653,13 @@ export async function updateCategory(req: AuthRequest, res: Response): Promise<v
 
     await db.run(
       `UPDATE budget_categories
-          SET name = ?,
-              allocated_amount = ?,
-              color = ?,
-              tax_rate = ?,
-              gratuity_rate = ?,
-              contingency_rate = ?
-        WHERE id = ?`,
+          SET name = $1,
+              allocated_amount = $2,
+              color = $3,
+              tax_rate = $4,
+              gratuity_rate = $5,
+              contingency_rate = $6
+        WHERE id = $7`,
       [
         name.trim(),
         parsedAmount,
@@ -711,7 +711,7 @@ export async function deleteCategory(req: AuthRequest, res: Response): Promise<v
     if (!event) return;
 
     const existing = await db.get(
-      'SELECT id FROM budget_categories WHERE id = ? AND event_id = ?',
+      'SELECT id FROM budget_categories WHERE id = $1 AND event_id = $2',
       [id, eventId],
     );
     if (!existing) {
@@ -719,8 +719,8 @@ export async function deleteCategory(req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    await db.run('DELETE FROM expenses WHERE category_id = ?', [id]);
-    await db.run('DELETE FROM budget_categories WHERE id = ?', [id]);
+    await db.run('DELETE FROM expenses WHERE category_id = $1', [id]);
+    await db.run('DELETE FROM budget_categories WHERE id = $1', [id]);
 
     res.status(204).end();
   } catch (error) {
@@ -965,7 +965,7 @@ async function logExpenseWorkflowEvent(
   await db.run(
     `INSERT INTO expense_workflow_events
        (event_id, expense_id, action, actor_user_id, from_state, to_state, note)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [eventId, expenseId, action, actorUserId, fromState, toState, note],
   );
 }
@@ -1032,7 +1032,7 @@ export async function createExpense(req: AuthRequest, res: Response): Promise<vo
       `INSERT INTO expenses (event_id, category_id, title, amount, payment_status, vendor_name, notes,
                               currency_code, amount_base, exchange_rate, created_by, updated_by,
                               approval_status, approved_by, approved_at, reimbursement_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id`,
       [
         eventId,
         parsedCategoryId,
@@ -1158,9 +1158,9 @@ export async function updateExpense(req: AuthRequest, res: Response): Promise<vo
     );
 
     await db.run(
-            `UPDATE expenses SET title = ?, amount = ?, category_id = ?, payment_status = ?,
-              vendor_name = ?, notes = ?, currency_code = ?, amount_base = ?, exchange_rate = ?, updated_by = ?
-        WHERE id = ?`,
+            `UPDATE expenses SET title = $1, amount = $2, category_id = $3, payment_status = $4,
+              vendor_name = $5, notes = $6, currency_code = $7, amount_base = $8, exchange_rate = $9, updated_by = $10
+        WHERE id = $11`,
       [
         title.trim(),
         parsedAmount,
@@ -1228,13 +1228,13 @@ export async function reviewExpenseApproval(req: AuthRequest, res: Response): Pr
 
     await db.run(
       `UPDATE expenses
-          SET approval_status = ?,
-              approval_note = ?,
-              approved_by = ?,
-              approved_at = ?,
-              reimbursement_status = ?,
-              updated_by = ?
-        WHERE id = ? AND event_id = ?`,
+          SET approval_status = $1,
+              approval_note = $2,
+              approved_by = $3,
+              approved_at = $4,
+              reimbursement_status = $5,
+              updated_by = $6
+        WHERE id = $7 AND event_id = $8`,
       [decision, safeNote, req.user.id, reviewedAt, nextReimbursementStatus, req.user.id, id, eventId],
     );
 
@@ -1290,10 +1290,10 @@ export async function requestExpenseReimbursement(req: AuthRequest, res: Respons
     await db.run(
       `UPDATE expenses
           SET reimbursement_status = 'requested',
-              reimbursement_requested_by = ?,
-              reimbursement_requested_at = ?,
-              updated_by = ?
-        WHERE id = ? AND event_id = ?`,
+              reimbursement_requested_by = $1,
+              reimbursement_requested_at = $2,
+              updated_by = $3
+        WHERE id = $4 AND event_id = $5`,
       [req.user.id, requestedAt, req.user.id, id, eventId],
     );
 
@@ -1365,13 +1365,13 @@ export async function resolveExpenseReimbursement(req: AuthRequest, res: Respons
 
     await db.run(
       `UPDATE expenses
-          SET reimbursement_status = ?,
-              reimbursed_by = ?,
-              reimbursed_at = ?,
-              payment_status = ?,
-              approval_note = COALESCE(?, approval_note),
-              updated_by = ?
-        WHERE id = ? AND event_id = ?`,
+          SET reimbursement_status = $1,
+              reimbursed_by = $2,
+              reimbursed_at = $3,
+              payment_status = $4,
+              approval_note = COALESCE($5, approval_note),
+              updated_by = $6
+        WHERE id = $7 AND event_id = $8`,
       [decision, reimbursedBy, reimbursedAt, nextPaymentStatus, safeNote, req.user.id, id, eventId],
     );
 
@@ -1476,7 +1476,7 @@ export async function extractExpenseReceiptOcr(req: AuthRequest, res: Response):
       const failed = await db.run(
         `INSERT INTO expense_receipt_ocr
           (event_id, expense_id, receipt_text, confidence, status, error_code, error_message, created_by)
-         VALUES (?, ?, ?, ?, 'failed', 'EXTRACTION_FAILED', 'Unable to identify receipt fields.', ?) RETURNING id`,
+         VALUES ($1, $2, $3, $4, 'failed', 'EXTRACTION_FAILED', 'Unable to identify receipt fields.', $5) RETURNING id`,
         [eventId, id, receipt_text.trim(), 0, req.user.id],
       );
       res.status(422).json({
@@ -1494,7 +1494,7 @@ export async function extractExpenseReceiptOcr(req: AuthRequest, res: Response):
       `INSERT INTO expense_receipt_ocr
         (event_id, expense_id, receipt_text, extracted_title, extracted_amount, extracted_vendor_name,
          extracted_date, confidence, status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'extracted', ?) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'extracted', $9) RETURNING id`,
       [
         eventId,
         id,
@@ -1617,22 +1617,22 @@ export async function applyExpenseReceiptOcr(req: AuthRequest, res: Response): P
 
     await db.run(
       `UPDATE expenses
-          SET title = ?,
-              amount = ?,
-              vendor_name = ?,
-              notes = ?,
-              updated_by = ?
-        WHERE id = ? AND event_id = ?`,
+          SET title = $1,
+              amount = $2,
+              vendor_name = $3,
+              notes = $4,
+              updated_by = $5
+        WHERE id = $6 AND event_id = $7`,
       [nextTitle, amountCandidate, appliedSnapshot.vendor_name, appliedSnapshot.notes, req.user.id, id, eventId],
     );
 
     await db.run(
       `UPDATE expense_receipt_ocr
           SET status = 'applied',
-              applied_by = ?,
+              applied_by = $1,
               applied_at = CURRENT_TIMESTAMP,
               updated_at = CURRENT_TIMESTAMP
-        WHERE id = ? AND event_id = ?`,
+        WHERE id = $2 AND event_id = $3`,
       [req.user.id, ocrId, eventId],
     );
 
@@ -1640,7 +1640,7 @@ export async function applyExpenseReceiptOcr(req: AuthRequest, res: Response): P
     await db.run(
       `INSERT INTO expense_reconciliation_logs
         (event_id, expense_id, ocr_id, before_data, extracted_data, applied_data, overrides_count, override_reason, created_by, updated_by)
-       VALUES (?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8, $9, $10)`,
       [
         eventId,
         id,
@@ -1706,7 +1706,7 @@ export async function deleteExpense(req: AuthRequest, res: Response): Promise<vo
     if (!event) return;
 
     const existing = await db.get(
-      'SELECT id FROM expenses WHERE id = ? AND event_id = ?',
+      'SELECT id FROM expenses WHERE id = $1 AND event_id = $2',
       [id, eventId],
     );
     if (!existing) {
@@ -1714,7 +1714,7 @@ export async function deleteExpense(req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    await db.run('DELETE FROM expenses WHERE id = ?', [id]);
+    await db.run('DELETE FROM expenses WHERE id = $1', [id]);
     res.status(204).end();
   } catch (error) {
     console.error('Error deleting expense:', error);

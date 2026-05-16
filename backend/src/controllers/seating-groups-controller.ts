@@ -74,7 +74,7 @@ export async function createGroup(req: Request, res: Response): Promise<Response
   try {
     const result = await db.run(
       `INSERT INTO seating_groups (event_id, name, seat_together, preferred_table_id, notes)
-       VALUES (?, ?, ?, ?, ?) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [eventId, name.trim(), seat_together !== false, preferred_table_id ?? null, notes?.trim() || null],
     );
     const row = await db.get<SeatingGroupRow>(
@@ -109,7 +109,7 @@ export async function updateGroup(req: Request, res: Response): Promise<Response
   params.push(id, eventId);
   const db = getDatabase();
   await db.run(
-    `UPDATE seating_groups SET ${fields.join(', ')} WHERE id = ? AND event_id = ?`,
+    `UPDATE seating_groups SET ${fields.join(', ')} WHERE id = $1 AND event_id = $2`,
     params,
   );
   const row = await db.get<SeatingGroupRow>(
@@ -128,10 +128,10 @@ export async function deleteGroup(req: Request, res: Response): Promise<Response
   if (!event) return res as Response;
   const db = getDatabase();
   await db.run(
-    `UPDATE rsvps SET seating_group_id = NULL WHERE event_id = ? AND seating_group_id = ?`,
+    `UPDATE rsvps SET seating_group_id = NULL WHERE event_id = $1 AND seating_group_id = $2`,
     [eventId, id],
   );
-  await db.run(`DELETE FROM seating_groups WHERE id = ? AND event_id = ?`, [id, eventId]);
+  await db.run(`DELETE FROM seating_groups WHERE id = $1 AND event_id = $2`, [id, eventId]);
   return res.json({ deleted: true });
 }
 
@@ -160,14 +160,14 @@ export async function setGroupMembers(req: Request, res: Response): Promise<Resp
 
   // Clear existing assignments for the group, then re-assign the requested ids
   await db.run(
-    `UPDATE rsvps SET seating_group_id = NULL WHERE event_id = ? AND seating_group_id = ?`,
+    `UPDATE rsvps SET seating_group_id = NULL WHERE event_id = $1 AND seating_group_id = $2`,
     [eventId, id],
   );
   if (safeIds.length > 0) {
     const placeholders = safeIds.map(() => '?').join(', ');
     await db.run(
-      `UPDATE rsvps SET seating_group_id = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE event_id = ? AND id IN (${placeholders})`,
+      `UPDATE rsvps SET seating_group_id = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE event_id = $2 AND id IN (${placeholders})`,
       [id, eventId, ...safeIds],
     );
   }
@@ -221,11 +221,11 @@ export async function seatGroupAtTable(req: Request, res: Response): Promise<Res
   // Remove members from any other tables first; then assign to target table.
   for (const m of members) {
     await db.run(
-      `DELETE FROM seating_assignments WHERE rsvp_id = ?`,
+      `DELETE FROM seating_assignments WHERE rsvp_id = $1`,
       [m.id],
     );
     await db.run(
-      `INSERT INTO seating_assignments (table_id, rsvp_id) VALUES (?, ?)
+      `INSERT INTO seating_assignments (table_id, rsvp_id) VALUES ($1, $2)
        ON CONFLICT (table_id, rsvp_id) DO NOTHING`,
       [tableId, m.id],
     );

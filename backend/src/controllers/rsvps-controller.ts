@@ -73,13 +73,13 @@ async function recomputeCompleteness(rsvpId: number): Promise<void> {
   );
   if (!row) return;
   const score = computeProfileCompleteness(row);
-  await db.run(`UPDATE rsvps SET profile_completeness = ? WHERE id = ?`, [score, rsvpId]);
+  await db.run(`UPDATE rsvps SET profile_completeness = $1 WHERE id = $2`, [score, rsvpId]);
 }
 
 async function recomputeCanonicalStatus(rsvpId: number, override?: CanonicalRsvpStatus): Promise<void> {
   const db = getDatabase();
   if (override) {
-    await db.run(`UPDATE rsvps SET canonical_status = ? WHERE id = ?`, [override, rsvpId]);
+    await db.run(`UPDATE rsvps SET canonical_status = $1 WHERE id = $2`, [override, rsvpId]);
     return;
   }
   const row = await db.get<{ status: string; waitlist_position: number | null; checked_in: boolean }>(
@@ -91,7 +91,7 @@ async function recomputeCanonicalStatus(rsvpId: number, override?: CanonicalRsvp
     waitlisted: row.waitlist_position !== null,
     checkedIn: row.checked_in,
   });
-  await db.run(`UPDATE rsvps SET canonical_status = ? WHERE id = ?`, [canonical, rsvpId]);
+  await db.run(`UPDATE rsvps SET canonical_status = $1 WHERE id = $2`, [canonical, rsvpId]);
 }
 
 /**
@@ -176,7 +176,7 @@ export async function listRsvps(req: Request, res: Response): Promise<Response> 
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
   const rows = await db.all(
-    'SELECT * FROM rsvps WHERE event_id = ? ORDER BY created_at DESC',
+    'SELECT * FROM rsvps WHERE event_id = $1 ORDER BY created_at DESC',
     [eventId],
   );
   return res.json({ rsvps: rows });
@@ -458,7 +458,7 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
   fields.push('updated_at = CURRENT_TIMESTAMP');
   params.push(id);
 
-  await db.run(`UPDATE rsvps SET ${fields.join(', ')} WHERE id = ?`, params);
+  await db.run(`UPDATE rsvps SET ${fields.join(', ')} WHERE id = $1`, params);
   await recomputeCanonicalStatus(Number(id));
   await recomputeCompleteness(Number(id));
   const updated = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = ?', [id]);
@@ -495,7 +495,7 @@ export async function deleteRsvp(req: Request, res: Response): Promise<Response>
   const rsvp = await db.get<Pick<RsvpRow, 'id'>>('SELECT id FROM rsvps WHERE id = ? AND event_id = ?', [id, eventId]);
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
-  await db.run('DELETE FROM rsvps WHERE id = ?', [id]);
+  await db.run('DELETE FROM rsvps WHERE id = $1', [id]);
   // Free capacity may have opened a slot — promote the next waitlisted guest.
   void runPromotion(Number(eventId)).catch((err) =>
     console.error('Waitlist promotion failed after RSVP delete:', err),
@@ -596,9 +596,9 @@ export async function checkInGuest(req: Request, res: Response): Promise<Respons
   await db.run(
     `UPDATE rsvps SET checked_in = TRUE, checked_in_at = CURRENT_TIMESTAMP,
                      canonical_status = 'checked_in',
-                     late_arrival = ?, arrival_delay_minutes = ?,
+                     late_arrival = $1, arrival_delay_minutes = $2,
                      updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
+     WHERE id = $3`,
     [isLate, delayMin, id],
   );
 
@@ -606,7 +606,7 @@ export async function checkInGuest(req: Request, res: Response): Promise<Respons
 
   await db.run(
     `INSERT INTO attendance_events (event_id, rsvp_id, action, source, actor_id, metadata)
-     VALUES (?, ?, 'checked_in', 'manual', ?, ?::jsonb)`,
+     VALUES ($1, $2, 'checked_in', 'manual', $3, $4::jsonb)`,
     [eventId, id, authReq.user?.id ?? null, JSON.stringify({ late: isLate, delay_minutes: delayMin })],
   ).catch(() => undefined);
 
@@ -699,8 +699,8 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
                             address_line1, city, postal_code, country,
                             emergency_contact_name, emergency_contact_phone,
                             meal_choice)
-         VALUES (?, ?, ?, ?, ?, ?, 'import', ?, ?, ?, ?, ?, ?,
-                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES ($1, $2, $3, $4, $5, $6, 'import', $7, $8, $9, $10, $11, $12,
+                 $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
          ON CONFLICT (event_id, email) DO NOTHING
          RETURNING id`,
         [

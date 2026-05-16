@@ -93,7 +93,7 @@ async function recordEventAudit(
   description: string,
 ): Promise<void> {
   await db.run(
-    'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES (?, ?, ?, ?, ?)',
+    'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
     [req.user?.id ?? null, req.user?.email ?? null, action, description, req.ip ?? null],
   );
 }
@@ -297,7 +297,7 @@ export async function getEventById(req: Request, res: Response): Promise<void> {
       SELECT ${EVENT_SELECT_COLUMNS}
       FROM events e
       LEFT JOIN users u ON e.created_by = u.id
-      WHERE e.id = ? AND e.deleted_at IS NULL
+      WHERE e.id = $1 AND e.deleted_at IS NULL
     `, [id]);
     
     if (!event) {
@@ -309,16 +309,16 @@ export async function getEventById(req: Request, res: Response): Promise<void> {
       `SELECT t.*, COALESCE(u.display_name, t.assignee_name) AS assignee_name
        FROM tasks t
        LEFT JOIN users u ON t.assigned_user_id = u.id
-       WHERE t.event_id = ?
+       WHERE t.event_id = $1
        ORDER BY t.due_date ASC, t.priority ASC`,
       [id],
     );
-    const rsvps = await db.all('SELECT * FROM rsvps WHERE event_id = ? ORDER BY created_at DESC', [id]);
+    const rsvps = await db.all('SELECT * FROM rsvps WHERE event_id = $1 ORDER BY created_at DESC', [id]);
     const members = await db.all(
       `SELECT em.user_id, em.role, em.joined_at, u.display_name, u.email
        FROM event_members em
        JOIN users u ON u.id = em.user_id
-       WHERE em.event_id = ? AND u.deleted_at IS NULL
+       WHERE em.event_id = $1 AND u.deleted_at IS NULL
        ORDER BY em.joined_at DESC`,
       [id],
     );
@@ -412,16 +412,16 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
     const result = await db.run(`
       INSERT INTO events (title, date, location, description, capacity, status, event_type, is_public, tags,
                           latitude, longitude, waitlist_enabled, created_by, updated_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING id
     `, [title, date, location, description ?? null, capacity ?? null, initialStatus,
         event_type ?? 'Other', is_public ?? false, tags ?? null,
         lat, lng, waitlist_enabled ?? false,
         userId, userId]);
     
-    const newEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = ?`, [result.lastID]);
+    const newEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`, [result.lastID]);
     await db.run(
-      'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
       [userId, userEmail ?? null, 'event.created', `Created event #${result.lastID}: ${title}`, authReq.ip ?? null],
     );
     
@@ -470,7 +470,7 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
     const location = _location || venue_name;
 
     // Check if event exists
-    const existingEvent = await db.get('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL', [id]);
+    const existingEvent = await db.get('SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!existingEvent) {
       res.status(404).json({ error: 'Event not found' });
       return;
@@ -558,12 +558,12 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
 
     await db.run(`
       UPDATE events
-      SET title = ?, date = ?, location = ?, description = ?, capacity = ?, status = ?,
-          event_type = ?, is_public = ?, tags = ?, latitude = ?, longitude = ?, waitlist_enabled = ?,
-          gallery_comments_enabled = ?, gallery_guest_uploads = ?, gallery_public = ?,
-          storage_quota_bytes = ?,
-          updated_by = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      SET title = $1, date = $2, location = $3, description = $4, capacity = $5, status = $6,
+          event_type = $7, is_public = $8, tags = $9, latitude = $10, longitude = $11, waitlist_enabled = $12,
+          gallery_comments_enabled = $13, gallery_guest_uploads = $14, gallery_public = $15,
+          storage_quota_bytes = $16,
+          updated_by = $17, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $18
     `, [
       title || existingEvent.title,
       date || existingEvent.date,
@@ -591,9 +591,9 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       id,
     ]);
     
-    const updatedEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = ?`, [id]);
+    const updatedEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`, [id]);
     await db.run(
-      'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
       [userId, authReq.user?.email ?? null, 'event.updated', `Updated event #${id}: ${updatedEvent?.title ?? existingEvent.title}`, authReq.ip ?? null],
     );
     
@@ -619,7 +619,7 @@ export async function deleteEvent(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    const event = await db.get('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL', [id]);
+    const event = await db.get('SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!event) {
       res.status(404).json({ error: 'Event not found' });
       return;
@@ -630,9 +630,9 @@ export async function deleteEvent(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    await db.run('UPDATE events SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+    await db.run('UPDATE events SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
     await db.run(
-      'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
       [userId, authReq.user?.email ?? null, 'event.deleted', `Soft-deleted event #${id}: ${event.title}`, authReq.ip ?? null],
     );
     
@@ -661,7 +661,7 @@ export async function cloneEvent(req: Request, res: Response): Promise<void> {
     }
 
     const source = await db.get(
-      'SELECT * FROM events WHERE id = ? AND deleted_at IS NULL',
+      'SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL',
       [id],
     );
     if (!source) {
@@ -673,7 +673,7 @@ export async function cloneEvent(req: Request, res: Response): Promise<void> {
       `INSERT INTO events
          (title, date, location, description, capacity, status,
           cover_image_url, event_type, is_public, rsvp_deadline, tags, created_by)
-       VALUES (?, ?, ?, ?, ?, 'Draft', ?, ?, ?, ?, ?, ?)
+       VALUES ($1, $2, $3, $4, $5, 'Draft', $6, $7, $8, $9, $10, $11)
        RETURNING id`,
       [
         `Copy of ${source.title as string}`,
@@ -694,14 +694,14 @@ export async function cloneEvent(req: Request, res: Response): Promise<void> {
 
     if (req.query['includeTasks'] === 'true') {
       const tasks = await db.all(
-        'SELECT * FROM tasks WHERE event_id = ?',
+        'SELECT * FROM tasks WHERE event_id = $1',
         [id],
       );
       for (const task of tasks as Record<string, unknown>[]) {
         await db.run(
           `INSERT INTO tasks
              (event_id, title, notes, assignee_name, due_date, status, priority, created_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
           [
             newEventId,
             task['title'],
@@ -716,7 +716,7 @@ export async function cloneEvent(req: Request, res: Response): Promise<void> {
       }
     }
 
-    const newEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = ?`, [newEventId]);
+    const newEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`, [newEventId]);
 
     await recordEventAudit(
       db,
@@ -751,7 +751,7 @@ export async function setCoverImage(req: Request, res: Response): Promise<void> 
     }
 
     const event = await db.get(
-      'SELECT * FROM events WHERE id = ? AND deleted_at IS NULL',
+      'SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL',
       [id],
     );
     if (!event) {
@@ -793,13 +793,13 @@ export async function setCoverImage(req: Request, res: Response): Promise<void> 
 
     await db.run(
       `UPDATE events
-          SET cover_image_url = ?, cover_image_sizes = ?::jsonb,
-              updated_by = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?`,
+          SET cover_image_url = $1, cover_image_sizes = $2::jsonb,
+              updated_by = $3, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $4`,
       [cover_image_url, renditions ? JSON.stringify(renditions) : null, userId, id],
     );
 
-    const updated = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = ?`, [id]);
+    const updated = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`, [id]);
     res.json(updated);
   } catch (error) {
     console.error('Error setting cover image:', error);
@@ -829,7 +829,7 @@ export async function archiveEvent(req: Request, res: Response): Promise<void> {
     }
 
     const event = await db.get(
-      'SELECT id, title, created_by, archived_at FROM events WHERE id = ? AND deleted_at IS NULL',
+      'SELECT id, title, created_by, archived_at FROM events WHERE id = $1 AND deleted_at IS NULL',
       [id],
     );
     if (!event) {
@@ -855,9 +855,9 @@ export async function archiveEvent(req: Request, res: Response): Promise<void> {
 
     await db.run(
       `UPDATE events
-         SET archived_at = CURRENT_TIMESTAMP, archived_by = ?, archive_reason = ?,
-             updated_by = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
+         SET archived_at = CURRENT_TIMESTAMP, archived_by = $1, archive_reason = $2,
+             updated_by = $3, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4`,
       [user.id, safeReason, user.id, id],
     );
     await recordEventAudit(
@@ -868,7 +868,7 @@ export async function archiveEvent(req: Request, res: Response): Promise<void> {
     );
 
     const updated = await db.get(
-      `SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = ?`,
+      `SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`,
       [id],
     );
     res.json(updated);
@@ -894,7 +894,7 @@ export async function unarchiveEvent(req: Request, res: Response): Promise<void>
     }
 
     const event = await db.get(
-      'SELECT id, title, created_by, archived_at FROM events WHERE id = ?',
+      'SELECT id, title, created_by, archived_at FROM events WHERE id = $1',
       [id],
     );
     if (!event) {
@@ -915,8 +915,8 @@ export async function unarchiveEvent(req: Request, res: Response): Promise<void>
     await db.run(
       `UPDATE events
          SET archived_at = NULL, archived_by = NULL, archive_reason = NULL,
-             updated_by = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
+             updated_by = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
       [user.id, id],
     );
     await recordEventAudit(
@@ -927,7 +927,7 @@ export async function unarchiveEvent(req: Request, res: Response): Promise<void>
     );
 
     const updated = await db.get(
-      `SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = ?`,
+      `SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`,
       [id],
     );
     res.json(updated);
@@ -957,15 +957,15 @@ export async function restoreEvent(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const event = await db.get('SELECT * FROM events WHERE id = ? AND deleted_at IS NOT NULL', [id]);
+    const event = await db.get('SELECT * FROM events WHERE id = $1 AND deleted_at IS NOT NULL', [id]);
     if (!event) {
       res.status(404).json({ error: 'Event not found' });
       return;
     }
 
-    await db.run('UPDATE events SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+    await db.run('UPDATE events SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
     await db.run(
-      'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
       [user.id, user.email, 'event.restored', `Restored event #${id}: ${event.title}`, authReq.ip ?? null],
     );
 

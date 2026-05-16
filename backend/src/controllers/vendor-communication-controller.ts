@@ -39,7 +39,7 @@ export async function listVendorCommunication(req: Request, res: Response): Prom
   const db = getDatabase();
 
   const vendor = await db.get<{ id: number }>(
-    `SELECT id FROM vendors WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM vendors WHERE id = $1 AND event_id = $2`,
     [vendorId, eventId],
   );
   if (!vendor) return res.status(404).json({ error: 'Vendor not found in this event.' });
@@ -48,7 +48,7 @@ export async function listVendorCommunication(req: Request, res: Response): Prom
     `SELECT vcl.*, u.display_name AS author_name
      FROM vendor_communication_log vcl
      LEFT JOIN users u ON u.id = vcl.sent_by
-     WHERE vcl.vendor_id = ? AND vcl.event_id = ?
+     WHERE vcl.vendor_id = $1 AND vcl.event_id = $2
      ORDER BY vcl.created_at DESC`,
     [vendorId, eventId],
   );
@@ -83,14 +83,14 @@ export async function addVendorCommunication(req: Request, res: Response): Promi
   const db = getDatabase();
 
   const vendor = await db.get<{ id: number }>(
-    `SELECT id FROM vendors WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM vendors WHERE id = $1 AND event_id = $2`,
     [vendorId, eventId],
   );
   if (!vendor) return res.status(404).json({ error: 'Vendor not found in this event.' });
 
   const result = await db.run(
     `INSERT INTO vendor_communication_log (event_id, vendor_id, type, subject, body, sent_by)
-     VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
     [eventId, vendorId, type, subject.trim(), body?.trim() ?? null, authReq.user.id],
   );
 
@@ -98,7 +98,7 @@ export async function addVendorCommunication(req: Request, res: Response): Promi
     `SELECT vcl.*, u.display_name AS author_name
      FROM vendor_communication_log vcl
      LEFT JOIN users u ON u.id = vcl.sent_by
-     WHERE vcl.id = ?`,
+     WHERE vcl.id = $1`,
     [result.lastID],
   );
 
@@ -118,7 +118,7 @@ export async function deleteVendorCommunication(req: Request, res: Response): Pr
 
   const db = getDatabase();
   const log = await db.get<VendorCommLog>(
-    `SELECT * FROM vendor_communication_log WHERE id = ? AND vendor_id = ? AND event_id = ?`,
+    `SELECT * FROM vendor_communication_log WHERE id = $1 AND vendor_id = $2 AND event_id = $3`,
     [logId, vendorId, eventId],
   );
   if (!log) return res.status(404).json({ error: 'Communication log entry not found.' });
@@ -130,7 +130,7 @@ export async function deleteVendorCommunication(req: Request, res: Response): Pr
     return res.status(403).json({ error: 'Not authorised to delete this communication log entry.' });
   }
 
-  await db.run(`DELETE FROM vendor_communication_log WHERE id = ?`, [logId]);
+  await db.run(`DELETE FROM vendor_communication_log WHERE id = $1`, [logId]);
   return res.json({ message: 'Communication log entry deleted.' });
 }
 
@@ -166,7 +166,8 @@ export async function compareVendors(req: Request, res: Response): Promise<Respo
 
   const db = getDatabase();
 
-  const placeholders = vendorIds.map(() => '?').join(',');
+  const placeholders = vendorIds.map((_, i) => `$${i + 1}`).join(',');
+  const eventIdParam = vendorIds.length + 1;
   const vendors = await db.all(
     `SELECT
        v.*,
@@ -174,7 +175,7 @@ export async function compareVendors(req: Request, res: Response): Promise<Respo
        MAX(vcl.created_at) AS last_contact_at
      FROM vendors v
      LEFT JOIN vendor_communication_log vcl ON vcl.vendor_id = v.id
-     WHERE v.id IN (${placeholders}) AND v.event_id = ?
+     WHERE v.id IN (${placeholders}) AND v.event_id = $${eventIdParam}
      GROUP BY v.id
      ORDER BY v.name ASC`,
     [...vendorIds, eventId],

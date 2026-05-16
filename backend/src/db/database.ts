@@ -32,6 +32,15 @@ function convertPlaceholders(sql: string): string {
   return sql.replace(/\?/g, () => `$${++index}`);
 }
 
+
+const SLOW_QUERY_MS = 1000;
+
+function logSlowQuery(sql: string, durationMs: number): void {
+  if (durationMs >= SLOW_QUERY_MS) {
+    console.warn(`[SLOW QUERY ${durationMs}ms] ${sql.trim().substring(0, 200)}`);
+  }
+}
+
 // Postgres wrapper (keeps existing behaviour)
 class PgWrapper {
   private pool: pg.Pool;
@@ -42,20 +51,26 @@ class PgWrapper {
 
   async get<T = DatabaseRow>(sql: string, params?: QueryParams): Promise<T | undefined> {
     const converted = convertPlaceholders(sql);
+    const t0 = Date.now();
     const result = await this.pool.query<DatabaseRow>(converted, params ?? []);
+    logSlowQuery(sql, Date.now() - t0);
     return result.rows[0] as T | undefined;
   }
 
   async all<T = DatabaseRow>(sql: string, params?: QueryParams): Promise<T[]> {
     const converted = convertPlaceholders(sql);
+    const t0 = Date.now();
     const result = await this.pool.query<DatabaseRow>(converted, params ?? []);
+    logSlowQuery(sql, Date.now() - t0);
     return result.rows as T[];
   }
 
   async run(sql: string, params?: QueryParams): Promise<RunResult> {
     const trimmedUpper = sql.trim().toUpperCase();
     const converted = convertPlaceholders(sql);
+    const t0 = Date.now();
     const result = await this.pool.query<{ id?: number }>(converted, params ?? []);
+    logSlowQuery(sql, Date.now() - t0);
     const lastID = /\bRETURNING\b/.test(trimmedUpper) ? result.rows[0]?.id : undefined;
     return { lastID, changes: result.rowCount ?? 0 };
   }
@@ -710,7 +725,11 @@ export async function initializeDatabase(): Promise<DatabaseAdapter> {
   }
 
   const { Pool } = pg;
-  pool = new Pool({ connectionString });
+  pool = new Pool({
+    connectionString,
+    statement_timeout: 30000,
+    query_timeout: 30000,
+  });
   const client = await pool.connect();
   client.release();
   dbWrapper = new PgWrapper(pool);

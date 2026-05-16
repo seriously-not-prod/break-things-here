@@ -203,7 +203,7 @@ async function bulkSend(
     try {
       const logResult = await db.run(
         `INSERT INTO communication_log (event_id, guest_email, communication_type, subject, content, status, sent_by, sent_at)
-         VALUES (?, ?, ?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP) RETURNING id`,
+         VALUES ($1, $2, $3, $4, $5, 'pending', $6, CURRENT_TIMESTAMP) RETURNING id`,
         [eventId, rsvp.email, type, personalisedSubject, finalText, senderUserId],
       );
       logId = logResult.lastID;
@@ -233,7 +233,7 @@ async function bulkSend(
       sent++;
       if (logId) {
         try {
-          await db.run('UPDATE communication_log SET status = ? WHERE id = ?', ['sent', logId]);
+          await db.run('UPDATE communication_log SET status = $1 WHERE id = $2', ['sent', logId]);
         } catch {
           /* swallow — best-effort, send already succeeded */
         }
@@ -241,7 +241,7 @@ async function bulkSend(
     } catch {
       if (logId) {
         try {
-          await db.run('UPDATE communication_log SET status = ? WHERE id = ?', ['failed', logId]);
+          await db.run('UPDATE communication_log SET status = $1 WHERE id = $2', ['failed', logId]);
         } catch {
           /* swallow — original failure already counted */
         }
@@ -282,7 +282,7 @@ export async function listCommunicationLog(req: Request, res: Response): Promise
        cl.sent_at
      FROM communication_log cl
      LEFT JOIN users u ON u.id = cl.sent_by
-     WHERE cl.event_id = ?
+     WHERE cl.event_id = $1
      ORDER BY cl.sent_at DESC`,
     [eventId],
   );
