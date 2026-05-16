@@ -127,7 +127,8 @@ beforeEach(async () => {
       role_id INTEGER NOT NULL DEFAULT 1,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      deleted_at TIMESTAMP
+      deleted_at TIMESTAMP,
+      deactivated_at TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS sessions (
       id SERIAL PRIMARY KEY,

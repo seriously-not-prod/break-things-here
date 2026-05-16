@@ -947,6 +947,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   `);
 
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS cover_image_url TEXT`);
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMP`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_type TEXT DEFAULT 'Other'`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMP`);

@@ -40,7 +40,7 @@ export async function listChatMessages(req: Request, res: Response): Promise<Res
     params.push(before);
   }
 
-  query += ` ORDER BY m.created_at DESC LIMIT $1`;
+  query += ` ORDER BY m.created_at DESC LIMIT ?`;
   params.push(pageLimit);
 
   const messages = await db.all(query, params);

@@ -6,6 +6,14 @@ export const apiLimiter = rateLimit({
   skip: (req) => req.path.startsWith('/auth/'),
 });
 
+export const healthLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many health check requests.' },
+});
+
 export const csrfLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,

@@ -258,7 +258,7 @@ export async function getStoreSuggestionRecommendations(req: Request, res: Respo
      WHERE ${whereClause}
        AND ss.status != 'rejected'
      ORDER BY rank_score DESC, ss.last_used_at DESC NULLS LAST, ss.created_at DESC
-     LIMIT $1`,
+     LIMIT ?`,
     [...params, parsedLimit],
   );
 

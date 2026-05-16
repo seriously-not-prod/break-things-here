@@ -143,7 +143,7 @@ async function bulkSend(
   if (rsvpIds && rsvpIds.length > 0) {
     const placeholders = rsvpIds.map(() => '?').join(', ');
     recipients = await db.all<RsvpRow>(
-      `SELECT id, name, email, status, unsubscribed_at FROM rsvps WHERE event_id = $1 AND id IN (${placeholders})`,
+      `SELECT id, name, email, status, unsubscribed_at FROM rsvps WHERE event_id = ? AND id IN (${placeholders})`,
       [eventId, ...rsvpIds],
     );
   } else {

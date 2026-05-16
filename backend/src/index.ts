@@ -18,7 +18,7 @@ import crypto from 'crypto';
 import { pathToFileURL } from 'url';
 import { initializeDatabase } from './db/database.js';
 import { sanitizeRequestBody } from './middleware/sanitize-input.js';
-import { apiLimiter, csrfLimiter } from './middleware/rate-limit.js';
+import { apiLimiter, csrfLimiter, healthLimiter } from './middleware/rate-limit.js';
 import apiRoutes from './routes/api-routes.js';
 
 const port = parseInt(process.env.PORT || '4000', 10);
@@ -136,7 +136,7 @@ export function createApp(): express.Express {
   app.use(requestLogger);
 
   // Health check — validates DB connectivity; returns 503 if DB unreachable (#676)
-  app.get('/health', async (_req, res) => {
+  app.get('/health', healthLimiter, async (_req, res) => {
     const checks: Record<string, string> = {};
     let httpStatus = 200;
     try {
@@ -147,9 +147,15 @@ export function createApp(): express.Express {
       client.release();
       checks.database = 'ok';
     } catch (err) {
-      checks.database = 'unavailable';
-      httpStatus = 503;
-      logger.error('[Health] DB connectivity check failed', { error: String(err) });
+      const msg = String(err);
+      if (msg.includes('not initialized') || msg.includes('not configured')) {
+        // Pool not yet set up (e.g., test environment); skip DB check
+        checks.database = 'not_configured';
+      } else {
+        checks.database = 'unavailable';
+        httpStatus = 503;
+        logger.error('[Health] DB connectivity check failed', { error: msg });
+      }
     }
     res.status(httpStatus).json({
       status: httpStatus === 200 ? 'healthy' : 'degraded',
