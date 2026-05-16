@@ -158,5 +158,29 @@ describe('Refresh Token HttpOnly Cookie (#249 #267 #289 #290)', () => {
       expect(refreshRes.statusCode).toBe(200);
       expect(refreshRes.body).toHaveProperty('accessToken');
     });
+
+    it('does not return accessToken in production response body', async () => {
+      const previousNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      await seedVerifiedUser('produser@test.com', 'Pass1234');
+      const loginRes = makeRes();
+      await login(makeReq({ email: 'produser@test.com', password: 'Pass1234' }), loginRes);
+
+      const cookieToken = loginRes.cookies['refreshToken']?.value;
+      expect(cookieToken).toBeDefined();
+
+      const refreshRes = makeRes();
+      await refreshTokenEndpoint(makeReq({}, { refreshToken: cookieToken }), refreshRes);
+
+      expect(refreshRes.statusCode).toBe(200);
+      expect(refreshRes.body).not.toHaveProperty('accessToken');
+
+      if (previousNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = previousNodeEnv;
+      }
+    });
   });
 });

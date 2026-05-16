@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
-import { isEntraEnabled, getEntraConfig, isMfaRequired } from '../config/entra.js';
+import { isEntraEnabled, getEntraConfig, isMfaRequired, resolveRoleFromEntraGroups } from '../config/entra.js';
 import { validateEntraIdToken } from '../utils/entra-token.js';
 import { getDatabase } from '../db/database.js';
 import { generateTokens } from '../middleware/auth.js';
@@ -125,6 +125,13 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
 
   const db = getDatabase();
 
+  const requestedRoleName = resolveRoleFromEntraGroups(Array.isArray(claims.groups) ? claims.groups : []);
+  let requestedRoleId: number | null = null;
+  if (requestedRoleName) {
+    const role = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [requestedRoleName]);
+    requestedRoleId = role?.id ?? null;
+  }
+
   let user = await db.get<UserRow>(
     'SELECT id, email, role_id, entra_oid FROM users WHERE entra_oid = $1 AND deleted_at IS NULL',
     [entraOid],
@@ -138,9 +145,17 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
 
     if (user) {
       await db.run(
-        `UPDATE users SET entra_oid = $1, auth_provider = 'entra', updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-        [entraOid, user.id],
+        `UPDATE users
+         SET entra_oid = $1,
+             auth_provider = 'entra',
+             role_id = COALESCE($2, role_id),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        [entraOid, requestedRoleId, user.id],
       );
+      if (requestedRoleId !== null) {
+        user.role_id = requestedRoleId;
+      }
     }
   }
 
@@ -162,6 +177,11 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
       'SELECT id, email, role_id, entra_oid FROM users WHERE id = $1',
       [result.lastID],
     );
+
+    if (user && requestedRoleId !== null) {
+      await db.run('UPDATE users SET role_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [requestedRoleId, user.id]);
+      user.role_id = requestedRoleId;
+    }
   }
 
   if (!user) {

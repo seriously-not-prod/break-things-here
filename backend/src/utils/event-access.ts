@@ -8,8 +8,31 @@ interface EventAccessRequest {
 interface EventAccessOptions {
   allowMembers?: boolean;
   ownerOnly?: boolean;
+  minEventRole?: EventMemberRole;
   notFoundMessage?: string;
   forbiddenMessage?: string;
+}
+
+export type EventMemberRole = 'Owner' | 'Co-Organizer' | 'Helper' | 'Guest';
+
+const EVENT_ROLE_WEIGHT: Record<EventMemberRole, number> = {
+  Owner: 4,
+  'Co-Organizer': 3,
+  Helper: 2,
+  Guest: 1,
+};
+
+function normalizeEventRole(role: string | null | undefined): EventMemberRole | null {
+  const value = (role ?? '').trim().toLowerCase();
+  if (value === 'owner') return 'Owner';
+  if (value === 'co-organizer' || value === 'coorganizer') return 'Co-Organizer';
+  if (value === 'helper' || value === 'member') return 'Helper';
+  if (value === 'guest') return 'Guest';
+  return null;
+}
+
+function hasMinimumEventRole(actual: EventMemberRole, required: EventMemberRole): boolean {
+  return EVENT_ROLE_WEIGHT[actual] >= EVENT_ROLE_WEIGHT[required];
 }
 
 export interface AuthorizedEvent {
@@ -59,13 +82,20 @@ export async function requireEventAccess(
   }
 
   if (options.allowMembers) {
-    const membership = await db.get<{ user_id: number }>(
-      'SELECT user_id FROM event_members WHERE event_id = $1 AND user_id = $2',
+    const membership = await db.get<{ user_id: number; role: string }>(
+      'SELECT user_id, role FROM event_members WHERE event_id = $1 AND user_id = $2',
       [eventId, req.user.id],
     );
 
     if (membership) {
-      return event;
+      if (!options.minEventRole) {
+        return event;
+      }
+
+      const normalized = normalizeEventRole(membership.role);
+      if (normalized && hasMinimumEventRole(normalized, options.minEventRole)) {
+        return event;
+      }
     }
   }
 

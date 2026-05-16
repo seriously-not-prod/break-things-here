@@ -28,6 +28,8 @@ export interface EntraTokenClaims {
   nonce?: string;
   /** Authentication methods references — 'mfa' is present when MFA was completed (#568) */
   amr?: string[];
+  /** Optional Entra group object IDs for RBAC mapping. */
+  groups?: string[];
 }
 
 let _jwksCache: { keys: JwksKey[]; fetchedAt: number } | null = null;

@@ -449,10 +449,15 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
     severity: 'INFO',
   });
 
-  return res.status(200).json({
+  const payload: { message: string; accessToken?: string } = {
     message: 'Token refreshed successfully.',
-    accessToken: newAccessToken,
-  });
+  };
+
+  if (process.env.NODE_ENV !== 'production') {
+    payload.accessToken = newAccessToken;
+  }
+
+  return res.status(200).json(payload);
 }
 
 /**
