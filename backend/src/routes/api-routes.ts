@@ -67,7 +67,7 @@ import * as qrCheckinController from '../controllers/qr-checkin-controller.js';
 import * as attendanceBoardController from '../controllers/attendance-board-controller.js';
 import * as seatingGroupsController from '../controllers/seating-groups-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
-import { apiLimiter, createAuthLimiter, publicLimiter, gdprLimiter } from '../middleware/rate-limit.js';
+import { apiLimiter, createAuthLimiter, publicLimiter, trackingLimiter, gdprLimiter } from '../middleware/rate-limit.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -192,8 +192,10 @@ router.get('/public/events/:eventId', publicLimiter, rsvpController.getPublicRsv
 
 // Tracking endpoints (#465 open pixel, #466 click redirect) — intentionally unauthenticated.
 // Tokens are HMAC-signed; see backend/src/utils/tracking-token.ts.
-router.get('/tracking/open/:token', publicLimiter, trackingController.recordOpen);
-router.get('/tracking/click/:token', publicLimiter, trackingController.recordClick);
+// Uses trackingLimiter (much higher cap) rather than publicLimiter because
+// email opens burst from shared corporate / mobile-carrier egress IPs.
+router.get('/tracking/open/:token', trackingLimiter, trackingController.recordOpen);
+router.get('/tracking/click/:token', trackingLimiter, trackingController.recordClick);
 
 // ── Public gallery share resolution (#619) — unauthenticated, token-gated ──
 router.get('/public/gallery/:token', publicLimiter, gallerySharesController.resolveShareLink);
@@ -704,9 +706,11 @@ router.post('/admin/users/:id/erase', authenticateToken, authorizeRole(['Admin']
 router.post('/events/:eventId/announcements', authenticateToken, announcementController.sendAnnouncement);
 router.get('/events/:eventId/communication/stats', authenticateToken, announcementController.getCommunicationStats);
 // Bounce webhook is public (called by email provider) — no auth required.
-// publicLimiter prevents the unauthenticated endpoint from being spammed to
-// poison delivery state until a proper HMAC signature check is in place.
-router.post('/webhooks/email/bounce', publicLimiter, announcementController.handleEmailBounce);
+// NOT rate-limited per-IP: email providers (SES, SendGrid, Mailgun, etc.)
+// dispatch from many rotating IPs and can legitimately spike during bulk
+// sends. The correct defence is HMAC signature validation against the
+// provider's signing key — tracked as a deferred follow-up.
+router.post('/webhooks/email/bounce', announcementController.handleEmailBounce);
 
 // ============ BUDGET EXTENSIONS — #668 ============
 router.get('/events/:eventId/budget/expenses/export', authenticateToken, budgetController.exportExpensesAsCsv);

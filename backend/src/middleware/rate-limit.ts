@@ -14,16 +14,33 @@ export const healthLimiter = rateLimit({
   message: { error: 'Too many health check requests.' },
 });
 
-// Tight limit for unauthenticated public surfaces: tracking pixels, click
-// redirects, public RSVP/gallery viewers, unsubscribe links, email webhooks.
-// These endpoints have no auth gate, so a per-IP limiter is the primary
-// defence against scraping/enumeration and webhook abuse.
+// Per-IP limit for unauthenticated, user-facing public surfaces:
+// /public/events, /public/gallery, /public/rsvp, /public/unsubscribe.
+// These represent per-human actions (one guest opening one RSVP page), so
+// 60/min/IP is generous for real use but caps token enumeration scans.
+// NOT applied to email-tracking endpoints (see trackingLimiter — opens come
+// in bursts from shared corporate egress IPs) or to webhook receivers
+// (those need HMAC signature checks, not IP throttling).
 export const publicLimiter = rateLimit({
   windowMs: 60_000,
-  max: process.env.NODE_ENV === 'production' ? 30 : 300,
+  max: process.env.NODE_ENV === 'production' ? 60 : 600,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Please slow down and try again shortly.' },
+});
+
+// Tracking pixel + click redirect throughput is dominated by recipients
+// opening an email blast together — schools, offices, mobile carriers all
+// share egress IPs, so hundreds of opens from one IP within seconds is
+// normal. A high per-IP cap stops headless scraping without breaking real
+// recipients. Defence-in-depth on top of the HMAC-signed tokens that the
+// endpoints already require.
+export const trackingLimiter = rateLimit({
+  windowMs: 60_000,
+  max: process.env.NODE_ENV === 'production' ? 600 : 6000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many tracking requests.' },
 });
 
 // GDPR export and right-to-erasure endpoints generate full user data dumps
