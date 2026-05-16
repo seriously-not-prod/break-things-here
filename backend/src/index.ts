@@ -1,5 +1,6 @@
 import './config/load-env.js';
 import { validateEntraConfigAtStartup } from './config/entra.js';
+import { assertStrictDataSecurityControlsAtStartup } from './config/security-controls.js';
 import { logger, requestLogger } from './utils/logger.js';
 import { startJobScheduler } from './utils/job-scheduler.js';
 
@@ -60,6 +61,19 @@ function getAllowedOrigins(isDev: boolean): string[] {
     .filter(Boolean);
 }
 
+function shouldEnforceHttps(nodeEnv: string | undefined): boolean {
+  if (process.env.ENFORCE_HTTPS === 'true') return true;
+  if (process.env.ENFORCE_HTTPS === 'false') return false;
+  return nodeEnv === 'production' || nodeEnv === 'staging';
+}
+
+function isRequestSecure(req: express.Request): boolean {
+  if (req.secure) return true;
+  const forwardedProto = req.header('x-forwarded-proto');
+  if (!forwardedProto) return false;
+  return forwardedProto.split(',').map((part) => part.trim()).includes('https');
+}
+
 export function createApp(): express.Express {
   const app = express();
 
@@ -86,6 +100,11 @@ export function createApp(): express.Express {
         },
       },
       crossOriginResourcePolicy: { policy: isDev ? 'cross-origin' : 'same-origin' },
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true,
+      },
     }),
   );
   app.use(cors(corsOptions));
@@ -135,6 +154,26 @@ export function createApp(): express.Express {
 
   app.use(requestLogger);
 
+  const enforceHttps = shouldEnforceHttps(process.env.NODE_ENV);
+  if (enforceHttps) {
+    app.use((req, res, next) => {
+      if (isRequestSecure(req)) {
+        next();
+        return;
+      }
+
+      if (req.method === 'GET' || req.method === 'HEAD') {
+        const host = req.get('host');
+        if (host) {
+          res.redirect(308, `https://${host}${req.originalUrl}`);
+          return;
+        }
+      }
+
+      res.status(400).json({ error: 'HTTPS is required for this endpoint.' });
+    });
+  }
+
   // Health check — validates DB connectivity; returns 503 if DB unreachable (#676)
   app.get('/health', healthLimiter, async (_req, res) => {
     const checks: Record<string, string> = {};
@@ -182,6 +221,7 @@ export function createApp(): express.Express {
 }
 
 async function start(): Promise<void> {
+  assertStrictDataSecurityControlsAtStartup();
   validateEntraConfigAtStartup();
   await initializeDatabase();
   startJobScheduler();

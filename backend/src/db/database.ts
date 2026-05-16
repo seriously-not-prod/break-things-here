@@ -5,6 +5,7 @@
 
 import pg from 'pg';
 import { hashPassword } from '../utils/auth-helpers.js';
+import { isSecureDeploymentEnv } from '../config/security-controls.js';
 
 export interface RunResult {
   lastID?: number;
@@ -155,6 +156,53 @@ class PgWrapper {
 
 let dbWrapper: DatabaseAdapter | null = null;
 let pool: pg.Pool | null = null;
+
+function assertSecureDatabaseConnectionString(connectionString: string): void {
+  if (!isSecureDeploymentEnv(process.env.NODE_ENV)) return;
+
+  const requireSsl = process.env.DB_SSL_REQUIRED === 'true';
+  if (!requireSsl) return;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(connectionString);
+  } catch {
+    throw new Error('DATABASE_URL is not a valid URL.');
+  }
+
+  const scheme = parsed.protocol.replace(':', '');
+  if (!['postgres', 'postgresql'].includes(scheme)) {
+    throw new Error('DATABASE_URL must use a PostgreSQL protocol (postgres:// or postgresql://).');
+  }
+
+  const sslMode = parsed.searchParams.get('sslmode')?.toLowerCase();
+  const secureModes = new Set(['verify-ca', 'verify-full']);
+  if (!sslMode || !secureModes.has(sslMode)) {
+    throw new Error(
+      'In production/staging, DATABASE_URL must include sslmode=verify-ca or sslmode=verify-full.',
+    );
+  }
+}
+
+function resolvePoolSslOptions(connectionString: string): false | { rejectUnauthorized: boolean } {
+  let sslMode: string | null = null;
+  try {
+    sslMode = new URL(connectionString).searchParams.get('sslmode')?.toLowerCase() ?? null;
+  } catch {
+    sslMode = null;
+  }
+
+  if (!sslMode) {
+    return false;
+  }
+
+  const sslEnabledModes = new Set(['verify-ca', 'verify-full']);
+  if (!sslEnabledModes.has(sslMode)) {
+    return false;
+  }
+
+  return { rejectUnauthorized: true };
+}
 
 const ORGANIZER_PERMISSION_NAMES = [
   'events.view',
@@ -724,9 +772,13 @@ export async function initializeDatabase(): Promise<DatabaseAdapter> {
     );
   }
 
+  assertSecureDatabaseConnectionString(connectionString);
+  const ssl = resolvePoolSslOptions(connectionString);
+
   const { Pool } = pg;
   pool = new Pool({
     connectionString,
+    ssl,
     statement_timeout: 30000,
     query_timeout: 30000,
   });

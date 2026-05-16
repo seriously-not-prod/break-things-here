@@ -3,6 +3,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
+import { scanFile } from '../utils/virus-scan.js';
+import { AUDIT_ACTIONS, logAuditEvent } from '../utils/audit-log.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -523,6 +525,37 @@ export async function uploadContract(req: Request, res: Response): Promise<Respo
     await cleanupUploadedFile(authReq.file.path);
     return res.status(404).json({ error: 'Vendor not found.' });
   }
+
+  const scanResult = await scanFile(authReq.file.path);
+  if (!scanResult.clean) {
+    await cleanupUploadedFile(authReq.file.path);
+    await logAuditEvent({
+      db,
+      userId: authReq.user?.id ?? null,
+      email: authReq.user?.email ?? null,
+      action: AUDIT_ACTIONS.UPLOAD_SCAN_FAIL,
+      description: `Malicious vendor contract detected: ${scanResult.threat}`,
+      ipAddress: req.ip,
+      severity: 'CRITICAL',
+      targetType: 'vendor-contract',
+      targetId: id,
+      context: { threat: scanResult.threat, scanner: scanResult.scanner, eventId },
+    });
+    return res.status(422).json({ error: 'File failed security scan and was rejected.' });
+  }
+
+  await logAuditEvent({
+    db,
+    userId: authReq.user?.id ?? null,
+    email: authReq.user?.email ?? null,
+    action: AUDIT_ACTIONS.UPLOAD_SCAN_PASS,
+    description: 'Vendor contract passed security scan',
+    ipAddress: req.ip,
+    severity: 'INFO',
+    targetType: 'vendor-contract',
+    targetId: id,
+    context: { scanner: scanResult.scanner, scannedAt: scanResult.scannedAt, eventId },
+  });
 
   // Remove old contract file if present
   if (existing.contract_file) {
