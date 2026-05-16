@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Strict 3.1.3 Data Security startup gates for production/staging: backend now fails closed unless HTTPS enforcement, TLS 1.3 edge policy (`EDGE_TLS_MIN_VERSION=TLSv1.3`), verified PostgreSQL TLS mode (`sslmode=verify-ca|verify-full`), at-rest encryption attestation (`DB_ENCRYPTION_AT_REST_VERIFIED=true`), and fail-closed malware scanning are all explicitly enabled
 - Entra group-to-role mapping with precedence (`Admin > Organizer > Collaborator > Guest > Viewer`) via configurable env vars (`ENTRA_GROUP_ADMINS`, `ENTRA_GROUP_ORGANIZERS`, `ENTRA_GROUP_COLLABORATORS`, `ENTRA_GROUP_GUESTS`, `ENTRA_GROUP_VIEWERS`) and callback-time role assignment for Entra SSO logins
 - Event member role normalization to BRD event roles (`Owner`, `Co-Organizer`, `Helper`, `Guest`) with dynamic precedence checks in shared event access utilities
 - RBAC permission-change audit trail coverage for role creation, role assignment, and permission add/remove controller operations

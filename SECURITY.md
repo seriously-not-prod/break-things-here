@@ -46,6 +46,25 @@ When contributing to this project:
 - Validate all user inputs
 - Implement proper authentication and authorization
 
+## Mandatory Production Security Flags
+
+For production/staging deployments, backend startup now fails closed unless all
+of these values are explicitly set:
+
+- `ENFORCE_HTTPS=true`
+- `EDGE_TLS_MIN_VERSION=TLSv1.3`
+- `DB_SSL_REQUIRED=true`
+- `DB_ENCRYPTION_AT_REST_VERIFIED=true`
+- `VIRUS_SCAN_ENABLED=true`
+- `VIRUS_SCAN_BLOCK_ON_ERROR=true`
+
+Additionally, `DATABASE_URL` must use PostgreSQL with strict SSL verification:
+
+- `sslmode=verify-ca` or `sslmode=verify-full`
+
+This ensures the 3.1.3 Data Security controls are enforced as hard startup
+requirements, not optional runtime behavior.
+
 ## Secret Management
 
 The backend uses three server-side secrets for token security. See the dedicated guide for generation, rotation, and emergency revocation procedures:

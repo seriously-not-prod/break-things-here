@@ -12,10 +12,12 @@ import { createApp } from '../src/index.js';
 describe('HTTP Security Headers — helmet middleware (#266)', () => {
   const originalNodeEnv = process.env.NODE_ENV;
   const originalCorsAllowedOrigins = process.env.CORS_ALLOWED_ORIGINS;
+  const originalEnforceHttps = process.env.ENFORCE_HTTPS;
 
   beforeEach(() => {
     process.env.NODE_ENV = 'test';
     delete process.env.CORS_ALLOWED_ORIGINS;
+    delete process.env.ENFORCE_HTTPS;
   });
 
   afterEach(() => {
@@ -29,6 +31,12 @@ describe('HTTP Security Headers — helmet middleware (#266)', () => {
       delete process.env.CORS_ALLOWED_ORIGINS;
     } else {
       process.env.CORS_ALLOWED_ORIGINS = originalCorsAllowedOrigins;
+    }
+
+    if (originalEnforceHttps === undefined) {
+      delete process.env.ENFORCE_HTTPS;
+    } else {
+      process.env.ENFORCE_HTTPS = originalEnforceHttps;
     }
   });
 
@@ -62,7 +70,7 @@ describe('HTTP Security Headers — helmet middleware (#266)', () => {
     process.env.NODE_ENV = 'production';
     process.env.CORS_ALLOWED_ORIGINS = ' https://one.example , , https://two.example ,, ';
 
-    const res = await request(createApp()).get('/health');
+    const res = await request(createApp()).get('/health').set('x-forwarded-proto', 'https');
     const csp = res.headers['content-security-policy'] as string;
 
     expect(csp).toContain("connect-src 'self' https://one.example https://two.example");
@@ -74,6 +82,18 @@ describe('HTTP Security Headers — helmet middleware (#266)', () => {
     const res = await request(createApp()).get('/health');
     expect(res.headers['strict-transport-security']).toBeDefined();
     expect(res.headers['strict-transport-security']).toContain('max-age=');
+    expect(res.headers['strict-transport-security']).toContain('includeSubDomains');
+    expect(res.headers['strict-transport-security']).toContain('preload');
+  });
+
+  it('enforces HTTPS in production when ENFORCE_HTTPS=true', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.ENFORCE_HTTPS = 'true';
+
+    const res = await request(createApp()).get('/health');
+
+    expect(res.status).toBe(308);
+    expect(res.headers.location).toContain('https://');
   });
 
   it('disables X-XSS-Protection (helmet modern best practice)', async () => {
