@@ -192,7 +192,7 @@ export async function bulkEventAction(req: Request, res: Response): Promise<void
         if (action === 'archive') {
           await db.run(
             `UPDATE events SET status = 'Cancelled', updated_at = CURRENT_TIMESTAMP
-             WHERE id = ?`,
+             WHERE id = $1`,
             [id],
           );
         } else if (action === 'delete') {
@@ -200,7 +200,7 @@ export async function bulkEventAction(req: Request, res: Response): Promise<void
             `UPDATE events
                 SET deleted_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
-              WHERE id = ?`,
+              WHERE id = $1`,
             [id],
           );
         }
@@ -221,7 +221,7 @@ export async function bulkEventAction(req: Request, res: Response): Promise<void
 
     if (successCount > 0) {
       await db.run(
-        'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
         [
           user.id,
           user.email ?? null,
