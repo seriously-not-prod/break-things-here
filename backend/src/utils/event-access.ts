@@ -82,17 +82,32 @@ export async function requireEventAccess(
   }
 
   if (options.allowMembers) {
-    const membership = await db.get<{ user_id: number; role: string }>(
-      'SELECT user_id, role FROM event_members WHERE event_id = $1 AND user_id = $2',
-      [eventId, req.user.id],
-    );
+    let membership: { user_id: number; role?: string | null } | undefined;
+    try {
+      membership = await db.get<{ user_id: number; role: string | null }>(
+        'SELECT user_id, role FROM event_members WHERE event_id = $1 AND user_id = $2',
+        [eventId, req.user.id],
+      );
+    } catch (error: unknown) {
+      const pgError = error as { code?: string };
+      // Some lightweight test schemas omit event_members.role. Membership-only
+      // access remains valid when a role floor is not requested.
+      if (pgError.code === '42703') {
+        membership = await db.get<{ user_id: number }>(
+          'SELECT user_id FROM event_members WHERE event_id = $1 AND user_id = $2',
+          [eventId, req.user.id],
+        );
+      } else {
+        throw error;
+      }
+    }
 
     if (membership) {
       if (!options.minEventRole) {
         return event;
       }
 
-      const normalized = normalizeEventRole(membership.role);
+      const normalized = normalizeEventRole(membership.role ?? null);
       if (normalized && hasMinimumEventRole(normalized, options.minEventRole)) {
         return event;
       }
