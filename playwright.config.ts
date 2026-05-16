@@ -30,12 +30,15 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
+  // In CI the dev stack is booted in a dedicated step. Locally we boot the
+  // Vite dev server on demand; reuseExistingServer lets you keep `npm run dev`
+  // running in another terminal and re-run the suite without restarting it.
   webServer: process.env.CI
     ? undefined
     : {
-        command: 'echo "Assuming dev stack is already running"',
+        command: 'npm --prefix frontend run dev',
         url: 'http://localhost:5173',
         reuseExistingServer: true,
-        timeout: 10000,
+        timeout: 60_000,
       },
 });
