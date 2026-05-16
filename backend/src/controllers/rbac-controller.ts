@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -60,6 +61,19 @@ export async function createRole(req: AuthRequest, res: Response): Promise<Respo
     [name, description || ''],
   );
 
+  await logAuditEvent({
+    db,
+    userId: req.user?.id,
+    email: req.user?.email,
+    action: AUDIT_ACTIONS.ROLE_CHANGE,
+    description: `Role created: ${name}`,
+    ipAddress: req.ip,
+    targetType: 'role',
+    targetId: String(result.lastID),
+    context: { roleName: name },
+    severity: 'INFO',
+  });
+
   return res.status(201).json({ id: result.lastID, name, description });
 }
 
@@ -86,7 +100,21 @@ export async function assignRoleToUser(req: AuthRequest, res: Response): Promise
     return res.status(404).json({ error: 'User not found' });
   }
 
+  const previous = await db.get<{ role_id: number }>('SELECT role_id FROM users WHERE id = $1', [userId]);
   await db.run('UPDATE users SET role_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [roleId, userId]);
+
+  await logAuditEvent({
+    db,
+    userId: req.user?.id,
+    email: req.user?.email,
+    action: AUDIT_ACTIONS.ROLE_CHANGE,
+    description: `Assigned role ${roleId} to user ${userId}`,
+    ipAddress: req.ip,
+    targetType: 'user',
+    targetId: String(userId),
+    context: { previousRoleId: previous?.role_id ?? null, newRoleId: roleId },
+    severity: 'INFO',
+  });
 
   return res.status(200).json({ message: 'Role assigned successfully' });
 }
@@ -117,6 +145,19 @@ export async function addPermissionToRole(req: AuthRequest, res: Response): Prom
     [roleId, permissionId],
   );
 
+  await logAuditEvent({
+    db,
+    userId: req.user?.id,
+    email: req.user?.email,
+    action: AUDIT_ACTIONS.ROLE_CHANGE,
+    description: `Added permission ${permissionId} to role ${roleId}`,
+    ipAddress: req.ip,
+    targetType: 'role',
+    targetId: String(roleId),
+    context: { permissionId, operation: 'add-permission' },
+    severity: 'INFO',
+  });
+
   return res.status(201).json({ message: 'Permission added to role' });
 }
 
@@ -136,6 +177,19 @@ export async function removePermissionFromRole(req: AuthRequest, res: Response):
     'DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2',
     [roleId, permissionId],
   );
+
+  await logAuditEvent({
+    db,
+    userId: req.user?.id,
+    email: req.user?.email,
+    action: AUDIT_ACTIONS.ROLE_CHANGE,
+    description: `Removed permission ${permissionId} from role ${roleId}`,
+    ipAddress: req.ip,
+    targetType: 'role',
+    targetId: String(roleId),
+    context: { permissionId, operation: 'remove-permission' },
+    severity: 'INFO',
+  });
 
   return res.status(200).json({ message: 'Permission removed from role' });
 }

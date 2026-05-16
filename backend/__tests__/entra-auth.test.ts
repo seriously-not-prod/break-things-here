@@ -116,7 +116,14 @@ const SCHEMA = `
     name TEXT UNIQUE NOT NULL
   );
 
-  INSERT INTO roles (id, name) VALUES (1, 'Attendee') ON CONFLICT DO NOTHING;
+  INSERT INTO roles (id, name) VALUES
+    (1, 'Attendee'),
+    (2, 'Organizer'),
+    (3, 'Admin'),
+    (4, 'Collaborator'),
+    (5, 'Guest'),
+    (6, 'Viewer')
+  ON CONFLICT DO NOTHING;
 `;
 
 beforeEach(async () => {
@@ -233,6 +240,45 @@ describe('POST /api/auth/entra/callback — identity mapping', () => {
     );
     expect(user?.entra_oid).toBe('entra-oid-link');
     expect(user?.auth_provider).toBe('entra');
+  });
+
+  it('maps Entra groups to highest-precedence app role', async () => {
+    process.env.ENTRA_GROUP_ADMINS = 'group-admin';
+    process.env.ENTRA_GROUP_ORGANIZERS = 'group-organizer';
+    process.env.ENTRA_GROUP_COLLABORATORS = 'group-collab';
+    process.env.ENTRA_GROUP_GUESTS = 'group-guest';
+    process.env.ENTRA_GROUP_VIEWERS = 'group-viewer';
+
+    vi.doMock('../src/utils/entra-token.js', () => ({
+      validateEntraIdToken: vi.fn().mockResolvedValue({
+        oid: 'entra-oid-admin',
+        email: 'groupuser@example.com',
+        name: 'Group User',
+        tid: 'test-tenant',
+        aud: 'test-client',
+        iss: 'https://login.microsoftonline.com/test-tenant/v2.0',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+        groups: ['group-collab', 'group-admin'],
+      }),
+    }));
+
+    const { handleEntraCallback } = await import('../src/controllers/entra-auth-controller.js');
+    const req = { body: { id_token: 'fake.jwt.token' } } as import('express').Request;
+    const res = makeRes();
+
+    await handleEntraCallback(req, res as unknown as import('express').Response);
+
+    const user = await testDb.get<{ role_id: number }>(
+      `SELECT role_id FROM users WHERE email = 'groupuser@example.com'`,
+    );
+    expect(user?.role_id).toBe(3); // Admin has precedence over collaborator
+
+    delete process.env.ENTRA_GROUP_ADMINS;
+    delete process.env.ENTRA_GROUP_ORGANIZERS;
+    delete process.env.ENTRA_GROUP_COLLABORATORS;
+    delete process.env.ENTRA_GROUP_GUESTS;
+    delete process.env.ENTRA_GROUP_VIEWERS;
   });
 
   it('returns 404 when Entra auth is disabled', async () => {
