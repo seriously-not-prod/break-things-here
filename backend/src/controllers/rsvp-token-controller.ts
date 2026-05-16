@@ -35,7 +35,7 @@ export async function ensureRsvpAccessToken(
   rsvpId: number,
 ): Promise<string> {
   const existing = await db.get<{ token: string }>(
-    'SELECT token FROM rsvp_access_tokens WHERE rsvp_id = ? AND revoked_at IS NULL',
+    'SELECT token FROM rsvp_access_tokens WHERE rsvp_id = $1 AND revoked_at IS NULL',
     [rsvpId],
   );
   if (existing) return existing.token;
@@ -46,7 +46,7 @@ export async function ensureRsvpAccessToken(
     try {
       await db.run(
         `INSERT INTO rsvp_access_tokens (rsvp_id, token)
-         VALUES (?, ?)
+         VALUES ($1, $2)
          ON CONFLICT (rsvp_id) DO UPDATE SET token = EXCLUDED.token, revoked_at = NULL, created_at = CURRENT_TIMESTAMP`,
         [rsvpId, candidate],
       );
@@ -68,7 +68,7 @@ export async function issueRsvpToken(req: Request, res: Response): Promise<Respo
 
   const db = getDatabase();
   const rsvp = await db.get<{ id: number }>(
-    'SELECT id FROM rsvps WHERE id = ? AND event_id = ?',
+    'SELECT id FROM rsvps WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
@@ -76,7 +76,7 @@ export async function issueRsvpToken(req: Request, res: Response): Promise<Respo
   const rotate = req.body && (req.body as { rotate?: boolean }).rotate === true;
   if (rotate) {
     await db.run(
-      'UPDATE rsvp_access_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE rsvp_id = ? AND revoked_at IS NULL',
+      'UPDATE rsvp_access_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE rsvp_id = $1 AND revoked_at IS NULL',
       [rsvp.id],
     );
   }
@@ -98,7 +98,7 @@ export async function lookupRsvpByToken(req: Request, res: Response): Promise<Re
     `SELECT t.rsvp_id, r.event_id
      FROM rsvp_access_tokens t
      JOIN rsvps r ON r.id = t.rsvp_id
-     WHERE t.token = ? AND t.revoked_at IS NULL`,
+     WHERE t.token = $1 AND t.revoked_at IS NULL`,
     [token],
   );
   if (!row) return res.status(404).json({ error: 'Token not found.' });
@@ -106,12 +106,12 @@ export async function lookupRsvpByToken(req: Request, res: Response): Promise<Re
   const rsvp = await db.get(
     `SELECT id, event_id, name, email, phone, status, guests, plus_one, plus_one_name,
             dietary_restriction, accessibility_needs, notes, waitlist_position, checked_in
-     FROM rsvps WHERE id = ?`,
+     FROM rsvps WHERE id = $1`,
     [row.rsvp_id],
   );
   const event = await db.get(
     `SELECT id, title, description, location, date, end_date, capacity, currency_code
-     FROM events WHERE id = ? AND deleted_at IS NULL`,
+     FROM events WHERE id = $1 AND deleted_at IS NULL`,
     [row.event_id],
   );
   if (!event) return res.status(404).json({ error: 'Event not found.' });
@@ -121,8 +121,8 @@ export async function lookupRsvpByToken(req: Request, res: Response): Promise<Re
             r.response
      FROM rsvp_questions q
      LEFT JOIN rsvp_question_responses r
-       ON r.question_id = q.id AND r.rsvp_id = ?
-     WHERE q.event_id = ?
+       ON r.question_id = q.id AND r.rsvp_id = $1
+     WHERE q.event_id = $2
      ORDER BY q.sort_order ASC, q.id ASC`,
     [row.rsvp_id, row.event_id],
   );

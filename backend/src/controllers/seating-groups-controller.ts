@@ -37,12 +37,12 @@ export async function listGroups(req: Request, res: Response): Promise<Response>
   if (!event) return res as Response;
   const db = getDatabase();
   const groups = await db.all<SeatingGroupRow>(
-    `SELECT * FROM seating_groups WHERE event_id = ? ORDER BY name ASC`,
+    `SELECT * FROM seating_groups WHERE event_id = $1 ORDER BY name ASC`,
     [eventId],
   );
   const members = await db.all<{ seating_group_id: number; id: number; name: string; email: string; guests: number }>(
     `SELECT seating_group_id, id, name, email, guests
-     FROM rsvps WHERE event_id = ? AND seating_group_id IS NOT NULL`,
+     FROM rsvps WHERE event_id = $1 AND seating_group_id IS NOT NULL`,
     [eventId],
   );
   const grouped = new Map<number, typeof members>();
@@ -78,7 +78,7 @@ export async function createGroup(req: Request, res: Response): Promise<Response
       [eventId, name.trim(), seat_together !== false, preferred_table_id ?? null, notes?.trim() || null],
     );
     const row = await db.get<SeatingGroupRow>(
-      `SELECT * FROM seating_groups WHERE id = ?`,
+      `SELECT * FROM seating_groups WHERE id = $1`,
       [result.lastID],
     );
     return res.status(201).json({ group: row });
@@ -102,7 +102,7 @@ export async function updateGroup(req: Request, res: Response): Promise<Response
   const params: (string | number | boolean | null)[] = [];
   if (typeof name === 'string') { fields.push('name = ?'); params.push(name.trim()); }
   if (seat_together !== undefined) { fields.push('seat_together = ?'); params.push(Boolean(seat_together)); }
-  if (preferred_table_id !== undefined) { fields.push('preferred_table_id = ?'); params.push(preferred_table_id === null ? null : Number(preferred_table_id)); }
+  if (preferred_table_id !== undefined) { fields.push('preferred_table_id = $1'); params.push(preferred_table_id === null ? null : Number(preferred_table_id)); }
   if (notes !== undefined) { fields.push('notes = ?'); params.push(notes ? String(notes).trim() : null); }
   if (fields.length === 0) return res.status(400).json({ error: 'No fields to update.' });
   fields.push('updated_at = CURRENT_TIMESTAMP');
@@ -113,7 +113,7 @@ export async function updateGroup(req: Request, res: Response): Promise<Response
     params,
   );
   const row = await db.get<SeatingGroupRow>(
-    `SELECT * FROM seating_groups WHERE id = ? AND event_id = ?`,
+    `SELECT * FROM seating_groups WHERE id = $1 AND event_id = $2`,
     [id, eventId],
   );
   if (!row) return res.status(404).json({ error: 'Seating group not found.' });
@@ -153,7 +153,7 @@ export async function setGroupMembers(req: Request, res: Response): Promise<Resp
   }
   const db = getDatabase();
   const group = await db.get<{ id: number }>(
-    `SELECT id FROM seating_groups WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM seating_groups WHERE id = $1 AND event_id = $2`,
     [id, eventId],
   );
   if (!group) return res.status(404).json({ error: 'Seating group not found.' });
@@ -186,13 +186,13 @@ export async function seatGroupAtTable(req: Request, res: Response): Promise<Res
   }
   const db = getDatabase();
   const table = await db.get<{ id: number; capacity: number }>(
-    `SELECT id, capacity FROM seating_tables WHERE id = ? AND event_id = ?`,
+    `SELECT id, capacity FROM seating_tables WHERE id = $1 AND event_id = $2`,
     [tableId, eventId],
   );
   if (!table) return res.status(404).json({ error: 'Seating table not found.' });
 
   const members = await db.all<{ id: number; guests: number }>(
-    `SELECT id, guests FROM rsvps WHERE event_id = ? AND seating_group_id = ?`,
+    `SELECT id, guests FROM rsvps WHERE event_id = $1 AND seating_group_id = $2`,
     [eventId, id],
   );
   if (members.length === 0) {
@@ -204,7 +204,7 @@ export async function seatGroupAtTable(req: Request, res: Response): Promise<Res
     `SELECT COALESCE(SUM(r.guests), 0)::int AS total
      FROM seating_assignments sa
      JOIN rsvps r ON r.id = sa.rsvp_id
-     WHERE sa.table_id = ? AND (r.seating_group_id IS NULL OR r.seating_group_id <> ?)`,
+     WHERE sa.table_id = $1 AND (r.seating_group_id IS NULL OR r.seating_group_id <> $2)`,
     [tableId, id],
   );
   const groupSeatCount = members.reduce((acc, m) => acc + (m.guests ?? 1), 0);

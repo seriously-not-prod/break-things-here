@@ -84,7 +84,7 @@ export async function deleteRate(req: Request, res: Response): Promise<Response>
   const quote = normalizeCurrencyCode(req.params.quote);
   const db = getDatabase();
   await db.run(
-    'DELETE FROM exchange_rates WHERE base_currency = ? AND quote_currency = ?',
+    'DELETE FROM exchange_rates WHERE base_currency = $1 AND quote_currency = $2',
     [base, quote],
   );
   return res.status(204).send();

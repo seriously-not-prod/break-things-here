@@ -5,6 +5,7 @@
  */
 import { Request, Response } from 'express';
 import https from 'https';
+import { getDatabase } from '../db/database.js';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = 'gpt-4o-mini';
@@ -78,12 +79,49 @@ const SYSTEM_PROMPTS: Record<SuggestBody['context'], string> = {
     question with practical, actionable advice for running a successful festival event.`,
 };
 
+interface AuthRequest extends Request {
+  user?: { id: number; email: string; role_id: number };
+}
+
+// Per-user rate limit: 20 AI requests per hour stored in-process
+const userRateLimiter = new Map<number, { count: number; windowStart: number }>();
+
+function checkAiRateLimit(userId: number): boolean {
+  const now = Date.now();
+  const ONE_HOUR = 60 * 60 * 1000;
+  const record = userRateLimiter.get(userId);
+  if (!record || (now - record.windowStart) > ONE_HOUR) {
+    userRateLimiter.set(userId, { count: 1, windowStart: now });
+    return true;
+  }
+  if (record.count >= 20) return false;
+  record.count++;
+  return true;
+}
+
+/** Sanitise user-supplied text before including in prompts to prevent prompt injection. */
+function sanitisePrompt(input: string): string {
+  return input
+    .replace(/ignore\s+(previous|prior|above)\s+instructions?/gi, '[FILTERED]')
+    .replace(/you\s+are\s+now\s+/gi, '[FILTERED] ')
+    .replace(/system\s*prompt/gi, '[FILTERED]')
+    .replace(/\[SYSTEM\]/gi, '[FILTERED]')
+    .replace(/<[^>]{0,200}>/g, '')
+    .substring(0, 2000)
+    .trim();
+}
+
 /** POST /api/ai/suggest */
-export async function getSuggestion(req: Request, res: Response): Promise<Response> {
+export async function getSuggestion(req: AuthRequest, res: Response): Promise<Response> {
   const { context, prompt } = req.body as Partial<SuggestBody>;
 
   if (!prompt?.trim()) {
     return res.status(400).json({ error: 'prompt is required.' });
+  }
+
+  const userId = req.user?.id;
+  if (userId !== undefined && !checkAiRateLimit(userId)) {
+    return res.status(429).json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
   }
 
   // Validate that context is one of the four known keys before indexing into
@@ -100,7 +138,7 @@ export async function getSuggestion(req: Request, res: Response): Promise<Respon
   }
 
   try {
-    const suggestion = await callOpenAI(SYSTEM_PROMPTS[ctx], prompt.trim());
+    const suggestion = await callOpenAI(SYSTEM_PROMPTS[ctx], sanitisePrompt(prompt));
     return res.json({ suggestion });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown AI error';

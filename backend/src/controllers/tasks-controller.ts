@@ -15,7 +15,7 @@ function normalizeTaskStatus(status?: string): string {
 }
 
 async function getTaskTeamMemberIds(db: ReturnType<typeof getDatabase>, eventId: string): Promise<Set<number>> {
-  const rows = await db.all<{ user_id: number }>('SELECT user_id FROM event_members WHERE event_id = ?', [eventId]);
+  const rows = await db.all<{ user_id: number }>('SELECT user_id FROM event_members WHERE event_id = $1', [eventId]);
   return new Set(rows.map((row) => Number(row.user_id)));
 }
 
@@ -30,7 +30,7 @@ export async function listTasks(req: Request, res: Response): Promise<Response> 
     `SELECT t.*, COALESCE(u.display_name, t.assignee_name) AS assignee_name
      FROM tasks t
      LEFT JOIN users u ON t.assigned_user_id = u.id
-     WHERE t.event_id = ?
+     WHERE t.event_id = $1
      ORDER BY t.due_date ASC, t.priority ASC`,
     [eventId],
   );
@@ -66,14 +66,14 @@ export async function createTask(req: AuthRequest, res: Response): Promise<Respo
     if (!Number.isInteger(assignedUserId)) return res.status(400).json({ error: 'assigned_user_id must be a valid user id.' });
     const teamMembers = await getTaskTeamMemberIds(db, eventId);
     if (!teamMembers.has(assignedUserId)) return res.status(400).json({ error: 'Assigned user must be a member of this event.' });
-    const assignee = await db.get<{ display_name: string }>('SELECT display_name FROM users WHERE id = ? AND deleted_at IS NULL', [assignedUserId]);
+    const assignee = await db.get<{ display_name: string }>('SELECT display_name FROM users WHERE id = $1 AND deleted_at IS NULL', [assignedUserId]);
     if (!assignee) return res.status(404).json({ error: 'Assigned user not found.' });
     derivedAssigneeName = assignee.display_name;
   }
 
   const result = await db.run(
     `INSERT INTO tasks (event_id, title, notes, assignee_name, assigned_user_id, due_date, status, priority, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING id`,
     [
       eventId,
@@ -88,7 +88,7 @@ export async function createTask(req: AuthRequest, res: Response): Promise<Respo
     ],
   );
 
-  const task = await db.get('SELECT * FROM tasks WHERE id = ?', [result.lastID]);
+  const task = await db.get('SELECT * FROM tasks WHERE id = $1', [result.lastID]);
 
   await logActivity(
     eventId,
@@ -110,7 +110,7 @@ export async function updateTask(req: Request, res: Response): Promise<Response>
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
 
-  const task = await db.get('SELECT * FROM tasks WHERE id = ? AND event_id = ?', [id, eventId]);
+  const task = await db.get('SELECT * FROM tasks WHERE id = $1 AND event_id = $2', [id, eventId]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const { title, notes, assignee_name, assigned_user_id, due_date, status, priority } = req.body as Record<string, string>;
@@ -123,7 +123,7 @@ export async function updateTask(req: Request, res: Response): Promise<Response>
     if (!Number.isInteger(assignedUserId)) return res.status(400).json({ error: 'assigned_user_id must be a valid user id.' });
     const teamMembers = await getTaskTeamMemberIds(db, String(task.event_id));
     if (!teamMembers.has(assignedUserId)) return res.status(400).json({ error: 'Assigned user must be a member of this event.' });
-    const assignee = await db.get<{ display_name: string }>('SELECT display_name FROM users WHERE id = ? AND deleted_at IS NULL', [assignedUserId]);
+    const assignee = await db.get<{ display_name: string }>('SELECT display_name FROM users WHERE id = $1 AND deleted_at IS NULL', [assignedUserId]);
     if (!assignee) return res.status(404).json({ error: 'Assigned user not found.' });
     fields.push('assigned_user_id = ?');
     params.push(assignedUserId);
@@ -151,12 +151,12 @@ export async function updateTask(req: Request, res: Response): Promise<Response>
   fields.push('updated_at = CURRENT_TIMESTAMP');
   params.push(id);
 
-  await db.run(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`, params);
+  await db.run(`UPDATE tasks SET ${fields.join(', ')} WHERE id = $1`, params);
   const updated = await db.get(
     `SELECT t.*, COALESCE(u.display_name, t.assignee_name) AS assignee_name
      FROM tasks t
      LEFT JOIN users u ON t.assigned_user_id = u.id
-     WHERE t.id = ?`,
+     WHERE t.id = $1`,
     [id],
   );
 
@@ -184,10 +184,10 @@ export async function deleteTask(req: Request, res: Response): Promise<Response>
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
 
-  const task = await db.get('SELECT id FROM tasks WHERE id = ? AND event_id = ?', [id, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [id, eventId]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
-  await db.run('DELETE FROM tasks WHERE id = ?', [id]);
+  await db.run('DELETE FROM tasks WHERE id = $1', [id]);
   return res.json({ message: 'Task deleted.' });
 }
 
@@ -202,14 +202,14 @@ export async function listComments(req: Request, res: Response): Promise<Respons
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
 
-  const task = await db.get('SELECT id FROM tasks WHERE id = ? AND event_id = ?', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const comments = await db.all(
     `SELECT tc.*, COALESCE(u.display_name, u.email) AS author_name
      FROM task_comments tc
      LEFT JOIN users u ON tc.user_id = u.id
-     WHERE tc.task_id = ?
+     WHERE tc.task_id = $1
      ORDER BY tc.created_at ASC`,
     [taskId],
   );
@@ -227,11 +227,11 @@ export async function addComment(req: AuthRequest, res: Response): Promise<Respo
   const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
 
-  const task = await db.get('SELECT id FROM tasks WHERE id = ? AND event_id = ?', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const result = await db.run(
-    `INSERT INTO task_comments (task_id, user_id, body) VALUES (?, ?, ?) RETURNING id`,
+    `INSERT INTO task_comments (task_id, user_id, body) VALUES ($1, $2, $3) RETURNING id`,
     [taskId, req.user!.id, body.trim()],
   );
 
@@ -239,7 +239,7 @@ export async function addComment(req: AuthRequest, res: Response): Promise<Respo
     `SELECT tc.*, COALESCE(u.display_name, u.email) AS author_name
      FROM task_comments tc
      LEFT JOIN users u ON tc.user_id = u.id
-     WHERE tc.id = ?`,
+     WHERE tc.id = $1`,
     [result.lastID],
   );
   return res.status(201).json({ comment });
@@ -259,15 +259,15 @@ export async function addSubtask(req: Request, res: Response): Promise<Response>
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
 
-  const task = await db.get('SELECT id FROM tasks WHERE id = ? AND event_id = ?', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const result = await db.run(
-    `INSERT INTO task_subtasks (task_id, title) VALUES (?, ?) RETURNING id`,
+    `INSERT INTO task_subtasks (task_id, title) VALUES ($1, $2) RETURNING id`,
     [taskId, title.trim()],
   );
 
-  const subtask = await db.get('SELECT * FROM task_subtasks WHERE id = ?', [result.lastID]);
+  const subtask = await db.get('SELECT * FROM task_subtasks WHERE id = $1', [result.lastID]);
   return res.status(201).json({ subtask });
 }
 
@@ -283,13 +283,13 @@ export async function toggleSubtask(req: Request, res: Response): Promise<Respon
   const subtask = await db.get(
     `SELECT ts.* FROM task_subtasks ts
      JOIN tasks t ON t.id = ts.task_id
-     WHERE ts.id = ? AND t.event_id = ?`,
+     WHERE ts.id = $1 AND t.event_id = $2`,
     [id, eventId],
   );
   if (!subtask) return res.status(404).json({ error: 'Subtask not found.' });
 
-  await db.run('UPDATE task_subtasks SET completed = NOT completed WHERE id = ?', [id]);
-  const updated = await db.get('SELECT * FROM task_subtasks WHERE id = ?', [id]);
+  await db.run('UPDATE task_subtasks SET completed = NOT completed WHERE id = $1', [id]);
+  const updated = await db.get('SELECT * FROM task_subtasks WHERE id = $1', [id]);
   return res.json({ subtask: updated });
 }
 
@@ -305,11 +305,11 @@ export async function deleteSubtask(req: Request, res: Response): Promise<Respon
   const subtask = await db.get(
     `SELECT ts.id FROM task_subtasks ts
      JOIN tasks t ON t.id = ts.task_id
-     WHERE ts.id = ? AND t.event_id = ?`,
+     WHERE ts.id = $1 AND t.event_id = $2`,
     [id, eventId],
   );
   if (!subtask) return res.status(404).json({ error: 'Subtask not found.' });
 
-  await db.run('DELETE FROM task_subtasks WHERE id = ?', [id]);
+  await db.run('DELETE FROM task_subtasks WHERE id = $1', [id]);
   return res.json({ message: 'Subtask deleted.' });
 }

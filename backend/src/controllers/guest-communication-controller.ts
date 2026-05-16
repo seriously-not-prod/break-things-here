@@ -120,8 +120,8 @@ async function bulkSend(
   let effectiveBody = body ?? '';
   if (templateId) {
     const tpl = await db.get<{ subject: string; body: string }>(
-      `SELECT subject, body FROM communication_templates WHERE id = ?
-       AND (event_id = ? OR event_id IS NULL)`,
+      `SELECT subject, body FROM communication_templates WHERE id = $1
+       AND (event_id = $2 OR event_id IS NULL)`,
       [templateId, eventId],
     );
     if (!tpl) return res.status(404).json({ error: 'Template not found.' });
@@ -133,7 +133,7 @@ async function bulkSend(
   if (!effectiveBody.trim()) return res.status(400).json({ error: 'Body is required.' });
 
   const event = await db.get<{ id: number; title: string; date: string | null; location: string | null }>(
-    'SELECT id, title, date, location FROM events WHERE id = ? AND deleted_at IS NULL',
+    'SELECT id, title, date, location FROM events WHERE id = $1 AND deleted_at IS NULL',
     [eventId],
   );
   if (!event) return res.status(404).json({ error: 'Event not found.' });
@@ -149,7 +149,7 @@ async function bulkSend(
   } else {
     recipients = await db.all<RsvpRow>(
       `SELECT id, name, email, status, unsubscribed_at FROM rsvps
-       WHERE event_id = ? AND status IN ('Going', 'Pending')`,
+       WHERE event_id = $1 AND status IN ('Going', 'Pending')`,
       [eventId],
     );
   }

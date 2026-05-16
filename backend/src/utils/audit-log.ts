@@ -41,7 +41,7 @@ export async function logAuditEvent(params: AuditEventParams): Promise<void> {
       `INSERT INTO audit_log
          (user_id, email, action, description, ip_address,
           actor_id, target_type, target_id, context, severity, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)`,
       [
         userId ?? null,
         email ?? null,

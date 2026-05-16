@@ -131,7 +131,7 @@ export async function bulkEventAction(req: Request, res: Response): Promise<void
     }
 
     const db = getDatabase();
-    const placeholders = ids.map(() => '?').join(',');
+    const placeholders = ids.map(() => '$1').join(',');
     const events = await db.all<EventRow>(
       `SELECT id, title, date, location, capacity, status, event_type, tags,
               created_by, deleted_at

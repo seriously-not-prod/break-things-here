@@ -46,7 +46,7 @@ export async function listDuplicates(req: Request, res: Response): Promise<Respo
   const db = getDatabase();
   const rows = await db.all<DuplicateCandidateRow>(
     `SELECT id, name, email, phone, status, guests, created_at, updated_at
-     FROM rsvps WHERE event_id = ?`,
+     FROM rsvps WHERE event_id = $1`,
     [eventId],
   );
   const clusters = detectDuplicateClusters(rows);
@@ -288,7 +288,7 @@ export async function mergeGuests(req: Request, res: Response): Promise<Response
     );
 
     const updated = await getDatabase().get<RsvpRow>(
-      `SELECT ${RSVP_COLUMNS} FROM rsvps WHERE id = ?`,
+      `SELECT ${RSVP_COLUMNS} FROM rsvps WHERE id = $1`,
       [survivorId],
     );
     return res.json({
@@ -314,7 +314,7 @@ export async function listMergeAudit(req: Request, res: Response): Promise<Respo
   const rows = await db.all(
     `SELECT id, event_id, surviving_rsvp_id, merged_rsvp_id, merged_email, merged_name,
             merged_by, merged_at, notes
-     FROM guest_merge_audit WHERE event_id = ? ORDER BY merged_at DESC`,
+     FROM guest_merge_audit WHERE event_id = $1 ORDER BY merged_at DESC`,
     [eventId],
   );
   return res.json({ audit: rows });

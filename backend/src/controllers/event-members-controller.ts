@@ -21,7 +21,7 @@ export async function listMembers(req: Request, res: Response): Promise<Response
     `SELECT em.user_id, em.role, em.joined_at, u.display_name, u.email
      FROM event_members em
      JOIN users u ON u.id = em.user_id
-     WHERE em.event_id = ? AND u.deleted_at IS NULL
+     WHERE em.event_id = $1 AND u.deleted_at IS NULL
      ORDER BY em.joined_at DESC`,
     [eventId],
   );
@@ -53,12 +53,12 @@ export async function addMember(req: Request, res: Response): Promise<Response> 
   const numericUserId = Number(user_id);
   if (!Number.isInteger(numericUserId)) return res.status(400).json({ error: 'user_id is required.' });
 
-  const user = await db.get('SELECT id FROM users WHERE id = ? AND deleted_at IS NULL', [numericUserId]);
+  const user = await db.get('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [numericUserId]);
   if (!user) return res.status(404).json({ error: 'User not found.' });
 
   await db.run(
     `INSERT INTO event_members (event_id, user_id, role)
-     VALUES (?, ?, ?)
+     VALUES ($1, $2, $3)
      ON CONFLICT (event_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
     [eventId, numericUserId, role || 'Member'],
   );
@@ -78,6 +78,6 @@ export async function removeMember(req: Request, res: Response): Promise<Respons
   });
   if (!event) return res as Response;
 
-  await db.run('DELETE FROM event_members WHERE event_id = ? AND user_id = ?', [eventId, userId]);
+  await db.run('DELETE FROM event_members WHERE event_id = $1 AND user_id = $2', [eventId, userId]);
   return res.json({ message: 'Member removed.' });
 }

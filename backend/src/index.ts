@@ -1,5 +1,7 @@
 import './config/load-env.js';
 import { validateEntraConfigAtStartup } from './config/entra.js';
+import { logger, requestLogger } from './utils/logger.js';
+import { startJobScheduler } from './utils/job-scheduler.js';
 
 // Prevent unhandled promise rejections from crashing the server process.
 // Log the error and keep running so a single bad query doesn't take the app down.
@@ -16,7 +18,7 @@ import crypto from 'crypto';
 import { pathToFileURL } from 'url';
 import { initializeDatabase } from './db/database.js';
 import { sanitizeRequestBody } from './middleware/sanitize-input.js';
-import { apiLimiter, csrfLimiter } from './middleware/rate-limit.js';
+import { apiLimiter, csrfLimiter, healthLimiter } from './middleware/rate-limit.js';
 import apiRoutes from './routes/api-routes.js';
 
 const port = parseInt(process.env.PORT || '4000', 10);
@@ -34,6 +36,11 @@ const DEV_ORIGINS = [
 const CSRF_SECRET: string = (() => {
   const s = process.env.CSRF_SECRET;
   if (s) return s;
+  const env = process.env.NODE_ENV ?? 'development';
+  if (env === 'production' || env === 'staging') {
+    console.error('[SECURITY] FATAL: CSRF_SECRET is not set in production/staging environment. Refusing to start.');
+    process.exit(1);
+  }
   const ephemeral = crypto.randomBytes(32).toString('hex');
   console.warn(
     '[SECURITY] CSRF_SECRET is not set. Using an ephemeral per-startup secret — ' +
@@ -126,10 +133,34 @@ export function createApp(): express.Express {
     next();
   };
 
-  app.get('/health', (_req, res) => {
-    res.json({
-      status: 'healthy',
+  app.use(requestLogger);
+
+  // Health check — validates DB connectivity; returns 503 if DB unreachable (#676)
+  app.get('/health', healthLimiter, async (_req, res) => {
+    const checks: Record<string, string> = {};
+    let httpStatus = 200;
+    try {
+      const { getPool } = await import('./db/database.js');
+      const pool = getPool();
+      const client = await pool.connect();
+      await client.query('SELECT 1');
+      client.release();
+      checks.database = 'ok';
+    } catch (err) {
+      const msg = String(err);
+      if (msg.includes('not initialized') || msg.includes('not configured')) {
+        // Pool not yet set up (e.g., test environment); skip DB check
+        checks.database = 'not_configured';
+      } else {
+        checks.database = 'unavailable';
+        httpStatus = 503;
+        logger.error('[Health] DB connectivity check failed', { error: msg });
+      }
+    }
+    res.status(httpStatus).json({
+      status: httpStatus === 200 ? 'healthy' : 'degraded',
       uptime: process.uptime(),
+      checks,
     });
   });
 
@@ -153,9 +184,10 @@ export function createApp(): express.Express {
 async function start(): Promise<void> {
   validateEntraConfigAtStartup();
   await initializeDatabase();
+  startJobScheduler();
   const app = createApp();
   app.listen(port, '0.0.0.0', () => {
-    console.log(`Festival Planner API running on port ${port}`);
+    logger.info(`Festival Planner API running on port ${port}`, { port });
   });
 }
 

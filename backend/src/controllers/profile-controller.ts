@@ -61,7 +61,7 @@ export async function getUserProfile(req: AuthRequest, res: Response) {
 
     // Ensure a profile row exists for this user (auto-create on first access)
     await db.run(
-      'INSERT INTO user_profiles (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING',
+      'INSERT INTO user_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING',
       [req.user.id],
     );
 
@@ -69,7 +69,7 @@ export async function getUserProfile(req: AuthRequest, res: Response) {
       `SELECT up.*, u.email, u.display_name, u.email_verified
        FROM user_profiles up
        JOIN users u ON up.user_id = u.id
-       WHERE up.user_id = ?`,
+       WHERE up.user_id = $1`,
       [req.user.id],
     );
 
@@ -96,7 +96,7 @@ export async function getProfilePhoto(req: AuthRequest, res: Response) {
 
     const db = getDatabase();
   const profile = await db.get<ProfilePhotoRow>(
-      'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
+      'SELECT profile_photo_url FROM user_profiles WHERE user_id = $1',
       [req.user.id],
     );
 
@@ -126,13 +126,13 @@ export async function updateUserProfile(req: AuthRequest, res: Response) {
     const db = getDatabase();
 
     // Upsert — create profile row if it doesn't exist yet
-    await db.run('INSERT INTO user_profiles (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING', [req.user.id]);
+    await db.run('INSERT INTO user_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [req.user.id]);
 
     await db.run(
       `UPDATE user_profiles
-       SET bio = ?, phone_number = ?, address = ?, city = ?, state = ?, zip_code = ?, country = ?,
+       SET bio = $1, phone_number = $2, address = $3, city = $4, state = $5, zip_code = $6, country = $7,
            updated_at = CURRENT_TIMESTAMP
-       WHERE user_id = ?`,
+       WHERE user_id = $8`,
       [
         bio ?? null,
         phone_number ?? phoneNumber ?? null,
@@ -215,7 +215,7 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
 
     // Get old photo URL if exists
     const existingProfile = await db.get<ProfilePhotoRow>(
-      'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
+      'SELECT profile_photo_url FROM user_profiles WHERE user_id = $1',
       [req.user.id],
     );
 
@@ -234,7 +234,7 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
     const relativePhotoUrl = path.join('uploads', 'profile-photos', req.file.filename);
 
     // Update database with new photo URL
-    await db.run('UPDATE user_profiles SET profile_photo_url = ? WHERE user_id = ?', [
+    await db.run('UPDATE user_profiles SET profile_photo_url = $1 WHERE user_id = $2', [
       relativePhotoUrl,
       req.user.id,
     ]);
@@ -261,7 +261,7 @@ export async function deleteProfilePhoto(req: AuthRequest, res: Response) {
 
     // Get photo URL
     const profile = await db.get<ProfilePhotoRow>(
-      'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
+      'SELECT profile_photo_url FROM user_profiles WHERE user_id = $1',
       [req.user.id],
     );
 
@@ -280,7 +280,7 @@ export async function deleteProfilePhoto(req: AuthRequest, res: Response) {
     }
 
     // Update database
-    await db.run('UPDATE user_profiles SET profile_photo_url = NULL WHERE user_id = ?', [
+    await db.run('UPDATE user_profiles SET profile_photo_url = NULL WHERE user_id = $1', [
       req.user.id,
     ]);
 
@@ -314,7 +314,7 @@ export async function changeEmail(req: AuthRequest, res: Response) {
     const db = getDatabase();
 
     const user = await db.get<{ email: string; password_hash: string }>(
-      'SELECT email, password_hash FROM users WHERE id = ? AND deleted_at IS NULL',
+      'SELECT email, password_hash FROM users WHERE id = $1 AND deleted_at IS NULL',
       [req.user.id],
     );
 
@@ -333,7 +333,7 @@ export async function changeEmail(req: AuthRequest, res: Response) {
 
     // Ensure new email is not already taken by another account
     const conflict = await db.get(
-      'SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL',
+      'SELECT id FROM users WHERE email = $1 AND id != $2 AND deleted_at IS NULL',
       [newEmail, req.user.id],
     );
     if (conflict) {
@@ -346,9 +346,9 @@ export async function changeEmail(req: AuthRequest, res: Response) {
     // Store PENDING email — current email remains active until confirmed
     await db.run(
       `UPDATE users
-       SET pending_email = ?, pending_email_token = ?, pending_email_token_expiry = ?,
+       SET pending_email = $1, pending_email_token = $2, pending_email_token_expiry = $3,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
+       WHERE id = $4`,
       [newEmail, token, expiry, req.user.id],
     );
 
@@ -409,7 +409,7 @@ export async function confirmEmailChange(req: AuthRequest, res: Response) {
     }>(
       `SELECT id, pending_email, pending_email_token_expiry
        FROM users
-       WHERE pending_email_token = ? AND deleted_at IS NULL`,
+       WHERE pending_email_token = $1 AND deleted_at IS NULL`,
       [token],
     );
 
@@ -429,7 +429,7 @@ export async function confirmEmailChange(req: AuthRequest, res: Response) {
            pending_email_token_expiry = NULL,
            email_verified = 1,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
+       WHERE id = $1`,
       [user.id],
     );
 
@@ -457,7 +457,7 @@ export async function deleteAccount(req: AuthRequest, res: Response) {
       `SELECT u.password_hash, up.profile_photo_url
        FROM users u
        LEFT JOIN user_profiles up ON up.user_id = u.id
-       WHERE u.id = ? AND u.deleted_at IS NULL`,
+       WHERE u.id = $1 AND u.deleted_at IS NULL`,
       [req.user.id],
     );
 
@@ -489,7 +489,7 @@ export async function deleteAccount(req: AuthRequest, res: Response) {
            pending_email = NULL,
            pending_email_token = NULL,
            pending_email_token_expiry = NULL
-       WHERE id = ?`,
+       WHERE id = $1`,
       [req.user.id],
     );
 
@@ -497,12 +497,12 @@ export async function deleteAccount(req: AuthRequest, res: Response) {
       `UPDATE user_profiles
        SET bio = NULL, phone_number = NULL, profile_photo_url = NULL,
            address = NULL, city = NULL, state = NULL, zip_code = NULL, country = NULL
-       WHERE user_id = ?`,
+       WHERE user_id = $1`,
       [req.user.id],
     );
 
     // Invalidate all sessions
-    await db.run('DELETE FROM sessions WHERE user_id = ?', [req.user.id]);
+    await db.run('DELETE FROM sessions WHERE user_id = $1', [req.user.id]);
 
     res.clearCookie('refreshToken');
 

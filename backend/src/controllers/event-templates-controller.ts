@@ -83,7 +83,7 @@ export async function getTemplate(req: Request, res: Response): Promise<void> {
     }
     const db = getDatabase();
     const row = await db.get<EventTemplateRow>(
-      'SELECT * FROM event_templates WHERE id = ? AND deleted_at IS NULL',
+      'SELECT * FROM event_templates WHERE id = $1 AND deleted_at IS NULL',
       [req.params['id']],
     );
     if (!row) {
@@ -131,7 +131,7 @@ export async function createTemplate(req: Request, res: Response): Promise<void>
          (name, description, default_title, default_location, default_capacity,
           default_event_type, default_status, default_tags, default_is_public,
           default_waitlist_enabled, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING id`,
       [
         String(body.name).trim(),
@@ -148,7 +148,7 @@ export async function createTemplate(req: Request, res: Response): Promise<void>
       ],
     );
     const created = await db.get<EventTemplateRow>(
-      'SELECT * FROM event_templates WHERE id = ?',
+      'SELECT * FROM event_templates WHERE id = $1',
       [result.lastID],
     );
     res.status(201).json(created);
@@ -173,7 +173,7 @@ export async function updateTemplate(req: Request, res: Response): Promise<void>
     }
     const db = getDatabase();
     const existing = await db.get<EventTemplateRow>(
-      'SELECT * FROM event_templates WHERE id = ? AND deleted_at IS NULL',
+      'SELECT * FROM event_templates WHERE id = $1 AND deleted_at IS NULL',
       [req.params['id']],
     );
     if (!existing) {
@@ -193,18 +193,18 @@ export async function updateTemplate(req: Request, res: Response): Promise<void>
 
     await db.run(
       `UPDATE event_templates SET
-         name = ?,
-         description = ?,
-         default_title = ?,
-         default_location = ?,
-         default_capacity = ?,
-         default_event_type = ?,
-         default_status = ?,
-         default_tags = ?,
-         default_is_public = ?,
-         default_waitlist_enabled = ?,
+         name = $1,
+         description = $2,
+         default_title = $3,
+         default_location = $4,
+         default_capacity = $5,
+         default_event_type = $6,
+         default_status = $7,
+         default_tags = $8,
+         default_is_public = $9,
+         default_waitlist_enabled = $10,
          updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
+       WHERE id = $11`,
       [
         body.name ?? existing.name,
         body.description !== undefined ? body.description : existing.description,
@@ -222,7 +222,7 @@ export async function updateTemplate(req: Request, res: Response): Promise<void>
       ],
     );
     const updated = await db.get<EventTemplateRow>(
-      'SELECT * FROM event_templates WHERE id = ?',
+      'SELECT * FROM event_templates WHERE id = $1',
       [req.params['id']],
     );
     res.json(updated);
@@ -247,7 +247,7 @@ export async function deleteTemplate(req: Request, res: Response): Promise<void>
     }
     const db = getDatabase();
     const existing = await db.get<EventTemplateRow>(
-      'SELECT * FROM event_templates WHERE id = ? AND deleted_at IS NULL',
+      'SELECT * FROM event_templates WHERE id = $1 AND deleted_at IS NULL',
       [req.params['id']],
     );
     if (!existing) {
@@ -259,7 +259,7 @@ export async function deleteTemplate(req: Request, res: Response): Promise<void>
       return;
     }
     await db.run(
-      'UPDATE event_templates SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE event_templates SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1',
       [req.params['id']],
     );
     res.json({ message: 'Template deleted' });
@@ -288,7 +288,7 @@ export async function applyTemplate(req: Request, res: Response): Promise<void> 
     }
     const db = getDatabase();
     const template = await db.get<EventTemplateRow>(
-      'SELECT * FROM event_templates WHERE id = ? AND deleted_at IS NULL',
+      'SELECT * FROM event_templates WHERE id = $1 AND deleted_at IS NULL',
       [req.params['id']],
     );
     if (!template) {
@@ -338,7 +338,7 @@ export async function applyTemplate(req: Request, res: Response): Promise<void> 
     const result = await db.run(
       `INSERT INTO events (title, date, location, description, capacity, status,
                            event_type, is_public, tags, waitlist_enabled, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING id`,
       [
         title,
@@ -360,11 +360,11 @@ export async function applyTemplate(req: Request, res: Response): Promise<void> 
     await applyTemplateSections(db, Number(template.id), Number(result.lastID), user.id);
 
     const created = await db.get(
-      'SELECT *, date AS event_date FROM events WHERE id = ?',
+      'SELECT *, date AS event_date FROM events WHERE id = $1',
       [result.lastID],
     );
     await db.run(
-      'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
       [
         user.id,
         user.email ?? null,
@@ -403,7 +403,7 @@ export async function listTemplateSections(req: Request, res: Response): Promise
     }
     const db = getDatabase();
     const template = await db.get<EventTemplateRow>(
-      'SELECT id, created_by FROM event_templates WHERE id = ? AND deleted_at IS NULL',
+      'SELECT id, created_by FROM event_templates WHERE id = $1 AND deleted_at IS NULL',
       [req.params['id']],
     );
     if (!template) {
@@ -416,7 +416,7 @@ export async function listTemplateSections(req: Request, res: Response): Promise
     }
     const rows = await db.all<TemplateSectionRow>(
       `SELECT id, template_id, section_key, payload, sort_order, created_at, updated_at
-         FROM event_template_sections WHERE template_id = ?
+         FROM event_template_sections WHERE template_id = $1
         ORDER BY sort_order ASC, id ASC`,
       [req.params['id']],
     );
@@ -449,7 +449,7 @@ export async function upsertTemplateSection(req: Request, res: Response): Promis
     }
     const db = getDatabase();
     const template = await db.get<EventTemplateRow>(
-      'SELECT id, created_by FROM event_templates WHERE id = ? AND deleted_at IS NULL',
+      'SELECT id, created_by FROM event_templates WHERE id = $1 AND deleted_at IS NULL',
       [req.params['id']],
     );
     if (!template) {
@@ -471,7 +471,7 @@ export async function upsertTemplateSection(req: Request, res: Response): Promis
 
     await db.run(
       `INSERT INTO event_template_sections (template_id, section_key, payload, sort_order)
-       VALUES (?, ?, ?::jsonb, ?)
+       VALUES ($1, $2, $3::jsonb, $4)
        ON CONFLICT (template_id, section_key) DO UPDATE
          SET payload = EXCLUDED.payload,
              sort_order = EXCLUDED.sort_order,
@@ -481,7 +481,7 @@ export async function upsertTemplateSection(req: Request, res: Response): Promis
 
     const row = await db.get<TemplateSectionRow>(
       `SELECT id, template_id, section_key, payload, sort_order, created_at, updated_at
-         FROM event_template_sections WHERE template_id = ? AND section_key = ?`,
+         FROM event_template_sections WHERE template_id = $1 AND section_key = $2`,
       [req.params['id'], sectionKey],
     );
     res.json(row);
@@ -513,7 +513,7 @@ export async function deleteTemplateSection(req: Request, res: Response): Promis
     }
     const db = getDatabase();
     await db.run(
-      'DELETE FROM event_template_sections WHERE template_id = ? AND section_key = ?',
+      'DELETE FROM event_template_sections WHERE template_id = $1 AND section_key = $2',
       [req.params['id'], sectionKey],
     );
     res.json({ message: 'Section deleted' });
@@ -542,7 +542,7 @@ async function applyTemplateSections(
     sections =
       (await db.all<TemplateSectionRow>(
         `SELECT section_key, payload FROM event_template_sections
-          WHERE template_id = ?
+          WHERE template_id = $1
           ORDER BY sort_order ASC, id ASC`,
         [templateId],
       )) ?? [];
@@ -560,7 +560,7 @@ async function applyTemplateSections(
       for (const task of payload['tasks'] as Array<Record<string, unknown>>) {
         await db.run(
           `INSERT INTO tasks (event_id, title, notes, due_date, status, priority, created_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             eventId,
             String(task['title'] ?? 'Untitled task').slice(0, 200),
@@ -576,7 +576,7 @@ async function applyTemplateSections(
       for (const cat of payload['categories'] as Array<Record<string, unknown>>) {
         await db.run(
           `INSERT INTO budget_categories (event_id, name, allocated_amount)
-           VALUES (?, ?, ?)`,
+           VALUES ($1, $2, $3)`,
           [eventId, String(cat['name'] ?? 'Category').slice(0, 100), Number(cat['allocated_amount'] ?? 0)],
         );
       }
@@ -587,7 +587,7 @@ async function applyTemplateSections(
         await db.run(
           `INSERT INTO event_custom_fields
              (event_id, field_key, label, field_type, options, value, required, sort_order, created_by, updated_by)
-           VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?)
+           VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)
            ON CONFLICT (event_id, field_key) DO NOTHING`,
           [
             eventId,
@@ -605,14 +605,14 @@ async function applyTemplateSections(
       }
     } else if (section.section_key === 'shopping' && Array.isArray(payload['items'])) {
       const listResult = await db.run(
-        `INSERT INTO shopping_lists (event_id, name, created_by) VALUES (?, ?, ?) RETURNING id`,
+        `INSERT INTO shopping_lists (event_id, name, created_by) VALUES ($1, $2, $3) RETURNING id`,
         [eventId, String(payload['list_name'] ?? 'Template Shopping List'), userId],
       );
       const listId = listResult.lastID;
       for (const item of payload['items'] as Array<Record<string, unknown>>) {
         await db.run(
           `INSERT INTO shopping_items (list_id, name, quantity, unit, estimated_cost)
-           VALUES (?, ?, ?, ?, ?)`,
+           VALUES ($1, $2, $3, $4, $5)`,
           [
             listId,
             String(item['name'] ?? 'Item').slice(0, 200),

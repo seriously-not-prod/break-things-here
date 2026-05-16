@@ -66,7 +66,7 @@ export async function listShareLinks(req: Request, res: Response): Promise<Respo
     `SELECT id, event_id, album_id, token, password_hash, allow_download, expires_at,
             view_count, last_viewed_at, revoked_at, created_by, created_at, updated_at
        FROM gallery_share_links
-      WHERE event_id = ?
+      WHERE event_id = $1
       ORDER BY created_at DESC`,
     [eventId],
   );
@@ -94,7 +94,7 @@ export async function createShareLink(req: Request, res: Response): Promise<Resp
     }
     const db = getDatabase();
     const album = await db.get<{ id: number }>(
-      'SELECT id FROM gallery_albums WHERE id = ? AND event_id = ?',
+      'SELECT id FROM gallery_albums WHERE id = $1 AND event_id = $2',
       [n, eventId],
     );
     if (!album) return res.status(404).json({ error: 'Album not found.' });
@@ -128,7 +128,7 @@ export async function createShareLink(req: Request, res: Response): Promise<Resp
   const result = await db.run(
     `INSERT INTO gallery_share_links
        (event_id, album_id, token, password_hash, allow_download, expires_at, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING id`,
     [
       eventId,
@@ -144,7 +144,7 @@ export async function createShareLink(req: Request, res: Response): Promise<Resp
   const row = await db.get<ShareLinkRow>(
     `SELECT id, event_id, album_id, token, password_hash, allow_download, expires_at,
             view_count, last_viewed_at, revoked_at, created_by, created_at, updated_at
-       FROM gallery_share_links WHERE id = ?`,
+       FROM gallery_share_links WHERE id = $1`,
     [result.lastID],
   );
   if (!row) return res.status(500).json({ error: 'Failed to create share link.' });
@@ -159,7 +159,7 @@ export async function revokeShareLink(req: Request, res: Response): Promise<Resp
 
   const db = getDatabase();
   const existing = await db.get<{ id: number; revoked_at: string | null }>(
-    'SELECT id, revoked_at FROM gallery_share_links WHERE id = ? AND event_id = ?',
+    'SELECT id, revoked_at FROM gallery_share_links WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Share link not found.' });
@@ -170,7 +170,7 @@ export async function revokeShareLink(req: Request, res: Response): Promise<Resp
   await db.run(
     `UPDATE gallery_share_links
         SET revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?`,
+      WHERE id = $1`,
     [id],
   );
   return res.json({ message: 'Share link revoked.' });
@@ -199,7 +199,7 @@ export async function resolveShareLink(req: Request, res: Response): Promise<Res
   const link = await db.get<ShareLinkRow>(
     `SELECT id, event_id, album_id, token, password_hash, allow_download, expires_at,
             view_count, last_viewed_at, revoked_at
-       FROM gallery_share_links WHERE token = ? AND revoked_at IS NULL`,
+       FROM gallery_share_links WHERE token = $1 AND revoked_at IS NULL`,
     [token],
   );
   if (!link) return res.status(404).json({ error: 'Share link not found or revoked.' });
@@ -238,7 +238,7 @@ export async function resolveShareLink(req: Request, res: Response): Promise<Res
     `UPDATE gallery_share_links
         SET view_count = view_count + 1, last_viewed_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?`,
+      WHERE id = $1`,
     [link.id],
   );
 

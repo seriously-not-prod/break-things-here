@@ -45,7 +45,7 @@ export async function listTaskTemplates(req: Request, res: Response): Promise<Re
 
   const db = getDatabase();
   const templates = await db.all<TaskTemplate>(
-    `SELECT * FROM task_templates WHERE event_id = ? ORDER BY name ASC`,
+    `SELECT * FROM task_templates WHERE event_id = $1 ORDER BY name ASC`,
     [eventId],
   );
   return res.json({ templates });
@@ -78,12 +78,12 @@ export async function createTaskTemplate(req: Request, res: Response): Promise<R
   const db = getDatabase();
   const result = await db.run(
     `INSERT INTO task_templates (event_id, name, description, priority, estimated_hours, created_by)
-     VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
     [eventId, name.trim(), description?.trim() ?? null, priority ?? 'Medium', estimated_hours ?? null, authReq.user.id],
   );
 
   const template = await db.get<TaskTemplate>(
-    `SELECT * FROM task_templates WHERE id = ?`,
+    `SELECT * FROM task_templates WHERE id = $1`,
     [result.lastID],
   );
   return res.status(201).json({ template });
@@ -100,12 +100,12 @@ export async function deleteTaskTemplate(req: Request, res: Response): Promise<R
 
   const db = getDatabase();
   const template = await db.get<{ id: number }>(
-    `SELECT id FROM task_templates WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM task_templates WHERE id = $1 AND event_id = $2`,
     [id, eventId],
   );
   if (!template) return res.status(404).json({ error: 'Task template not found.' });
 
-  await db.run(`DELETE FROM task_templates WHERE id = ?`, [id]);
+  await db.run(`DELETE FROM task_templates WHERE id = $1`, [id]);
   return res.json({ message: 'Task template deleted.' });
 }
 
@@ -129,7 +129,7 @@ export async function applyTaskTemplate(req: Request, res: Response): Promise<Re
 
   const db = getDatabase();
   const template = await db.get<TaskTemplate>(
-    `SELECT * FROM task_templates WHERE id = ? AND event_id = ?`,
+    `SELECT * FROM task_templates WHERE id = $1 AND event_id = $2`,
     [id, eventId],
   );
   if (!template) return res.status(404).json({ error: 'Task template not found.' });
@@ -139,7 +139,7 @@ export async function applyTaskTemplate(req: Request, res: Response): Promise<Re
     `INSERT INTO tasks
        (event_id, title, description, priority, estimated_hours,
         assignee_name, due_date, status, created_by, template_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?) RETURNING id`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'Pending', $8, $9) RETURNING id`,
     [
       eventId,
       taskTitle,
@@ -153,7 +153,7 @@ export async function applyTaskTemplate(req: Request, res: Response): Promise<Re
     ],
   );
 
-  const task = await db.get(`SELECT * FROM tasks WHERE id = ?`, [result.lastID]);
+  const task = await db.get(`SELECT * FROM tasks WHERE id = $1`, [result.lastID]);
   return res.status(201).json({ task });
 }
 
@@ -172,7 +172,7 @@ export async function listTimeEntries(req: Request, res: Response): Promise<Resp
 
   // Verify task belongs to this event (prevents cross-event access by taskId)
   const taskCheck = await db.get<{ id: number }>(
-    `SELECT id FROM tasks WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM tasks WHERE id = $1 AND event_id = $2`,
     [taskId, eventId],
   );
   if (!taskCheck) return res.status(404).json({ error: 'Task not found in this event.' });
@@ -182,7 +182,7 @@ export async function listTimeEntries(req: Request, res: Response): Promise<Resp
      FROM task_time_entries tte
      JOIN users u ON u.id = tte.user_id
      JOIN tasks t ON t.id = tte.task_id
-     WHERE tte.task_id = ? AND t.event_id = ?
+     WHERE tte.task_id = $1 AND t.event_id = $2
      ORDER BY tte.logged_at DESC, tte.created_at DESC`,
     [taskId, eventId],
   );
@@ -214,14 +214,14 @@ export async function addTimeEntry(req: Request, res: Response): Promise<Respons
 
   const db = getDatabase();
   const task = await db.get<{ id: number }>(
-    `SELECT id FROM tasks WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM tasks WHERE id = $1 AND event_id = $2`,
     [taskId, eventId],
   );
   if (!task) return res.status(404).json({ error: 'Task not found in this event.' });
 
   const result = await db.run(
     `INSERT INTO task_time_entries (task_id, user_id, hours_spent, notes, logged_at)
-     VALUES (?, ?, ?, ?, ?) RETURNING id`,
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
     [taskId, authReq.user.id, hours_spent, notes?.trim() ?? null, logged_at ?? new Date().toISOString().slice(0, 10)],
   );
 
@@ -229,7 +229,7 @@ export async function addTimeEntry(req: Request, res: Response): Promise<Respons
     `SELECT tte.*, u.display_name AS author_name
      FROM task_time_entries tte
      JOIN users u ON u.id = tte.user_id
-     WHERE tte.id = ?`,
+     WHERE tte.id = $1`,
     [result.lastID],
   );
   return res.status(201).json({ entry });
@@ -247,13 +247,13 @@ export async function deleteTimeEntry(req: Request, res: Response): Promise<Resp
   const db = getDatabase();
   // Verify task belongs to this event
   const task = await db.get<{ event_id: number; created_by: number | null }>(
-    `SELECT event_id, created_by FROM tasks WHERE id = ? AND event_id = ?`,
+    `SELECT event_id, created_by FROM tasks WHERE id = $1 AND event_id = $2`,
     [taskId, eventId],
   );
   if (!task) return res.status(404).json({ error: 'Task not found in this event.' });
 
   const entry = await db.get<TaskTimeEntry>(
-    `SELECT * FROM task_time_entries WHERE id = ? AND task_id = ?`,
+    `SELECT * FROM task_time_entries WHERE id = $1 AND task_id = $2`,
     [id, taskId],
   );
   if (!entry) return res.status(404).json({ error: 'Time entry not found.' });
@@ -265,6 +265,6 @@ export async function deleteTimeEntry(req: Request, res: Response): Promise<Resp
     return res.status(403).json({ error: 'Not authorised to delete this time entry.' });
   }
 
-  await db.run(`DELETE FROM task_time_entries WHERE id = ?`, [id]);
+  await db.run(`DELETE FROM task_time_entries WHERE id = $1`, [id]);
   return res.json({ message: 'Time entry deleted.' });
 }

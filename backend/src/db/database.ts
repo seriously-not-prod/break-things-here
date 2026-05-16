@@ -297,7 +297,7 @@ async function seedRolePermissions(db: DatabaseAdapter): Promise<void> {
   ];
   for (const [name, description] of extendedPermissions) {
     await db.run(
-      `INSERT INTO permissions (name, description) VALUES (?, ?) ON CONFLICT (name) DO NOTHING`,
+      `INSERT INTO permissions (name, description) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING`,
       [name, description],
     );
   }
@@ -309,9 +309,9 @@ async function seedRolePermissions(db: DatabaseAdapter): Promise<void> {
   ]);
 
   // Seed new BRD v2 roles — created with ON CONFLICT DO NOTHING so idempotent
-  const collaboratorRole = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = ?', [ROLE_NAMES.collaborator]);
-  const guestRole        = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = ?', [ROLE_NAMES.guest]);
-  const viewerRole       = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = ?', [ROLE_NAMES.viewer]);
+  const collaboratorRole = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [ROLE_NAMES.collaborator]);
+  const guestRole        = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [ROLE_NAMES.guest]);
+  const viewerRole       = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [ROLE_NAMES.viewer]);
 
   await insertRolePermissions(db, adminRoleId);
   await insertRolePermissions(db, organizerRoleId, ORGANIZER_PERMISSION_NAMES);
@@ -329,7 +329,7 @@ async function seedRolePermissions(db: DatabaseAdapter): Promise<void> {
 }
 
 async function getRoleIdByName(db: DatabaseAdapter, roleName: RoleName): Promise<number> {
-  const role = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = ?', [roleName]);
+  const role = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [roleName]);
   if (!role) {
     throw new Error(`Role ${roleName} was not found during permission seeding`);
   }
@@ -344,11 +344,11 @@ async function insertRolePermissions(
 ): Promise<void> {
   const params = [roleId, ...(permissionNames ?? [])];
   const permissionFilter = permissionNames?.length
-    ? ` WHERE name IN (${permissionNames.map(() => '?').join(', ')})`
+    ? ` WHERE name IN (${permissionNames.map((_, i) => `$${i + 2}`).join(', ')})`
     : '';
   await db.run(
     `INSERT INTO role_permissions (role_id, permission_id)
-     SELECT ?, id FROM permissions${permissionFilter} ON CONFLICT (role_id, permission_id) DO NOTHING`,
+     SELECT $1, id FROM permissions${permissionFilter} ON CONFLICT (role_id, permission_id) DO NOTHING`,
     params,
   );
 }
@@ -360,7 +360,7 @@ async function seedDevelopmentDemoUsers(db: DatabaseAdapter): Promise<void> {
     const passwordHash = await hashPassword(user.password);
     await db.run(
       `INSERT INTO users (email, password_hash, display_name, email_verified, role_id, created_at, updated_at)
-       VALUES (?, ?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       VALUES ($1, $2, $3, 1, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
        ON CONFLICT (email) DO UPDATE SET
          password_hash = EXCLUDED.password_hash,
          display_name = EXCLUDED.display_name,
@@ -379,13 +379,13 @@ async function seedDevelopmentDemoUsers(db: DatabaseAdapter): Promise<void> {
 async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> {
   if (process.env.NODE_ENV === 'production') return;
 
-  const admin = await db.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['admin@festival.local']);
-  const attendee = await db.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['alice@email.com']);
+  const admin = await db.get<{ id: number }>('SELECT id FROM users WHERE email = $1', ['admin@festival.local']);
+  const attendee = await db.get<{ id: number }>('SELECT id FROM users WHERE email = $1', ['alice@email.com']);
 
   if (!admin) return;
 
   let event = await db.get<{ id: number }>(
-    'SELECT id FROM events WHERE title = ? AND created_by = ? AND deleted_at IS NULL ORDER BY id LIMIT 1',
+    'SELECT id FROM events WHERE title = $1 AND created_by = $2 AND deleted_at IS NULL ORDER BY id LIMIT 1',
     [DEV_DEMO_EVENT.title, admin.id],
   );
 
@@ -394,7 +394,7 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
       `INSERT INTO events (
         title, date, location, description, capacity, status, created_by,
         created_at, updated_at, event_type, tags, is_public, end_date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, TRUE, ?)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $8, $9, TRUE, $10)
       RETURNING id`,
       [
         DEV_DEMO_EVENT.title,
@@ -416,7 +416,7 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
 
   await db.run(
     `INSERT INTO event_members (event_id, user_id, role)
-     VALUES (?, ?, 'Owner')
+     VALUES ($1, $2, 'Owner')
      ON CONFLICT (event_id, user_id) DO NOTHING`,
     [event.id, admin.id],
   );
@@ -424,59 +424,59 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
   if (attendee) {
     await db.run(
       `INSERT INTO event_members (event_id, user_id, role)
-       VALUES (?, ?, 'Member')
+       VALUES ($1, $2, 'Member')
        ON CONFLICT (event_id, user_id) DO NOTHING`,
       [event.id, attendee.id],
     );
   }
 
   const budgetCategoryCount = await db.get<{ count: string }>(
-    'SELECT COUNT(*)::text AS count FROM budget_categories WHERE event_id = ?',
+    'SELECT COUNT(*)::text AS count FROM budget_categories WHERE event_id = $1',
     [event.id],
   );
   if (Number(budgetCategoryCount?.count ?? '0') === 0) {
     await db.run(
       `INSERT INTO budget_categories (event_id, name, allocated_amount, color)
        VALUES
-       (?, 'Production', 18000, '#6366f1'),
-       (?, 'Catering', 7000, '#10b981'),
-       (?, 'Marketing', 5000, '#f59e0b')`,
+       ($1, 'Production', 18000, '#6366f1'),
+       ($2, 'Catering', 7000, '#10b981'),
+       ($3, 'Marketing', 5000, '#f59e0b')`,
       [event.id, event.id, event.id],
     );
   }
 
   const categories = await db.all<{ id: number; name: string }>(
-    'SELECT id, name FROM budget_categories WHERE event_id = ? ORDER BY id',
+    'SELECT id, name FROM budget_categories WHERE event_id = $1 ORDER BY id',
     [event.id],
   );
   const productionCategory = categories.find((category) => category.name === 'Production');
   const cateringCategory = categories.find((category) => category.name === 'Catering');
 
   const expenseCount = await db.get<{ count: string }>(
-    'SELECT COUNT(*)::text AS count FROM expenses WHERE event_id = ?',
+    'SELECT COUNT(*)::text AS count FROM expenses WHERE event_id = $1',
     [event.id],
   );
   if (Number(expenseCount?.count ?? '0') === 0 && productionCategory && cateringCategory) {
     await db.run(
       `INSERT INTO expenses (event_id, category_id, title, amount, payment_status, vendor_name, notes, created_by)
        VALUES
-       (?, ?, 'Main stage lighting', 4200, 'paid', 'Luma Sound Co.', 'Paid deposit confirmed.', ?),
-       (?, ?, 'Artist green room catering', 1500, 'pending', 'Fresh Plate Catering', 'Final headcount due next week.', ?)`,
+       ($1, $2, 'Main stage lighting', 4200, 'paid', 'Luma Sound Co.', 'Paid deposit confirmed.', $3),
+       ($4, $5, 'Artist green room catering', 1500, 'pending', 'Fresh Plate Catering', 'Final headcount due next week.', $6)`,
       [event.id, productionCategory.id, admin.id, event.id, cateringCategory.id, admin.id],
     );
   }
 
   const taskCount = await db.get<{ count: string }>(
-    'SELECT COUNT(*)::text AS count FROM tasks WHERE event_id = ?',
+    'SELECT COUNT(*)::text AS count FROM tasks WHERE event_id = $1',
     [event.id],
   );
   if (Number(taskCount?.count ?? '0') === 0) {
     await db.run(
       `INSERT INTO tasks (event_id, title, notes, assignee_name, assigned_user_id, due_date, status, priority, created_by, description)
        VALUES
-       (?, 'Confirm headline artist', 'Lock final arrival schedule and tech rider.', 'Admin User', ?, '2026-06-01', 'In Progress', 'High', ?, 'Artist confirmation and technical requirements.'),
-       (?, 'Review volunteer roster', 'Assign the evening gate team.', 'Alice', ?, '2026-06-05', 'Pending', 'Medium', ?, 'Volunteer shift review for festival weekend.'),
-       (?, 'Print VIP wristbands', 'Prepare 75 gold wristbands.', 'Admin User', ?, '2026-06-10', 'Blocked', 'Low', ?, 'Waiting on final sponsor guest list.')`,
+       ($1, 'Confirm headline artist', 'Lock final arrival schedule and tech rider.', 'Admin User', $2, '2026-06-01', 'In Progress', 'High', $3, 'Artist confirmation and technical requirements.'),
+       ($4, 'Review volunteer roster', 'Assign the evening gate team.', 'Alice', $5, '2026-06-05', 'Pending', 'Medium', $6, 'Volunteer shift review for festival weekend.'),
+       ($7, 'Print VIP wristbands', 'Prepare 75 gold wristbands.', 'Admin User', $8, '2026-06-10', 'Blocked', 'Low', $9, 'Waiting on final sponsor guest list.')`,
       [
         event.id, admin.id, admin.id,
         event.id, attendee?.id ?? null, admin.id,
@@ -486,66 +486,66 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
   }
 
   const rsvpCount = await db.get<{ count: string }>(
-    'SELECT COUNT(*)::text AS count FROM rsvps WHERE event_id = ?',
+    'SELECT COUNT(*)::text AS count FROM rsvps WHERE event_id = $1',
     [event.id],
   );
   if (Number(rsvpCount?.count ?? '0') === 0) {
     await db.run(
       `INSERT INTO rsvps (event_id, name, email, guests, status, notes, source, checked_in)
        VALUES
-       (?, 'Alice', 'alice@email.com', 2, 'Going', 'VIP guest with one plus-one.', 'dashboard', TRUE),
-       (?, 'Marcus Lee', 'marcus@example.com', 1, 'Pending', 'Waiting on travel approval.', 'public', FALSE),
-       (?, 'Sofia Patel', 'sofia@example.com', 3, 'Maybe', 'Needs accessible seating.', 'admin', FALSE)`,
+       ($1, 'Alice', 'alice@email.com', 2, 'Going', 'VIP guest with one plus-one.', 'dashboard', TRUE),
+       ($2, 'Marcus Lee', 'marcus@example.com', 1, 'Pending', 'Waiting on travel approval.', 'public', FALSE),
+       ($3, 'Sofia Patel', 'sofia@example.com', 3, 'Maybe', 'Needs accessible seating.', 'admin', FALSE)`,
       [event.id, event.id, event.id],
     );
   }
 
   const seatingTableCount = await db.get<{ count: string }>(
-    'SELECT COUNT(*)::text AS count FROM seating_tables WHERE event_id = ?',
+    'SELECT COUNT(*)::text AS count FROM seating_tables WHERE event_id = $1',
     [event.id],
   );
   if (Number(seatingTableCount?.count ?? '0') === 0) {
     await db.run(
       `INSERT INTO seating_tables (event_id, name, capacity, layout_x, layout_y)
        VALUES
-       (?, 'VIP Table', 8, 60, 60),
-       (?, 'Team Table', 10, 380, 60)`,
+       ($1, 'VIP Table', 8, 60, 60),
+       ($2, 'Team Table', 10, 380, 60)`,
       [event.id, event.id],
     );
   }
 
   const seatingAssignmentCount = await db.get<{ count: string }>(
-    'SELECT COUNT(*)::text AS count FROM seating_assignments sa JOIN seating_tables st ON st.id = sa.table_id WHERE st.event_id = ?',
+    'SELECT COUNT(*)::text AS count FROM seating_assignments sa JOIN seating_tables st ON st.id = sa.table_id WHERE st.event_id = $1',
     [event.id],
   );
   if (Number(seatingAssignmentCount?.count ?? '0') === 0) {
-    const vipTable = await db.get<{ id: number }>('SELECT id FROM seating_tables WHERE event_id = ? AND name = ?', [event.id, 'VIP Table']);
-    const firstGuest = await db.get<{ id: number }>('SELECT id FROM rsvps WHERE event_id = ? ORDER BY id LIMIT 1', [event.id]);
+    const vipTable = await db.get<{ id: number }>('SELECT id FROM seating_tables WHERE event_id = $1 AND name = $2', [event.id, 'VIP Table']);
+    const firstGuest = await db.get<{ id: number }>('SELECT id FROM rsvps WHERE event_id = $1 ORDER BY id LIMIT 1', [event.id]);
     if (vipTable && firstGuest) {
       await db.run(
         `INSERT INTO seating_assignments (table_id, rsvp_id)
-         VALUES (?, ?)
+         VALUES ($1, $2)
          ON CONFLICT (table_id, rsvp_id) DO NOTHING`,
         [vipTable.id, firstGuest.id],
       );
     }
   }
 
-  const vendorCount = await db.get<{ count: string }>('SELECT COUNT(*)::text AS count FROM vendors WHERE event_id = ?', [event.id]);
+  const vendorCount = await db.get<{ count: string }>('SELECT COUNT(*)::text AS count FROM vendors WHERE event_id = $1', [event.id]);
   if (Number(vendorCount?.count ?? '0') === 0) {
     await db.run(
       `INSERT INTO vendors (event_id, name, category, email, phone, website, status, quoted_amount, notes, rating, created_by)
-       VALUES (?, 'Luma Sound Co.', 'Production', 'hello@lumasound.co', '555-0101', 'https://lumasound.example', 'Confirmed', 8200, 'Stage and lighting package booked.', 5, ?)`,
+       VALUES ($1, 'Luma Sound Co.', 'Production', 'hello@lumasound.co', '555-0101', 'https://lumasound.example', 'Confirmed', 8200, 'Stage and lighting package booked.', 5, $2)`,
       [event.id, admin.id],
     );
   }
 
-  const shoppingList = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE event_id = ? ORDER BY id LIMIT 1', [event.id]);
+  const shoppingList = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE event_id = $1 ORDER BY id LIMIT 1', [event.id]);
   let shoppingListId = shoppingList?.id;
   if (!shoppingListId) {
     const createdList = await db.run(
       `INSERT INTO shopping_lists (event_id, name, created_by)
-       VALUES (?, 'Launch Weekend Supplies', ?)
+       VALUES ($1, 'Launch Weekend Supplies', $2)
        RETURNING id`,
       [event.id, admin.id],
     );
@@ -553,37 +553,37 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
   }
 
   const shoppingItemCount = shoppingListId
-    ? await db.get<{ count: string }>('SELECT COUNT(*)::text AS count FROM shopping_items WHERE list_id = ?', [shoppingListId])
+    ? await db.get<{ count: string }>('SELECT COUNT(*)::text AS count FROM shopping_items WHERE list_id = $1', [shoppingListId])
     : undefined;
   if (shoppingListId && Number(shoppingItemCount?.count ?? '0') === 0) {
     await db.run(
       `INSERT INTO shopping_items (list_id, name, quantity, unit, estimated_cost, actual_cost, status, assigned_to, notes)
        VALUES
-       (?, 'LED wristbands', 250, 'pcs', 500, NULL, 'Needed', ?, 'For opening night crowd effect.'),
-       (?, 'Backstage water cases', 20, 'cases', 180, 172, 'Purchased', ?, 'Delivered to storage.')`,
+       ($1, 'LED wristbands', 250, 'pcs', 500, NULL, 'Needed', $2, 'For opening night crowd effect.'),
+       ($3, 'Backstage water cases', 20, 'cases', 180, 172, 'Purchased', $4, 'Delivered to storage.')`,
       [shoppingListId, admin.id, shoppingListId, attendee?.id ?? admin.id],
     );
   }
 
-  const timelineCount = await db.get<{ count: string }>('SELECT COUNT(*)::text AS count FROM timeline_activities WHERE event_id = ?', [event.id]);
+  const timelineCount = await db.get<{ count: string }>('SELECT COUNT(*)::text AS count FROM timeline_activities WHERE event_id = $1', [event.id]);
   if (Number(timelineCount?.count ?? '0') === 0) {
     await db.run(
       `INSERT INTO timeline_activities (event_id, title, description, start_time, end_time, location, sort_order, created_by)
        VALUES
-       (?, 'Gates open', 'General admission opens for all attendees.', '2026-06-18T16:00:00Z', '2026-06-18T16:30:00Z', 'Main Gate', 1, ?),
-       (?, 'Headline set', 'Main stage performance begins.', '2026-06-18T21:00:00Z', '2026-06-18T22:30:00Z', 'Main Stage', 2, ?),
-       (?, 'VIP after-party', 'Private lounge access for sponsors and VIP guests.', '2026-06-18T23:00:00Z', '2026-06-19T01:00:00Z', 'Sky Lounge', 3, ?)`,
+       ($1, 'Gates open', 'General admission opens for all attendees.', '2026-06-18T16:00:00Z', '2026-06-18T16:30:00Z', 'Main Gate', 1, $2),
+       ($3, 'Headline set', 'Main stage performance begins.', '2026-06-18T21:00:00Z', '2026-06-18T22:30:00Z', 'Main Stage', 2, $4),
+       ($5, 'VIP after-party', 'Private lounge access for sponsors and VIP guests.', '2026-06-18T23:00:00Z', '2026-06-19T01:00:00Z', 'Sky Lounge', 3, $6)`,
       [event.id, admin.id, event.id, admin.id, event.id, admin.id],
     );
   }
 
-  const messageCount = await db.get<{ count: string }>('SELECT COUNT(*)::text AS count FROM event_messages WHERE event_id = ?', [event.id]);
+  const messageCount = await db.get<{ count: string }>('SELECT COUNT(*)::text AS count FROM event_messages WHERE event_id = $1', [event.id]);
   if (Number(messageCount?.count ?? '0') === 0) {
     await db.run(
       `INSERT INTO event_messages (event_id, sender_id, body)
        VALUES
-       (?, ?, 'Welcome to the Eventora demo workspace. Use this event to explore each module.'),
-       (?, ?, 'Budget, guests, seating, vendors, shopping, and timeline now have sample data.')`,
+       ($1, $2, 'Welcome to the Eventora demo workspace. Use this event to explore each module.'),
+       ($3, $4, 'Budget, guests, seating, vendors, shopping, and timeline now have sample data.')`,
       [event.id, admin.id, event.id, attendee?.id ?? admin.id],
     );
   }
@@ -592,75 +592,75 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
 async function seedDevelopmentExtraData(db: DatabaseAdapter): Promise<void> {
   if (process.env.NODE_ENV === 'production') return;
 
-  const admin = await db.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['admin@festival.local']);
-  const attendee = await db.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['alice@email.com']);
+  const admin = await db.get<{ id: number }>('SELECT id FROM users WHERE email = $1', ['admin@festival.local']);
+  const attendee = await db.get<{ id: number }>('SELECT id FROM users WHERE email = $1', ['alice@email.com']);
   if (!admin) return;
 
   const draftTitle = 'Autumn Wine Festival (Draft)';
   const draft = await db.get<{ id: number }>(
-    'SELECT id FROM events WHERE title = ? AND created_by = ? AND deleted_at IS NULL ORDER BY id LIMIT 1',
+    'SELECT id FROM events WHERE title = $1 AND created_by = $2 AND deleted_at IS NULL ORDER BY id LIMIT 1',
     [draftTitle, admin.id],
   );
   if (!draft) {
     await db.run(
       `INSERT INTO events (title, date, location, description, capacity, status, created_by,
         created_at, updated_at, event_type, tags, is_public, end_date)
-       VALUES (?, ?, ?, ?, ?, 'Draft', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Food', 'wine,fall,private', FALSE, ?)`,
+       VALUES ($1, $2, $3, $4, $5, 'Draft', $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Food', 'wine,fall,private', FALSE, $7)`,
       [draftTitle, '2026-10-12', 'Vine & Hill Estate', 'Planning stage for the autumn invitational tasting.', 120, admin.id, '2026-10-13'],
     );
   }
 
   const completedTitle = 'Spring Tech Conference 2026';
   const completed = await db.get<{ id: number }>(
-    'SELECT id FROM events WHERE title = ? AND created_by = ? AND deleted_at IS NULL ORDER BY id LIMIT 1',
+    'SELECT id FROM events WHERE title = $1 AND created_by = $2 AND deleted_at IS NULL ORDER BY id LIMIT 1',
     [completedTitle, admin.id],
   );
   if (!completed) {
     await db.run(
       `INSERT INTO events (title, date, location, description, capacity, status, created_by,
         created_at, updated_at, event_type, tags, is_public, end_date)
-       VALUES (?, ?, ?, ?, ?, 'Completed', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Conference', 'tech,past', TRUE, ?)`,
+       VALUES ($1, $2, $3, $4, $5, 'Completed', $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Conference', 'tech,past', TRUE, $7)`,
       [completedTitle, '2026-03-04', 'Innovation Hall', 'Annual tech meetup that wrapped up successfully.', 400, admin.id, '2026-03-06'],
     );
   }
 
   const launchEvent = await db.get<{ id: number }>(
-    'SELECT id FROM events WHERE title = ? AND created_by = ? AND deleted_at IS NULL ORDER BY id LIMIT 1',
+    'SELECT id FROM events WHERE title = $1 AND created_by = $2 AND deleted_at IS NULL ORDER BY id LIMIT 1',
     [DEV_DEMO_EVENT.title, admin.id],
   );
 
   if (launchEvent?.id) {
-    const musicCategory = await db.get<{ id: number }>('SELECT id FROM categories WHERE name = ?', ['Music']);
+    const musicCategory = await db.get<{ id: number }>('SELECT id FROM categories WHERE name = $1', ['Music']);
     if (musicCategory) {
       await db.run(
-        `INSERT INTO event_categories (event_id, category_id) VALUES (?, ?) ON CONFLICT DO NOTHING`,
+        `INSERT INTO event_categories (event_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
         [launchEvent.id, musicCategory.id],
       );
     }
 
     const albumCount = await db.get<{ count: string }>(
-      'SELECT COUNT(*)::text AS count FROM gallery_albums WHERE event_id = ?',
+      'SELECT COUNT(*)::text AS count FROM gallery_albums WHERE event_id = $1',
       [launchEvent.id],
     );
     if (Number(albumCount?.count ?? '0') === 0) {
       await db.run(
         `INSERT INTO gallery_albums (event_id, name, description, created_by)
-         VALUES (?, 'Soundcheck Day', 'Behind-the-scenes from rehearsals.', ?)`,
+         VALUES ($1, 'Soundcheck Day', 'Behind-the-scenes from rehearsals.', $2)`,
         [launchEvent.id, admin.id],
       );
     }
 
     const activityCount = await db.get<{ count: string }>(
-      'SELECT COUNT(*)::text AS count FROM activity_feed WHERE event_id = ?',
+      'SELECT COUNT(*)::text AS count FROM activity_feed WHERE event_id = $1',
       [launchEvent.id],
     );
     if (Number(activityCount?.count ?? '0') === 0) {
       await db.run(
         `INSERT INTO activity_feed (event_id, user_id, action_type, description, link)
          VALUES
-         (?, ?, 'event_created', 'Eventora Launch Festival workspace created.', ?),
-         (?, ?, 'rsvp_added', 'Alice confirmed her RSVP.', ?),
-         (?, ?, 'expense_added', 'Main stage lighting expense recorded.', ?)`,
+         ($1, $2, 'event_created', 'Eventora Launch Festival workspace created.', $3),
+         ($4, $5, 'rsvp_added', 'Alice confirmed her RSVP.', $6),
+         ($7, $8, 'expense_added', 'Main stage lighting expense recorded.', $9)`,
         [
           launchEvent.id, admin.id, `/events/${launchEvent.id}`,
           launchEvent.id, admin.id, `/events/${launchEvent.id}/rsvps`,
@@ -670,44 +670,44 @@ async function seedDevelopmentExtraData(db: DatabaseAdapter): Promise<void> {
     }
 
     const commLogCount = await db.get<{ count: string }>(
-      'SELECT COUNT(*)::text AS count FROM communication_log WHERE event_id = ?',
+      'SELECT COUNT(*)::text AS count FROM communication_log WHERE event_id = $1',
       [launchEvent.id],
     );
     if (Number(commLogCount?.count ?? '0') === 0) {
       await db.run(
         `INSERT INTO communication_log (event_id, guest_email, communication_type, subject, content, status, sent_by)
          VALUES
-         (?, 'alice@email.com', 'rsvp_confirmation', 'Your RSVP is confirmed', 'Thanks for confirming. See you on June 18!', 'sent', ?),
-         (?, 'marcus@example.com', 'reminder', 'Don''t forget to RSVP', 'A friendly reminder to confirm your spot.', 'sent', ?)`,
+         ($1, 'alice@email.com', 'rsvp_confirmation', 'Your RSVP is confirmed', 'Thanks for confirming. See you on June 18!', 'sent', $2),
+         ($3, 'marcus@example.com', 'reminder', 'Don''t forget to RSVP', 'A friendly reminder to confirm your spot.', 'sent', $4)`,
         [launchEvent.id, admin.id, launchEvent.id, admin.id],
       );
     }
   }
 
   const notifCount = await db.get<{ count: string }>(
-    'SELECT COUNT(*)::text AS count FROM notifications WHERE user_id = ?',
+    'SELECT COUNT(*)::text AS count FROM notifications WHERE user_id = $1',
     [admin.id],
   );
   if (Number(notifCount?.count ?? '0') === 0) {
     await db.run(
       `INSERT INTO notifications (user_id, type, title, body, link, is_read)
        VALUES
-       (?, 'rsvp', 'New RSVP received', 'Sofia Patel responded Maybe.', '/events', FALSE),
-       (?, 'task', 'Task due soon', 'Confirm headline artist is due in 3 days.', '/events', FALSE),
-       (?, 'budget', 'Budget alert', 'Catering category at 21% of allocated.', '/events', TRUE)`,
+       ($1, 'rsvp', 'New RSVP received', 'Sofia Patel responded Maybe.', '/events', FALSE),
+       ($2, 'task', 'Task due soon', 'Confirm headline artist is due in 3 days.', '/events', FALSE),
+       ($3, 'budget', 'Budget alert', 'Catering category at 21% of allocated.', '/events', TRUE)`,
       [admin.id, admin.id, admin.id],
     );
   }
 
   if (attendee) {
     const attendeeNotif = await db.get<{ count: string }>(
-      'SELECT COUNT(*)::text AS count FROM notifications WHERE user_id = ?',
+      'SELECT COUNT(*)::text AS count FROM notifications WHERE user_id = $1',
       [attendee.id],
     );
     if (Number(attendeeNotif?.count ?? '0') === 0) {
       await db.run(
         `INSERT INTO notifications (user_id, type, title, body, link, is_read)
-         VALUES (?, 'invite', 'You were invited', 'Welcome to Eventora Launch Festival.', '/events', FALSE)`,
+         VALUES ($1, 'invite', 'You were invited', 'Welcome to Eventora Launch Festival.', '/events', FALSE)`,
         [attendee.id],
       );
     }
@@ -947,6 +947,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   `);
 
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS cover_image_url TEXT`);
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMP`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_type TEXT DEFAULT 'Other'`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMP`);

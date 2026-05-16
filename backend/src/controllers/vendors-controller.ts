@@ -123,7 +123,7 @@ export async function listVendors(req: Request, res: Response): Promise<Response
   const { eventId } = req.params;
   const db = getDatabase();
 
-  const event = await db.get<{ id: number }>('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
+  const event = await db.get<{ id: number }>('SELECT id FROM events WHERE id = $1 AND deleted_at IS NULL', [eventId]);
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
   const vendors = await db.all<(VendorRow & { is_favorite: boolean; booking_status: string | null })>(
@@ -132,10 +132,10 @@ export async function listVendors(req: Request, res: Response): Promise<Response
             vb.status AS booking_status
      FROM vendors v
      LEFT JOIN vendor_favorites vf
-       ON vf.event_id = v.event_id AND vf.vendor_id = v.id AND vf.user_id = ?
+       ON vf.event_id = v.event_id AND vf.vendor_id = v.id AND vf.user_id = $1
      LEFT JOIN vendor_bookings vb
        ON vb.event_id = v.event_id AND vb.vendor_id = v.id
-     WHERE v.event_id = ?
+     WHERE v.event_id = $2
      ORDER BY v.created_at DESC`,
     [authReq.user.id, eventId],
   );
@@ -154,7 +154,7 @@ export async function listFavoriteVendors(req: Request, res: Response): Promise<
     `SELECT vf.*, row_to_json(v.*) AS vendor
        FROM vendor_favorites vf
        JOIN vendors v ON v.id = vf.vendor_id
-      WHERE vf.event_id = ? AND vf.user_id = ?
+      WHERE vf.event_id = $1 AND vf.user_id = $2
       ORDER BY vf.created_at DESC`,
     [eventId, authReq.user!.id],
   );
@@ -174,19 +174,19 @@ export async function setVendorFavorite(req: Request, res: Response): Promise<Re
   }
 
   const db = getDatabase();
-  const vendor = await db.get<{ id: number }>('SELECT id FROM vendors WHERE id = ? AND event_id = ?', [id, eventId]);
+  const vendor = await db.get<{ id: number }>('SELECT id FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
   if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
 
   if (favorite) {
     await db.run(
       `INSERT INTO vendor_favorites (event_id, vendor_id, user_id)
-       VALUES (?, ?, ?)
+       VALUES ($1, $2, $3)
        ON CONFLICT (event_id, vendor_id, user_id) DO NOTHING`,
       [eventId, id, authReq.user!.id],
     );
   } else {
     await db.run(
-      `DELETE FROM vendor_favorites WHERE event_id = ? AND vendor_id = ? AND user_id = ?`,
+      `DELETE FROM vendor_favorites WHERE event_id = $1 AND vendor_id = $2 AND user_id = $3`,
       [eventId, id, authReq.user!.id],
     );
   }
@@ -203,7 +203,7 @@ export async function getVendorBooking(req: Request, res: Response): Promise<Res
 
   const db = getDatabase();
   const booking = await db.get<VendorBookingRow>(
-    `SELECT * FROM vendor_bookings WHERE event_id = ? AND vendor_id = ?`,
+    `SELECT * FROM vendor_bookings WHERE event_id = $1 AND vendor_id = $2`,
     [eventId, id],
   );
   return res.json({ booking: booking ?? null });
@@ -236,13 +236,13 @@ export async function upsertVendorBooking(req: Request, res: Response): Promise<
   }
 
   const db = getDatabase();
-  const vendor = await db.get<{ id: number }>('SELECT id FROM vendors WHERE id = ? AND event_id = ?', [id, eventId]);
+  const vendor = await db.get<{ id: number }>('SELECT id FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
   if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
 
   await db.run(
     `INSERT INTO vendor_bookings
       (event_id, vendor_id, status, contract_signed_at, service_start_at, service_end_at, total_amount, currency_code, notes, created_by, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      ON CONFLICT (event_id, vendor_id)
      DO UPDATE SET
        status = EXCLUDED.status,
@@ -270,7 +270,7 @@ export async function upsertVendorBooking(req: Request, res: Response): Promise<
   );
 
   const booking = await db.get<VendorBookingRow>(
-    `SELECT * FROM vendor_bookings WHERE event_id = ? AND vendor_id = ?`,
+    `SELECT * FROM vendor_bookings WHERE event_id = $1 AND vendor_id = $2`,
     [eventId, id],
   );
   return res.json({ booking });
@@ -286,7 +286,7 @@ export async function listVendorPaymentSchedules(req: Request, res: Response): P
   const db = getDatabase();
   const schedules = await db.all<VendorPaymentScheduleRow>(
     `SELECT * FROM vendor_payment_schedules
-      WHERE event_id = ? AND vendor_id = ?
+      WHERE event_id = $1 AND vendor_id = $2
       ORDER BY due_date ASC, created_at ASC`,
     [eventId, id],
   );
@@ -322,13 +322,13 @@ export async function createVendorPaymentSchedule(req: Request, res: Response): 
   }
 
   const db = getDatabase();
-  const vendor = await db.get<{ id: number }>('SELECT id FROM vendors WHERE id = ? AND event_id = ?', [id, eventId]);
+  const vendor = await db.get<{ id: number }>('SELECT id FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
   if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
 
   const bookingId = vendor_booking_id !== undefined && vendor_booking_id !== '' ? Number(vendor_booking_id) : null;
   if (bookingId !== null) {
     const booking = await db.get<{ id: number }>(
-      `SELECT id FROM vendor_bookings WHERE id = ? AND event_id = ? AND vendor_id = ?`,
+      `SELECT id FROM vendor_bookings WHERE id = $1 AND event_id = $2 AND vendor_id = $3`,
       [bookingId, eventId, id],
     );
     if (!booking) {
@@ -339,7 +339,7 @@ export async function createVendorPaymentSchedule(req: Request, res: Response): 
   const result = await db.run(
     `INSERT INTO vendor_payment_schedules
       (event_id, vendor_id, vendor_booking_id, due_date, amount, status, paid_at, note, created_by, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING id`,
     [
       eventId,
@@ -356,7 +356,7 @@ export async function createVendorPaymentSchedule(req: Request, res: Response): 
   );
 
   const schedule = await db.get<VendorPaymentScheduleRow>(
-    `SELECT * FROM vendor_payment_schedules WHERE id = ?`,
+    `SELECT * FROM vendor_payment_schedules WHERE id = $1`,
     [result.lastID],
   );
   return res.status(201).json({ schedule });
@@ -403,7 +403,7 @@ export async function createVendor(req: Request, res: Response): Promise<Respons
   const db = getDatabase();
   const result = await db.run(
     `INSERT INTO vendors (event_id, name, category, email, phone, website, status, quoted_amount, notes, rating, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING id`,
     [
       eventId,
@@ -420,7 +420,7 @@ export async function createVendor(req: Request, res: Response): Promise<Respons
     ],
   );
 
-  const vendor = await db.get<VendorRow>('SELECT * FROM vendors WHERE id = ?', [result.lastID]);
+  const vendor = await db.get<VendorRow>('SELECT * FROM vendors WHERE id = $1', [result.lastID]);
   return res.status(201).json({ vendor });
 }
 
@@ -432,7 +432,7 @@ export async function updateVendor(req: Request, res: Response): Promise<Respons
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const existing = await db.get<VendorRow>('SELECT * FROM vendors WHERE id = ? AND event_id = ?', [id, eventId]);
+  const existing = await db.get<VendorRow>('SELECT * FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
   if (!existing) return res.status(404).json({ error: 'Vendor not found.' });
 
   const { name, category, email, phone, website, status, quoted_amount, notes, rating } = req.body as {
@@ -461,9 +461,9 @@ export async function updateVendor(req: Request, res: Response): Promise<Respons
 
   await db.run(
     `UPDATE vendors SET
-       name = ?, category = ?, email = ?, phone = ?, website = ?,
-       status = ?, quoted_amount = ?, notes = ?, rating = ?, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ? AND event_id = ?`,
+       name = $1, category = $2, email = $3, phone = $4, website = $5,
+       status = $6, quoted_amount = $7, notes = $8, rating = $9, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $10 AND event_id = $11`,
     [
       name?.trim() ?? existing.name,
       category?.trim() ?? existing.category,
@@ -479,7 +479,7 @@ export async function updateVendor(req: Request, res: Response): Promise<Respons
     ],
   );
 
-  const vendor = await db.get<VendorRow>('SELECT * FROM vendors WHERE id = ?', [id]);
+  const vendor = await db.get<VendorRow>('SELECT * FROM vendors WHERE id = $1', [id]);
   return res.json({ vendor });
 }
 
@@ -491,10 +491,10 @@ export async function deleteVendor(req: Request, res: Response): Promise<Respons
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const existing = await db.get<{ id: number; contract_file: string | null }>('SELECT id, contract_file FROM vendors WHERE id = ? AND event_id = ?', [id, eventId]);
+  const existing = await db.get<{ id: number; contract_file: string | null }>('SELECT id, contract_file FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
   if (!existing) return res.status(404).json({ error: 'Vendor not found.' });
 
-  await db.run('DELETE FROM vendors WHERE id = ? AND event_id = ?', [id, eventId]);
+  await db.run('DELETE FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
 
   if (existing.contract_file) {
     await cleanupUploadedFile(existing.contract_file).catch(() => undefined);
@@ -518,7 +518,7 @@ export async function uploadContract(req: Request, res: Response): Promise<Respo
   }
 
   const db = getDatabase();
-  const existing = await db.get<{ id: number; contract_file: string | null }>('SELECT id, contract_file FROM vendors WHERE id = ? AND event_id = ?', [id, eventId]);
+  const existing = await db.get<{ id: number; contract_file: string | null }>('SELECT id, contract_file FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
   if (!existing) {
     await cleanupUploadedFile(authReq.file.path);
     return res.status(404).json({ error: 'Vendor not found.' });
@@ -530,10 +530,10 @@ export async function uploadContract(req: Request, res: Response): Promise<Respo
   }
 
   await db.run(
-    `UPDATE vendors SET contract_file = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    `UPDATE vendors SET contract_file = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
     [authReq.file.filename, id],
   );
 
-  const vendor = await db.get<VendorRow>('SELECT * FROM vendors WHERE id = ?', [id]);
+  const vendor = await db.get<VendorRow>('SELECT * FROM vendors WHERE id = $1', [id]);
   return res.json({ vendor });
 }

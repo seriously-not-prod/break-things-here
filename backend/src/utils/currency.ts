@@ -47,7 +47,7 @@ export async function getExchangeRate(
   if (fromN === toN) return 1;
 
   const direct = await db.get<ExchangeRateRow>(
-    'SELECT rate FROM exchange_rates WHERE base_currency = ? AND quote_currency = ?',
+    'SELECT rate FROM exchange_rates WHERE base_currency = $1 AND quote_currency = $2',
     [fromN, toN],
   );
   if (direct) {
@@ -57,7 +57,7 @@ export async function getExchangeRate(
 
   // Fall back to the inverse pair.
   const inverse = await db.get<ExchangeRateRow>(
-    'SELECT rate FROM exchange_rates WHERE base_currency = ? AND quote_currency = ?',
+    'SELECT rate FROM exchange_rates WHERE base_currency = $1 AND quote_currency = $2',
     [toN, fromN],
   );
   if (inverse) {
@@ -94,7 +94,7 @@ export async function upsertExchangeRate(
   }
   await db.run(
     `INSERT INTO exchange_rates (base_currency, quote_currency, rate, source, fetched_at)
-     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
      ON CONFLICT (base_currency, quote_currency)
      DO UPDATE SET rate = EXCLUDED.rate, source = EXCLUDED.source, fetched_at = EXCLUDED.fetched_at`,
     [baseN, quoteN, rate, source],

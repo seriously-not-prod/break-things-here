@@ -37,7 +37,7 @@ export async function listTemplates(req: Request, res: Response): Promise<Respon
   const db = getDatabase();
   const rows = await db.all<TemplateRow>(
     `SELECT * FROM communication_templates
-     WHERE event_id = ? OR event_id IS NULL
+     WHERE event_id = $1 OR event_id IS NULL
      ORDER BY (event_id IS NULL) ASC, name ASC`,
     [eventId],
   );
@@ -61,11 +61,11 @@ export async function createTemplate(req: Request, res: Response): Promise<Respo
   try {
     const result = await db.run(
       `INSERT INTO communication_templates (event_id, slug, name, subject, body, is_default, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
       [eventId, slug.trim(), name.trim(), subject.trim(), body, Boolean(is_default), authReq.user?.id ?? null],
     );
     const row = await db.get<TemplateRow>(
-      'SELECT * FROM communication_templates WHERE id = ?',
+      'SELECT * FROM communication_templates WHERE id = $1',
       [result.lastID],
     );
     return res.status(201).json({ template: row });
@@ -96,11 +96,11 @@ export async function updateTemplate(req: Request, res: Response): Promise<Respo
   params.push(id, eventId);
   const db = getDatabase();
   await db.run(
-    `UPDATE communication_templates SET ${fields.join(', ')} WHERE id = ? AND event_id = ?`,
+    `UPDATE communication_templates SET ${fields.join(', ')} WHERE id = $1 AND event_id = $2`,
     params,
   );
   const row = await db.get<TemplateRow>(
-    'SELECT * FROM communication_templates WHERE id = ? AND event_id = ?',
+    'SELECT * FROM communication_templates WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!row) return res.status(404).json({ error: 'Template not found.' });
@@ -115,7 +115,7 @@ export async function deleteTemplate(req: Request, res: Response): Promise<Respo
   if (!event) return res as Response;
   const db = getDatabase();
   const result = await db.run(
-    'DELETE FROM communication_templates WHERE id = ? AND event_id = ?',
+    'DELETE FROM communication_templates WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!result.changes) {
@@ -132,12 +132,12 @@ export async function previewTemplate(req: Request, res: Response): Promise<Resp
   if (!event) return res as Response;
   const db = getDatabase();
   const row = await db.get<TemplateRow>(
-    'SELECT * FROM communication_templates WHERE id = ? AND (event_id = ? OR event_id IS NULL)',
+    'SELECT * FROM communication_templates WHERE id = $1 AND (event_id = $2 OR event_id IS NULL)',
     [id, eventId],
   );
   if (!row) return res.status(404).json({ error: 'Template not found.' });
   const ev = await db.get<{ title: string; date: string; location: string | null }>(
-    'SELECT title, date, location FROM events WHERE id = ?',
+    'SELECT title, date, location FROM events WHERE id = $1',
     [eventId],
   );
   const tokens = (req.body?.tokens ?? {}) as Record<string, string>;

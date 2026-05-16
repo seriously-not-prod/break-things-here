@@ -12,7 +12,9 @@
     "db:test:up": "docker compose up -d db-test",
     "backend:dev": "cd backend && npm run dev",
     "backend:build": "cd backend && npm run build",
-    "backend:test": "docker compose up -d db-test && cd backend && npm test"
+    "backend:test": "docker compose up -d db-test && cd backend && npm test",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -48,6 +50,7 @@
     "supertest": "^7.2.2",
     "typescript": "^5.5.3",
     "vite": "^5.4.1",
-    "vitest": "^2.0.5"
+    "vitest": "^2.0.5",
+    "@playwright/test": "^1.48.0"
   }
 }

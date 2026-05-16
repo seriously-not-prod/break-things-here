@@ -34,7 +34,7 @@ export async function listNotifications(req: AuthRequest, res: Response): Promis
   const db = getDatabase();
   const rows = await db.all(
     `SELECT * FROM notifications
-     WHERE user_id = ?
+     WHERE user_id = $1
      ORDER BY created_at DESC
      LIMIT 50`,
     [req.user.id],
@@ -57,7 +57,7 @@ export async function markRead(req: AuthRequest, res: Response): Promise<void> {
     return;
   }
   await db.run(
-    `UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?`,
+    `UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2`,
     [notifId, req.user.id],
   );
   res.json({ ok: true });
@@ -71,7 +71,7 @@ export async function markAllRead(req: AuthRequest, res: Response): Promise<void
   }
   const db = getDatabase();
   await db.run(
-    `UPDATE notifications SET is_read = TRUE WHERE user_id = ?`,
+    `UPDATE notifications SET is_read = TRUE WHERE user_id = $1`,
     [req.user.id],
   );
   res.json({ ok: true });
@@ -109,11 +109,11 @@ export async function getDueTaskAlerts(req: AuthRequest, res: Response): Promise
        AND t.status <> 'Complete'
        AND e.deleted_at IS NULL
        AND (
-         t.assigned_user_id = ?
-         OR e.created_by = ?
+         t.assigned_user_id = $1
+         OR e.created_by = $2
          OR EXISTS (
            SELECT 1 FROM event_members em
-           WHERE em.event_id = e.id AND em.user_id = ?
+           WHERE em.event_id = e.id AND em.user_id = $3
          )
        )
      ORDER BY t.due_date ASC`,
@@ -146,7 +146,7 @@ export async function createBudgetAlert(
     const link = `/events/${eventId}/budget`;
     await db.run(
       `INSERT INTO notifications (user_id, type, title, body, link)
-       VALUES (?, 'budget_alert', 'Budget Warning', ?, ?)`,
+       VALUES ($1, 'budget_alert', 'Budget Warning', $2, $3)`,
       [
         userId,
         `Category "${categoryName}" is at ${pct}% of its allocation.`,
@@ -176,7 +176,7 @@ export async function createRsvpNotification(
     const link = `/events/${eventId}/guests`;
     await db.run(
       `INSERT INTO notifications (user_id, type, title, body, link)
-       VALUES (?, 'rsvp', 'New RSVP', ?, ?)`,
+       VALUES ($1, 'rsvp', 'New RSVP', $2, $3)`,
       [userId, `${guestName} confirmed attendance.`, link],
     );
   } catch (err) {
@@ -201,7 +201,7 @@ export async function createTaskDueAlert(
     const db = getDatabase();
     await db.run(
       `INSERT INTO notifications (user_id, type, title, body)
-       VALUES (?, 'task_due', 'Task Due Soon', ?)`,
+       VALUES ($1, 'task_due', 'Task Due Soon', $2)`,
       [userId, `Task "${taskTitle}" for event "${eventTitle}" is due soon.`],
     );
   } catch (err) {
@@ -221,7 +221,7 @@ export async function listNotificationPreferences(req: AuthRequest, res: Respons
   if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
   const db = getDatabase();
   const rows = await db.all(
-    'SELECT * FROM notification_preferences WHERE user_id = ? ORDER BY notification_type ASC',
+    'SELECT * FROM notification_preferences WHERE user_id = $1 ORDER BY notification_type ASC',
     [req.user.id],
   );
   res.json({ preferences: rows });
@@ -244,7 +244,7 @@ export async function upsertNotificationPreference(req: AuthRequest, res: Respon
   const db = getDatabase();
   await db.run(
     `INSERT INTO notification_preferences (user_id, notification_type, email_enabled, in_app_enabled, push_enabled)
-     VALUES (?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (user_id, notification_type) DO UPDATE SET
        email_enabled  = EXCLUDED.email_enabled,
        in_app_enabled = EXCLUDED.in_app_enabled,
@@ -253,7 +253,7 @@ export async function upsertNotificationPreference(req: AuthRequest, res: Respon
     [req.user.id, type, email_enabled ?? true, in_app_enabled ?? true, push_enabled ?? false],
   );
   const pref = await db.get(
-    'SELECT * FROM notification_preferences WHERE user_id = ? AND notification_type = ?',
+    'SELECT * FROM notification_preferences WHERE user_id = $1 AND notification_type = $2',
     [req.user.id, type],
   );
   res.json({ preference: pref });
@@ -286,21 +286,21 @@ export async function createBatchedNotification(
 
     // Check user preference — skip if in-app disabled
     const pref = await db.get<{ in_app_enabled: boolean }>(
-      'SELECT in_app_enabled FROM notification_preferences WHERE user_id = ? AND notification_type = ?',
+      'SELECT in_app_enabled FROM notification_preferences WHERE user_id = $1 AND notification_type = $2',
       [userId, notificationType],
     );
     if (pref && !pref.in_app_enabled) return false;
 
     // Apply batch window / anti-spam
     const rule = await db.get<{ batch_window_mins: number; max_per_window: number }>(
-      'SELECT batch_window_mins, max_per_window FROM notification_batch_rules WHERE notification_type = ?',
+      'SELECT batch_window_mins, max_per_window FROM notification_batch_rules WHERE notification_type = $1',
       [notificationType],
     );
     if (rule && batchKey) {
       const recent = await db.get<{ cnt: number }>(
         `SELECT COUNT(*) AS cnt FROM notifications
-         WHERE user_id = ? AND batch_key = ?
-           AND created_at > datetime('now', ?)`,
+         WHERE user_id = $1 AND batch_key = $2
+           AND created_at > datetime('now', $3)`,
         [userId, batchKey, `-${rule.batch_window_mins} minutes`],
       );
       if (recent && recent.cnt >= rule.max_per_window) return false; // suppressed
@@ -308,7 +308,7 @@ export async function createBatchedNotification(
 
     await db.run(
       `INSERT INTO notifications (user_id, type, title, body, link, notification_type, batch_key)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [userId, notificationType, title, body, link ?? null, notificationType, batchKey ?? null],
     );
     return true;

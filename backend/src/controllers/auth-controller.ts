@@ -50,7 +50,7 @@ export async function login(req: Request, res: Response): Promise<Response> {
   const user = await db.get<UserRow>(
     `SELECT id, email, password_hash, display_name, email_verified,
             role_id, account_locked, locked_until, login_attempts
-     FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL`,
+     FROM users WHERE LOWER(email) = $1 AND deleted_at IS NULL`,
     [normalizedEmail],
   );
 
@@ -75,7 +75,7 @@ export async function login(req: Request, res: Response): Promise<Response> {
     // Lock has expired — reset
     await db.run(
       `UPDATE users SET account_locked = 0, locked_until = NULL, login_attempts = 0,
-                        updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                        updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [user.id],
     );
     user.account_locked = 0;
@@ -97,8 +97,8 @@ export async function login(req: Request, res: Response): Promise<Response> {
     if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
       const lockedUntil = new Date(Date.now() + LOCKOUT_DURATION_MS).toISOString();
       await db.run(
-        `UPDATE users SET login_attempts = ?, account_locked = 1, locked_until = ?,
-                          updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE users SET login_attempts = $1, account_locked = 1, locked_until = $2,
+                          updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
         [newAttempts, lockedUntil, user.id],
       );
       await logAuditEvent({
@@ -111,7 +111,7 @@ export async function login(req: Request, res: Response): Promise<Response> {
       });
     } else {
       await db.run(
-        `UPDATE users SET login_attempts = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE users SET login_attempts = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
         [newAttempts, user.id],
       );
     }
@@ -130,7 +130,7 @@ export async function login(req: Request, res: Response): Promise<Response> {
   // Successful login — reset attempts and issue tokens
   await db.run(
     `UPDATE users SET login_attempts = 0, account_locked = 0, locked_until = NULL,
-                      updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                      updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
     [user.id],
   );
 
@@ -144,7 +144,7 @@ export async function login(req: Request, res: Response): Promise<Response> {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   await db.run(
     `INSERT INTO sessions (user_id, token, refresh_token, expires_at, last_activity)
-     VALUES (?, ?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4, $5)`,
     [user.id, tokenHash, refreshTokenHash, expiresAt, new Date().toISOString()],
   );
 
@@ -220,7 +220,7 @@ export async function register(req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
   const normalizedEmail = email.trim().toLowerCase();
 
-  const exists = await db.get('SELECT id FROM users WHERE LOWER(email) = ?', [normalizedEmail]);
+  const exists = await db.get('SELECT id FROM users WHERE LOWER(email) = $1', [normalizedEmail]);
   if (exists) {
     return res.status(409).json({ error: 'An account with this email already exists.' });
   }
@@ -230,7 +230,7 @@ export async function register(req: Request, res: Response): Promise<Response> {
 
   const result = await db.run(
     `INSERT INTO users (email, password_hash, display_name, email_verification_token)
-     VALUES (?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4)
      RETURNING id`,
     [normalizedEmail, passwordHash, displayName.trim(), verificationToken],
   );
@@ -254,7 +254,7 @@ export async function verifyEmail(req: Request, res: Response): Promise<Response
 
   const db = getDatabase();
   const user = await db.get(
-    'SELECT id FROM users WHERE email_verification_token = ? AND deleted_at IS NULL',
+    'SELECT id FROM users WHERE email_verification_token = $1 AND deleted_at IS NULL',
     [token],
   );
 
@@ -265,7 +265,7 @@ export async function verifyEmail(req: Request, res: Response): Promise<Response
   await db.run(
     `UPDATE users SET email_verified = 1, email_verified_at = CURRENT_TIMESTAMP,
                       email_verification_token = NULL, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
+     WHERE id = $1`,
     [user.id],
   );
 
@@ -295,12 +295,12 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
   }
 
   if (refreshToken) {
-    await db.run('DELETE FROM sessions WHERE refresh_token = ? AND user_id = ?', [hashToken(refreshToken), req.user.id]);
+    await db.run('DELETE FROM sessions WHERE refresh_token = $1 AND user_id = $2', [hashToken(refreshToken), req.user.id]);
   }
 
   // If no refresh cookie present, fall back to Authorization header token (tests use this flow).
   if (!refreshToken && authToken) {
-    await db.run('DELETE FROM sessions WHERE token = ? AND user_id = ?', [hashToken(authToken), req.user.id]);
+    await db.run('DELETE FROM sessions WHERE token = $1 AND user_id = $2', [hashToken(authToken), req.user.id]);
   }
 
   // Clear authentication cookies
@@ -339,7 +339,7 @@ export async function getCurrentUser(req: AuthRequest, res: Response): Promise<R
             u.updated_at
      FROM users u
      LEFT JOIN roles r ON r.id = u.role_id
-     WHERE u.id = ? AND u.deleted_at IS NULL`,
+     WHERE u.id = $1 AND u.deleted_at IS NULL`,
     [req.user.id],
   );
 
@@ -377,7 +377,7 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
   // Verify refresh token is in the sessions table
   // Stored refresh tokens are hashed — compare hashes
   const session = await db.get<{ id: number; user_id: number }>(
-    'SELECT id, user_id FROM sessions WHERE refresh_token = ?',
+    'SELECT id, user_id FROM sessions WHERE refresh_token = $1',
     [hashToken(refreshToken)],
   );
 
@@ -394,13 +394,13 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
 
   // Verify user still exists
   const user = await db.get<{ id: number; email: string; role_id: number }>(
-    'SELECT id, email, role_id FROM users WHERE id = ? AND deleted_at IS NULL',
+    'SELECT id, email, role_id FROM users WHERE id = $1 AND deleted_at IS NULL',
     [session.user_id],
   );
 
   if (!user) {
     // Clean up orphaned session
-    await db.run('DELETE FROM sessions WHERE id = ?', [session.id]);
+    await db.run('DELETE FROM sessions WHERE id = $1', [session.id]);
     return res.status(403).json({ error: 'User account no longer exists.' });
   }
 
@@ -419,7 +419,7 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   await db.run(
-    'UPDATE sessions SET token = ?, refresh_token = ?, expires_at = ?, last_activity = ? WHERE id = ?',
+    'UPDATE sessions SET token = $1, refresh_token = $2, expires_at = $3, last_activity = $4 WHERE id = $5',
     [hashToken(newSessionId), hashToken(newRefreshToken), expiresAt, new Date().toISOString(), session.id],
   );
 
@@ -477,7 +477,7 @@ export async function sessionHeartbeat(req: AuthRequest, res: Response): Promise
 
   if (refreshToken) {
     await db.run(
-      'UPDATE sessions SET last_activity = ? WHERE refresh_token = ? AND user_id = ?',
+      'UPDATE sessions SET last_activity = $1 WHERE refresh_token = $2 AND user_id = $3',
       [new Date().toISOString(), hashToken(refreshToken), req.user.id],
     );
   }
@@ -486,4 +486,109 @@ export async function sessionHeartbeat(req: AuthRequest, res: Response): Promise
     message: 'Session activity updated.',
     sessionTimeoutMs: SESSION_TIMEOUT_MS,
   });
+}
+
+/**
+ * POST /api/auth/resend-verification
+ * Resends verification email — max 3 attempts per hour per email.
+ */
+export async function resendVerification(req: Request, res: Response): Promise<Response> {
+  const { email } = req.body as { email?: string };
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required.' });
+  }
+
+  if (!validateEmailFormat(email)) {
+    return res.status(400).json({ error: 'Invalid email format.' });
+  }
+
+  const db = getDatabase();
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const user = await db.get<{ id: number; email_verified: number; resend_count: number; resend_window_start: string | null }>(
+    `SELECT id, email_verified,
+            COALESCE(resend_verification_count, 0) AS resend_count,
+            resend_verification_window_start AS resend_window_start
+     FROM users WHERE LOWER(email) = $1 AND deleted_at IS NULL`,
+    [normalizedEmail],
+  );
+
+  // Always return 200 to prevent user enumeration
+  if (!user) {
+    return res.status(200).json({ message: 'If the email is registered and unverified, a new verification email has been sent.' });
+  }
+
+  if (user.email_verified) {
+    return res.status(200).json({ message: 'If the email is registered and unverified, a new verification email has been sent.' });
+  }
+
+  // Rate-limit: max 3 resends per hour
+  const now = Date.now();
+  const windowStart = user.resend_window_start ? new Date(user.resend_window_start).getTime() : 0;
+  const windowElapsed = now - windowStart;
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+
+  let count = windowElapsed > ONE_HOUR_MS ? 0 : user.resend_count;
+
+  if (count >= 3) {
+    return res.status(429).json({ error: 'Too many resend attempts. Please wait up to an hour before trying again.' });
+  }
+
+  const newToken = generateVerificationToken();
+  const newWindowStart = windowElapsed > ONE_HOUR_MS ? new Date().toISOString() : user.resend_window_start;
+
+  await db.run(
+    `UPDATE users
+     SET email_verification_token = $1,
+         resend_verification_count = $2,
+         resend_verification_window_start = $3,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $4`,
+    [newToken, count + 1, newWindowStart, user.id],
+  );
+
+  // In production this would send an email; for now log and return success
+  console.info(`[Auth] Resend verification token generated for user ${user.id}`);
+
+  return res.status(200).json({ message: 'If the email is registered and unverified, a new verification email has been sent.' });
+}
+
+/**
+ * POST /api/auth/entra/backchannel-logout
+ * Microsoft Entra ID back-channel logout — invalidates all sessions for the user
+ * identified in the logout_token JWT.
+ */
+export async function entraBackchannelLogout(req: Request, res: Response): Promise<Response> {
+  // In production: validate the logout_token JWT using Entra JWKS endpoint.
+  // For now we accept the sid claim and revoke matching sessions.
+  const { logout_token } = req.body as { logout_token?: string };
+  if (!logout_token) {
+    return res.status(400).json({ error: 'logout_token is required.' });
+  }
+
+  try {
+    // Decode (without full signature verification — use JWKS in production)
+    const parts = logout_token.split('.');
+    if (parts.length !== 3) throw new Error('Invalid JWT structure');
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    const sid: string | undefined = payload.sid;
+    const sub: string | undefined = payload.sub;
+
+    if (!sid && !sub) {
+      return res.status(400).json({ error: 'logout_token missing sid/sub claim.' });
+    }
+
+    const db = getDatabase();
+    // Revoke sessions by entra_sid or entra_sub columns (added in v9 migration)
+    if (sid) {
+      await db.run('DELETE FROM sessions WHERE entra_sid = $1', [sid]);
+    } else if (sub) {
+      await db.run('DELETE FROM sessions WHERE entra_sub = $1', [sub]);
+    }
+
+    return res.status(200).json({ message: 'Logout processed.' });
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid logout_token.' });
+  }
 }

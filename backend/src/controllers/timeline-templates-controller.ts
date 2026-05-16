@@ -23,7 +23,7 @@ export async function listTimelineTemplates(req: Request, res: Response): Promis
   const { event_type } = req.query as { event_type?: string };
   const db = getDatabase();
 
-  let query = `SELECT * FROM timeline_templates WHERE is_global = TRUE OR created_by = ?`;
+  let query = `SELECT * FROM timeline_templates WHERE is_global = TRUE OR created_by = $1`;
   const params: (string | number)[] = [authReq.user.id];
 
   if (event_type) {
@@ -44,11 +44,11 @@ export async function getTimelineTemplate(req: Request, res: Response): Promise<
   const { id } = req.params;
   const db = getDatabase();
 
-  const template = await db.get('SELECT * FROM timeline_templates WHERE id = ?', [id]);
+  const template = await db.get('SELECT * FROM timeline_templates WHERE id = $1', [id]);
   if (!template) return res.status(404).json({ error: 'Template not found.' });
 
   const activities = await db.all(
-    'SELECT * FROM timeline_template_activities WHERE template_id = ? ORDER BY sort_order ASC',
+    'SELECT * FROM timeline_template_activities WHERE template_id = $1 ORDER BY sort_order ASC',
     [id],
   );
   return res.json({ template, activities });
@@ -82,7 +82,7 @@ export async function createTimelineTemplate(req: Request, res: Response): Promi
 
   const result = await db.run(
     `INSERT INTO timeline_templates (name, description, event_type, is_global, created_by)
-     VALUES (?, ?, ?, ?, ?) RETURNING id`,
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
     [name.trim(), description?.trim() || null, event_type?.trim() || null, is_global ?? false, authReq.user.id],
   );
   const templateId = result.lastID;
@@ -95,7 +95,7 @@ export async function createTimelineTemplate(req: Request, res: Response): Promi
         `INSERT INTO timeline_template_activities
            (template_id, title, description, offset_minutes, duration_minutes,
             buffer_before_mins, buffer_after_mins, location, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
           templateId,
           a.title.trim(),
@@ -111,9 +111,9 @@ export async function createTimelineTemplate(req: Request, res: Response): Promi
     }
   }
 
-  const template = await db.get('SELECT * FROM timeline_templates WHERE id = ?', [templateId]);
+  const template = await db.get('SELECT * FROM timeline_templates WHERE id = $1', [templateId]);
   const savedActivities = await db.all(
-    'SELECT * FROM timeline_template_activities WHERE template_id = ? ORDER BY sort_order ASC',
+    'SELECT * FROM timeline_template_activities WHERE template_id = $1 ORDER BY sort_order ASC',
     [templateId],
   );
   return res.status(201).json({ template, activities: savedActivities });
@@ -128,12 +128,12 @@ export async function deleteTimelineTemplate(req: Request, res: Response): Promi
   const db = getDatabase();
 
   const template = await db.get(
-    'SELECT * FROM timeline_templates WHERE id = ? AND (created_by = ? OR is_global = TRUE)',
+    'SELECT * FROM timeline_templates WHERE id = $1 AND (created_by = $2 OR is_global = TRUE)',
     [id, authReq.user.id],
   );
   if (!template) return res.status(404).json({ error: 'Template not found or access denied.' });
 
-  await db.run('DELETE FROM timeline_templates WHERE id = ?', [id]);
+  await db.run('DELETE FROM timeline_templates WHERE id = $1', [id]);
   return res.json({ message: 'Template deleted.' });
 }
 
@@ -152,11 +152,11 @@ export async function applyTimelineTemplate(req: Request, res: Response): Promis
   if (!event) return res as Response;
 
   const db = getDatabase();
-  const template = await db.get('SELECT * FROM timeline_templates WHERE id = ?', [template_id]);
+  const template = await db.get('SELECT * FROM timeline_templates WHERE id = $1', [template_id]);
   if (!template) return res.status(404).json({ error: 'Template not found.' });
 
   const templateActivities = await db.all(
-    'SELECT * FROM timeline_template_activities WHERE template_id = ? ORDER BY sort_order ASC',
+    'SELECT * FROM timeline_template_activities WHERE template_id = $1 ORDER BY sort_order ASC',
     [template_id],
   );
 
@@ -188,7 +188,7 @@ export async function applyTimelineTemplate(req: Request, res: Response): Promis
           planned_start_time, planned_end_time,
           buffer_before_mins, buffer_after_mins,
           status, location, sort_order, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'planned', ?, ?, ?)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'planned', $10, $11, $12)
        RETURNING id`,
       [
         eventId,
@@ -205,7 +205,7 @@ export async function applyTimelineTemplate(req: Request, res: Response): Promis
         authReq.user?.id ?? null,
       ],
     );
-    const activity = await db.get('SELECT * FROM timeline_activities WHERE id = ?', [result.lastID]);
+    const activity = await db.get('SELECT * FROM timeline_activities WHERE id = $1', [result.lastID]);
     created.push(activity);
   }
 
@@ -234,14 +234,14 @@ export async function reorderTimeline(req: Request, res: Response): Promise<Resp
     const sortOrder = Number(item.sort_order);
     if (!Number.isInteger(id) || id <= 0) continue;
     await db.run(
-      `UPDATE timeline_activities SET sort_order = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ? AND event_id = ?`,
+      `UPDATE timeline_activities SET sort_order = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND event_id = $3`,
       [sortOrder, id, eventId],
     );
   }
 
   const activities = await db.all(
-    `SELECT * FROM timeline_activities WHERE event_id = ? ORDER BY sort_order ASC`,
+    `SELECT * FROM timeline_activities WHERE event_id = $1 ORDER BY sort_order ASC`,
     [eventId],
   );
   return res.json({ activities });
@@ -270,7 +270,7 @@ export async function updateActivityBuffer(req: Request, res: Response): Promise
 
   const db = getDatabase();
   const activity = await db.get(
-    'SELECT id FROM timeline_activities WHERE id = ? AND event_id = ?',
+    'SELECT id FROM timeline_activities WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!activity) return res.status(404).json({ error: 'Timeline activity not found.' });
@@ -281,8 +281,8 @@ export async function updateActivityBuffer(req: Request, res: Response): Promise
   if (buffer_after_mins !== undefined) { fields.unshift('buffer_after_mins = ?'); params.push(buffer_after_mins); }
   params.push(id);
 
-  await db.run(`UPDATE timeline_activities SET ${fields.join(', ')} WHERE id = ?`, params);
-  const updated = await db.get('SELECT * FROM timeline_activities WHERE id = ?', [id]);
+  await db.run(`UPDATE timeline_activities SET ${fields.join(', ')} WHERE id = $1`, params);
+  const updated = await db.get('SELECT * FROM timeline_activities WHERE id = $1', [id]);
   return res.json({ activity: updated });
 }
 
@@ -308,7 +308,7 @@ export async function updateExecutionStatus(req: Request, res: Response): Promis
 
   const db = getDatabase();
   const activity = await db.get(
-    'SELECT id FROM timeline_activities WHERE id = ? AND event_id = ?',
+    'SELECT id FROM timeline_activities WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!activity) return res.status(404).json({ error: 'Timeline activity not found.' });
@@ -320,7 +320,7 @@ export async function updateExecutionStatus(req: Request, res: Response): Promis
   if (actual_end_time !== undefined) { fields.unshift('actual_end_time = ?'); params.push(actual_end_time || null); }
   params.push(id);
 
-  await db.run(`UPDATE timeline_activities SET ${fields.join(', ')} WHERE id = ?`, params);
-  const updated = await db.get('SELECT * FROM timeline_activities WHERE id = ?', [id]);
+  await db.run(`UPDATE timeline_activities SET ${fields.join(', ')} WHERE id = $1`, params);
+  const updated = await db.get('SELECT * FROM timeline_activities WHERE id = $1', [id]);
   return res.json({ activity: updated });
 }

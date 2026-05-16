@@ -141,3 +141,57 @@ RETURNS VOID AS $$
   WHERE  token = p_token;
 $$ LANGUAGE sql;
 
+
+-- v9.1: Additions for #665 — resend verification rate limiting
+ALTER TABLE users ADD COLUMN IF NOT EXISTS resend_verification_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS resend_verification_window_start TIMESTAMPTZ;
+
+-- Sessions: Entra back-channel logout support (#665)
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS entra_sid TEXT;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS entra_sub TEXT;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_sessions_entra_sid ON sessions(entra_sid) WHERE entra_sid IS NOT NULL;
+
+-- v9.2: Schema additions for all completion stories (#665-#681)
+
+-- communication_log: email tracking fields (#671)
+ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS opened BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ;
+ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS recipient_email TEXT;
+ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS body TEXT;
+ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+
+-- users: deactivation and email unsubscribe (#677, #671, #665)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_unsubscribed BOOLEAN NOT NULL DEFAULT false;
+
+-- exchange_rates: staleness tracking (#668) — already added in v9.0 if not exists
+ALTER TABLE exchange_rates ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+-- vendor_payment_schedules: reminder tracking (#669) — already added in v9.0 if not exists
+ALTER TABLE vendor_payment_schedules ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ;
+
+-- scheduled_reports: next run tracking (#673, #676)
+ALTER TABLE scheduled_reports ADD COLUMN IF NOT EXISTS last_run_at TIMESTAMPTZ;
+ALTER TABLE scheduled_reports ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ;
+
+-- Index for scheduled_reports dispatch
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_scheduled_reports_next_run
+  ON scheduled_reports(next_run_at) WHERE is_active = true;
+
+-- guest_groups: #667 — ensure table exists
+CREATE TABLE IF NOT EXISTS guest_groups (
+  id            SERIAL PRIMARY KEY,
+  event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  description   TEXT,
+  created_by    INTEGER REFERENCES users(id),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_guest_groups_event_id ON guest_groups(event_id);
+
+-- guest_group_members: #667
+CREATE TABLE IF NOT EXISTS guest_group_members (
+  group_id  INTEGER NOT NULL REFERENCES guest_groups(id) ON DELETE CASCADE,
+  rsvp_id   INTEGER NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
+  PRIMARY KEY (group_id, rsvp_id)
+);

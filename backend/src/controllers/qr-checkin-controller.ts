@@ -52,7 +52,7 @@ async function calculateLateArrival(
   eventId: number,
 ): Promise<{ isLate: boolean; delayMinutes: number | null }> {
   const ev = await db.get<{ date: string | null }>(
-    `SELECT date FROM events WHERE id = ?`,
+    `SELECT date FROM events WHERE id = $1`,
     [eventId],
   );
   if (!ev?.date) return { isLate: false, delayMinutes: null };
@@ -97,7 +97,7 @@ export async function scanQr(req: Request, res: Response): Promise<Response> {
 
   const db = getDatabase();
   const tokenRow = await db.get<{ rsvp_id: number; revoked_at: string | null }>(
-    `SELECT rsvp_id, revoked_at FROM rsvp_access_tokens WHERE token = ?`,
+    `SELECT rsvp_id, revoked_at FROM rsvp_access_tokens WHERE token = $1`,
     [token],
   );
   if (!tokenRow) return res.status(404).json({ error: 'Unknown QR code.' });
@@ -113,7 +113,7 @@ export async function scanQr(req: Request, res: Response): Promise<Response> {
       const rsvp = await tx.get<ScanResolveResult['rsvp']>(
         `SELECT id, event_id, name, email, status, canonical_status, checked_in, checked_in_at,
                 late_arrival, arrival_delay_minutes
-         FROM rsvps WHERE id = ? AND event_id = ?`,
+         FROM rsvps WHERE id = $1 AND event_id = $2`,
         [tokenRow.rsvp_id, eventId],
       );
       if (!rsvp) return { kind: 'not-found' as const };
@@ -124,7 +124,7 @@ export async function scanQr(req: Request, res: Response): Promise<Response> {
         // perform NO writes to the rsvp row itself.
         await tx.run(
           `INSERT INTO attendance_events (event_id, rsvp_id, action, source, actor_id, metadata)
-           VALUES (?, ?, 'scanned', 'qr_scan', ?, ?::jsonb)`,
+           VALUES ($1, $2, 'scanned', 'qr_scan', $3, $4::jsonb)`,
           [eventId, rsvp.id, authReq.user?.id ?? null, JSON.stringify({ duplicate: true })],
         );
         return { kind: 'duplicate' as const, rsvp };
@@ -135,22 +135,22 @@ export async function scanQr(req: Request, res: Response): Promise<Response> {
          SET checked_in = TRUE,
              checked_in_at = CURRENT_TIMESTAMP,
              canonical_status = 'checked_in',
-             late_arrival = ?,
-             arrival_delay_minutes = ?,
+             late_arrival = $1,
+             arrival_delay_minutes = $2,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
+         WHERE id = $3`,
         [late.isLate, late.delayMinutes, rsvp.id],
       );
       const fresh = (await tx.get<ScanResolveResult['rsvp']>(
         `SELECT id, event_id, name, email, status, canonical_status, checked_in, checked_in_at,
-                late_arrival, arrival_delay_minutes FROM rsvps WHERE id = ?`,
+                late_arrival, arrival_delay_minutes FROM rsvps WHERE id = $1`,
         [rsvp.id],
       )) ?? rsvp;
       // Capture the previous canonical status in the audit row so undoCheckin
       // can restore it precisely (#PR-644 critical fix).
       await tx.run(
         `INSERT INTO attendance_events (event_id, rsvp_id, action, source, actor_id, metadata)
-         VALUES (?, ?, 'checked_in', 'qr_scan', ?, ?::jsonb)`,
+         VALUES ($1, $2, 'checked_in', 'qr_scan', $3, $4::jsonb)`,
         [
           eventId,
           rsvp.id,
@@ -214,7 +214,7 @@ export async function undoCheckin(req: Request, res: Response): Promise<Response
   try {
     const result = await runInTransaction(async (tx) => {
       const rsvp = await tx.get<{ id: number; canonical_status: string | null; checked_in: boolean }>(
-        `SELECT id, canonical_status, checked_in FROM rsvps WHERE id = ? AND event_id = ?`,
+        `SELECT id, canonical_status, checked_in FROM rsvps WHERE id = $1 AND event_id = $2`,
         [numericRsvpId, eventId],
       );
       if (!rsvp) return { kind: 'not-found' as const };
@@ -225,7 +225,7 @@ export async function undoCheckin(req: Request, res: Response): Promise<Response
       // to scan in.
       const audit = await tx.get<{ metadata: { previous_canonical_status?: string | null } | null }>(
         `SELECT metadata FROM attendance_events
-          WHERE event_id = ? AND rsvp_id = ? AND action = 'checked_in'
+          WHERE event_id = $1 AND rsvp_id = $2 AND action = 'checked_in'
           ORDER BY occurred_at DESC, id DESC
           LIMIT 1`,
         [eventId, numericRsvpId],
@@ -236,14 +236,14 @@ export async function undoCheckin(req: Request, res: Response): Promise<Response
       const update = await tx.run(
         `UPDATE rsvps SET checked_in = FALSE, checked_in_at = NULL,
                          late_arrival = FALSE, arrival_delay_minutes = NULL,
-                         canonical_status = ?,
+                         canonical_status = $1,
                          updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
+         WHERE id = $2`,
         [restoreTo, rsvp.id],
       );
       await tx.run(
         `INSERT INTO attendance_events (event_id, rsvp_id, action, source, actor_id, metadata)
-         VALUES (?, ?, 'undo_checkin', 'manual', ?, ?::jsonb)`,
+         VALUES ($1, $2, 'undo_checkin', 'manual', $3, $4::jsonb)`,
         [
           eventId,
           rsvp.id,
@@ -287,13 +287,13 @@ export async function markNoShow(req: Request, res: Response): Promise<Response>
       const placeholders = ids.map(() => '?').join(', ');
       const upd = await tx.run(
         `UPDATE rsvps SET canonical_status = 'no_show', updated_at = CURRENT_TIMESTAMP
-         WHERE event_id = ? AND id IN (${placeholders}) AND checked_in = FALSE`,
+         WHERE event_id = $1 AND id IN (${placeholders}) AND checked_in = FALSE`,
         [eventId, ...ids],
       );
       for (const id of ids) {
         await tx.run(
           `INSERT INTO attendance_events (event_id, rsvp_id, action, source, actor_id)
-           VALUES (?, ?, 'no_show', 'manual', ?)`,
+           VALUES ($1, $2, 'no_show', 'manual', $3)`,
           [eventId, id, authReq.user?.id ?? null],
         );
       }

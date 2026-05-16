@@ -26,7 +26,7 @@ export async function ensureUnsubscribeToken(
   rsvpId: number,
 ): Promise<string> {
   const row = await db.get<{ unsubscribe_token: string | null }>(
-    'SELECT unsubscribe_token FROM rsvps WHERE id = ?',
+    'SELECT unsubscribe_token FROM rsvps WHERE id = $1',
     [rsvpId],
   );
   if (row?.unsubscribe_token) return row.unsubscribe_token;
@@ -36,12 +36,12 @@ export async function ensureUnsubscribeToken(
     const token = newToken();
     try {
       await db.run(
-        `UPDATE rsvps SET unsubscribe_token = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ? AND unsubscribe_token IS NULL`,
+        `UPDATE rsvps SET unsubscribe_token = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2 AND unsubscribe_token IS NULL`,
         [token, rsvpId],
       );
       const verify = await db.get<{ unsubscribe_token: string | null }>(
-        'SELECT unsubscribe_token FROM rsvps WHERE id = ?',
+        'SELECT unsubscribe_token FROM rsvps WHERE id = $1',
         [rsvpId],
       );
       if (verify?.unsubscribe_token) return verify.unsubscribe_token;

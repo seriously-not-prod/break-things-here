@@ -52,8 +52,8 @@ export async function listStoreSuggestions(req: Request, res: Response): Promise
     `SELECT ss.*, u.display_name AS suggester_name
      FROM store_suggestions ss
      LEFT JOIN users u ON u.id = ss.suggested_by
-     WHERE ss.event_id = ?
-       ${statusFilter ? 'AND ss.status = ?' : ''}
+     WHERE ss.event_id = $1
+       ${statusFilter ? 'AND ss.status = $3' : ''}
      ORDER BY ss.created_at DESC`,
     statusFilter ? [eventId, statusFilter] : [eventId],
   );
@@ -95,7 +95,7 @@ export async function createStoreSuggestion(req: Request, res: Response): Promis
 
   // Duplicate check (case-insensitive name within the same event)
   const duplicate = await db.get<{ id: number }>(
-    `SELECT id FROM store_suggestions WHERE event_id = ? AND lower(name) = lower(?)`,
+    `SELECT id FROM store_suggestions WHERE event_id = $1 AND lower(name) = lower($2)`,
     [eventId, name.trim()],
   );
   if (duplicate) {
@@ -104,7 +104,7 @@ export async function createStoreSuggestion(req: Request, res: Response): Promis
 
   const result = await db.run(
     `INSERT INTO store_suggestions (event_id, name, website, notes, category, location, suggested_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
     [
       eventId,
       name.trim(),
@@ -120,7 +120,7 @@ export async function createStoreSuggestion(req: Request, res: Response): Promis
     `SELECT ss.*, u.display_name AS suggester_name
      FROM store_suggestions ss
      LEFT JOIN users u ON u.id = ss.suggested_by
-     WHERE ss.id = ?`,
+     WHERE ss.id = $1`,
     [result.lastID],
   );
 
@@ -149,18 +149,18 @@ export async function updateStoreSuggestionStatus(req: Request, res: Response): 
   const db = getDatabase();
 
   const suggestion = await db.get<{ id: number }>(
-    `SELECT id FROM store_suggestions WHERE id = ? AND event_id = ?`,
+    `SELECT id FROM store_suggestions WHERE id = $1 AND event_id = $2`,
     [id, eventId],
   );
   if (!suggestion) return res.status(404).json({ error: 'Store suggestion not found.' });
 
   await db.run(
-    `UPDATE store_suggestions SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    `UPDATE store_suggestions SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
     [status, id],
   );
 
   const updated = await db.get<StoreSuggestion>(
-    `SELECT * FROM store_suggestions WHERE id = ?`,
+    `SELECT * FROM store_suggestions WHERE id = $1`,
     [id],
   );
   return res.json({ suggestion: updated });
@@ -179,7 +179,7 @@ export async function deleteStoreSuggestion(req: Request, res: Response): Promis
 
   const db = getDatabase();
   const suggestion = await db.get<StoreSuggestion>(
-    `SELECT * FROM store_suggestions WHERE id = ? AND event_id = ?`,
+    `SELECT * FROM store_suggestions WHERE id = $1 AND event_id = $2`,
     [id, eventId],
   );
   if (!suggestion) return res.status(404).json({ error: 'Store suggestion not found.' });
@@ -191,7 +191,7 @@ export async function deleteStoreSuggestion(req: Request, res: Response): Promis
     if (!ownerCheck) return res as Response;
   }
 
-  await db.run(`DELETE FROM store_suggestions WHERE id = ?`, [id]);
+  await db.run(`DELETE FROM store_suggestions WHERE id = $1`, [id]);
   return res.json({ message: 'Store suggestion deleted.' });
 }
 
@@ -281,7 +281,7 @@ export async function selectStoreSuggestion(req: Request, res: Response): Promis
   const db = getDatabase();
 
   const suggestion = await db.get<{ id: number; status: string }>(
-    `SELECT id, status FROM store_suggestions WHERE id = ? AND event_id = ?`,
+    `SELECT id, status FROM store_suggestions WHERE id = $1 AND event_id = $2`,
     [id, eventId],
   );
   if (!suggestion) return res.status(404).json({ error: 'Store suggestion not found.' });
@@ -295,12 +295,12 @@ export async function selectStoreSuggestion(req: Request, res: Response): Promis
         SET usage_count  = COALESCE(usage_count, 0) + 1,
             last_used_at = CURRENT_TIMESTAMP,
             updated_at   = CURRENT_TIMESTAMP
-      WHERE id = ?`,
+      WHERE id = $1`,
     [id],
   );
 
   const updated = await db.get<StoreSuggestion>(
-    `SELECT * FROM store_suggestions WHERE id = ?`,
+    `SELECT * FROM store_suggestions WHERE id = $1`,
     [id],
   );
   return res.json({ suggestion: updated });
@@ -324,7 +324,7 @@ export async function listStoreSuggestionCategories(req: Request, res: Response)
   const rows = await db.all<{ category: string; count: number }>(
     `SELECT category, COUNT(*)::int AS count
        FROM store_suggestions
-      WHERE event_id = ? AND category IS NOT NULL AND status != 'rejected'
+      WHERE event_id = $1 AND category IS NOT NULL AND status != 'rejected'
       GROUP BY category
       ORDER BY count DESC, category ASC`,
     [eventId],

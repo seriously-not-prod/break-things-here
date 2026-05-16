@@ -37,7 +37,7 @@ export async function requireEventAccess(
 
   const db = getDatabase();
   const event = await db.get<AuthorizedEvent>(
-    'SELECT id, created_by, deleted_at FROM events WHERE id = ? AND deleted_at IS NULL',
+    'SELECT id, created_by, deleted_at FROM events WHERE id = $1 AND deleted_at IS NULL',
     [eventId],
   );
 
@@ -60,7 +60,7 @@ export async function requireEventAccess(
 
   if (options.allowMembers) {
     const membership = await db.get<{ user_id: number }>(
-      'SELECT user_id FROM event_members WHERE event_id = ? AND user_id = ?',
+      'SELECT user_id FROM event_members WHERE event_id = $1 AND user_id = $2',
       [eventId, req.user.id],
     );
 

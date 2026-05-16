@@ -31,7 +31,7 @@ export async function listChatMessages(req: Request, res: Response): Promise<Res
     JOIN users u ON u.id = m.user_id
     LEFT JOIN event_chat_messages r ON r.id = m.reply_to_id
     LEFT JOIN users ru ON ru.id = r.user_id
-    WHERE m.event_id = ? AND m.deleted_at IS NULL`;
+    WHERE m.event_id = $1 AND m.deleted_at IS NULL`;
 
   const params: (string | number)[] = [eventId];
 
@@ -63,7 +63,7 @@ export async function postChatMessage(req: Request, res: Response): Promise<Resp
 
   if (reply_to_id) {
     const parent = await db.get(
-      'SELECT id FROM event_chat_messages WHERE id = ? AND event_id = ? AND deleted_at IS NULL',
+      'SELECT id FROM event_chat_messages WHERE id = $1 AND event_id = $2 AND deleted_at IS NULL',
       [reply_to_id, eventId],
     );
     if (!parent) return res.status(404).json({ error: 'Reply-to message not found.' });
@@ -71,7 +71,7 @@ export async function postChatMessage(req: Request, res: Response): Promise<Resp
 
   const result = await db.run(
     `INSERT INTO event_chat_messages (event_id, user_id, body, reply_to_id)
-     VALUES (?, ?, ?, ?) RETURNING id`,
+     VALUES ($1, $2, $3, $4) RETURNING id`,
     [eventId, authReq.user!.id, body.trim(), reply_to_id ?? null],
   );
 
@@ -79,7 +79,7 @@ export async function postChatMessage(req: Request, res: Response): Promise<Resp
     `SELECT m.*, COALESCE(u.display_name, u.email) AS author_name
      FROM event_chat_messages m
      JOIN users u ON u.id = m.user_id
-     WHERE m.id = ?`,
+     WHERE m.id = $1`,
     [result.lastID],
   );
 
@@ -100,7 +100,7 @@ export async function editChatMessage(req: Request, res: Response): Promise<Resp
 
   const db = getDatabase();
   const message = await db.get<{ id: number; user_id: number }>(
-    'SELECT id, user_id FROM event_chat_messages WHERE id = ? AND event_id = ? AND deleted_at IS NULL',
+    'SELECT id, user_id FROM event_chat_messages WHERE id = $1 AND event_id = $2 AND deleted_at IS NULL',
     [id, eventId],
   );
   if (!message) return res.status(404).json({ error: 'Message not found.' });
@@ -109,13 +109,13 @@ export async function editChatMessage(req: Request, res: Response): Promise<Resp
   }
 
   await db.run(
-    'UPDATE event_chat_messages SET body = ?, edited_at = CURRENT_TIMESTAMP WHERE id = ?',
+    'UPDATE event_chat_messages SET body = $1, edited_at = CURRENT_TIMESTAMP WHERE id = $2',
     [body.trim(), id],
   );
 
   const updated = await db.get(
     `SELECT m.*, COALESCE(u.display_name, u.email) AS author_name
-     FROM event_chat_messages m JOIN users u ON u.id = m.user_id WHERE m.id = ?`,
+     FROM event_chat_messages m JOIN users u ON u.id = m.user_id WHERE m.id = $1`,
     [id],
   );
   return res.json({ message: updated });
@@ -131,7 +131,7 @@ export async function deleteChatMessage(req: Request, res: Response): Promise<Re
 
   const db = getDatabase();
   const message = await db.get<{ id: number; user_id: number }>(
-    'SELECT id, user_id FROM event_chat_messages WHERE id = ? AND event_id = ? AND deleted_at IS NULL',
+    'SELECT id, user_id FROM event_chat_messages WHERE id = $1 AND event_id = $2 AND deleted_at IS NULL',
     [id, eventId],
   );
   if (!message) return res.status(404).json({ error: 'Message not found.' });
@@ -140,7 +140,7 @@ export async function deleteChatMessage(req: Request, res: Response): Promise<Re
   }
 
   await db.run(
-    'UPDATE event_chat_messages SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?',
+    'UPDATE event_chat_messages SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1',
     [id],
   );
   return res.json({ message: 'Message deleted.' });

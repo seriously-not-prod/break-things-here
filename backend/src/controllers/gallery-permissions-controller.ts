@@ -38,7 +38,7 @@ export async function updatePhotoPermissions(req: Request, res: Response): Promi
     allow_comments: boolean;
   }>(
     `SELECT id, mime_type, visibility, allow_download, allow_comments
-       FROM event_documents WHERE id = ? AND event_id = ?`,
+       FROM event_documents WHERE id = $1 AND event_id = $2`,
     [documentId, eventId],
   );
   if (!photo) return res.status(404).json({ error: 'Photo not found.' });
@@ -63,9 +63,9 @@ export async function updatePhotoPermissions(req: Request, res: Response): Promi
 
   await db.run(
     `UPDATE event_documents
-        SET visibility = ?, allow_download = ?, allow_comments = ?,
-            updated_by = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND event_id = ?`,
+        SET visibility = $1, allow_download = $2, allow_comments = $3,
+            updated_by = $4, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5 AND event_id = $6`,
     [
       nextVisibility,
       nextDownload,
@@ -108,7 +108,7 @@ export async function getStorageUsage(req: Request, res: Response): Promise<Resp
             (SELECT COALESCE(SUM(file_size), 0) FROM event_documents WHERE event_id = e.id AND mime_type LIKE 'image/%')::bigint AS image_bytes,
             (SELECT COUNT(*) FROM event_documents WHERE event_id = e.id AND conversion_status = 'pending')::int AS pending_conversions
        FROM events e
-      WHERE e.id = ?`,
+      WHERE e.id = $1`,
     [eventId],
   );
 
@@ -143,7 +143,7 @@ export async function recomputeConversion(req: Request, res: Response): Promise<
 
   const db = getDatabase();
   const existing = await db.get<{ id: number; original_format: string | null }>(
-    'SELECT id, original_format FROM event_documents WHERE id = ? AND event_id = ?',
+    'SELECT id, original_format FROM event_documents WHERE id = $1 AND event_id = $2',
     [documentId, eventId],
   );
   if (!existing) return res.status(404).json({ error: 'Photo not found.' });
@@ -154,8 +154,8 @@ export async function recomputeConversion(req: Request, res: Response): Promise<
   await db.run(
     `UPDATE event_documents
         SET conversion_status = 'pending', updated_at = CURRENT_TIMESTAMP,
-            updated_by = ?
-      WHERE id = ?`,
+            updated_by = $1
+      WHERE id = $2`,
     [authReq.user?.id ?? null, documentId],
   );
   return res.json({ id: Number(documentId), conversionStatus: 'pending' });

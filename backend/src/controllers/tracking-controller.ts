@@ -93,7 +93,7 @@ async function recordEvent(
     await db.run(
       `INSERT INTO communication_tracking_events
          (communication_log_id, event_type, target_url, ip_address, user_agent)
-       VALUES (?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5)`,
       [communicationLogId, eventType, targetUrl, ip, ua],
     );
   } catch (err) {

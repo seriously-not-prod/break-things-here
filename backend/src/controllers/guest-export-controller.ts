@@ -99,7 +99,7 @@ async function loadRows(eventId: string): Promise<GuestExportRow[]> {
             address_line1, address_line2, city, state_region, postal_code, country,
             emergency_contact_name, emergency_contact_phone,
             profile_completeness, unsubscribed_at, created_at
-     FROM rsvps WHERE event_id = ? ORDER BY name ASC, created_at DESC`,
+     FROM rsvps WHERE event_id = $1 ORDER BY name ASC, created_at DESC`,
     [eventId],
   );
 }
@@ -158,7 +158,7 @@ export async function exportRsvpsXlsx(req: Request, res: Response): Promise<Resp
   if (!event) return res as Response;
 
   const db = getDatabase();
-  const ev = await db.get<{ title: string }>('SELECT title FROM events WHERE id = ?', [eventId]);
+  const ev = await db.get<{ title: string }>('SELECT title FROM events WHERE id = $1', [eventId]);
   const rows = await loadRows(eventId);
   const enriched = rows.map((r) => ({
     ...r,
@@ -183,7 +183,7 @@ export async function exportRsvpsPdfData(req: Request, res: Response): Promise<R
 
   const db = getDatabase();
   const ev = await db.get<{ title: string; date: string; location: string | null }>(
-    'SELECT title, date, location FROM events WHERE id = ?',
+    'SELECT title, date, location FROM events WHERE id = $1',
     [eventId],
   );
   const rows = await loadRows(eventId);

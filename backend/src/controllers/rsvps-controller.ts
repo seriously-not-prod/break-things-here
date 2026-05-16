@@ -68,7 +68,7 @@ async function recomputeCompleteness(rsvpId: number): Promise<void> {
             company, title, relation_type, age_group,
             emergency_contact_name, emergency_contact_phone,
             dietary_restriction, accessibility_needs
-     FROM rsvps WHERE id = ?`,
+     FROM rsvps WHERE id = $1`,
     [rsvpId],
   );
   if (!row) return;
@@ -83,7 +83,7 @@ async function recomputeCanonicalStatus(rsvpId: number, override?: CanonicalRsvp
     return;
   }
   const row = await db.get<{ status: string; waitlist_position: number | null; checked_in: boolean }>(
-    `SELECT status, waitlist_position, checked_in FROM rsvps WHERE id = ?`,
+    `SELECT status, waitlist_position, checked_in FROM rsvps WHERE id = $1`,
     [rsvpId],
   );
   if (!row) return;
@@ -106,7 +106,7 @@ async function recomputeCanonicalStatus(rsvpId: number, override?: CanonicalRsvp
 async function isDeadlinePassed(eventId: string | number): Promise<{ passed: boolean; deadline: string | null }> {
   const db = getDatabase();
   const row = await db.get<{ rsvp_deadline: string | Date | null }>(
-    `SELECT rsvp_deadline FROM events WHERE id = ? AND deleted_at IS NULL`,
+    `SELECT rsvp_deadline FROM events WHERE id = $1 AND deleted_at IS NULL`,
     [eventId],
   );
   if (!row?.rsvp_deadline) return { passed: false, deadline: null };
@@ -147,7 +147,7 @@ function isGoing(status?: string): boolean {
 }
 
 async function getEventCapacity(db: ReturnType<typeof getDatabase>, eventId: string): Promise<number | null> {
-  const event = await db.get<{ capacity: number | null }>('SELECT capacity FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
+  const event = await db.get<{ capacity: number | null }>('SELECT capacity FROM events WHERE id = $1 AND deleted_at IS NULL', [eventId]);
   return event?.capacity ?? null;
 }
 
@@ -157,7 +157,7 @@ async function getGoingGuestsTotal(db: ReturnType<typeof getDatabase>, eventId: 
   const rows = await db.all<{ total_guests: number }>(
     `SELECT COALESCE(SUM(guests), 0) AS total_guests
      FROM rsvps
-     WHERE event_id = ? AND status = 'Going' AND waitlist_position IS NULL${excludeRsvpId ? ' AND id <> ?' : ''}`,
+     WHERE event_id = $1 AND status = 'Going' AND waitlist_position IS NULL${excludeRsvpId ? ' AND id <> $3' : ''}`,
     excludeRsvpId ? [eventId, excludeRsvpId] : [eventId],
   );
   return rows[0]?.total_guests ?? 0;
@@ -193,7 +193,7 @@ export async function getPublicRsvpContext(req: Request, res: Response): Promise
   }>(
     `SELECT id, title, description, location, date, date AS event_date, capacity,
             rsvp_deadline, waitlist_enabled
-     FROM events WHERE id = ? AND deleted_at IS NULL`,
+     FROM events WHERE id = $1 AND deleted_at IS NULL`,
     [eventId],
   );
   if (!event) return res.status(404).json({ error: 'Event not found.' });
@@ -240,7 +240,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   }
 
   const db = getDatabase();
-  const event = await db.get<{ id: number }>('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL', [eventId]);
+  const event = await db.get<{ id: number }>('SELECT id FROM events WHERE id = $1 AND deleted_at IS NULL', [eventId]);
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
   // Deadline enforcement (#585) — public submissions are rejected after the
@@ -358,12 +358,12 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
     await recomputeCompleteness(result.lastID);
   }
 
-  const rsvp = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = ?', [result.lastID]);
+  const rsvp = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = $1', [result.lastID]);
 
   // Fire notification to event owner when a new RSVP is confirmed
   if ((status || 'Pending') === 'Going' && !queueOnCreate) {
     const ev = await db.get<{ created_by: number }>(
-      'SELECT created_by FROM events WHERE id = ?',
+      'SELECT created_by FROM events WHERE id = $1',
       [eventId],
     );
     if (ev) {
@@ -381,7 +381,7 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
   const { id, eventId } = req.params;
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
-  const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = ? AND event_id = ?', [id, eventId]);
+  const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = $1 AND event_id = $2', [id, eventId]);
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
   const body = (req.body ?? {}) as Record<string, unknown>;
@@ -461,7 +461,7 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
   await db.run(`UPDATE rsvps SET ${fields.join(', ')} WHERE id = $1`, params);
   await recomputeCanonicalStatus(Number(id));
   await recomputeCompleteness(Number(id));
-  const updated = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = ?', [id]);
+  const updated = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = $1', [id]);
 
   if (nextStatus === 'Going') {
     await logActivity(
@@ -473,7 +473,7 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
     );
     // Notify event owner of the confirmed RSVP
     const ev = await db.get<{ created_by: number }>(
-      'SELECT created_by FROM events WHERE id = ?',
+      'SELECT created_by FROM events WHERE id = $1',
       [rsvp.event_id],
     );
     if (ev) {
@@ -492,7 +492,7 @@ export async function deleteRsvp(req: Request, res: Response): Promise<Response>
   const { id, eventId } = req.params;
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
-  const rsvp = await db.get<Pick<RsvpRow, 'id'>>('SELECT id FROM rsvps WHERE id = ? AND event_id = ?', [id, eventId]);
+  const rsvp = await db.get<Pick<RsvpRow, 'id'>>('SELECT id FROM rsvps WHERE id = $1 AND event_id = $2', [id, eventId]);
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
   await db.run('DELETE FROM rsvps WHERE id = $1', [id]);
@@ -526,7 +526,7 @@ export async function exportRsvpsCsv(req: Request, res: Response): Promise<Respo
             emergency_contact_name, emergency_contact_phone,
             checked_in, checked_in_at, late_arrival,
             profile_completeness, unsubscribed_at, created_at
-     FROM rsvps WHERE event_id = ? ORDER BY created_at DESC`,
+     FROM rsvps WHERE event_id = $1 ORDER BY created_at DESC`,
     [eventId],
   );
 
@@ -567,7 +567,7 @@ export async function checkInGuest(req: Request, res: Response): Promise<Respons
   if (!event) return res as Response;
 
   const rsvp = await db.get<RsvpRow & { checked_in: boolean; checked_in_at: string | null }>(
-    'SELECT * FROM rsvps WHERE id = ? AND event_id = ?',
+    'SELECT * FROM rsvps WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
@@ -579,7 +579,7 @@ export async function checkInGuest(req: Request, res: Response): Promise<Respons
 
   // Compute late-arrival flag against the event start (#594).
   const ev = await db.get<{ date: string | null }>(
-    `SELECT date FROM events WHERE id = ?`,
+    `SELECT date FROM events WHERE id = $1`,
     [eventId],
   );
   let isLate = false;
@@ -602,7 +602,7 @@ export async function checkInGuest(req: Request, res: Response): Promise<Respons
     [isLate, delayMin, id],
   );
 
-  const updated = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = ?', [id]);
+  const updated = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = $1', [id]);
 
   await db.run(
     `INSERT INTO attendance_events (event_id, rsvp_id, action, source, actor_id, metadata)
@@ -614,7 +614,7 @@ export async function checkInGuest(req: Request, res: Response): Promise<Respons
     eventId,
     authReq.user?.id ?? null,
     'guest_checked_in',
-    `${(updated as RsvpFull)?.name ?? 'A guest'} checked in${isLate ? ` (late by ${delayMin ?? '?'} min)` : ''}`,
+    `${(updated as RsvpFull).name ?? 'A guest'} checked in${isLate ? ` (late by ${delayMin ?? '?'} min)` : ''}`,
     `/events/${eventId}`,
   );
 
