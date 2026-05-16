@@ -67,7 +67,7 @@ import * as qrCheckinController from '../controllers/qr-checkin-controller.js';
 import * as attendanceBoardController from '../controllers/attendance-board-controller.js';
 import * as seatingGroupsController from '../controllers/seating-groups-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
-import { apiLimiter, createAuthLimiter } from '../middleware/rate-limit.js';
+import { apiLimiter, createAuthLimiter, publicLimiter, gdprLimiter } from '../middleware/rate-limit.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -185,27 +185,30 @@ router.post('/ai/suggest', authenticateToken, aiController.getSuggestion);
 
 
 // ============ PUBLIC RSVP ROUTES ==========
-router.get('/public/events/:eventId', rsvpController.getPublicRsvpContext);
+// All unauthenticated public endpoints share a tighter per-IP limiter
+// (publicLimiter) on top of the global apiLimiter so a single attacker IP
+// can't enumerate tokens or hammer webhooks even within the global budget.
+router.get('/public/events/:eventId', publicLimiter, rsvpController.getPublicRsvpContext);
 
 // Tracking endpoints (#465 open pixel, #466 click redirect) — intentionally unauthenticated.
 // Tokens are HMAC-signed; see backend/src/utils/tracking-token.ts.
-router.get('/tracking/open/:token', trackingController.recordOpen);
-router.get('/tracking/click/:token', trackingController.recordClick);
+router.get('/tracking/open/:token', publicLimiter, trackingController.recordOpen);
+router.get('/tracking/click/:token', publicLimiter, trackingController.recordClick);
 
 // ── Public gallery share resolution (#619) — unauthenticated, token-gated ──
-router.get('/public/gallery/:token', gallerySharesController.resolveShareLink);
-router.post('/public/gallery/:token', gallerySharesController.resolveShareLink);
+router.get('/public/gallery/:token', publicLimiter, gallerySharesController.resolveShareLink);
+router.post('/public/gallery/:token', publicLimiter, gallerySharesController.resolveShareLink);
 
 // Public RSVP token lookup (#411, #437) — guest-facing, unauthenticated.
-router.get('/public/rsvp/:token', rsvpTokenController.lookupRsvpByToken);
-router.post('/public/rsvp/:token/responses', rsvpQuestionsController.submitResponses);
+router.get('/public/rsvp/:token', publicLimiter, rsvpTokenController.lookupRsvpByToken);
+router.post('/public/rsvp/:token/responses', publicLimiter, rsvpQuestionsController.submitResponses);
 
 // Public unsubscribe endpoint (#545, #590) — unauthenticated, token-gated.
 // Resubscribe is NOT public — re-opt-in by anyone except the original guest
 // would violate CAN-SPAM/GDPR. The route is registered below under the
 // authenticated section and requires the actor to be the event owner/admin.
-router.get('/public/unsubscribe/:token', unsubscribeController.getUnsubscribe);
-router.post('/public/unsubscribe/:token', unsubscribeController.postUnsubscribe);
+router.get('/public/unsubscribe/:token', publicLimiter, unsubscribeController.getUnsubscribe);
+router.post('/public/unsubscribe/:token', publicLimiter, unsubscribeController.postUnsubscribe);
 router.post('/unsubscribe/:token/resubscribe', authenticateToken, unsubscribeController.resubscribe);
 // Token refresh and heartbeat
 router.post('/auth/refresh', authController.refreshTokenEndpoint);
@@ -690,15 +693,20 @@ router.post('/events/:eventId/guest-groups/csv-import', authenticateToken, guest
 router.post('/events/:eventId/guest-groups/bulk-checkin', authenticateToken, guestGroupsController.bulkCheckIn);
 
 // ============ GDPR — #680 ============
-router.get('/profile/data-export', authenticateToken, gdprController.exportPersonalData);
-router.delete('/profile/erase', authenticateToken, gdprController.erasePersonalData);
-router.post('/admin/users/:id/erase', authenticateToken, authorizeRole(['Admin']), gdprController.adminErasePersonalData);
+// Each call serialises (export) or cascade-deletes (erase) the caller's full
+// data graph — expensive and seldom-used. gdprLimiter caps to 5/hr per IP so
+// authenticated abuse can't be used to DoS the DB.
+router.get('/profile/data-export', authenticateToken, gdprLimiter, gdprController.exportPersonalData);
+router.delete('/profile/erase', authenticateToken, gdprLimiter, gdprController.erasePersonalData);
+router.post('/admin/users/:id/erase', authenticateToken, authorizeRole(['Admin']), gdprLimiter, gdprController.adminErasePersonalData);
 
 // ============ ANNOUNCEMENTS & EMAIL WEBHOOKS — #671 ============
 router.post('/events/:eventId/announcements', authenticateToken, announcementController.sendAnnouncement);
 router.get('/events/:eventId/communication/stats', authenticateToken, announcementController.getCommunicationStats);
-// Bounce webhook is public (called by email provider) — no auth required
-router.post('/webhooks/email/bounce', announcementController.handleEmailBounce);
+// Bounce webhook is public (called by email provider) — no auth required.
+// publicLimiter prevents the unauthenticated endpoint from being spammed to
+// poison delivery state until a proper HMAC signature check is in place.
+router.post('/webhooks/email/bounce', publicLimiter, announcementController.handleEmailBounce);
 
 // ============ BUDGET EXTENSIONS — #668 ============
 router.get('/events/:eventId/budget/expenses/export', authenticateToken, budgetController.exportExpensesAsCsv);

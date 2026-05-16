@@ -10,10 +10,11 @@ test.describe('Event lifecycle', () => {
     await page.goto('/');
   });
 
-  test('events page loads without errors', async ({ page }) => {
+  test('events page redirects unauthenticated users to login', async ({ page }) => {
     await page.goto('/events');
-    // Should either show events list or redirect to login
-    await expect(page).toHaveURL(/events|login/);
+    // Unauthenticated requests must redirect to /login; landing on /events
+    // here would mean auth-gating regressed.
+    await expect(page).toHaveURL(/\/login(\?|$)/, { timeout: 10_000 });
   });
 
   test('public RSVP page is accessible without auth', async ({ page }) => {
@@ -24,9 +25,10 @@ test.describe('Event lifecycle', () => {
     await expect(statusEl).toBeVisible({ timeout: 10000 });
   });
 
-  test('event creation form is accessible to authenticated users', async ({ page }) => {
-    // Without auth, should redirect to login
+  test('event creation form redirects unauthenticated users to login', async ({ page }) => {
+    // The /events/new route is auth-gated; an unauthenticated request must
+    // redirect to /login — landing on /events/new would mean the gate broke.
     await page.goto('/events/new');
-    await expect(page).toHaveURL(/login|events\/new/);
+    await expect(page).toHaveURL(/\/login(\?|$)/, { timeout: 10_000 });
   });
 });

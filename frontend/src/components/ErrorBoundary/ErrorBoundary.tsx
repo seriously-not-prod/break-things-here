@@ -9,29 +9,32 @@ interface Props {
 interface State {
   hasError: boolean;
   error?: Error;
+  resetKey: number;
 }
 
 /**
  * React Error Boundary — wraps route segments to prevent white-screen crashes (#675).
- * Catches render-phase and event-handler errors thrown by child components.
+ * Catches errors thrown during render, in lifecycle methods, and in constructors
+ * of the descendant component tree. Does NOT catch errors in event handlers,
+ * async code, or server-side rendering — those need try/catch at the call site.
  */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, resetKey: 0 };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Log to structured output; swap for error monitoring service in production
     console.error('[ErrorBoundary] Caught render error', error, info.componentStack);
   }
 
   handleReset = (): void => {
-    this.setState({ hasError: false, error: undefined });
+    // Bump resetKey so children remount fresh rather than reusing the failed subtree.
+    this.setState((prev) => ({ hasError: false, error: undefined, resetKey: prev.resetKey + 1 }));
   };
 
   render(): React.ReactNode {
@@ -50,7 +53,8 @@ export class ErrorBoundary extends Component<Props, State> {
               Something went wrong
             </Typography>
             <Typography variant="body2" color="text.secondary" mb={2}>
-              {this.state.error?.message ?? 'An unexpected error occurred. Please try again.'}
+              An unexpected error occurred. Please try again, or refresh the page if the problem
+              persists.
             </Typography>
             <Button
               variant="contained"
@@ -63,6 +67,6 @@ export class ErrorBoundary extends Component<Props, State> {
         </Box>
       );
     }
-    return this.props.children;
+    return <React.Fragment key={this.state.resetKey}>{this.props.children}</React.Fragment>;
   }
 }

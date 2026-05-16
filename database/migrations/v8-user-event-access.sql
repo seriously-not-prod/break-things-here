@@ -26,8 +26,9 @@ SELECT
   u.display_name,
   r.name          AS role_name,
   r.id            AS role_id,
-  -- Admins/Organizers see all events; others only assigned ones
-  CASE WHEN r.id IN (2, 3)   -- Organizer, Admin
+  -- Admins/Organizers see all events; others only assigned ones.
+  -- Match by role name, not id, so re-seeded role rows can't silently break this view.
+  CASE WHEN r.name IN ('Organizer', 'Admin')
        THEN (SELECT COUNT(*) FROM events WHERE deleted_at IS NULL)
        ELSE (SELECT COUNT(*) FROM event_members em WHERE em.user_id = u.id)
   END             AS accessible_event_count
