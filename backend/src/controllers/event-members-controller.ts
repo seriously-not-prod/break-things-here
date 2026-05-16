@@ -6,6 +6,16 @@ interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
 }
 
+function normalizeIncomingEventRole(rawRole: string | undefined): 'Owner' | 'Co-Organizer' | 'Helper' | 'Guest' {
+  const normalized = (rawRole ?? '').trim().toLowerCase();
+  if (!normalized) return 'Helper';
+  if (normalized === 'owner') return 'Owner';
+  if (normalized === 'co-organizer' || normalized === 'coorganizer') return 'Co-Organizer';
+  if (normalized === 'helper' || normalized === 'member') return 'Helper';
+  if (normalized === 'guest') return 'Guest';
+  throw new Error('Invalid event role. Allowed values: Owner, Co-Organizer, Helper, Guest.');
+}
+
 /** GET /api/events/:eventId/members */
 export async function listMembers(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
@@ -56,11 +66,18 @@ export async function addMember(req: Request, res: Response): Promise<Response> 
   const user = await db.get('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [numericUserId]);
   if (!user) return res.status(404).json({ error: 'User not found.' });
 
+  let eventRole: 'Owner' | 'Co-Organizer' | 'Helper' | 'Guest';
+  try {
+    eventRole = normalizeIncomingEventRole(role);
+  } catch (error) {
+    return res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid event role.' });
+  }
+
   await db.run(
     `INSERT INTO event_members (event_id, user_id, role)
      VALUES ($1, $2, $3)
      ON CONFLICT (event_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
-    [eventId, numericUserId, role || 'Member'],
+    [eventId, numericUserId, eventRole],
   );
 
   return res.status(201).json({ message: 'Member added.' });

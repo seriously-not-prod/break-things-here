@@ -1179,13 +1179,16 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     CREATE TABLE IF NOT EXISTS event_members (
       event_id INTEGER NOT NULL,
       user_id INTEGER NOT NULL,
-      role TEXT DEFAULT 'Member',
+      role TEXT DEFAULT 'Helper',
       joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (event_id, user_id),
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // Normalize legacy role labels to BRD role model.
+  await db.exec(`UPDATE event_members SET role = 'Helper' WHERE LOWER(COALESCE(role, '')) = 'member'`);
 
   // ── Vendor Management (BRD 3.6) ──────────────────────────────────────────
   await db.exec(`

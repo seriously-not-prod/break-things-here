@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Entra group-to-role mapping with precedence (`Admin > Organizer > Collaborator > Guest > Viewer`) via configurable env vars (`ENTRA_GROUP_ADMINS`, `ENTRA_GROUP_ORGANIZERS`, `ENTRA_GROUP_COLLABORATORS`, `ENTRA_GROUP_GUESTS`, `ENTRA_GROUP_VIEWERS`) and callback-time role assignment for Entra SSO logins
+- Event member role normalization to BRD event roles (`Owner`, `Co-Organizer`, `Helper`, `Guest`) with dynamic precedence checks in shared event access utilities
+- RBAC permission-change audit trail coverage for role creation, role assignment, and permission add/remove controller operations
 - **UI Overhaul — Professional Design System**: Comprehensive MUI theme rewrite with enterprise-grade design tokens, Inter + Plus Jakarta Sans typography, refined color palette (`#4f46e5` primary), and consistent component overrides for buttons, inputs, cards, tables, dialogs, and more (`frontend/src/theme/app-theme.ts`)
 - **UI Overhaul — Collapsible Sidebar Navigation**: Full rewrite of `app-nav.tsx` with collapsible drawer (256px ↔ 68px), grouped nav sections ("Event Hub", "Workspace") with expand/collapse, dark sidebar background, user avatar, dark/light mode toggle, and smooth CSS transitions
 - **UI Overhaul — PageLayout Component**: New `frontend/src/components/layout/page-layout.tsx` wrapper providing consistent sticky header with breadcrumbs, page title/subtitle, and actions slot across all authenticated pages
