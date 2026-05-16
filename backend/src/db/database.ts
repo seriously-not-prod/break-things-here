@@ -344,7 +344,7 @@ async function insertRolePermissions(
 ): Promise<void> {
   const params = [roleId, ...(permissionNames ?? [])];
   const permissionFilter = permissionNames?.length
-    ? ` WHERE name IN (${permissionNames.map(() => '$1').join(', ')})`
+    ? ` WHERE name IN (${permissionNames.map((_, i) => `$${i + 2}`).join(', ')})`
     : '';
   await db.run(
     `INSERT INTO role_permissions (role_id, permission_id)
