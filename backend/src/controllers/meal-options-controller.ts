@@ -31,7 +31,7 @@ export async function listMealOptionsForEvent(eventId: number | string, activeOn
   const rows = await db.all<MealOptionRow>(
     `SELECT id, event_id, name, description, is_active, sort_order, created_at, updated_at
      FROM event_meal_options
-     WHERE event_id = $1${activeOnly $2 ' AND is_active = TRUE' : ''}
+     WHERE event_id = $1${activeOnly ? ' AND is_active = TRUE' : ''}
      ORDER BY sort_order ASC, name ASC`,
     [eventId],
   );

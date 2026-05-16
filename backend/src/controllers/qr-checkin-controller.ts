@@ -183,7 +183,7 @@ export async function scanQr(req: Request, res: Response): Promise<Response> {
       eventId,
       authReq.user?.id ?? null,
       'guest_checked_in',
-      `${updated.name} scanned in${lateInfo.isLate $1 ` (late by ${lateInfo.delayMinutes ?? '?'} min)` : ''}`,
+      `${updated.name} scanned in${lateInfo.isLate ? ` (late by ${lateInfo.delayMinutes ?? '?'} min)` : ''}`,
       `/events/${eventId}`,
     ).catch((err) => console.error('[qr-checkin] activity log failed:', err));
 

@@ -134,13 +134,13 @@ export async function updateUserProfile(req: AuthRequest, res: Response) {
            updated_at = CURRENT_TIMESTAMP
        WHERE user_id = $8`,
       [
-        bio $9$10 null,
-        phone_number $11$12 phoneNumber $13$14 null,
-        address $15$16 null,
-        city $17$18 null,
-        state $19$20 null,
-        zip_code $21$22 zipCode $23$24 null,
-        country $25$26 null,
+        bio ?? null,
+        phone_number ?? phoneNumber ?? null,
+        address ?? null,
+        city ?? null,
+        state ?? null,
+        zip_code ?? zipCode ?? null,
+        country ?? null,
         req.user.id,
       ],
     );
@@ -446,14 +446,14 @@ export async function deleteAccount(req: AuthRequest, res: Response) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const { password } = req.body as { password$1: unknown };
+    const { password } = req.body as { password?: unknown };
 
     if (!password || typeof password !== 'string') {
       return res.status(400).json({ error: 'Password is required to confirm account deletion' });
     }
 
     const db = getDatabase();
-    const user = await db.get<{ password_hash: string; profile_photo_url$2: string }>(
+    const user = await db.get<{ password_hash: string; profile_photo_url?: string }>(
       `SELECT u.password_hash, up.profile_photo_url
        FROM users u
        LEFT JOIN user_profiles up ON up.user_id = u.id

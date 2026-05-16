@@ -97,9 +97,9 @@ export async function bulkEventAction(req: Request, res: Response): Promise<void
       return;
     }
 
-    const { action, event_ids } = (req.body $1$2 {}) as {
-      action$3: string;
-      event_ids$4: unknown[];
+    const { action, event_ids } = (req.body ?? {}) as {
+      action?: string;
+      event_ids?: unknown[];
     };
 
     if (!action || !VALID_ACTIONS.includes(action as BulkAction)) {
@@ -214,7 +214,7 @@ export async function bulkEventAction(req: Request, res: Response): Promise<void
         results.push({
           event_id: id,
           status: 'error',
-          message: err instanceof Error $1 err.message : 'unknown error',
+          message: err instanceof Error ? err.message : 'unknown error',
         });
       }
     }
@@ -224,7 +224,7 @@ export async function bulkEventAction(req: Request, res: Response): Promise<void
         'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
         [
           user.id,
-          user.email $2$3 null,
+          user.email ?? null,
           `event.bulk.${action}`,
           `Bulk ${action} on ${successCount}/${ids.length} events: ${ids.join(',')}`,
           authReq.ip ?? null,

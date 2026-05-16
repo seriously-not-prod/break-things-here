@@ -137,7 +137,7 @@ function buildSpreadsheetMl(eventTitle: string, rows: GuestExportRow[]): string 
     const cells = EXPORT_COLUMNS.map((c) => formatExcelCell(row[c.key], c.type)).join('');
     return `<Row>${cells}</Row>`;
   }).join('');
-  return `<$1xml version="1.0"?>
+  return `<?xml version="1.0"?>
 <?mso-application progid="Excel.Sheet"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
@@ -162,10 +162,10 @@ export async function exportRsvpsXlsx(req: Request, res: Response): Promise<Resp
   const rows = await loadRows(eventId);
   const enriched = rows.map((r) => ({
     ...r,
-    canonical_status: r.canonical_status $2$3 toCanonicalStatus(r.status, { waitlisted: false, checkedIn: r.checked_in }),
-    profile_completeness: r.profile_completeness $4$5 computeProfileCompleteness(r),
+    canonical_status: r.canonical_status ?? toCanonicalStatus(r.status, { waitlisted: false, checkedIn: r.checked_in }),
+    profile_completeness: r.profile_completeness ?? computeProfileCompleteness(r),
   }));
-  const body = buildSpreadsheetMl(ev$6.title $7$8 'Guests', enriched);
+  const body = buildSpreadsheetMl(ev?.title ?? 'Guests', enriched);
   res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
   res.setHeader(
     'Content-Disposition',
@@ -192,8 +192,8 @@ export async function exportRsvpsPdfData(req: Request, res: Response): Promise<R
     columns: EXPORT_COLUMNS.map((c) => ({ key: c.key, label: c.label })),
     rows: rows.map((r) => ({
       ...r,
-      canonical_status: r.canonical_status $2$3 toCanonicalStatus(r.status, { waitlisted: false, checkedIn: r.checked_in }),
-      profile_completeness: r.profile_completeness $4$5 computeProfileCompleteness(r),
+      canonical_status: r.canonical_status ?? toCanonicalStatus(r.status, { waitlisted: false, checkedIn: r.checked_in }),
+      profile_completeness: r.profile_completeness ?? computeProfileCompleteness(r),
     })),
   });
 }

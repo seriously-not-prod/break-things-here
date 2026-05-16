@@ -53,7 +53,7 @@ export async function listStoreSuggestions(req: Request, res: Response): Promise
      FROM store_suggestions ss
      LEFT JOIN users u ON u.id = ss.suggested_by
      WHERE ss.event_id = $1
-       ${statusFilter $2 'AND ss.status = $3' : ''}
+       ${statusFilter ? 'AND ss.status = $3' : ''}
      ORDER BY ss.created_at DESC`,
     statusFilter ? [eventId, statusFilter] : [eventId],
   );

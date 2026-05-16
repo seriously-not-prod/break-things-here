@@ -24,7 +24,6 @@ import * as shoppingController from '../controllers/shopping-controller.js';
 import * as timelineController from '../controllers/timeline-controller.js';
 import * as seatingController from '../controllers/seating-controller.js';
 import * as communicationController from '../controllers/guest-communication-controller.js';
-import * as budgetController from '../controllers/budget-controller.js';
 import * as galleryController from '../controllers/gallery-controller.js';
 import * as aiController from '../controllers/ai-controller.js';
 import * as messagesController from '../controllers/messages-controller.js';

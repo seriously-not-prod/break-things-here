@@ -182,7 +182,7 @@ export function authorizeRole(
         userId: req.user.id,
         email: req.user.email,
         action: AUDIT_ACTIONS.PERMISSION_DENIED,
-        description: `Role '${role$1.name $2$3 'unknown'}' not in allowed roles: ${allowedRoles.join(', ')}`,
+        description: `Role '${role?.name ?? 'unknown'}' not in allowed roles: ${allowedRoles.join(', ')}`,
         ipAddress: req.ip,
         severity: 'WARN',
         context: {

@@ -157,7 +157,7 @@ async function getGoingGuestsTotal(db: ReturnType<typeof getDatabase>, eventId: 
   const rows = await db.all<{ total_guests: number }>(
     `SELECT COALESCE(SUM(guests), 0) AS total_guests
      FROM rsvps
-     WHERE event_id = $1 AND status = 'Going' AND waitlist_position IS NULL${excludeRsvpId $2 ' AND id <> $3' : ''}`,
+     WHERE event_id = $1 AND status = 'Going' AND waitlist_position IS NULL${excludeRsvpId ? ' AND id <> $3' : ''}`,
     excludeRsvpId ? [eventId, excludeRsvpId] : [eventId],
   );
   return rows[0]?.total_guests ?? 0;
@@ -468,7 +468,7 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
       rsvp.event_id,
       authReq.user?.id ?? null,
       'rsvp_confirmed',
-      `${(updated as RsvpRow & { name$1: string }).name $2$3 'A guest'} confirmed attendance`,
+      `${(updated as RsvpRow & { name?: string }).name ?? 'A guest'} confirmed attendance`,
       `/events/${rsvp.event_id}`,
     );
     // Notify event owner of the confirmed RSVP
@@ -614,7 +614,7 @@ export async function checkInGuest(req: Request, res: Response): Promise<Respons
     eventId,
     authReq.user?.id ?? null,
     'guest_checked_in',
-    `${(updated as RsvpFull)$1.name $2$3 'A guest'} checked in${isLate $4 ` (late by ${delayMin ?? '?'} min)` : ''}`,
+    `${(updated as RsvpFull).name ?? 'A guest'} checked in${isLate ? ` (late by ${delayMin ?? '?'} min)` : ''}`,
     `/events/${eventId}`,
   );
 

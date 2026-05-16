@@ -31,8 +31,8 @@ export async function sendAnnouncement(req: AuthRequest, res: Response): Promise
 
   const db = getDatabase();
 
-  const access = await requireEventAccess(db, Number(eventId), req.user.id);
-  if (!access) return res.status(403).json({ error: 'Access denied.' });
+  const access = await requireEventAccess(req, res, eventId);
+  if (!access) return res as Response;
 
   const event = await db.get<{ id: number; title: string }>(
     'SELECT id, title FROM events WHERE id = $1 AND deleted_at IS NULL',

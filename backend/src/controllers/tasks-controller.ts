@@ -167,7 +167,7 @@ export async function updateTask(req: Request, res: Response): Promise<Response>
       String(task.event_id),
       authReq.user?.id ?? null,
       'task_completed',
-      `Task completed: ${(updated as Record<string, unknown>)['title'] as string $1$2 'Unknown'}`,
+      `Task completed: ${(updated as Record<string, unknown>)['title'] as string ?? 'Unknown'}`,
       `/events/${task.event_id as string}`,
     );
   }

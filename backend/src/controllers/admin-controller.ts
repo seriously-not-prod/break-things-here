@@ -304,7 +304,7 @@ export async function exportAuditLog(req: AuthRequest, res: Response): Promise<R
       const val = row[h];
       if (val === null || val === undefined) return '';
       const s = String(val).replace(/"/g, '""');
-      return s.includes(',') || s.includes('"') || s.includes('\n') $1 `"${s}"` : s;
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
     }).join(',');
     res.write(line + '\n');
   }
@@ -335,7 +335,7 @@ export async function deactivateUser(req: AuthRequest, res: Response): Promise<R
 
   await logAuditEvent({
     db, userId: req.user!.id, email: req.user!.email,
-    action: AUDIT_ACTIONS.USER_DEACTIVATED ?? 'USER_DEACTIVATED',
+    action: 'USER_DEACTIVATED' as string,
     description: `Admin deactivated user ${id}`,
     ipAddress: req.ip,
     severity: 'WARN',

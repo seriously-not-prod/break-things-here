@@ -2,10 +2,14 @@
  * Guest Groups Controller — #667
  * CRUD management for guest groups and bulk CSV import.
  */
-import type { RequestHandler, Response } from 'express';
-import type { AuthRequest } from '../middleware/auth.js';
+import type { RequestHandler, Request, Response } from 'express';
+
 import { getDatabase } from '../db/database.js';
-import { logAudit } from '../utils/audit-log.js';
+import { logAuditEvent } from '../utils/audit-log.js';
+
+interface AuthRequest extends Request {
+  user?: { id: number; email: string; role_id: number };
+}
 
 interface GuestGroup {
   id: number;
@@ -47,7 +51,14 @@ export const createGuestGroup: RequestHandler = async (req: AuthRequest, res: Re
      RETURNING *`,
     [eventId, name.trim(), description ?? null, req.user!.id],
   );
-  await logAudit(req.user!.id, 'create_guest_group', { eventId, name });
+  await logAuditEvent({
+    db,
+    userId: req.user!.id,
+    email: '',
+    action: 'create_guest_group',
+    description: JSON.stringify({ eventId, name }),
+    ipAddress: undefined,
+  });
   res.status(201).json(row);
 };
 
@@ -67,7 +78,14 @@ export const updateGuestGroup: RequestHandler = async (req: AuthRequest, res: Re
     [name.trim(), description ?? null, id, eventId],
   );
   if (!row) { res.status(404).json({ error: 'Guest group not found' }); return; }
-  await logAudit(req.user!.id, 'update_guest_group', { id, name });
+  await logAuditEvent({
+    db,
+    userId: req.user!.id,
+    email: '',
+    action: 'update_guest_group',
+    description: JSON.stringify({ id, name }),
+    ipAddress: undefined,
+  });
   res.json(row);
 };
 
@@ -81,7 +99,14 @@ export const deleteGuestGroup: RequestHandler = async (req: AuthRequest, res: Re
     `DELETE FROM guest_groups WHERE id = $1 AND event_id = $2`,
     [id, eventId],
   );
-  await logAudit(req.user!.id, 'delete_guest_group', { id });
+  await logAuditEvent({
+    db,
+    userId: req.user!.id,
+    email: '',
+    action: 'delete_guest_group',
+    description: JSON.stringify({ id }),
+    ipAddress: undefined,
+  });
   res.status(204).send();
 };
 
@@ -108,7 +133,14 @@ export const addGroupMembers: RequestHandler = async (req: AuthRequest, res: Res
       // Skip invalid rsvp_ids
     }
   }
-  await logAudit(req.user!.id, 'add_group_members', { group_id: id, added });
+  await logAuditEvent({
+    db,
+    userId: req.user!.id,
+    email: '',
+    action: 'add_group_members',
+    description: JSON.stringify({ group_id: id, added }),
+    ipAddress: undefined,
+  });
   res.json({ added });
 };
 
@@ -186,7 +218,14 @@ export const csvImportGuests: RequestHandler = async (req: AuthRequest, res: Res
 
   const success = results.filter(r => r.status === 'ok').length;
   const errors = results.filter(r => r.status === 'error');
-  await logAudit(req.user!.id, 'csv_import_guests', { eventId, success, errors: errors.length });
+  await logAuditEvent({
+    db,
+    userId: req.user!.id,
+    email: '',
+    action: 'csv_import_guests',
+    description: JSON.stringify({ eventId, success, errors: errors.length }),
+    ipAddress: undefined,
+  });
   res.json({ success, errors });
 };
 
@@ -210,6 +249,13 @@ export const bulkCheckIn: RequestHandler = async (req: AuthRequest, res: Respons
     );
     if ((result as unknown as { rowCount?: number })?.rowCount) updated++;
   }
-  await logAudit(req.user!.id, 'bulk_checkin', { eventId, updated });
+  await logAuditEvent({
+    db,
+    userId: req.user!.id,
+    email: '',
+    action: 'bulk_checkin',
+    description: JSON.stringify({ eventId, updated }),
+    ipAddress: undefined,
+  });
   res.json({ updated });
 };
