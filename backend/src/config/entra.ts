@@ -31,7 +31,7 @@ export function getEntraConfig(): EntraConfig {
     );
   }
 
-  const redirectUri = process.env.AZURE_REDIRECT_URI ?? 'http://localhost:3000/auth/entra/callback';
+  const redirectUri = process.env.AZURE_REDIRECT_URI ?? 'http://localhost:8081/auth/callback';
   const authority = `https://login.microsoftonline.com/${tenantId}`;
   const jwksUri = `${authority}/discovery/v2.0/keys`;
 
