@@ -694,7 +694,7 @@ export async function cloneEvent(req: Request, res: Response): Promise<void> {
 
     if (req.query['includeTasks'] === 'true') {
       const tasks = await db.all(
-        'SELECT * FROM tasks WHERE event_id = $1',
+        'SELECT * FROM tasks WHERE event_id = ?',
         [id],
       );
       for (const task of tasks as Record<string, unknown>[]) {

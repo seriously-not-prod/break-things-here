@@ -61,7 +61,7 @@ export async function listTemplates(req: Request, res: Response): Promise<void> 
           )
         : await db.all<EventTemplateRow>(
             `SELECT * FROM event_templates
-             WHERE deleted_at IS NULL AND created_by = $1
+             WHERE deleted_at IS NULL AND created_by = ?
              ORDER BY updated_at DESC`,
             [user.id],
           );

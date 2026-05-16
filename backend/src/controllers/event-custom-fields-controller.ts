@@ -295,7 +295,7 @@ export async function deleteField(req: Request, res: Response): Promise<Response
   if (!existing) return res.status(404).json({ error: 'Custom field not found.' });
 
   await db.run(
-    'DELETE FROM event_custom_fields WHERE id = $1 AND event_id = $2',
+    'DELETE FROM event_custom_fields WHERE id = ? AND event_id = ?',
     [fieldId, eventId],
   );
   return res.json({ message: 'Custom field deleted.' });

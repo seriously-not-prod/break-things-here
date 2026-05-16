@@ -82,7 +82,7 @@ export async function listPresets(req: Request, res: Response): Promise<void> {
     }
     const db = getDatabase();
     const rows = await db.all<FilterPresetRow>(
-      `SELECT * FROM event_filter_presets WHERE user_id = $1 ORDER BY updated_at DESC`,
+      `SELECT * FROM event_filter_presets WHERE user_id = ? ORDER BY updated_at DESC`,
       [user.id],
     );
     res.json({ presets: rows.map(toView) });
