@@ -257,6 +257,11 @@ export async function importCsv(
   return res.json() as Promise<CsvImportResult>;
 }
 
+/** Returns URL for the CSV import template download. */
+export function importCsvTemplateUrl(eventId: number | string): string {
+  return `/api/events/${eventId}/rsvps/import/template.csv`;
+}
+
 /** Returns URL for CSV download — caller can set window.location.href */
 export function exportCsvUrl(eventId: number | string): string {
   return `/api/events/${eventId}/rsvps/export?format=csv`;

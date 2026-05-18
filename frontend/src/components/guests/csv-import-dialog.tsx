@@ -22,7 +22,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import { importCsv } from '../../services/guest-service';
+import { importCsv, importCsvTemplateUrl } from '../../services/guest-service';
 
 // Columns that can be mapped from CSV
 const GUEST_FIELDS = [
@@ -195,6 +195,15 @@ export function CsvImportDialog({
         </Box>
       </DialogContent>
       <DialogActions>
+        <Button
+          onClick={() => {
+            window.location.href = importCsvTemplateUrl(eventId);
+          }}
+          disabled={importing}
+          variant="text"
+        >
+          Download CSV Template
+        </Button>
         <Button onClick={handleClose} disabled={importing}>Cancel</Button>
         <Button
           variant="contained"

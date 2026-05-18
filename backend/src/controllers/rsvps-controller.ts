@@ -174,6 +174,33 @@ function csvEscape(value: unknown): string {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
+const IMPORT_TEMPLATE_COLUMNS = [
+  'name',
+  'email',
+  'phone',
+  'guests',
+  'status',
+  'notes',
+  'dietary_restriction',
+  'accessibility_needs',
+  'plus_one',
+  'plus_one_name',
+  'guest_group',
+  'company',
+  'title',
+  'relation_type',
+  'age_group',
+  'address_line1',
+  'address_line2',
+  'city',
+  'state_region',
+  'postal_code',
+  'country',
+  'emergency_contact_name',
+  'emergency_contact_phone',
+  'meal_choice',
+] as const;
+
 /** GET /api/events/:eventId/rsvps */
 export async function listRsvps(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
@@ -592,6 +619,22 @@ export async function exportRsvpsCsv(req: Request, res: Response): Promise<Respo
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="event-${eventId}-rsvps.csv"`);
+  return res.send(csv);
+}
+
+/** GET /api/events/:eventId/rsvps/import/template.csv */
+export async function exportRsvpsImportTemplateCsv(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId } = req.params;
+  const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
+  if (!event) return res as Response;
+
+  const csv = `${IMPORT_TEMPLATE_COLUMNS.join(',')}\n`;
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="event-${eventId}-rsvp-import-template.csv"`,
+  );
   return res.send(csv);
 }
 
