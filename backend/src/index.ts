@@ -20,6 +20,8 @@ import { pathToFileURL } from 'url';
 import { initializeDatabase } from './db/database.js';
 import { sanitizeRequestBody } from './middleware/sanitize-input.js';
 import { apiLimiter, csrfLimiter, healthLimiter } from './middleware/rate-limit.js';
+import { verifyEmailWebhookSignature } from './middleware/verify-email-webhook.js';
+import * as announcementController from './controllers/announcement-controller.js';
 import apiRoutes from './routes/api-routes.js';
 
 const port = parseInt(process.env.PORT || '4000', 10);
@@ -219,6 +221,16 @@ export function createApp(): express.Express {
   app.get('/api/csrf-token', csrfLimiter, (_req, res) => {
     res.json({ csrfToken: generateCsrfToken() });
   });
+
+  // Email-provider bounce webhook lives OUTSIDE /api: the /api mount applies
+  // a double-submit CSRF check to every non-GET request, and external email
+  // providers cannot send our CSRF token. HMAC signature verification on the
+  // raw body is the real authentication for this endpoint.
+  app.post(
+    '/webhooks/email/bounce',
+    verifyEmailWebhookSignature,
+    announcementController.handleEmailBounce,
+  );
 
   // Rate-limit + CSRF protection applied here before all /api routes.
   // cookieParser() is intentionally NOT used as middleware; cookies are parsed

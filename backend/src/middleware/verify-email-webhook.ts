@@ -41,6 +41,15 @@ export function verifyEmailWebhookSignature(
     return;
   }
 
+  // Strict hex format guard. Buffer.from(str, 'hex') silently truncates at
+  // the first non-hex character, so a malformed signature could otherwise
+  // sneak past the length-equality check below as an empty/short Buffer.
+  // SHA-256 in hex is always 64 characters.
+  if (!/^[0-9a-fA-F]{64}$/.test(provided)) {
+    res.status(401).json({ error: 'Invalid signature' });
+    return;
+  }
+
   const raw = (req as Request & { rawBody?: Buffer }).rawBody;
   if (!raw || raw.length === 0) {
     res.status(401).json({ error: 'Missing request body' });

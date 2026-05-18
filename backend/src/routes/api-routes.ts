@@ -68,7 +68,6 @@ import * as attendanceBoardController from '../controllers/attendance-board-cont
 import * as seatingGroupsController from '../controllers/seating-groups-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { apiLimiter, createAuthLimiter, publicLimiter, trackingLimiter, gdprLimiter } from '../middleware/rate-limit.js';
-import { verifyEmailWebhookSignature } from '../middleware/verify-email-webhook.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -706,16 +705,11 @@ router.post('/admin/users/:id/erase', authenticateToken, authorizeRole(['Admin']
 // ============ ANNOUNCEMENTS & EMAIL WEBHOOKS — #671 ============
 router.post('/events/:eventId/announcements', authenticateToken, announcementController.sendAnnouncement);
 router.get('/events/:eventId/communication/stats', authenticateToken, announcementController.getCommunicationStats);
-// Bounce webhook is public (called by email provider) — no auth required.
-// NOT rate-limited per-IP: email providers (SES, SendGrid, Mailgun, etc.)
-// dispatch from many rotating IPs and can legitimately spike during bulk
-// sends. The defence is HMAC signature validation against EMAIL_WEBHOOK_SECRET;
-// requests without a valid X-Amz-SNS-Signature header are rejected with 401.
-router.post(
-  '/webhooks/email/bounce',
-  verifyEmailWebhookSignature,
-  announcementController.handleEmailBounce,
-);
+// Bounce webhook is registered at the TOP LEVEL (see backend/src/index.ts)
+// rather than under /api. The /api mount applies a double-submit CSRF check
+// to every non-GET request, and external email providers cannot send our
+// CSRF token. Mounting the webhook directly on the app bypasses that check;
+// the HMAC signature verifier (verify-email-webhook.ts) is the real auth.
 
 // ============ BUDGET EXTENSIONS — #668 ============
 router.get('/events/:eventId/budget/expenses/export', authenticateToken, budgetController.exportExpensesAsCsv);

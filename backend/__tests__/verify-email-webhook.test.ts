@@ -85,6 +85,28 @@ describe('verifyEmailWebhookSignature middleware', () => {
     expect(res.body.ok).toBe(true);
   });
 
+  it('rejects a malformed (non-hex) signature header', async () => {
+    process.env.EMAIL_WEBHOOK_SECRET = SECRET;
+    const app = buildApp();
+    const res = await request(app)
+      .post('/webhooks/email/bounce')
+      .set(HEADER, 'not-a-hex-string-at-all')
+      .send({ event: 'bounce', email: 'x@y.com' });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/invalid signature/i);
+  });
+
+  it('rejects a signature header of the wrong length (not 64 hex chars)', async () => {
+    process.env.EMAIL_WEBHOOK_SECRET = SECRET;
+    const app = buildApp();
+    const res = await request(app)
+      .post('/webhooks/email/bounce')
+      .set(HEADER, 'deadbeef') // valid hex but too short
+      .send({ event: 'bounce', email: 'x@y.com' });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/invalid signature/i);
+  });
+
   it('rejects when the body has been tampered with after signing', async () => {
     process.env.EMAIL_WEBHOOK_SECRET = SECRET;
     const app = buildApp();
