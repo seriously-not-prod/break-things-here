@@ -4,16 +4,16 @@ import {
   Box,
   Button,
   Checkbox,
+  Divider,
   FormControlLabel,
+  Paper,
   Stack,
   TextField,
   Typography,
-  Avatar,
   CircularProgress,
-  InputAdornment,
 } from '@mui/material';
 import { useAuth } from '../../contexts/auth-context';
-import { ApiError } from '../../lib/api-client';
+import { ApiError, api } from '../../lib/api-client';
 
 
 
@@ -68,7 +68,14 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
   }, [remainingSeconds]);
 
   const isLocked = Boolean(lockoutText);
+  const [entraEnabled, setEntraEnabled] = useState(false);
   const { login } = useAuth();
+
+  useEffect(() => {
+    api.get<{ enabled: boolean }>('/api/auth/entra/config')
+      .then((data) => setEntraEnabled(data.enabled))
+      .catch(() => setEntraEnabled(false));
+  }, []);
 
   function handleEmailChange(event: ChangeEvent<HTMLInputElement>) {
     setEmail(event.target.value);
@@ -106,14 +113,6 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
   return (
     <Box component="form" onSubmit={handleSubmit} noValidate>
       <Stack spacing={2} sx={{ width: '100%' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-          <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48 }}>FP</Avatar>
-          <Box>
-            <Typography variant="h6">Festival Planner</Typography>
-            <Typography variant="caption" color="text.secondary">Sign in to your account</Typography>
-          </Box>
-        </Box>
-
         {lockoutText && <Alert severity="warning">{lockoutText}</Alert>}
         {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
         {successMessage && <Alert severity="success">{successMessage}</Alert>}
@@ -129,7 +128,7 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
           inputProps={{ 'aria-label': 'Email address' }}
           autoComplete="email"
           fullWidth
-          placeholder="you@company.com"
+          placeholder="your.email@festival.local"
         />
 
         <TextField
@@ -143,14 +142,7 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
           inputProps={{ 'aria-label': 'Password' }}
           autoComplete="current-password"
           fullWidth
-          placeholder="Your password"
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                {/* subtle lock icon placeholder */}
-              </InputAdornment>
-            ),
-          }}
+          placeholder="Enter your password"
         />
 
         <FormControlLabel
@@ -172,7 +164,7 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
           sx={{ py: 1.5, fontWeight: 600 }}
           fullWidth
         >
-          {isSubmitting ? <CircularProgress size={20} color="inherit" /> : 'Log in'}
+          {isSubmitting ? <CircularProgress size={20} color="inherit" /> : 'Sign In'}
         </Button>
 
         <Typography aria-live="polite" variant="body2" color="text.secondary">
@@ -189,6 +181,21 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
           Forgot password?
         </Button>
 
+        {entraEnabled && (
+          <>
+            <Divider>or</Divider>
+            <Button
+              variant="outlined"
+              fullWidth
+              href="/api/auth/entra/login"
+              aria-label="Sign in with Microsoft"
+              sx={{ py: 1.5, fontWeight: 600, textTransform: 'none' }}
+            >
+              Sign in with Microsoft
+            </Button>
+          </>
+        )}
+
         {onRegister && (
           <Typography variant="body2" align="center">
             Don't have an account?{' '}
@@ -197,6 +204,30 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
             </Button>
           </Typography>
         )}
+
+        <Paper
+          variant="outlined"
+          sx={{
+            p: 2,
+            bgcolor: '#f0f4ff',
+            borderColor: '#c7d2fe',
+            borderRadius: 2,
+          }}
+        >
+          <Typography
+            variant="caption"
+            fontWeight={700}
+            sx={{ letterSpacing: 1, display: 'block', mb: 1, color: '#3730a3' }}
+          >
+            DEMO CREDENTIALS
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 0.5 }}>
+            <strong>Admin:</strong>&nbsp; admin@festival.local / festivalAdmin2025
+          </Typography>
+          <Typography variant="body2">
+            <strong>User:</strong>&nbsp;&nbsp;&nbsp;&nbsp; user@festival.local / userPass2025
+          </Typography>
+        </Paper>
       </Stack>
     </Box>
   );
