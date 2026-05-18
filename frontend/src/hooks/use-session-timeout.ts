@@ -40,6 +40,9 @@ export function useSessionTimeout(
   const timeoutMsRef = useRef<number>(DEFAULT_TIMEOUT_MS);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const warnRef = useRef<ReturnType<typeof setTimeout>>();
+  // Throttle reschedule so high-frequency events (mousemove, scroll) don't
+  // call clearTimeout + setTimeout on every single input event.
+  const lastRescheduleRef = useRef<number>(0);
 
   // --- stable callback refs so scheduleTimers doesn't change identity ---
   const onTimeoutRef = useRef(onTimeout);
@@ -64,7 +67,11 @@ export function useSessionTimeout(
 
   const handleActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
-    scheduleTimers();
+    const now = Date.now();
+    if (now - lastRescheduleRef.current >= 1_000) {
+      lastRescheduleRef.current = now;
+      scheduleTimers();
+    }
   }, [scheduleTimers]);
 
   // Wire activity listeners and start the initial timer

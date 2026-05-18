@@ -32,16 +32,16 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** Rendered only while a user is authenticated; activates the idle hook. */
+function SessionTimeoutWatcher({ onTimeout }: { onTimeout: () => void }) {
+  useSessionTimeout(onTimeout);
+  return null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionTimedOut, setSessionTimedOut] = useState(false);
-
-  /** Inner component — rendered only while authenticated; activates the idle hook. */
-  function SessionTimeoutWatcher({ onTimeout }: { onTimeout: () => void }) {
-    useSessionTimeout(onTimeout);
-    return null;
-  }
 
   const loadCurrentUser = useCallback(async () => {
     try {
