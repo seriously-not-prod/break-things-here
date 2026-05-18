@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -52,6 +52,7 @@ import {
   reviewExpenseApproval,
   updateCategory,
   updateExpense,
+  uploadExpenseReceiptDocument,
 } from '../../services/budget-service';
 import { BudgetSummaryCards } from './budget-summary-cards';
 import { BudgetChart } from './budget-chart';
@@ -108,6 +109,9 @@ export default function BudgetPage(): JSX.Element {
   const [comparisonError, setComparisonError] = useState<string | null>(null);
   const [workflowSummary, setWorkflowSummary] = useState<ExpenseWorkflowSummary | null>(null);
   const [ocrBusyExpenseId, setOcrBusyExpenseId] = useState<number | null>(null);
+  const [uploadBusyExpenseId, setUploadBusyExpenseId] = useState<number | null>(null);
+  const [receiptUploadExpenseId, setReceiptUploadExpenseId] = useState<number | null>(null);
+  const receiptInputRef = useRef<HTMLInputElement | null>(null);
 
   // Dialog state
   const [catDialogOpen, setCatDialogOpen] = useState(false);
@@ -317,6 +321,30 @@ export default function BudgetPage(): JSX.Element {
     } finally {
       setOcrBusyExpenseId(null);
     }
+  }
+
+  async function handleReceiptFileChange(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    if (!eventId || !receiptUploadExpenseId) return;
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setUploadBusyExpenseId(receiptUploadExpenseId);
+    setError(null);
+    try {
+      await uploadExpenseReceiptDocument(eventId, receiptUploadExpenseId, file);
+      window.alert('Receipt uploaded. You can now run OCR Extract on this expense.');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to upload receipt file.');
+    } finally {
+      setUploadBusyExpenseId(null);
+      setReceiptUploadExpenseId(null);
+    }
+  }
+
+  function handleUploadReceiptClick(expenseId: number): void {
+    setReceiptUploadExpenseId(expenseId);
+    receiptInputRef.current?.click();
   }
 
   // ─── Render helpers ─────────────────────────────────────────────────────────
@@ -777,6 +805,13 @@ export default function BudgetPage(): JSX.Element {
                               )}
                               <Button
                                 size="small"
+                                onClick={() => handleUploadReceiptClick(exp.id)}
+                                disabled={uploadBusyExpenseId === exp.id}
+                              >
+                                {uploadBusyExpenseId === exp.id ? 'Uploading…' : 'Upload Receipt'}
+                              </Button>
+                              <Button
+                                size="small"
                                 onClick={() => void handleExtractAndApplyOcr(exp)}
                                 disabled={ocrBusyExpenseId === exp.id}
                               >
@@ -807,6 +842,14 @@ export default function BudgetPage(): JSX.Element {
       )}
 
       {/* Dialogs */}
+      <input
+        ref={receiptInputRef}
+        type="file"
+        accept="application/pdf,image/jpeg,image/png,image/webp"
+        style={{ display: 'none' }}
+        onChange={(e) => void handleReceiptFileChange(e)}
+      />
+
       <AddCategoryDialog
         open={catDialogOpen}
         onClose={() => {
