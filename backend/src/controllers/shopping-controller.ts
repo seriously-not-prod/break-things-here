@@ -144,10 +144,12 @@ export async function createItem(req: Request, res: Response): Promise<Response>
   );
 
   const item = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = $1', [result.lastID]);
-  await logMutation(db, authReq, AUDIT_ACTIONS.SHOPPING_ITEM_CREATE, 'shopping_item', result.lastID ?? 0, {
-    eventId,
-    listId,
-  });
+  if (result.lastID !== undefined) {
+    await logMutation(db, authReq, AUDIT_ACTIONS.SHOPPING_ITEM_CREATE, 'shopping_item', result.lastID, {
+      eventId,
+      listId,
+    });
+  }
   return res.status(201).json({ item });
 }
 

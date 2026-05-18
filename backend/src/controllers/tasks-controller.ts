@@ -99,7 +99,9 @@ export async function createTask(req: AuthRequest, res: Response): Promise<Respo
     `/events/${eventId}`,
   );
 
-  await logMutation(db, req, AUDIT_ACTIONS.TASK_CREATE, 'task', result.lastID ?? 0, { eventId });
+  if (result.lastID !== undefined) {
+    await logMutation(db, req, AUDIT_ACTIONS.TASK_CREATE, 'task', result.lastID, { eventId });
+  }
   return res.status(201).json({ task });
 }
 

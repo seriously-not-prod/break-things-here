@@ -387,10 +387,19 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
     }
   }
 
-  await logMutation(db, authReq, AUDIT_ACTIONS.RSVP_CREATE, 'rsvp', rsvp?.id ?? result.lastID ?? 0, {
-    eventId,
-    waitlisted: queueOnCreate,
-  });
+  if (rsvp) {
+    // Public/no-auth surface: fall back to submitter email so the audit row
+    // is attributable even when authReq.user is undefined.
+    await logMutation(
+      db,
+      authReq,
+      AUDIT_ACTIONS.RSVP_CREATE,
+      'rsvp',
+      rsvp.id,
+      { eventId, waitlisted: queueOnCreate },
+      email,
+    );
+  }
   return res.status(201).json({ rsvp, waitlisted: queueOnCreate });
 }
 
@@ -509,7 +518,7 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
     }
   }
 
-  await logMutation(db, authReq, AUDIT_ACTIONS.RSVP_UPDATE, 'rsvp', rsvp.id);
+  await logMutation(db, authReq, AUDIT_ACTIONS.RSVP_UPDATE, 'rsvp', rsvp.id, { eventId });
   return res.json({ rsvp: updated });
 }
 

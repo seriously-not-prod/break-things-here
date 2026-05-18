@@ -423,7 +423,9 @@ export async function createVendor(req: Request, res: Response): Promise<Respons
   );
 
   const vendor = await db.get<VendorRow>('SELECT * FROM vendors WHERE id = $1', [result.lastID]);
-  await logMutation(db, authReq, AUDIT_ACTIONS.VENDOR_CREATE, 'vendor', result.lastID ?? 0, { eventId });
+  if (result.lastID !== undefined) {
+    await logMutation(db, authReq, AUDIT_ACTIONS.VENDOR_CREATE, 'vendor', result.lastID, { eventId });
+  }
   return res.status(201).json({ vendor });
 }
 

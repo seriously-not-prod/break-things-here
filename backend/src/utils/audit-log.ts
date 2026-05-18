@@ -108,28 +108,47 @@ export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 // ─── Convenience wrapper for domain-entity mutations ─────────────────────────
 
 /**
+ * Restricting targetType to a closed union turns a typo at a call site into
+ * a compile error rather than an audit row no one can filter on.
+ */
+export type AuditTargetType =
+  | 'event'
+  | 'rsvp'
+  | 'task'
+  | 'shopping_item'
+  | 'vendor';
+
+/**
  * Thin wrapper around logAuditEvent for create/update/delete on domain
- * entities (events, RSVPs, tasks, shopping items, vendors). Centralises the
- * targetType/targetId/actorId boilerplate so controllers only pass the action
- * and the entity id.
+ * entities. Centralises the targetType/targetId/actorId boilerplate so
+ * controllers only pass the action and the entity id.
  *
  * The req parameter is intentionally typed as `{ ip?, user? }` rather than
  * `AuthRequest` so this helper works with both Express's base `Request`
  * (where `user` is attached at runtime by authenticateToken) and explicit
  * `AuthRequest` subtypes — no cast at the call site.
+ *
+ * `action` is constrained to `AuditAction` so a typo becomes a compile
+ * error rather than a misspelled audit row. `targetType` is constrained
+ * to `AuditTargetType` for the same reason.
+ *
+ * `fallbackEmail` is for public/no-auth surfaces (e.g. createRsvp) where
+ * `req.user` is undefined but the submitter's email is in the request body
+ * — passing it through keeps the audit row attributable.
  */
 export async function logMutation(
   db: DatabaseAdapter,
   req: { ip?: string; user?: { id: number; email: string } | null },
-  action: string,
-  targetType: string,
+  action: AuditAction,
+  targetType: AuditTargetType,
   targetId: string | number,
   context?: Record<string, unknown>,
+  fallbackEmail?: string | null,
 ): Promise<void> {
   await logAuditEvent({
     db,
     userId: req.user?.id ?? null,
-    email: req.user?.email ?? null,
+    email: req.user?.email ?? fallbackEmail ?? null,
     action,
     actorId: req.user?.id ?? null,
     targetType,
