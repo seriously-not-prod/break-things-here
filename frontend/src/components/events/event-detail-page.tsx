@@ -45,7 +45,7 @@ import { PageLayout } from '../layout/page-layout';
 import { setLastEventId } from '../../hooks/use-last-event';
 import { api, apiFetch, ApiError, getAuthHeaders } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
-import { canEditEvent } from '../../utils/roles';
+import { canEditEvent, isAdmin } from '../../utils/roles';
 import { ActivityFeedPanel } from './activity-feed-panel';
 import EventLocationMap from './event-location-map';
 import EventCustomFieldsPanel from './event-custom-fields-panel';
@@ -648,7 +648,7 @@ export default function EventDetailPage(): JSX.Element {
                   : 'default'
               }
             />
-            {user && (user.id === event.created_by || user.roleId === 3) && (
+            {user && (user.id === event.created_by || isAdmin(user.roleName)) && (
               <Button
                 size="small"
                 variant="outlined"
@@ -710,7 +710,7 @@ export default function EventDetailPage(): JSX.Element {
       {event && id && (
         <EventCustomFieldsPanel
           eventId={id}
-          canEdit={!!user && (user.id === event.created_by || user.roleId >= 2)}
+          canEdit={!!user && (user.id === event.created_by || canEditEvent(user.roleName))}
         />
       )}
 
