@@ -2456,4 +2456,8 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     END
     WHERE canonical_status IS NULL OR canonical_status = ''
   `);
+
+  // ── Story #664, Item 10: required event time field (HH:MM) ───────────────
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_time TEXT`);
+  await db.exec(`ALTER TABLE event_templates ADD COLUMN IF NOT EXISTS default_event_time TEXT`);
 }

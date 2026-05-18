@@ -34,6 +34,8 @@ export interface EventData {
   gallery_guest_uploads?: boolean | null;
   gallery_public?: boolean | null;
   storage_quota_bytes?: number | null;
+  // Story #664, Item 10 — required event time field (HH:MM)
+  event_time?: string | null;
 }
 
 interface AuthRequest extends Request {
@@ -370,6 +372,7 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
       latitude,
       longitude,
       waitlist_enabled,
+      event_time,
     } = req.body as EventData & { start_date?: string; venue_name?: string };
 
     const date = _date || start_date;
@@ -378,6 +381,16 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
     // Validation
     if (!title || !date || !location) {
       res.status(400).json({ error: 'Title, date, and location are required' });
+      return;
+    }
+
+    // Validate event_time format (HH:MM) — required for new events.
+    if (!event_time) {
+      res.status(400).json({ error: 'event_time is required (HH:MM format)' });
+      return;
+    }
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(event_time)) {
+      res.status(400).json({ error: 'event_time must be in HH:MM format (e.g. 09:00, 14:30)' });
       return;
     }
 
@@ -414,12 +427,13 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
 
     const result = await db.run(`
       INSERT INTO events (title, date, location, description, capacity, status, event_type, is_public, tags,
-                          latitude, longitude, waitlist_enabled, created_by, updated_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                          latitude, longitude, waitlist_enabled, event_time, created_by, updated_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING id
     `, [title, date, location, description ?? null, capacity ?? null, initialStatus,
         event_type ?? 'Other', is_public ?? false, tags ?? null,
         lat, lng, waitlist_enabled ?? false,
+        event_time,
         userId, userId]);
     
     const newEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`, [result.lastID]);
@@ -467,6 +481,7 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       gallery_guest_uploads,
       gallery_public,
       storage_quota_bytes,
+      event_time,
     } = req.body as EventData & { start_date?: string; venue_name?: string };
 
     const date = _date || start_date;
@@ -559,14 +574,24 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       nextQuota = q;
     }
 
+    // Validate event_time format (HH:MM) if provided.
+    if (event_time !== undefined && event_time !== null) {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(event_time)) {
+        res.status(400).json({ error: 'event_time must be in HH:MM format (e.g. 09:00, 14:30)' });
+        return;
+      }
+    }
+    const nextEventTime =
+      event_time !== undefined ? event_time : (existingEvent['event_time'] as string | null ?? null);
+
     await db.run(`
       UPDATE events
       SET title = $1, date = $2, location = $3, description = $4, capacity = $5, status = $6,
           event_type = $7, is_public = $8, tags = $9, latitude = $10, longitude = $11, waitlist_enabled = $12,
           gallery_comments_enabled = $13, gallery_guest_uploads = $14, gallery_public = $15,
-          storage_quota_bytes = $16,
-          updated_by = $17, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $18
+          storage_quota_bytes = $16, event_time = $17,
+          updated_by = $18, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $19
     `, [
       title || existingEvent.title,
       date || existingEvent.date,
@@ -590,6 +615,7 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
         ? Boolean(gallery_public)
         : (existingEvent['gallery_public'] as boolean | undefined) ?? false,
       nextQuota,
+      nextEventTime,
       userId,
       id,
     ]);
@@ -675,8 +701,8 @@ export async function cloneEvent(req: Request, res: Response): Promise<void> {
     const result = await db.run(
       `INSERT INTO events
          (title, date, location, description, capacity, status,
-          cover_image_url, event_type, is_public, rsvp_deadline, tags, created_by)
-       VALUES ($1, $2, $3, $4, $5, 'Draft', $6, $7, $8, $9, $10, $11)
+          cover_image_url, event_type, is_public, rsvp_deadline, tags, event_time, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'Draft', $6, $7, $8, $9, $10, $11, $12)
        RETURNING id`,
       [
         `Copy of ${source.title as string}`,
@@ -689,6 +715,7 @@ export async function cloneEvent(req: Request, res: Response): Promise<void> {
         source.is_public ?? false,
         source.rsvp_deadline ?? null,
         source.tags ?? null,
+        source.event_time ?? null,
         userId,
       ],
     );
