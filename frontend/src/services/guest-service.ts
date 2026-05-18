@@ -226,13 +226,26 @@ export async function checkInGuest(
 
 // ─── CSV Import / Export ─────────────────────────────────────────────────────
 
-/** POST /api/events/:eventId/rsvps/import — multipart CSV upload */
+/** POST /api/events/:eventId/rsvps/import — multipart CSV upload with optional field mapping */
 export async function importCsv(
   eventId: number | string,
   file: File,
+  columnMap?: Record<string, string>,
 ): Promise<CsvImportResult> {
   const formData = new FormData();
   formData.append('file', file);
+  if (columnMap) {
+    // Only send explicit (non-empty) mappings so the backend can still fall
+    // back to normalised header names for columns the wizard left unmapped.
+    // A '' value means "wizard found no match" — omitting it lets the backend
+    // handle the column through its default normalisation path.
+    const explicitMappings = Object.fromEntries(
+      Object.entries(columnMap).filter(([, v]) => v !== ''),
+    );
+    if (Object.keys(explicitMappings).length > 0) {
+      formData.append('column_map', JSON.stringify(explicitMappings));
+    }
+  }
   const res = await apiFetch(`/api/events/${eventId}/rsvps/import`, {
     method: 'POST',
     body: formData,
