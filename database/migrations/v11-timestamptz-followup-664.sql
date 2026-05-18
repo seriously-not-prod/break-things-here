@@ -1,4 +1,5 @@
--- Migration v10: TIMESTAMPTZ fix-up for high-risk expiry/deadline columns (#664 follow-up)
+-- Migration v11: TIMESTAMPTZ fix-up for high-risk expiry/deadline columns (#664 follow-up)
+-- (Renamed from v10 to avoid filename collision with v10-event-time-field.sql from PR #706.)
 --
 -- PR #698 fixed the DST/TZ-offset bug class for `sessions.expires_at`,
 -- `sessions.last_activity`, and `password_reset_tokens.*` by switching those
