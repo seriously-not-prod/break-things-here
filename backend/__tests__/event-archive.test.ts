@@ -18,7 +18,7 @@ vi.mock('../src/db/database', () => ({
   getDatabase: () => mockDb,
 }));
 
-import { archiveEvent, unarchiveEvent, updateEvent } from '../src/controllers/event-controller.js';
+import { archiveEvent, restoreEvent, unarchiveEvent, updateEvent } from '../src/controllers/event-controller.js';
 
 function makeRes() {
   const res: {
@@ -177,5 +177,71 @@ describe('updateEvent guards', () => {
     await updateEvent(req, res as unknown as import('express').Response);
     expect(res.statusCode).toBe(400);
     expect(res.body).toMatchObject({ error: expect.stringMatching(/Cannot transition/) });
+  });
+});
+
+describe('restoreEvent 30-day rule', () => {
+  beforeEach(() => {
+    mockDb = { get: vi.fn(), all: vi.fn(), run: vi.fn() };
+  });
+
+  it('restores when deleted_at is within 30 days', async () => {
+    const deletedAt = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+    mockDb.get.mockResolvedValueOnce({
+      id: 12,
+      title: 'Festival',
+      deleted_at: deletedAt,
+    });
+
+    const req = makeReq(
+      { id: '12' },
+      {},
+      { id: 3, email: 'admin@test.com', role_id: 3 },
+    );
+    const res = makeRes();
+    await restoreEvent(req, res as unknown as import('express').Response);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ message: 'Event restored successfully' });
+    expect(mockDb.run).toHaveBeenCalledTimes(2);
+    expect(mockDb.run.mock.calls[0][0]).toContain('UPDATE events SET deleted_at = NULL');
+    expect(mockDb.run.mock.calls[1][0]).toContain('INSERT INTO audit_log');
+  });
+
+  it('returns 410 when deleted_at is older than 30 days', async () => {
+    const deletedAt = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
+    mockDb.get.mockResolvedValueOnce({
+      id: 12,
+      title: 'Festival',
+      deleted_at: deletedAt,
+    });
+
+    const req = makeReq(
+      { id: '12' },
+      {},
+      { id: 3, email: 'admin@test.com', role_id: 3 },
+    );
+    const res = makeRes();
+    await restoreEvent(req, res as unknown as import('express').Response);
+
+    expect(res.statusCode).toBe(410);
+    expect(res.body).toMatchObject({
+      error: expect.stringMatching(/Restore window expired/i),
+      deleted_at: deletedAt,
+    });
+    expect(mockDb.run).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 for non-admin users', async () => {
+    const req = makeReq(
+      { id: '12' },
+      {},
+      { id: 7, email: 'owner@test.com', role_id: 2 },
+    );
+    const res = makeRes();
+    await restoreEvent(req, res as unknown as import('express').Response);
+
+    expect(res.statusCode).toBe(403);
+    expect(mockDb.get).not.toHaveBeenCalled();
   });
 });
