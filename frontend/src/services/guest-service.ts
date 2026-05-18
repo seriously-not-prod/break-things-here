@@ -226,13 +226,17 @@ export async function checkInGuest(
 
 // ─── CSV Import / Export ─────────────────────────────────────────────────────
 
-/** POST /api/events/:eventId/rsvps/import — multipart CSV upload */
+/** POST /api/events/:eventId/rsvps/import — multipart CSV upload with optional field mapping */
 export async function importCsv(
   eventId: number | string,
   file: File,
+  columnMap?: Record<string, string>,
 ): Promise<CsvImportResult> {
   const formData = new FormData();
   formData.append('file', file);
+  if (columnMap && Object.keys(columnMap).length > 0) {
+    formData.append('column_map', JSON.stringify(columnMap));
+  }
   const res = await apiFetch(`/api/events/${eventId}/rsvps/import`, {
     method: 'POST',
     body: formData,

@@ -697,8 +697,24 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
     return result;
   }
 
-  const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, '_'));
+  const rawHeaders = parseCsvLine(lines[0]);
+  const normalizedHeaders = rawHeaders.map((h) => h.toLowerCase().replace(/\s+/g, '_'));
   const dataLines = lines.slice(1);
+
+  // ── Apply field mapping from the frontend wizard (Story #664, Item 11) ────
+  // column_map is sent as a JSON string form field: { csvHeader -> guestField }
+  // A value of '' means "skip this column". Unmapped columns fall back to the
+  // normalised header name so backward-compat is preserved.
+  let columnMap: Record<string, string> = {};
+  const rawMapField = (req.body as Record<string, unknown>)?.column_map;
+  if (typeof rawMapField === 'string' && rawMapField) {
+    try {
+      const parsed = JSON.parse(rawMapField) as unknown;
+      if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        columnMap = parsed as Record<string, string>;
+      }
+    } catch { /* ignore malformed column_map */ }
+  }
 
   let imported = 0;
   let skipped = 0;
@@ -706,7 +722,17 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
   for (const line of dataLines) {
     const values = parseCsvLine(line);
     const row: Record<string, string> = {};
-    headers.forEach((h, i) => { row[h] = values[i] ?? ''; });
+    rawHeaders.forEach((rawHeader, i) => {
+      const guestField = columnMap[rawHeader];
+      if (typeof guestField === 'string' && guestField !== '') {
+        // Explicitly mapped: store under the target guest field name
+        row[guestField] = values[i] ?? '';
+      } else if (guestField === undefined) {
+        // Not in the map at all: fall back to normalised column name
+        row[normalizedHeaders[i]] = values[i] ?? '';
+      }
+      // guestField === '' → caller explicitly marked this column as "skip"
+    });
 
     const name = row['name']?.trim();
     const email = row['email']?.trim().toLowerCase();

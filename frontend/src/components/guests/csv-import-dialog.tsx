@@ -111,7 +111,8 @@ export function CsvImportDialog({
     setImporting(true);
     setError(null);
     try {
-      const result = await importCsv(eventId, selectedFile);
+      // Pass the field mapping from the wizard so the backend applies it
+      const result = await importCsv(eventId, selectedFile, columnMap);
       onImported(result.imported, result.skipped);
       reset();
       onClose();
