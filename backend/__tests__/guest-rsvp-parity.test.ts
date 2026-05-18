@@ -12,6 +12,7 @@ import {
   toLegacyStatus,
   isCanonicalStatus,
   CANONICAL_STATUSES,
+  normalizeLegacyRsvpStatusInput,
 } from '../src/utils/rsvp-taxonomy';
 import { computeProfileCompleteness } from '../src/utils/profile-completeness';
 import { personalize, buildGuestTokens } from '../src/utils/template-personalization';
@@ -43,6 +44,14 @@ describe('rsvp-taxonomy', () => {
     }
     expect(isCanonicalStatus('confirmed')).toBe(true);
     expect(isCanonicalStatus('Going')).toBe(false);
+  });
+
+  it('normalizes inbound status aliases to persisted legacy values', () => {
+    expect(normalizeLegacyRsvpStatusInput('Confirmed')).toBe('Going');
+    expect(normalizeLegacyRsvpStatusInput('No Response')).toBe('Pending');
+    expect(normalizeLegacyRsvpStatusInput('not_going')).toBe('Not Going');
+    expect(normalizeLegacyRsvpStatusInput('declined')).toBe('Declined');
+    expect(normalizeLegacyRsvpStatusInput('unknown-status')).toBeNull();
   });
 });
 
