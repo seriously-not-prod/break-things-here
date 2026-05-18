@@ -135,6 +135,7 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
     config.jwksUri,
     config.clientId,
     config.tenantId,
+    config.authority,
   );
 
   // #568 — MFA enforcement: when ENTRA_MFA_REQUIRED=true the token's `amr`
