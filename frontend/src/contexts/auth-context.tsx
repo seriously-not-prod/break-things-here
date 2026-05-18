@@ -6,7 +6,7 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { api, setToken } from '../lib/api-client';
+import { api, getToken, setToken } from '../lib/api-client';
 import { useSessionTimeout } from '../hooks/use-session-timeout';
 
 export interface AuthUser {
@@ -31,6 +31,35 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+const FALLBACK_REFRESH_INTERVAL_MS = 50 * 60 * 1000;
+const REFRESH_BUFFER_MS = 5 * 60 * 1000;
+const MIN_REFRESH_DELAY_MS = 30 * 1000;
+
+function decodeJwtExpiryMs(token: string): number | null {
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const payload = JSON.parse(atob(padded)) as { exp?: unknown };
+    if (typeof payload.exp !== 'number') return null;
+    return payload.exp * 1000;
+  } catch {
+    return null;
+  }
+}
+
+export function calculateRefreshDelayMs(token: string | null, nowMs = Date.now()): number {
+  if (!token) return FALLBACK_REFRESH_INTERVAL_MS;
+
+  const expiresAtMs = decodeJwtExpiryMs(token);
+  if (!expiresAtMs) return FALLBACK_REFRESH_INTERVAL_MS;
+
+  const delayMs = expiresAtMs - nowMs - REFRESH_BUFFER_MS;
+  return Math.max(MIN_REFRESH_DELAY_MS, delayMs);
+}
 
 /** Rendered only while a user is authenticated; activates the idle hook. */
 function SessionTimeoutWatcher({ onTimeout }: { onTimeout: () => void }) {
@@ -108,19 +137,38 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     setSessionTimedOut(false);
   }, []);
 
-  // Periodic token refresh — cookie attaches automatically, send empty body (#290)
+  // Dynamic token refresh scheduling — uses token exp so cadence adapts to token TTL.
   useEffect(() => {
-    const REFRESH_INTERVAL = 50 * 60 * 1000; // 50 minutes
-    const interval = setInterval(async () => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
+    const scheduleNext = (token: string | null): void => {
+      const delay = calculateRefreshDelayMs(token);
+      timer = setTimeout(() => {
+        void refreshToken();
+      }, delay);
+    };
+
+    const refreshToken = async (): Promise<void> => {
       try {
         const data = await api.post<{ accessToken: string }>('/api/auth/refresh');
         setToken(data.accessToken);
+        if (cancelled) return;
+        scheduleNext(data.accessToken);
       } catch {
         setToken(null);
         setUser(null);
+        if (cancelled) return;
+        scheduleNext(null);
       }
-    }, REFRESH_INTERVAL);
-    return () => clearInterval(interval);
+    };
+
+    scheduleNext(getToken());
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   return (
