@@ -705,12 +705,11 @@ router.post('/admin/users/:id/erase', authenticateToken, authorizeRole(['Admin']
 // ============ ANNOUNCEMENTS & EMAIL WEBHOOKS — #671 ============
 router.post('/events/:eventId/announcements', authenticateToken, announcementController.sendAnnouncement);
 router.get('/events/:eventId/communication/stats', authenticateToken, announcementController.getCommunicationStats);
-// Bounce webhook is public (called by email provider) — no auth required.
-// NOT rate-limited per-IP: email providers (SES, SendGrid, Mailgun, etc.)
-// dispatch from many rotating IPs and can legitimately spike during bulk
-// sends. The correct defence is HMAC signature validation against the
-// provider's signing key — tracked as a deferred follow-up.
-router.post('/webhooks/email/bounce', announcementController.handleEmailBounce);
+// Bounce webhook is registered at the TOP LEVEL (see backend/src/index.ts)
+// rather than under /api. The /api mount applies a double-submit CSRF check
+// to every non-GET request, and external email providers cannot send our
+// CSRF token. Mounting the webhook directly on the app bypasses that check;
+// the HMAC signature verifier (verify-email-webhook.ts) is the real auth.
 
 // ============ BUDGET EXTENSIONS — #668 ============
 router.get('/events/:eventId/budget/expenses/export', authenticateToken, budgetController.exportExpensesAsCsv);
