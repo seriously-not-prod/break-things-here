@@ -66,6 +66,9 @@ const EVENT_BY_ID_SELECT_COLUMNS = `
   date AS event_date
 `;
 
+const EVENT_RESTORE_WINDOW_DAYS = 30;
+const EVENT_RESTORE_WINDOW_MS = EVENT_RESTORE_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
 /**
  * Normalize an optional coordinate value.
  *
@@ -960,6 +963,23 @@ export async function restoreEvent(req: Request, res: Response): Promise<void> {
     const event = await db.get('SELECT * FROM events WHERE id = $1 AND deleted_at IS NOT NULL', [id]);
     if (!event) {
       res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const deletedAtRaw = event.deleted_at as string | Date | null | undefined;
+    const deletedAt = deletedAtRaw ? new Date(deletedAtRaw) : null;
+    if (!deletedAt || Number.isNaN(deletedAt.getTime())) {
+      res.status(409).json({ error: 'Event cannot be restored due to invalid deletion timestamp.' });
+      return;
+    }
+
+    const restoreDeadline = new Date(deletedAt.getTime() + EVENT_RESTORE_WINDOW_MS);
+    if (Date.now() > restoreDeadline.getTime()) {
+      res.status(410).json({
+        error: `Restore window expired. Events can only be restored within ${EVENT_RESTORE_WINDOW_DAYS} days of deletion.`,
+        deleted_at: deletedAt.toISOString(),
+        restore_deadline: restoreDeadline.toISOString(),
+      });
       return;
     }
 
