@@ -80,10 +80,45 @@ class PostgresTestDatabase implements TestDatabase {
   }
 }
 
+function quoteIdentifier(identifier: string): string {
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+async function ensureDatabaseExists(connectionString: string): Promise<void> {
+  const targetUrl = new URL(connectionString);
+  const databaseName = targetUrl.pathname.replace(/^\//, '');
+
+  if (!databaseName) {
+    return;
+  }
+
+  // Connect to the default postgres database to create the target test DB if needed.
+  const adminUrl = new URL(connectionString);
+  adminUrl.pathname = '/postgres';
+
+  const client = new pg.Client({ connectionString: adminUrl.toString() });
+
+  try {
+    await client.connect();
+    const exists = await client.query<{ exists: number }>(
+      'SELECT 1 AS exists FROM pg_database WHERE datname = $1',
+      [databaseName],
+    );
+
+    if (exists.rowCount === 0) {
+      await client.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`);
+    }
+  } finally {
+    await client.end();
+  }
+}
+
 export async function createPostgresTestDatabase(schemaSql: string): Promise<TestDatabase> {
   const connectionString = process.env.TEST_DATABASE_URL
     ?? process.env.DATABASE_URL
     ?? resolveTestDatabaseUrl();
+
+  await ensureDatabaseExists(connectionString);
 
   const schemaName = `test_${randomUUID().replace(/-/g, '_')}`;
   const database = new PostgresTestDatabase(connectionString, schemaName);
