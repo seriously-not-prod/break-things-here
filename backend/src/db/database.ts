@@ -891,9 +891,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       user_id INTEGER NOT NULL,
       token TEXT NOT NULL UNIQUE,
       refresh_token TEXT NOT NULL UNIQUE,
-      expires_at TIMESTAMP NOT NULL,
-      last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMPTZ NOT NULL,
+      last_activity TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
@@ -905,10 +905,10 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       email TEXT NOT NULL,
       token_selector TEXT NOT NULL DEFAULT '',
       token TEXT NOT NULL UNIQUE,
-      expires_at TIMESTAMP NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
       used INTEGER DEFAULT 0,
-      used_at TIMESTAMP,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      used_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     )
   `);

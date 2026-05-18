@@ -105,16 +105,16 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
         email TEXT NOT NULL,
         token_selector TEXT NOT NULL,
         token TEXT NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        used_at TIMESTAMP
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        used_at TIMESTAMPTZ
       );
       CREATE TABLE sessions (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         token TEXT UNIQUE NOT NULL,
         refresh_token TEXT,
-        expires_at TIMESTAMP NOT NULL
+        expires_at TIMESTAMPTZ NOT NULL
       );
       CREATE TABLE audit_log (
         id SERIAL PRIMARY KEY,

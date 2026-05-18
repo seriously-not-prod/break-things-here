@@ -34,9 +34,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token          TEXT NOT NULL UNIQUE,
   refresh_token  TEXT NOT NULL UNIQUE,
-  expires_at     TIMESTAMP NOT NULL,
-  last_activity  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  expires_at     TIMESTAMPTZ NOT NULL,
+  last_activity  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  created_at     TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ============================================================
@@ -47,10 +47,10 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
   user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
   email       TEXT NOT NULL,
   token       TEXT NOT NULL UNIQUE,
-  expires_at  TIMESTAMP NOT NULL,
+  expires_at  TIMESTAMPTZ NOT NULL,
   used        INTEGER DEFAULT 0,
-  used_at     TIMESTAMP,
-  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  used_at     TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS password_reset_rate_limit (

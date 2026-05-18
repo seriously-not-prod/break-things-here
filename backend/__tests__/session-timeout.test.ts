@@ -135,8 +135,8 @@ beforeEach(async () => {
       user_id INTEGER NOT NULL,
       token TEXT UNIQUE NOT NULL,
       refresh_token TEXT,
-      expires_at TIMESTAMP NOT NULL,
-      last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      expires_at TIMESTAMPTZ NOT NULL,
+      last_activity TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
     INSERT INTO roles (id, name) VALUES (1, 'Attendee'), (2, 'Organizer'), (3, 'Admin')
     ON CONFLICT (id) DO NOTHING;
