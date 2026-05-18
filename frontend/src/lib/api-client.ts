@@ -25,9 +25,11 @@ function resolveApiUrl(path: string): string {
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
     this.name = 'ApiError';
   }
 }
@@ -107,8 +109,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await apiFetch(path, init);
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string };
-    throw new ApiError(body.error ?? res.statusText, res.status);
+    const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string; code?: string };
+    throw new ApiError(body.error ?? res.statusText, res.status, body.code);
   }
 
   // 204 No Content
