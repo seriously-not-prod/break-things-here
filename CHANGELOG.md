@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **#664 post-merge review follow-ups**: hardened four issues identified during the develop-branch review of PRs #695–#698.
+  - **RLS default is now safe for non-superuser DB roles**: `runMigrations()` auto-detects the connecting role's `BYPASSRLS` attribute. RLS policies are only applied when the role bypasses them (so policies remain inert) or when `RLS_PILOT_ENABLED=true` is set explicitly. On a hardened non-superuser role with no `app.current_user_id` context plumbing yet in controllers, RLS is auto-disabled with a warning instead of silently filtering every row out.
+  - **Legacy `POST /api/rsvps` now normalizes status aliases**: the legacy `submitRsvp` and `updateRsvp` handlers reuse `normalizeLegacyRsvpStatusInput`, so `Confirmed`/`No Response`/`tentative`/`cancelled`/`rejected` (and every variant in `RSVP_STATUS_INPUT_ALIAS_LIST`) all persist as the canonical legacy values (`Going`, `Pending`, `Maybe`, `Not Going`, `Declined`). Eliminates the status drift between `/rsvps` and `/events/:id/rsvps`.
+  - **400-response `allowed` payload now surfaces every accepted alias** via the new `RSVP_STATUS_INPUT_ALIAS_LIST` export; previously only 7 of 17 accepted inputs were advertised to clients.
+  - **TZ-correctness fix extended to four sibling expiry/deadline columns**: `users.locked_until`, `users.pending_email_token_expiry`, `events.rsvp_deadline`, `rsvps.rsvp_deadline`, and `password_reset_rate_limit.window_start` are now `TIMESTAMPTZ` to match the sessions/password-reset-token fix in PR #698. New migration `database/migrations/v10-timestamptz-followup-664.sql` promotes existing prod columns in place via `AT TIME ZONE 'UTC'`; `runMigrations()` performs the same conversion idempotently at startup.
+  - **RBAC UI: Create-Event CTAs gated for non-edit roles**: dashboard `QuickAccessGrid`, `CalendarPage` (empty-state and toolbar), and `EventPickerModal` (both create buttons) now use `canEditEvent(user.roleName)` so attendees/guests/viewers no longer see CTAs that route to a denied page.
+  - Removed obsolete SQLite-style migration tests (`backend/__tests__/budget-expenses-migration.test.ts`, `backend/__tests__/venues-vendors-migration.test.ts`) that used `PRAGMA table_info()` against the PostgreSQL backend and could not be run.
+
 ### Added
 - Strict 3.1.3 Data Security startup gates for production/staging: backend now fails closed unless HTTPS enforcement, TLS 1.3 edge policy (`EDGE_TLS_MIN_VERSION=TLSv1.3`), verified PostgreSQL TLS mode (`sslmode=verify-ca|verify-full`), at-rest encryption attestation (`DB_ENCRYPTION_AT_REST_VERIFIED=true`), and fail-closed malware scanning are all explicitly enabled
 - Entra group-to-role mapping with precedence (`Admin > Organizer > Collaborator > Guest > Viewer`) via configurable env vars (`ENTRA_GROUP_ADMINS`, `ENTRA_GROUP_ORGANIZERS`, `ENTRA_GROUP_COLLABORATORS`, `ENTRA_GROUP_GUESTS`, `ENTRA_GROUP_VIEWERS`) and callback-time role assignment for Entra SSO logins

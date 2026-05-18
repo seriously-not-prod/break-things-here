@@ -38,6 +38,24 @@ export const LEGACY_RSVP_STATUSES = ['Pending', 'Going', 'Maybe', 'Not Going', '
 export type LegacyRsvpStatus = (typeof LEGACY_RSVP_STATUSES)[number];
 
 /**
+ * Full set of accepted inbound status aliases keyed by the legacy value they
+ * normalize to. Surface this in 400-response payloads so API clients can
+ * discover every accepted spelling instead of guessing.
+ */
+export const RSVP_STATUS_INPUT_ALIASES: Record<LegacyRsvpStatus, readonly string[]> = {
+  Pending: ['Pending', 'No Response', 'no_response', 'Invited'],
+  Going: ['Going', 'Confirmed', 'Yes', 'Accepted'],
+  Maybe: ['Maybe', 'Tentative'],
+  'Not Going': ['Not Going', 'not_going', 'Cancelled', 'Canceled'],
+  Declined: ['Declined', 'Rejected', 'No'],
+} as const;
+
+/** Flat list of every accepted alias (for API documentation / error responses). */
+export const RSVP_STATUS_INPUT_ALIAS_LIST: readonly string[] = Object.values(
+  RSVP_STATUS_INPUT_ALIASES,
+).flat();
+
+/**
  * Map any legacy free-text status to a canonical value. Unknown values default
  * to 'pending' so analytics buckets stay coherent.
  */
@@ -88,11 +106,10 @@ export function normalizeLegacyRsvpStatusInput(value: unknown): LegacyRsvpStatus
   const v = value.trim().toLowerCase();
   if (!v) return null;
 
-  if (['pending', 'no response', 'no_response', 'invited'].includes(v)) return 'Pending';
-  if (['going', 'confirmed', 'yes', 'accepted'].includes(v)) return 'Going';
-  if (['maybe', 'tentative'].includes(v)) return 'Maybe';
-  if (['not going', 'not_going', 'cancelled', 'canceled'].includes(v)) return 'Not Going';
-  if (['declined', 'rejected', 'no'].includes(v)) return 'Declined';
-
+  for (const [legacy, aliases] of Object.entries(RSVP_STATUS_INPUT_ALIASES)) {
+    if (aliases.some((a) => a.toLowerCase() === v)) {
+      return legacy as LegacyRsvpStatus;
+    }
+  }
   return null;
 }

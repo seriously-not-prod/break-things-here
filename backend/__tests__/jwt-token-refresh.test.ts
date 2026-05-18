@@ -125,7 +125,7 @@ beforeEach(async () => {
       email_verified_at TIMESTAMP,
       email_verification_token TEXT,
       account_locked INTEGER DEFAULT 0,
-      locked_until TIMESTAMP,
+      locked_until TIMESTAMPTZ,
       login_attempts INTEGER DEFAULT 0,
       role_id INTEGER NOT NULL DEFAULT 1,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

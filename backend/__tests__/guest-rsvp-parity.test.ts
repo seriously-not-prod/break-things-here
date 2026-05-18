@@ -13,6 +13,7 @@ import {
   isCanonicalStatus,
   CANONICAL_STATUSES,
   normalizeLegacyRsvpStatusInput,
+  RSVP_STATUS_INPUT_ALIAS_LIST,
 } from '../src/utils/rsvp-taxonomy';
 import { computeProfileCompleteness } from '../src/utils/profile-completeness';
 import { personalize, buildGuestTokens } from '../src/utils/template-personalization';
@@ -52,6 +53,19 @@ describe('rsvp-taxonomy', () => {
     expect(normalizeLegacyRsvpStatusInput('not_going')).toBe('Not Going');
     expect(normalizeLegacyRsvpStatusInput('declined')).toBe('Declined');
     expect(normalizeLegacyRsvpStatusInput('unknown-status')).toBeNull();
+  });
+
+  it('exposes every accepted alias spelling in RSVP_STATUS_INPUT_ALIAS_LIST', () => {
+    // The 400-response `allowed` payload uses this list, so every entry
+    // must round-trip through the normalizer.
+    for (const alias of RSVP_STATUS_INPUT_ALIAS_LIST) {
+      expect(normalizeLegacyRsvpStatusInput(alias)).not.toBeNull();
+    }
+    // Spot-check that the aliases callers used to get back as 400 hints are
+    // present beyond the 5 legacy values.
+    expect(RSVP_STATUS_INPUT_ALIAS_LIST).toEqual(
+      expect.arrayContaining(['Confirmed', 'No Response', 'Tentative', 'Cancelled', 'Rejected']),
+    );
   });
 });
 

@@ -7,7 +7,7 @@ import { addToWaitlist, runPromotion } from './waitlist-controller.js';
 import {
   toCanonicalStatus,
   normalizeLegacyRsvpStatusInput,
-  LEGACY_RSVP_STATUSES,
+  RSVP_STATUS_INPUT_ALIAS_LIST,
   type CanonicalRsvpStatus,
 } from '../utils/rsvp-taxonomy.js';
 import {
@@ -240,7 +240,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   if (status !== undefined && !normalizedStatus) {
     return res.status(400).json({
       error: 'Invalid RSVP status.',
-      allowed: [...LEGACY_RSVP_STATUSES, 'Confirmed', 'No Response'],
+      allowed: RSVP_STATUS_INPUT_ALIAS_LIST,
     });
   }
 
@@ -416,7 +416,7 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
     if (!normalized) {
       return res.status(400).json({
         error: 'Invalid RSVP status.',
-        allowed: [...LEGACY_RSVP_STATUSES, 'Confirmed', 'No Response'],
+        allowed: RSVP_STATUS_INPUT_ALIAS_LIST,
       });
     }
     nextStatus = normalized;

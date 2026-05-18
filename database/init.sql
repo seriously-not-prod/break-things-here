@@ -16,10 +16,10 @@ CREATE TABLE IF NOT EXISTS users (
   email_verification_token  TEXT,
   pending_email             TEXT,
   pending_email_token       TEXT,
-  pending_email_token_expiry TIMESTAMP,
+  pending_email_token_expiry TIMESTAMPTZ,
   role_id                   INTEGER DEFAULT 1,
   account_locked            INTEGER DEFAULT 0,
-  locked_until              TIMESTAMP,
+  locked_until              TIMESTAMPTZ,
   login_attempts            INTEGER DEFAULT 0,
   created_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS password_reset_rate_limit (
   id             SERIAL PRIMARY KEY,
   email          TEXT NOT NULL UNIQUE,
   request_count  INTEGER DEFAULT 1,
-  window_start   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  window_start   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ============================================================
@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS events (
 ALTER TABLE events ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS event_type TEXT DEFAULT 'Other';
 ALTER TABLE events ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE;
-ALTER TABLE events ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMP;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMPTZ;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS end_date TEXT;
 -- Story #414: map-backed location + waitlist indicators
@@ -295,7 +295,7 @@ ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS accessibility_needs TEXT;
 ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS plus_one BOOLEAN DEFAULT FALSE;
 ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS plus_one_name TEXT;
 ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS guest_group TEXT;
-ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMP;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_rsvps_event_id ON rsvps(event_id);
 

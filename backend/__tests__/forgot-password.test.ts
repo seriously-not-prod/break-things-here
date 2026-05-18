@@ -74,7 +74,7 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
       CREATE TABLE password_reset_rate_limit (
         email TEXT PRIMARY KEY,
         request_count INTEGER NOT NULL DEFAULT 1,
-        window_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        window_start TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
       CREATE TABLE password_reset_tokens (
         id SERIAL PRIMARY KEY,
