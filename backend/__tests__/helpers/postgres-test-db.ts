@@ -84,6 +84,14 @@ function quoteIdentifier(identifier: string): string {
   return `"${identifier.replace(/"/g, '""')}"`;
 }
 
+function isDuplicateDatabaseError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('code' in error)) {
+    return false;
+  }
+
+  return (error as { code?: string }).code === '42P04';
+}
+
 async function ensureDatabaseExists(connectionString: string): Promise<void> {
   const targetUrl = new URL(connectionString);
   const databaseName = targetUrl.pathname.replace(/^\//, '');
@@ -106,7 +114,13 @@ async function ensureDatabaseExists(connectionString: string): Promise<void> {
     );
 
     if (exists.rowCount === 0) {
-      await client.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`);
+      try {
+        await client.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`);
+      } catch (error) {
+        if (!isDuplicateDatabaseError(error)) {
+          throw error;
+        }
+      }
     }
   } finally {
     await client.end();
