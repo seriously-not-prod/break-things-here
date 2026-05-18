@@ -35,6 +35,14 @@ export interface EntraTokenClaims {
 let _jwksCache: { keys: JwksKey[]; fetchedAt: number } | null = null;
 const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
 
+function isMicrosoftAuthority(authority: string): boolean {
+  try {
+    return new URL(authority).hostname.toLowerCase() === 'login.microsoftonline.com';
+  } catch {
+    return false;
+  }
+}
+
 function fetchJson<T>(url: string): Promise<T> {
   return new Promise((resolve, reject) => {
     https
@@ -129,8 +137,8 @@ export async function validateEntraIdToken(
 
   // CIAM tenants use ciamlogin.com — include the authority-derived issuer
   // so the JWT verify step accepts tokens from custom CIAM domains.
-  if (authority && !authority.includes('login.microsoftonline.com')) {
-    validIssuers.push(`${authority}/v2.0`);
+  if (authority && !isMicrosoftAuthority(authority)) {
+    validIssuers.push(`${authority.replace(/\/$/, '')}/v2.0`);
   }
 
   const verified = jwt.verify(idToken, pem, {
