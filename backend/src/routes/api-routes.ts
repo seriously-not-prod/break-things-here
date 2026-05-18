@@ -480,6 +480,10 @@ router.post('/events/:eventId/tasks', authenticateToken, tasksController.createT
 router.put('/events/:eventId/tasks/:id', authenticateToken, tasksController.updateTask);
 router.patch('/events/:eventId/tasks/:id', authenticateToken, tasksController.updateTask);
 router.delete('/events/:eventId/tasks/:id', authenticateToken, tasksController.deleteTask);
+// Multi-assignee task API (#523 B1.2)
+router.get('/events/:eventId/tasks/:taskId/assignees', authenticateToken, tasksController.listAssignees);
+router.post('/events/:eventId/tasks/:taskId/assignees', authenticateToken, tasksController.addAssignee);
+router.delete('/events/:eventId/tasks/:taskId/assignees/:userId', authenticateToken, tasksController.removeAssignee);
 router.get('/events/:eventId/tasks/:taskId/comments', authenticateToken, tasksController.listComments);
 router.post('/events/:eventId/tasks/:taskId/comments', authenticateToken, tasksController.addComment);
 router.post('/events/:eventId/tasks/:taskId/subtasks', authenticateToken, tasksController.addSubtask);
