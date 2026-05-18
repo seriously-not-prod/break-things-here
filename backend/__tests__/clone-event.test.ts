@@ -71,6 +71,7 @@ describe('cloneEvent', () => {
       is_public: true,
       rsvp_deadline: null,
       tags: 'music,summer',
+      event_time: '18:00',
       created_by: 7,
     };
     const clonedEvent: Row = {
@@ -108,6 +109,7 @@ describe('cloneEvent', () => {
         true,
         null,
         'music,summer',
+        '18:00',
         7,
       ],
     );
