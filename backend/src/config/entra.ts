@@ -33,8 +33,10 @@ export function getEntraConfig(): EntraConfig {
 
   const redirectUri = process.env.AZURE_REDIRECT_URI ?? 'http://localhost:8081/auth/callback';
   // AZURE_AUTHORITY overrides the default so CIAM tenants (ciamlogin.com) work.
+  // Treat blank values as unset because docker-compose may inject empty strings.
+  const configuredAuthority = process.env.AZURE_AUTHORITY?.trim();
   const authority =
-    process.env.AZURE_AUTHORITY ??
+    (configuredAuthority && configuredAuthority.replace(/\/$/, '')) ||
     `https://login.microsoftonline.com/${tenantId}`;
   const jwksUri = `${authority}/discovery/v2.0/keys`;
 
