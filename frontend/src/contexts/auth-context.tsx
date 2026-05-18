@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react';
 import { api, setToken } from '../lib/api-client';
+import { useSessionTimeout } from '../hooks/use-session-timeout';
 
 export interface AuthUser {
   id: number;
@@ -23,13 +24,24 @@ interface AuthContextValue {
   register: (email: string, password: string, displayName: string) => Promise<string>;
   logout: () => Promise<void>;
   loadCurrentUser: () => Promise<void>;
+  /** True when the session was automatically ended after 30 min of inactivity. */
+  sessionTimedOut: boolean;
+  /** Call after showing the "session expired" notice to reset the flag. */
+  clearSessionTimeout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** Rendered only while a user is authenticated; activates the idle hook. */
+function SessionTimeoutWatcher({ onTimeout }: { onTimeout: () => void }) {
+  useSessionTimeout(onTimeout);
+  return null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionTimedOut, setSessionTimedOut] = useState(false);
 
   const loadCurrentUser = useCallback(async () => {
     try {
@@ -86,6 +98,16 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     setUser(null);
   }, []);
 
+  const handleSessionTimeout = useCallback(() => {
+    setToken(null);
+    setUser(null);
+    setSessionTimedOut(true);
+  }, []);
+
+  const clearSessionTimeout = useCallback(() => {
+    setSessionTimedOut(false);
+  }, []);
+
   // Periodic token refresh — cookie attaches automatically, send empty body (#290)
   useEffect(() => {
     const REFRESH_INTERVAL = 50 * 60 * 1000; // 50 minutes
@@ -102,7 +124,8 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, loadCurrentUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, loadCurrentUser, sessionTimedOut, clearSessionTimeout }}>
+      {user && <SessionTimeoutWatcher onTimeout={handleSessionTimeout} />}
       {children}
     </AuthContext.Provider>
   );
