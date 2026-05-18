@@ -68,6 +68,7 @@ import * as attendanceBoardController from '../controllers/attendance-board-cont
 import * as seatingGroupsController from '../controllers/seating-groups-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { apiLimiter, createAuthLimiter, publicLimiter, trackingLimiter, gdprLimiter } from '../middleware/rate-limit.js';
+import { verifyEmailWebhookSignature } from '../middleware/verify-email-webhook.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -708,9 +709,13 @@ router.get('/events/:eventId/communication/stats', authenticateToken, announceme
 // Bounce webhook is public (called by email provider) — no auth required.
 // NOT rate-limited per-IP: email providers (SES, SendGrid, Mailgun, etc.)
 // dispatch from many rotating IPs and can legitimately spike during bulk
-// sends. The correct defence is HMAC signature validation against the
-// provider's signing key — tracked as a deferred follow-up.
-router.post('/webhooks/email/bounce', announcementController.handleEmailBounce);
+// sends. The defence is HMAC signature validation against EMAIL_WEBHOOK_SECRET;
+// requests without a valid X-Amz-SNS-Signature header are rejected with 401.
+router.post(
+  '/webhooks/email/bounce',
+  verifyEmailWebhookSignature,
+  announcementController.handleEmailBounce,
+);
 
 // ============ BUDGET EXTENSIONS — #668 ============
 router.get('/events/:eventId/budget/expenses/export', authenticateToken, budgetController.exportExpensesAsCsv);

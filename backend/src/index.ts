@@ -108,7 +108,16 @@ export function createApp(): express.Express {
     }),
   );
   app.use(cors(corsOptions));
-  app.use(express.json());
+  // Preserve the raw request body alongside the parsed JSON so route-specific
+  // signature middleware (e.g. the email-bounce HMAC verifier in
+  // /webhooks/email/bounce) can hash exactly the bytes the provider signed.
+  app.use(
+    express.json({
+      verify: (req, _res, buf) => {
+        (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
 
   // CSRF Protection — HMAC-signed stateless token.
   // Works correctly through nginx reverse proxy where Double Submit Cookie
