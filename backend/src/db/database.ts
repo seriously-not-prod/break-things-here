@@ -204,6 +204,48 @@ function resolvePoolSslOptions(connectionString: string): false | { rejectUnauth
   return { rejectUnauthorized: true };
 }
 
+function quoteIdentifier(identifier: string): string {
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+function isDuplicateDatabaseError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('code' in error)) {
+    return false;
+  }
+
+  return (error as { code?: string }).code === '42P04';
+}
+
+async function ensureTestDatabaseExists(connectionString: string): Promise<void> {
+  const target = new URL(connectionString);
+  const dbName = target.pathname.replace(/^\//, '');
+  if (!dbName) return;
+
+  const admin = new URL(connectionString);
+  admin.pathname = '/postgres';
+
+  const client = new pg.Client({ connectionString: admin.toString() });
+  try {
+    await client.connect();
+    const exists = await client.query<{ exists: number }>(
+      'SELECT 1 AS exists FROM pg_database WHERE datname = $1',
+      [dbName],
+    );
+
+    if (exists.rowCount === 0) {
+      try {
+        await client.query(`CREATE DATABASE ${quoteIdentifier(dbName)}`);
+      } catch (error) {
+        if (!isDuplicateDatabaseError(error)) {
+          throw error;
+        }
+      }
+    }
+  } finally {
+    await client.end();
+  }
+}
+
 const ORGANIZER_PERMISSION_NAMES = [
   'events.view',
   'events.create',
@@ -774,6 +816,13 @@ export async function initializeDatabase(): Promise<DatabaseAdapter> {
 
   assertSecureDatabaseConnectionString(connectionString);
   const ssl = resolvePoolSslOptions(connectionString);
+
+  // Test bootstrap hardening: create the target test DB when missing so
+  // backend tests do not fail with `database does not exist`.
+  const isTestEnv = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
+  if (isTestEnv) {
+    await ensureTestDatabaseExists(connectionString);
+  }
 
   const { Pool } = pg;
   pool = new Pool({
