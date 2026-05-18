@@ -2612,4 +2612,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       END IF;
     END$$
   `);
+
+  // ── Story #664, Item 10: required event time field (HH:MM) ───────────────
+  // Brought in from develop during merge of feature/664-wire-v9-schema-gaps.
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_time TEXT`);
+  await db.exec(`ALTER TABLE event_templates ADD COLUMN IF NOT EXISTS default_event_time TEXT`);
 }

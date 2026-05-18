@@ -157,6 +157,8 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMP;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS end_date TEXT;
+-- Story #664, Item 10: required event time field (HH:MM format)
+ALTER TABLE events ADD COLUMN IF NOT EXISTS event_time TEXT;
 -- Story #414: map-backed location + waitlist indicators
 ALTER TABLE events ADD COLUMN IF NOT EXISTS latitude  DOUBLE PRECISION;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
