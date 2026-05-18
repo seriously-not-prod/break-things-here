@@ -238,6 +238,7 @@ router.get('/events/:eventId/rsvps', authenticateToken, rsvpController.listRsvps
 router.post('/events/:eventId/rsvps', rsvpController.createRsvp);
 // Specific sub-paths must be registered BEFORE /:id parameterized routes
 router.get('/events/:eventId/rsvps/export', authenticateToken, rsvpController.exportRsvpsCsv);
+router.get('/events/:eventId/rsvps/import/template.csv', authenticateToken, rsvpController.exportRsvpsImportTemplateCsv);
 router.get('/events/:eventId/rsvps/export.xlsx', authenticateToken, guestExportController.exportRsvpsXlsx);
 router.get('/events/:eventId/rsvps/export.pdf', authenticateToken, guestExportController.exportRsvpsPdfData);
 router.post('/events/:eventId/rsvps/import', authenticateToken, csvUpload.single('file'), rsvpController.importCsv);
