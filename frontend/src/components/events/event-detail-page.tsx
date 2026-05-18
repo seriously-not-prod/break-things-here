@@ -58,6 +58,7 @@ interface PlannerEvent {
   location: string | null;
   date: string;
   event_date?: string;
+  event_time?: string | null;
   capacity: number | null;
   status: string;
   creator_name: string | null;
@@ -516,7 +517,7 @@ export default function EventDetailPage(): JSX.Element {
   return (
     <PageLayout
       title={event.title}
-      subtitle={event.date ? new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : undefined}
+      subtitle={event.date ? `${new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}${event.event_time ? ` at ${event.event_time}` : ''}` : undefined}
       breadcrumbs={[{ label: 'Events', to: '/events' }, { label: event.title }]}
     >
 
@@ -587,7 +588,7 @@ export default function EventDetailPage(): JSX.Element {
                 <Chip label={event.event_type} size="small" color="info" variant="outlined" />
               )}
               <Typography variant="body2" color="text.secondary">
-                {new Date(event.date).toLocaleDateString()} {event.location ? `· ${event.location}` : ''}
+                {new Date(event.date).toLocaleDateString()} {event.event_time ? `at ${event.event_time}` : ''}{event.location ? ` · ${event.location}` : ''}
               </Typography>
             </Stack>
             {event.capacity !== null && event.capacity !== undefined && (
