@@ -32,8 +32,10 @@ import { GalleryPage } from './components/gallery/gallery-page';
 import { EventRouteGuard } from './components/layout/event-route-guard';
 import { MessagesInbox } from './components/messages/messages-inbox';
 import { EntraCallbackPage } from './components/auth/entra-callback';
+import { RoleGuard } from './components/auth/role-guard';
 import { useKeyboardShortcuts, type ShortcutDefinition } from './hooks/use-keyboard-shortcuts';
 import { KeyboardShortcutsOverlay } from './components/keyboard-shortcuts/keyboard-shortcuts-overlay';
+import { canEditEvent, isAdmin } from './utils/roles';
 import { useState, useMemo } from 'react';
 
 type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password';
@@ -366,7 +368,18 @@ function AppShell(): JSX.Element {
         <Routes>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/events" element={<EventsPage />} />
-          <Route path="/events/new" element={<EventFormPage />} />
+          <Route
+            path="/events/new"
+            element={
+              <RoleGuard
+                canAccess={(u) => canEditEvent(u?.roleName)}
+                title="Insufficient permissions"
+                message="Only organizer, collaborator, or admin roles can create events."
+              >
+                <EventFormPage />
+              </RoleGuard>
+            }
+          />
           <Route path="/events/calendar" element={<CalendarPage />} />
           <Route path="/events/my" element={<EventsPage ownerOnly />} />
           <Route path="/events/:id" element={<EventRouteGuard><EventDetailPage /></EventRouteGuard>} />
@@ -384,7 +397,18 @@ function AppShell(): JSX.Element {
           <Route path="/events/:id/gallery" element={<EventRouteGuard><GalleryPage /></EventRouteGuard>} />
           <Route path="/messages" element={<MessagesInbox />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/admin" element={<AdminPage />} />
+          <Route
+            path="/admin"
+            element={
+              <RoleGuard
+                canAccess={(u) => isAdmin(u?.roleName)}
+                title="Administrator access required"
+                message="Only admin users can access the user management console."
+              >
+                <AdminPage />
+              </RoleGuard>
+            }
+          />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
         </ErrorBoundary>
