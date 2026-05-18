@@ -49,7 +49,7 @@ export async function listEventDocuments(req: Request, res: Response): Promise<R
 
   const db = getDatabase();
   const documents = await db.all(
-    `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at
+    `SELECT id, event_id, original_name, file_name, mime_type, file_size, caption, created_at
      FROM event_documents
      WHERE event_id = $1
      ORDER BY created_at DESC`,
@@ -75,6 +75,9 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
   }
 
   const safeOriginalName = path.basename(authReq.file.originalname).replace(/[^a-zA-Z0-9._\-]/g, '_');
+  const caption = typeof req.body?.caption === 'string' && req.body.caption.trim()
+    ? req.body.caption.trim().slice(0, 255)
+    : null;
 
   const db = getDatabase();
 
@@ -134,9 +137,9 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
   try {
     const result = await db.run(
       `INSERT INTO event_documents (event_id, original_name, file_name, mime_type, file_size,
-                                    conversion_status, original_format, converted_file_name,
+                                    caption, conversion_status, original_format, converted_file_name,
                                     created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING id`,
       [
         req.params.eventId,
@@ -144,6 +147,7 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
         authReq.file.filename,
         authReq.file.mimetype,
         authReq.file.size,
+        caption,
         staged?.conversionStatus ?? 'none',
         staged?.originalFormat ?? null,
         staged?.convertedFileName ?? null,
@@ -162,7 +166,7 @@ export async function uploadEventDocument(req: Request, res: Response): Promise<
     );
 
     const document = await db.get(
-      `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at,
+      `SELECT id, event_id, original_name, file_name, mime_type, file_size, caption, created_at,
               conversion_status, original_format
        FROM event_documents WHERE id = $1`,
       [result.lastID],

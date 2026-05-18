@@ -4,7 +4,7 @@
  * BRD section 3.4 / Issue #374
  */
 
-import { api } from '../lib/api-client';
+import { api, apiFetch, ApiError } from '../lib/api-client';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -63,6 +63,17 @@ export interface ExpenseWorkflowSummary {
     rejected: number;
   };
   reimbursementRequestedAmount: number;
+}
+
+export interface UploadedExpenseReceiptDocument {
+  id: number;
+  event_id: number;
+  original_name: string;
+  file_name: string;
+  mime_type: string;
+  file_size: number;
+  caption?: string | null;
+  created_at: string;
 }
 
 export interface ExpenseOcrExtractedFields {
@@ -316,6 +327,29 @@ export async function applyExpenseReceiptOcr(
     `/api/events/${eventId}/expenses/${expenseId}/ocr/${ocrId}/apply`,
     payload,
   );
+}
+
+export async function uploadExpenseReceiptDocument(
+  eventId: number | string,
+  expenseId: number,
+  file: File,
+): Promise<UploadedExpenseReceiptDocument> {
+  const formData = new FormData();
+  formData.append('document', file);
+  formData.append('caption', `expense:${expenseId}:receipt`);
+
+  const response = await apiFetch(`/api/events/${eventId}/documents`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ error: response.statusText })) as { error?: string; code?: string };
+    throw new ApiError(body.error ?? response.statusText, response.status, body.code);
+  }
+
+  const payload = await response.json() as { document: UploadedExpenseReceiptDocument };
+  return payload.document;
 }
 
 export async function deleteExpense(
