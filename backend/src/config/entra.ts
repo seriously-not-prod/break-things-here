@@ -32,7 +32,10 @@ export function getEntraConfig(): EntraConfig {
   }
 
   const redirectUri = process.env.AZURE_REDIRECT_URI ?? 'http://localhost:8081/auth/callback';
-  const authority = `https://login.microsoftonline.com/${tenantId}`;
+  // AZURE_AUTHORITY overrides the default so CIAM tenants (ciamlogin.com) work.
+  const authority =
+    process.env.AZURE_AUTHORITY ??
+    `https://login.microsoftonline.com/${tenantId}`;
   const jwksUri = `${authority}/discovery/v2.0/keys`;
 
   return { tenantId, clientId, clientSecret, redirectUri, authority, jwksUri };

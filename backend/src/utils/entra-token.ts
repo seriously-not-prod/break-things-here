@@ -80,6 +80,7 @@ export async function validateEntraIdToken(
   jwksUri: string,
   clientId: string,
   tenantId: string,
+  authority?: string,
 ): Promise<EntraTokenClaims> {
   const decoded = jwt.decode(idToken, { complete: true });
   if (!decoded || typeof decoded.header.kid !== 'string') {
@@ -125,6 +126,12 @@ export async function validateEntraIdToken(
     `https://login.microsoftonline.com/${issuerTenant}/v2.0`,
     `https://sts.windows.net/${issuerTenant}/`,
   ];
+
+  // CIAM tenants use ciamlogin.com — include the authority-derived issuer
+  // so the JWT verify step accepts tokens from custom CIAM domains.
+  if (authority && !authority.includes('login.microsoftonline.com')) {
+    validIssuers.push(`${authority}/v2.0`);
+  }
 
   const verified = jwt.verify(idToken, pem, {
     algorithms: ['RS256'],
