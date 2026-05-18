@@ -33,6 +33,10 @@ export const CANONICAL_STATUSES: readonly CanonicalRsvpStatus[] = [
   'no_show',
 ] as const;
 
+/** Legacy status values still persisted in `rsvps.status` for backward compatibility. */
+export const LEGACY_RSVP_STATUSES = ['Pending', 'Going', 'Maybe', 'Not Going', 'Declined'] as const;
+export type LegacyRsvpStatus = (typeof LEGACY_RSVP_STATUSES)[number];
+
 /**
  * Map any legacy free-text status to a canonical value. Unknown values default
  * to 'pending' so analytics buckets stay coherent.
@@ -73,4 +77,22 @@ export function toLegacyStatus(canonical: CanonicalRsvpStatus): string {
 
 export function isCanonicalStatus(value: unknown): value is CanonicalRsvpStatus {
   return typeof value === 'string' && (CANONICAL_STATUSES as readonly string[]).includes(value);
+}
+
+/**
+ * Normalize inbound status text to one of the persisted legacy values.
+ * Accepts both legacy strings and canonical/UX aliases.
+ */
+export function normalizeLegacyRsvpStatusInput(value: unknown): LegacyRsvpStatus | null {
+  if (typeof value !== 'string') return null;
+  const v = value.trim().toLowerCase();
+  if (!v) return null;
+
+  if (['pending', 'no response', 'no_response', 'invited'].includes(v)) return 'Pending';
+  if (['going', 'confirmed', 'yes', 'accepted'].includes(v)) return 'Going';
+  if (['maybe', 'tentative'].includes(v)) return 'Maybe';
+  if (['not going', 'not_going', 'cancelled', 'canceled'].includes(v)) return 'Not Going';
+  if (['declined', 'rejected', 'no'].includes(v)) return 'Declined';
+
+  return null;
 }

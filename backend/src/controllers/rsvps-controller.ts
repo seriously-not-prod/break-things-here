@@ -4,7 +4,12 @@ import { createRsvpNotification } from './notifications-controller.js';
 import { logActivity } from './activity-feed-controller.js';
 import { requireEventAccess } from '../utils/event-access.js';
 import { addToWaitlist, runPromotion } from './waitlist-controller.js';
-import { toCanonicalStatus, type CanonicalRsvpStatus } from '../utils/rsvp-taxonomy.js';
+import {
+  toCanonicalStatus,
+  normalizeLegacyRsvpStatusInput,
+  LEGACY_RSVP_STATUSES,
+  type CanonicalRsvpStatus,
+} from '../utils/rsvp-taxonomy.js';
 import {
   computeProfileCompleteness,
   type GuestProfileFields,
@@ -229,6 +234,16 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   const guests = body.guests as number | string | undefined;
   const waitlist = body.waitlist as boolean | undefined;
 
+  const normalizedStatus = status === undefined
+    ? 'Pending'
+    : normalizeLegacyRsvpStatusInput(status);
+  if (status !== undefined && !normalizedStatus) {
+    return res.status(400).json({
+      error: 'Invalid RSVP status.',
+      allowed: [...LEGACY_RSVP_STATUSES, 'Confirmed', 'No Response'],
+    });
+  }
+
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required.' });
   if (!email?.trim()) return res.status(400).json({ error: 'Email is required.' });
 
@@ -286,7 +301,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   // the queue with status preserved so promotion is a one-step move.
   const capacity = await getEventCapacity(db, eventId);
   let queueOnCreate = false;
-  if (capacity !== null && isGoing(status || 'Pending')) {
+  if (capacity !== null && isGoing(normalizedStatus || 'Pending')) {
     const currentGoing = await getGoingGuestsTotal(db, eventId);
     if (currentGoing + guestCount > capacity) {
       if (waitlist === true) {
@@ -339,7 +354,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
     name.trim(),
     email.trim().toLowerCase(),
     guestCount,
-    status || 'Pending',
+    normalizedStatus || 'Pending',
     notes?.trim() || null,
     source,
     ...PROFILE_FIELDS.map((f) => profileValues[f]),
@@ -361,7 +376,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   const rsvp = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = $1', [result.lastID]);
 
   // Fire notification to event owner when a new RSVP is confirmed
-  if ((status || 'Pending') === 'Going' && !queueOnCreate) {
+  if ((normalizedStatus || 'Pending') === 'Going' && !queueOnCreate) {
     const ev = await db.get<{ created_by: number }>(
       'SELECT created_by FROM events WHERE id = $1',
       [eventId],
@@ -396,10 +411,17 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
     fields.push('guests = ?');
     params.push(parsed);
   }
-  if (typeof body.status === 'string') {
-    nextStatus = body.status;
+  if (body.status !== undefined) {
+    const normalized = normalizeLegacyRsvpStatusInput(body.status);
+    if (!normalized) {
+      return res.status(400).json({
+        error: 'Invalid RSVP status.',
+        allowed: [...LEGACY_RSVP_STATUSES, 'Confirmed', 'No Response'],
+      });
+    }
+    nextStatus = normalized;
     fields.push('status = ?');
-    params.push(body.status);
+    params.push(normalized);
   }
 
   if (isGoing(nextStatus)) {
