@@ -83,20 +83,35 @@ interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
 }
 
-// Per-user rate limit: 20 AI requests per hour stored in-process
-const userRateLimiter = new Map<number, { count: number; windowStart: number }>();
+// Per-user rate limit: 20 AI requests per rolling 1-hour window, persisted
+// in the ai_rate_limits table so the budget survives server restarts and is
+// enforced uniformly across multiple replicas. The UPSERT below is atomic —
+// it resets count to 1 when the existing window is older than 1 hour, or
+// increments otherwise, and returns the new count in the same round-trip.
+const AI_RATE_LIMIT_PER_HOUR = 20;
+const AI_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 
-function checkAiRateLimit(userId: number): boolean {
-  const now = Date.now();
-  const ONE_HOUR = 60 * 60 * 1000;
-  const record = userRateLimiter.get(userId);
-  if (!record || (now - record.windowStart) > ONE_HOUR) {
-    userRateLimiter.set(userId, { count: 1, windowStart: now });
-    return true;
-  }
-  if (record.count >= 20) return false;
-  record.count++;
-  return true;
+async function checkAiRateLimit(userId: number): Promise<boolean> {
+  const db = getDatabase();
+  const row = await db.get<{ count: number }>(
+    `INSERT INTO ai_rate_limits (user_id, window_start, count, updated_at)
+     VALUES ($1, NOW(), 1, NOW())
+     ON CONFLICT (user_id) DO UPDATE
+       SET count = CASE
+                     WHEN (EXTRACT(EPOCH FROM (NOW() - ai_rate_limits.window_start)) * 1000) > $2
+                     THEN 1
+                     ELSE ai_rate_limits.count + 1
+                   END,
+           window_start = CASE
+                            WHEN (EXTRACT(EPOCH FROM (NOW() - ai_rate_limits.window_start)) * 1000) > $2
+                            THEN NOW()
+                            ELSE ai_rate_limits.window_start
+                          END,
+           updated_at = NOW()
+     RETURNING count`,
+    [userId, AI_RATE_LIMIT_WINDOW_MS],
+  );
+  return (row?.count ?? Number.POSITIVE_INFINITY) <= AI_RATE_LIMIT_PER_HOUR;
 }
 
 /** Sanitise user-supplied text before including in prompts to prevent prompt injection. */
@@ -120,7 +135,7 @@ export async function getSuggestion(req: AuthRequest, res: Response): Promise<Re
   }
 
   const userId = req.user?.id;
-  if (userId !== undefined && !checkAiRateLimit(userId)) {
+  if (userId !== undefined && !(await checkAiRateLimit(userId))) {
     return res.status(429).json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
   }
 
