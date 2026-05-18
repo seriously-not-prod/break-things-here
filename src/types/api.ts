@@ -1,4 +1,4 @@
-import { UserRole } from '../types/user-role';
+import { UserRole } from './user-role';
 
 /**
  * Represents the authenticated user's JWT claims.
@@ -7,6 +7,7 @@ export interface AuthUser {
   id: string;
   email: string;
   role: UserRole;
+  tokenVersion?: number;
 }
 
 /**

@@ -5,9 +5,9 @@
  * LOGOUT + post-logout token rejection, and identical error messages for
  * known vs unknown email (enumeration resistance).
  *
- * These tests use isolated in-memory SQLite databases so they do not require
- * a running server. They call controller functions directly with mock
- * Express request/response objects.
+ * These tests use isolated PostgreSQL schemas so they do not require a
+ * running server. They call controller functions directly with mock Express
+ * request/response objects.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -55,12 +55,11 @@ vi.mock('nodemailer', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// In-memory DB bootstrap (mirrors database.ts schema, stripped down)
+// PostgreSQL test DB bootstrap (mirrors database.ts schema, stripped down)
 // ---------------------------------------------------------------------------
-import sqlite3 from 'sqlite3';
-import { open, type Database } from 'sqlite';
+import { createPostgresTestDatabase, type TestDatabase } from './helpers/postgres-test-db.js';
 
-let testDb: Database;
+let testDb: TestDatabase;
 
 // Override getDatabase so controllers use the test DB
 vi.mock('../src/db/database.js', () => ({
@@ -93,43 +92,42 @@ async function seedUser(opts: {
 }
 
 beforeEach(async () => {
-  testDb = await open({ filename: ':memory:', driver: sqlite3.Database });
-  await testDb.exec('PRAGMA foreign_keys = ON');
-  await testDb.exec(`
+  testDb = await createPostgresTestDatabase(`
     CREATE TABLE IF NOT EXISTS roles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT UNIQUE NOT NULL
     );
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       display_name TEXT,
-      email_verified BOOLEAN DEFAULT 0,
-      email_verified_at DATETIME,
+      email_verified INTEGER DEFAULT 0,
+      email_verified_at TIMESTAMP,
       email_verification_token TEXT,
-      account_locked BOOLEAN DEFAULT 0,
-      locked_until DATETIME,
+      account_locked INTEGER DEFAULT 0,
+      locked_until TIMESTAMP,
       login_attempts INTEGER DEFAULT 0,
       role_id INTEGER NOT NULL DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      deleted_at DATETIME
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL,
       token TEXT UNIQUE NOT NULL,
       refresh_token TEXT,
-      expires_at DATETIME NOT NULL,
-      last_activity DATETIME DEFAULT CURRENT_TIMESTAMP
+      expires_at TIMESTAMP NOT NULL,
+      last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
-    INSERT INTO roles (name) VALUES ('Attendee'), ('Organizer'), ('Admin');
+    INSERT INTO roles (id, name) VALUES (1, 'Attendee'), (2, 'Organizer'), (3, 'Admin')
+    ON CONFLICT (id) DO NOTHING;
   `);
 });
 
 afterEach(async () => {
-  await testDb.close();
+  await testDb?.close();
 });
 
 // ---------------------------------------------------------------------------
@@ -222,7 +220,7 @@ describe('Auth Integration — Logout', () => {
     // Insert a session so logout has something to invalidate
     await testDb.run(
       `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
-       VALUES (?, ?, ?, datetime('now', '+1 hour'))`,
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP + INTERVAL '1 hour')`,
       [user!.id, hashToken('access-tok'), hashToken('refresh-tok')],
     );
 
@@ -240,7 +238,7 @@ describe('Auth Integration — Logout', () => {
 
     await testDb.run(
       `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
-       VALUES (?, ?, ?, datetime('now', '+1 hour'))`,
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP + INTERVAL '1 hour')`,
       [user!.id, hashToken('my-access'), hashToken('my-refresh')],
     );
 
