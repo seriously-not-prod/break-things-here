@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE TABLE IF NOT EXISTS event_members (
   event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role     TEXT DEFAULT 'Member',
   PRIMARY KEY (event_id, user_id)
 );
 CREATE TABLE IF NOT EXISTS rsvps (

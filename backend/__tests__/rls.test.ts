@@ -71,7 +71,8 @@ async function createRlsTestContext(): Promise<RlsTestContext> {
     CREATE TABLE "${schema}".event_members (
       event_id INTEGER NOT NULL REFERENCES "${schema}".events(id),
       user_id  INTEGER NOT NULL REFERENCES "${schema}".users(id),
-      PRIMARY KEY (event_id, user_id)
+      role     TEXT DEFAULT 'Member',
+  PRIMARY KEY (event_id, user_id)
     )
   `);
 
