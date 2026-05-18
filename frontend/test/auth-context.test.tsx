@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AuthProvider, useAuth } from '../src/contexts/auth-context';
+import { AuthProvider, calculateRefreshDelayMs, useAuth } from '../src/contexts/auth-context';
 import { api, getToken, setToken } from '../src/lib/api-client';
 
 vi.mock('../src/lib/api-client', async () => {
@@ -117,5 +117,43 @@ describe('AuthProvider token storage (#250)', () => {
 
     expect(getToken()).toBe('refreshed-access-token');
     expect(window.localStorage.getItem('accessToken')).toBeNull();
+  });
+});
+
+describe('calculateRefreshDelayMs', () => {
+  function makeJwtWithExp(expSeconds: number): string {
+    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
+    const payload = btoa(JSON.stringify({ exp: expSeconds }))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
+    return `${header}.${payload}.signature`;
+  }
+
+  it('schedules refresh 5 minutes before token expiry', () => {
+    const nowMs = 1_700_000_000_000;
+    const expSeconds = Math.floor((nowMs + 60 * 60 * 1000) / 1000); // expires in 60 min
+    const token = makeJwtWithExp(expSeconds);
+
+    const delay = calculateRefreshDelayMs(token, nowMs);
+    expect(delay).toBe(55 * 60 * 1000);
+  });
+
+  it('enforces minimum delay when token is near expiry', () => {
+    const nowMs = 1_700_000_000_000;
+    const expSeconds = Math.floor((nowMs + 60 * 1000) / 1000); // expires in 1 min
+    const token = makeJwtWithExp(expSeconds);
+
+    const delay = calculateRefreshDelayMs(token, nowMs);
+    expect(delay).toBe(30 * 1000);
+  });
+
+  it('falls back to default interval when token is missing or malformed', () => {
+    const nowMs = 1_700_000_000_000;
+    expect(calculateRefreshDelayMs(null, nowMs)).toBe(50 * 60 * 1000);
+    expect(calculateRefreshDelayMs('invalid-token', nowMs)).toBe(50 * 60 * 1000);
   });
 });
