@@ -82,9 +82,9 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
         email TEXT NOT NULL,
         token_selector TEXT NOT NULL,
         token TEXT NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        used_at TIMESTAMP
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        used_at TIMESTAMPTZ
       );
       CREATE TABLE audit_log (
         id SERIAL PRIMARY KEY,
