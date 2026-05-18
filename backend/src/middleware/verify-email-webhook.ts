@@ -8,19 +8,30 @@ import { logger } from '../utils/logger.js';
  * The endpoint sits in front of an unauthenticated POST surface that can
  * deactivate user email delivery, so unsigned or forged requests must be
  * rejected outright. The provider is expected to:
- *   1. Compute HMAC-SHA256(rawBody, EMAIL_WEBHOOK_SECRET).
- *   2. Send the lowercase-hex digest in the X-Amz-SNS-Signature header.
- *      (We use the SES/SNS header name for ops familiarity even though
- *      the algorithm is HMAC, not RSA — flip to RSA verification when
- *      switching to native SNS subscription confirmation.)
+ *
+ *   1. Set an `X-Amz-Date` header to an ISO-8601 timestamp at request time.
+ *   2. Compute HMAC-SHA256(`<X-Amz-Date>.<rawBody>`, EMAIL_WEBHOOK_SECRET).
+ *   3. Send the lowercase-hex digest in `X-Amz-SNS-Signature`.
+ *
+ * We bind the timestamp into the signature so a captured valid request can't
+ * be replayed indefinitely from logs / a compromised TLS-terminating proxy
+ * / a previous test run. The window is ±5 minutes either side of server time.
+ *
+ * (We use the SES/SNS header names for ops familiarity even though the
+ * algorithm is HMAC, not RSA — flip to RSA verification when switching
+ * to native SNS subscription confirmation.)
  *
  * Hard requirements:
  *   - EMAIL_WEBHOOK_SECRET must be set; an unset secret means the endpoint
  *     is closed for business (401 on every call) rather than open.
- *   - The signature header must be present.
- *   - Comparison is constant-time to defeat timing attacks.
+ *   - The signature header must be present and a well-formed 64-hex SHA-256.
+ *   - The date header must be present, parseable, and within ±5 minutes.
  *   - rawBody must have been captured upstream (express.json verify hook).
+ *   - Comparison is constant-time to defeat timing attacks.
  */
+
+const TIMESTAMP_SKEW_MS = 5 * 60 * 1000;
+
 export function verifyEmailWebhookSignature(
   req: Request,
   res: Response,
@@ -50,13 +61,36 @@ export function verifyEmailWebhookSignature(
     return;
   }
 
+  const dateHeader = req.header('X-Amz-Date') ?? '';
+  if (!dateHeader) {
+    res.status(401).json({ error: 'Missing timestamp' });
+    return;
+  }
+  const ts = Date.parse(dateHeader);
+  if (Number.isNaN(ts)) {
+    res.status(401).json({ error: 'Invalid timestamp' });
+    return;
+  }
+  const skew = Math.abs(Date.now() - ts);
+  if (skew > TIMESTAMP_SKEW_MS) {
+    logger.warn('[Webhook] Bounce webhook timestamp outside skew window', {
+      ip: req.ip,
+      skewMs: skew,
+    });
+    res.status(401).json({ error: 'Stale or future-dated request' });
+    return;
+  }
+
   const raw = (req as Request & { rawBody?: Buffer }).rawBody;
   if (!raw || raw.length === 0) {
     res.status(401).json({ error: 'Missing request body' });
     return;
   }
 
-  const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex');
+  // Bind the timestamp into the HMAC input so replays of a captured request
+  // outside the skew window can't reuse the original signature.
+  const payload = Buffer.concat([Buffer.from(`${dateHeader}.`, 'utf8'), raw]);
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
 
   let valid = false;
   try {
