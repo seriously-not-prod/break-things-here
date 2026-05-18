@@ -67,7 +67,7 @@ export interface PlannerState {
 export interface EventDraft {
   title: string;
   date: string;
-  event_time: string;
+  event_time?: string;
   location: string;
   description: string;
   status: EventStatus;
