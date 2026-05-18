@@ -2467,9 +2467,11 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   // CONCURRENTLY): we apply migrations at startup, where CONCURRENTLY
   // would either fail (it cannot run inside an implicit transaction
   // and pg's simple-query protocol wraps multi-statement strings) or
-  // would offer no benefit (empty/small tables at install time). For
-  // ops applying the .sql against a live large DB, the file still uses
-  // CONCURRENTLY — that path is hand-run and is the right place for it.
+  // would offer no benefit (empty/small tables at install time).
+  // The .sql file mirrors the same plain form. If ops need to apply
+  // additional indexes against a hot, large table out-of-band, they
+  // should use CONCURRENTLY in a separately-issued psql session and
+  // pick a name that doesn't collide with what's installed here.
   // ============================================================
 
   // v9 §1 — Missing columns (idempotent)

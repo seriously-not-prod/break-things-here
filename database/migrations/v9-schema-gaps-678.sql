@@ -103,8 +103,10 @@ CREATE INDEX IF NOT EXISTS idx_rsvps_waitlist_position
 CREATE INDEX IF NOT EXISTS idx_events_archived_at
   ON events(archived_at) WHERE archived_at IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_scheduled_reports_next_run
-  ON scheduled_reports(next_run_at);
+-- idx_scheduled_reports_next_run intentionally defined ONCE further down as a
+-- partial index (WHERE is_active = true). PostgreSQL's IF NOT EXISTS matches
+-- by name only, so defining a non-partial index here with the same name
+-- would silently keep the partial form from being created.
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_user_created
   ON audit_log(user_id, created_at);
