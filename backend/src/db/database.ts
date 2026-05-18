@@ -2631,4 +2631,110 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+
+  // ============================================================
+  // v10 — Foundation schema for story #523 (tasks/timeline/collab parity)
+  //
+  // Schema only — no controller wiring. Subsequent PRs (B1.2 multi-assignee
+  // API, B1.3 escalation worker, B1.4 timeline-template apply flow, B1.5
+  // SSE collab, B1.6 rollback) build on these tables. Every statement is
+  // idempotent so re-runs are safe; the backfill of task_assignees from
+  // existing tasks.assigned_user_id is ON CONFLICT DO NOTHING.
+  // ============================================================
+
+  // task_assignees — many-to-many replacement for tasks.assigned_user_id.
+  // Old single-assignee column stays in place during the migration window so
+  // the API still works; B1.2 will start reading/writing through this table.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_assignees (
+      task_id     INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      is_primary  BOOLEAN NOT NULL DEFAULT FALSE,
+      assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (task_id, user_id)
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_assignees_user ON task_assignees(user_id)`);
+  // One-time backfill: copy the existing single assignee in as the primary
+  // row. ON CONFLICT means re-runs after B1.2 starts writing both columns
+  // won't clobber later state.
+  await db.exec(`
+    INSERT INTO task_assignees (task_id, user_id, is_primary)
+    SELECT id, assigned_user_id, TRUE
+      FROM tasks
+     WHERE assigned_user_id IS NOT NULL
+    ON CONFLICT DO NOTHING
+  `);
+
+  // task_escalation_rules — per-event policy for stale-task escalation.
+  // Each row says: "if a task on this event has been in <status> for more
+  // than <threshold_hours>, notify <escalate_to_user_id> (or the event
+  // owner when null)". B1.3 ships the worker that consumes these rules.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_escalation_rules (
+      id                   SERIAL PRIMARY KEY,
+      event_id             INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      status               TEXT NOT NULL,
+      threshold_hours      INTEGER NOT NULL CHECK (threshold_hours > 0),
+      escalate_to_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      active               BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_escalation_rules_event ON task_escalation_rules(event_id) WHERE active = TRUE`);
+
+  // timeline_templates + items — reusable blueprints applied to new events.
+  // Offset/duration are stored in minutes-from-start so a template can be
+  // re-anchored to any event's start_time without floating-point dates.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS timeline_templates (
+      id          SERIAL PRIMARY KEY,
+      name        TEXT NOT NULL,
+      description TEXT,
+      event_type  TEXT,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      is_public   BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS timeline_template_items (
+      id               SERIAL PRIMARY KEY,
+      template_id      INTEGER NOT NULL REFERENCES timeline_templates(id) ON DELETE CASCADE,
+      title            TEXT NOT NULL,
+      description      TEXT,
+      offset_minutes   INTEGER NOT NULL,
+      duration_minutes INTEGER NOT NULL DEFAULT 0,
+      buffer_minutes   INTEGER NOT NULL DEFAULT 0,
+      sort_order       INTEGER NOT NULL DEFAULT 0,
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_timeline_template_items_template ON timeline_template_items(template_id)`);
+
+  // Buffer-time on the existing timeline_activities table — adds a slack
+  // window after each activity. Default 0 keeps existing data unchanged.
+  await db.exec(`ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS buffer_minutes INTEGER NOT NULL DEFAULT 0`);
+
+  // entity_change_history — append-only version log used by B1.6 rollback.
+  // before/after are full JSONB snapshots; the (entity_type, entity_id,
+  // version) unique constraint enforces monotonic versioning per entity.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS entity_change_history (
+      id            BIGSERIAL PRIMARY KEY,
+      entity_type   TEXT NOT NULL,
+      entity_id     TEXT NOT NULL,
+      version       INTEGER NOT NULL,
+      changed_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      change_action TEXT NOT NULL CHECK (change_action IN ('create','update','delete')),
+      before        JSONB,
+      after         JSONB,
+      changed_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (entity_type, entity_id, version)
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_entity_change_history_entity ON entity_change_history(entity_type, entity_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_entity_change_history_changed_at ON entity_change_history(changed_at DESC)`);
 }
