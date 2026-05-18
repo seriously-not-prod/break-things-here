@@ -27,7 +27,7 @@ export async function getAllTasks(req: Request, res: Response): Promise<void> {
     const params: any[] = [];
     
     if (event_id) {
-      query += ' WHERE event_id = ?';
+      query += ' WHERE event_id = $1';
       params.push(event_id);
     }
     
@@ -50,7 +50,7 @@ export async function getTaskById(req: Request, res: Response): Promise<void> {
     const db = getDatabase();
     const { id } = req.params;
     
-    const task = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+    const task = await db.get('SELECT * FROM tasks WHERE id = $1', [id]);
     
     if (!task) {
       res.status(404).json({ error: 'Task not found' });
@@ -86,7 +86,7 @@ export async function createTask(req: Request, res: Response): Promise<void> {
     }
     
     // Check if event exists
-    const event = await db.get('SELECT id FROM events WHERE id = ?', [event_id]);
+    const event = await db.get('SELECT id FROM events WHERE id = $1', [event_id]);
     if (!event) {
       res.status(404).json({ error: 'Event not found' });
       return;
@@ -99,11 +99,11 @@ export async function createTask(req: Request, res: Response): Promise<void> {
     
     const result = await db.run(`
       INSERT INTO tasks (event_id, title, description, assignee, due_date, status)
-      VALUES (?, ?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id
     `, [event_id, title, description || '', assignee || '', due_date || null, status || 'Pending']);
     
-    const newTask = await db.get('SELECT * FROM tasks WHERE id = ?', [result.lastID]);
+    const newTask = await db.get('SELECT * FROM tasks WHERE id = $1', [result.lastID]);
     
     res.status(201).json(newTask);
   } catch (error) {
@@ -129,7 +129,7 @@ export async function updateTask(req: Request, res: Response): Promise<void> {
     const { title, description, assignee, due_date, status } = req.body;
     
     // Check if task exists
-    const existingTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+    const existingTask = await db.get('SELECT * FROM tasks WHERE id = $1', [id]);
     if (!existingTask) {
       res.status(404).json({ error: 'Task not found' });
       return;
@@ -143,8 +143,8 @@ export async function updateTask(req: Request, res: Response): Promise<void> {
     
     await db.run(`
       UPDATE tasks 
-      SET title = ?, description = ?, assignee = ?, due_date = ?, status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      SET title = $1, description = $2, assignee = $3, due_date = $4, status = $5, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6
     `, [
       title || existingTask.title,
       description !== undefined ? description : existingTask.description,
@@ -154,7 +154,7 @@ export async function updateTask(req: Request, res: Response): Promise<void> {
       id
     ]);
     
-    const updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+    const updatedTask = await db.get('SELECT * FROM tasks WHERE id = $1', [id]);
     
     res.json(updatedTask);
   } catch (error) {
@@ -177,13 +177,13 @@ export async function deleteTask(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    const task = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+    const task = await db.get('SELECT * FROM tasks WHERE id = $1', [id]);
     if (!task) {
       res.status(404).json({ error: 'Task not found' });
       return;
     }
     
-    await db.run('DELETE FROM tasks WHERE id = ?', [id]);
+    await db.run('DELETE FROM tasks WHERE id = $1', [id]);
     
     res.json({ message: 'Task deleted successfully' });
   } catch (error) {
@@ -206,7 +206,7 @@ export async function toggleTaskStatus(req: Request, res: Response): Promise<voi
       return;
     }
     
-    const task = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+    const task = await db.get('SELECT * FROM tasks WHERE id = $1', [id]);
     if (!task) {
       res.status(404).json({ error: 'Task not found' });
       return;
@@ -216,11 +216,11 @@ export async function toggleTaskStatus(req: Request, res: Response): Promise<voi
     
     await db.run(`
       UPDATE tasks 
-      SET status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      SET status = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
     `, [newStatus, id]);
     
-    const updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+    const updatedTask = await db.get('SELECT * FROM tasks WHERE id = $1', [id]);
     
     res.json(updatedTask);
   } catch (error) {

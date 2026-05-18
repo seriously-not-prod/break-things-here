@@ -54,7 +54,7 @@ export async function updateMe(req: AuthRequest, res: Response): Promise<Respons
   // Email input routing: if email differs from current, delegate to email-change flow.
   if (email !== undefined) {
     const currentUser = await db.get<{ email: string }>(
-      'SELECT email FROM users WHERE id = ?',
+      'SELECT email FROM users WHERE id = $1',
       [req.user.id],
     );
     if (currentUser && email !== currentUser.email) {
@@ -66,13 +66,13 @@ export async function updateMe(req: AuthRequest, res: Response): Promise<Respons
 
   values.push(req.user.id);
   await db.run(
-    `UPDATE users SET ${setClauses.join(', ')} WHERE id = ? AND deleted_at IS NULL`,
+    `UPDATE users SET ${setClauses.join(', ')} WHERE id = $1 AND deleted_at IS NULL`,
     values,
   );
 
   const updated = await db.get(
     `SELECT id, email, display_name, email_verified, created_at, updated_at
-     FROM users WHERE id = ? AND deleted_at IS NULL`,
+     FROM users WHERE id = $1 AND deleted_at IS NULL`,
     [req.user.id],
   );
 
@@ -104,7 +104,7 @@ export async function getMe(req: AuthRequest, res: Response): Promise<Response> 
      FROM users u
      LEFT JOIN roles r ON u.role_id = r.id
      LEFT JOIN user_profiles up ON up.user_id = u.id
-     WHERE u.id = ? AND u.deleted_at IS NULL`,
+     WHERE u.id = $1 AND u.deleted_at IS NULL`,
     [req.user.id],
   );
 
@@ -143,7 +143,7 @@ export async function deleteMe(req: AuthRequest, res: Response): Promise<Respons
 
   const db = getDatabase();
   const user = await db.get<{ password_hash: string }>(
-    'SELECT password_hash FROM users WHERE id = ? AND deleted_at IS NULL',
+    'SELECT password_hash FROM users WHERE id = $1 AND deleted_at IS NULL',
     [req.user.id],
   );
 
@@ -164,7 +164,7 @@ export async function deleteMe(req: AuthRequest, res: Response): Promise<Respons
          display_name = 'Deleted User',
          password_hash = '',
          email_verification_token = NULL
-     WHERE id = ?`,
+     WHERE id = $1`,
     [req.user.id],
   );
 
@@ -173,12 +173,12 @@ export async function deleteMe(req: AuthRequest, res: Response): Promise<Respons
     `UPDATE user_profiles
      SET bio = NULL, phone_number = NULL, profile_photo_url = NULL,
          address = NULL, city = NULL, state = NULL, zip_code = NULL, country = NULL
-     WHERE user_id = ?`,
+     WHERE user_id = $1`,
     [req.user.id],
   );
 
   // Invalidate all sessions
-  await db.run('DELETE FROM sessions WHERE user_id = ?', [req.user.id]);
+  await db.run('DELETE FROM sessions WHERE user_id = $1', [req.user.id]);
 
   res.clearCookie('refreshToken');
 

@@ -15,11 +15,11 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Typography,
 } from '@mui/material';
-import { LockRounded, LockOpenRounded, DeleteRounded } from '@mui/icons-material';
+import { LockRounded, LockOpenRounded, DeleteRounded, RestoreRounded } from '@mui/icons-material';
 import { api, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
+import { PageLayout } from '../layout/page-layout';
 
 interface AdminUser {
   id: number;
@@ -100,28 +100,42 @@ export default function AdminPage(): JSX.Element {
     }
   }
 
+  async function restoreUser(userId: number): Promise<void> {
+    setError(null);
+    setSuccess(null);
+    try {
+      await api.post(`/api/admin/users/${userId}/restore`);
+      setSuccess('User restored.');
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to restore user.');
+    }
+  }
+
   if (loading) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
   }
 
   return (
-    <Box sx={{ p: 4 }}>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 3 }}>User Management</Typography>
-
+    <PageLayout
+      title="User Management"
+      subtitle="Manage user accounts, roles, and access control"
+      breadcrumbs={[{ label: 'Admin' }, { label: 'User Management' }]}
+    >
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} elevation={1}>
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell><strong>Name</strong></TableCell>
-              <TableCell><strong>Email</strong></TableCell>
-              <TableCell><strong>Role</strong></TableCell>
-              <TableCell><strong>Verified</strong></TableCell>
-              <TableCell><strong>Status</strong></TableCell>
-              <TableCell><strong>Joined</strong></TableCell>
-              <TableCell align="right"><strong>Actions</strong></TableCell>
+              <TableCell>Name</TableCell>
+              <TableCell>Email</TableCell>
+              <TableCell>Role</TableCell>
+              <TableCell>Verified</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Joined</TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -176,6 +190,16 @@ export default function AdminPage(): JSX.Element {
                           </Button>
                         </>
                       )}
+                      {!isSelf && isDeleted && (
+                        <Button
+                          size="small"
+                          color="success"
+                          startIcon={<RestoreRounded />}
+                          onClick={() => restoreUser(u.id)}
+                        >
+                          Restore
+                        </Button>
+                      )}
                     </Stack>
                   </TableCell>
                 </TableRow>
@@ -184,6 +208,6 @@ export default function AdminPage(): JSX.Element {
           </TableBody>
         </Table>
       </TableContainer>
-    </Box>
+    </PageLayout>
   );
 }

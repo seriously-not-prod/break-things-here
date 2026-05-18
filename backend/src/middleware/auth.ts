@@ -1,8 +1,10 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { parse as parseCookies } from 'cookie';
 import { Request, Response, NextFunction } from 'express';
 import { getDatabase } from '../db/database.js';
 import { hashToken } from '../utils/auth-helpers.js';
+import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
 
 interface AuthRequest extends Request {
   user?: {
@@ -76,11 +78,14 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
   }
   
   // If no Authorization header, try to get from cookie
-  if (!token && req.cookies?.accessToken) {
-    try {
-      token = decryptToken(req.cookies.accessToken);
-    } catch (error) {
-      console.error('Failed to decrypt access token from cookie:', error);
+  if (!token) {
+    const cookies = parseCookies(req.headers.cookie ?? '');
+    if (cookies.accessToken) {
+      try {
+        token = decryptToken(cookies.accessToken);
+      } catch (error) {
+        console.error('Failed to decrypt access token from cookie:', error);
+      }
     }
   }
 
@@ -103,7 +108,7 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
   const tokenHash = sessionJti ? hashToken(sessionJti) : hashToken(token);
 
   const session = await db.get<{ id: number; last_activity: string; user_id: number }>(
-    'SELECT id, last_activity, user_id FROM sessions WHERE token = ?',
+    'SELECT id, last_activity, user_id FROM sessions WHERE token = $1',
     [tokenHash],
   );
 
@@ -115,14 +120,37 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
   if (session.last_activity) {
     const lastActivity = new Date(session.last_activity).getTime();
     if (Date.now() - lastActivity > SESSION_TIMEOUT_MS) {
-      await db.run('DELETE FROM sessions WHERE id = ?', [session.id]);
+      await db.run('DELETE FROM sessions WHERE id = $1', [session.id]);
+      await logAuditEvent({
+        db,
+        userId: payload.id,
+        email: payload.email,
+        action: AUDIT_ACTIONS.SESSION_EXPIRED,
+        description: 'Session expired due to inactivity',
+        ipAddress: req.ip,
+        severity: 'INFO',
+      });
       res.status(401).json({ error: 'Session expired due to inactivity', code: 'SESSION_TIMEOUT' });
       return;
     }
   }
 
   // Update last_activity
-  await db.run('UPDATE sessions SET last_activity = ? WHERE id = ?', [new Date().toISOString(), session.id]);
+  await db.run('UPDATE sessions SET last_activity = $1 WHERE id = $2', [new Date().toISOString(), session.id]);
+
+  // Check if user account has been deactivated (#677)
+  const userRecord = await db.get<{ deactivated_at: string | null }>(
+    'SELECT deactivated_at FROM users WHERE id = $1 AND deleted_at IS NULL',
+    [payload.id],
+  );
+  if (!userRecord) {
+    res.status(401).json({ error: 'User account not found.' });
+    return;
+  }
+  if (userRecord.deactivated_at) {
+    res.status(403).json({ error: 'Your account has been deactivated. Please contact an administrator.' });
+    return;
+  }
 
   req.user = {
     id: payload.id,
@@ -144,11 +172,26 @@ export function authorizeRole(
 
     const db = getDatabase();
     const role = await db.get<{ name: string }>(
-      'SELECT name FROM roles WHERE id = ?',
+      'SELECT name FROM roles WHERE id = $1',
       [req.user.role_id],
     );
 
     if (!role || !allowedRoles.includes(role.name)) {
+      await logAuditEvent({
+        db,
+        userId: req.user.id,
+        email: req.user.email,
+        action: AUDIT_ACTIONS.PERMISSION_DENIED,
+        description: `Role '${role?.name ?? 'unknown'}' not in allowed roles: ${allowedRoles.join(', ')}`,
+        ipAddress: req.ip,
+        severity: 'WARN',
+        context: {
+          actualRole: role?.name,
+          requiredRoles: allowedRoles,
+          path: req.path,
+          method: req.method,
+        },
+      });
       res.status(403).json({ error: 'Insufficient permissions' });
       return;
     }
@@ -171,7 +214,7 @@ export function authorizePermission(
       `
       SELECT 1 FROM role_permissions rp
       JOIN permissions p ON rp.permission_id = p.id
-      WHERE rp.role_id = ? AND p.name = ?
+      WHERE rp.role_id = $1 AND p.name = $2
       `,
       [req.user.role_id, requiredPermission],
     );

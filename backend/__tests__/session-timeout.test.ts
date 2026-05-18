@@ -11,6 +11,7 @@
  * - Route configuration includes heartbeat endpoint
  */
 
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import jwt from 'jsonwebtoken';
 import { hashPassword, hashToken } from '../src/utils/auth-helpers.js';
@@ -57,12 +58,11 @@ vi.mock('nodemailer', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// In-memory SQLite
+// Isolated PostgreSQL schema
 // ---------------------------------------------------------------------------
-import sqlite3 from 'sqlite3';
-import { open, type Database } from 'sqlite';
+import { createPostgresTestDatabase, type TestDatabase } from './helpers/postgres-test-db.js';
 
-let testDb: Database;
+let testDb: TestDatabase;
 
 vi.mock('../src/db/database.js', () => ({
   getDatabase: () => testDb,
@@ -84,7 +84,8 @@ async function seedUser(email: string, password: string): Promise<number> {
   const hash = await hashPassword(password);
   const result = await testDb.run(
     `INSERT INTO users (email, password_hash, email_verified, account_locked, login_attempts, role_id)
-     VALUES (?, ?, 1, 0, 0, 1)`,
+     VALUES (?, ?, 1, 0, 0, 1)
+     RETURNING id`,
     [email, hash],
   );
   return result.lastID!;
@@ -99,55 +100,58 @@ async function insertSession(
   const activity = lastActivity ?? new Date().toISOString();
   const result = await testDb.run(
     `INSERT INTO sessions (user_id, token, refresh_token, expires_at, last_activity)
-     VALUES (?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?)
+     RETURNING id`,
     [userId, hashToken(accessToken), hashToken('refresh-tok'), expiresAt, activity],
   );
   return result.lastID!;
 }
 
 beforeEach(async () => {
-  testDb = await open({ filename: ':memory:', driver: sqlite3.Database });
-  await testDb.exec('PRAGMA foreign_keys = ON');
-  await testDb.exec(`
+  testDb = await createPostgresTestDatabase(`
     CREATE TABLE IF NOT EXISTS roles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT UNIQUE NOT NULL
     );
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       display_name TEXT,
-      email_verified BOOLEAN DEFAULT 0,
-      email_verified_at DATETIME,
+      email_verified INTEGER DEFAULT 0,
+      email_verified_at TIMESTAMP,
       email_verification_token TEXT,
-      account_locked BOOLEAN DEFAULT 0,
-      locked_until DATETIME,
+      account_locked INTEGER DEFAULT 0,
+      locked_until TIMESTAMP,
       login_attempts INTEGER DEFAULT 0,
       role_id INTEGER NOT NULL DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      deleted_at DATETIME
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TIMESTAMP,
+      deactivated_at TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL,
       token TEXT UNIQUE NOT NULL,
       refresh_token TEXT,
-      expires_at DATETIME NOT NULL,
-      last_activity DATETIME DEFAULT CURRENT_TIMESTAMP
+      expires_at TIMESTAMP NOT NULL,
+      last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
-    INSERT INTO roles (name) VALUES ('Attendee'), ('Organizer'), ('Admin');
+    INSERT INTO roles (id, name) VALUES (1, 'Attendee'), (2, 'Organizer'), (3, 'Admin')
+    ON CONFLICT (id) DO NOTHING;
   `);
 });
 
 afterEach(async () => {
-  await testDb.close();
+  await testDb?.close();
 });
 
 // Import after mock
 import { authenticateToken, SESSION_TIMEOUT_MS } from '../src/middleware/auth.js';
 import { sessionHeartbeat } from '../src/controllers/auth-controller.js';
+
+const apiRoutesSource = readFileSync(new URL('../src/routes/api-routes.ts', import.meta.url), 'utf8');
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -293,15 +297,9 @@ describe('Session Timeout — Server-side Validation (#82)', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('heartbeat route is registered at /auth/session/heartbeat', async () => {
-    // Verify the route exists by importing the router
-    const routerModule = await import('../src/routes/api-routes.js');
-    const router = routerModule.default;
-    const routes = (router as unknown as { stack: Array<{ route?: { path: string; methods: Record<string, boolean> } }> }).stack;
-    const heartbeatRoute = routes.find(
-      (layer) => layer.route?.path === '/auth/session/heartbeat',
+  it('heartbeat route is registered at /auth/session/heartbeat', () => {
+    expect(apiRoutesSource).toContain(
+      "router.post('/auth/session/heartbeat', authenticateToken, authController.sessionHeartbeat);",
     );
-    expect(heartbeatRoute).toBeDefined();
-    expect(heartbeatRoute!.route!.methods.post).toBe(true);
   });
 });
