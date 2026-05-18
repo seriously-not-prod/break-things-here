@@ -12,6 +12,7 @@ export interface PlannerEvent {
   id: string;
   title: string;
   date: string;
+  event_time?: string | null;
   location: string;
   description: string;
   status: EventStatus;
@@ -66,6 +67,7 @@ export interface PlannerState {
 export interface EventDraft {
   title: string;
   date: string;
+  event_time: string;
   location: string;
   description: string;
   status: EventStatus;

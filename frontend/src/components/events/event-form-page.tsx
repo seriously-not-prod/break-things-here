@@ -32,6 +32,7 @@ export default function EventFormPage(): JSX.Element {
     event_type: 'Other',
     status: 'Draft',
     date: '',
+    event_time: '',
     location: '',
     capacity: '',
     is_public: true,
@@ -56,6 +57,9 @@ export default function EventFormPage(): JSX.Element {
     setError(null);
     if (!form.title.trim()) return setError('Event name is required.');
     if (!form.date) return setError('Event date is required.');
+    if (!form.event_time) return setError('Event time is required.');
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(form.event_time))
+      return setError('Event time must be in HH:MM format (e.g. 09:00, 14:30).');
     if (!form.location.trim()) return setError('Location is required.');
     // BRD v2 (#574) — events must start today or in the future, unless created
     // as a historical record (Completed/Cancelled).
@@ -86,6 +90,7 @@ export default function EventFormPage(): JSX.Element {
         event_type: form.event_type,
         status: form.status,
         date: form.date,
+        event_time: form.event_time,
         location: form.location.trim(),
         capacity: form.capacity ? Number(form.capacity) : null,
         is_public: form.is_public,
@@ -168,6 +173,17 @@ export default function EventFormPage(): JSX.Element {
                 InputLabelProps={{ shrink: true }}
                 fullWidth
                 required
+              />
+              <TextField
+                label="Event time"
+                type="time"
+                value={form.event_time}
+                onChange={handleField('event_time')}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+                required
+                inputProps={{ step: 300 }}
+                helperText="Start time (required)"
               />
               <TextField
                 label="Capacity (guests)"
