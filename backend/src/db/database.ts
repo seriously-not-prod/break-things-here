@@ -2619,4 +2619,16 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   // Brought in from develop during merge of feature/664-wire-v9-schema-gaps.
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_time TEXT`);
   await db.exec(`ALTER TABLE event_templates ADD COLUMN IF NOT EXISTS default_event_time TEXT`);
+
+  // v9.3 — Persist AI rate-limit state so a single user's 20/hr budget survives
+  //         server restarts and is enforced across multiple replicas. Previously
+  //         lived in an in-process Map (backend/src/controllers/ai-controller.ts).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_rate_limits (
+      user_id      INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      window_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      count        INTEGER NOT NULL DEFAULT 0,
+      updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
 }
