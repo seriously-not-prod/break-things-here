@@ -1,6 +1,6 @@
 -- Migration v9: Schema gaps from Technical Audit #678
 -- Missing columns, tables, indexes, and constraints
--- All index creation uses CONCURRENTLY to avoid table locks on large datasets
+-- Note: this file is now applied at startup by backend/src/db/database.ts:runMigrations().
 
 -- ============================================================
 -- SECTION 1: Missing columns
@@ -82,31 +82,33 @@ CREATE TABLE IF NOT EXISTS analytics_snapshots (
 );
 
 -- ============================================================
--- SECTION 3: Missing indexes (CONCURRENTLY — safe on live data)
+-- SECTION 3: Missing indexes (plain CREATE INDEX IF NOT EXISTS — safe to re-run)
 -- ============================================================
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tasks_due_date
+CREATE INDEX IF NOT EXISTS idx_tasks_due_date
   ON tasks(due_date);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tasks_assigned_user_id
+CREATE INDEX IF NOT EXISTS idx_tasks_assigned_user_id
   ON tasks(assigned_user_id);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_sessions_user_expires
+CREATE INDEX IF NOT EXISTS idx_sessions_user_expires
   ON sessions(user_id, expires_at);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_rsvps_phone
+CREATE INDEX IF NOT EXISTS idx_rsvps_phone
   ON rsvps(phone);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_rsvps_waitlist_position
+CREATE INDEX IF NOT EXISTS idx_rsvps_waitlist_position
   ON rsvps(waitlist_position) WHERE waitlist_position IS NOT NULL;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_events_archived_at
+CREATE INDEX IF NOT EXISTS idx_events_archived_at
   ON events(archived_at) WHERE archived_at IS NOT NULL;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_scheduled_reports_next_run
-  ON scheduled_reports(next_run_at);
+-- idx_scheduled_reports_next_run intentionally defined ONCE further down as a
+-- partial index (WHERE is_active = true). PostgreSQL's IF NOT EXISTS matches
+-- by name only, so defining a non-partial index here with the same name
+-- would silently keep the partial form from being created.
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_log_user_created
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_created
   ON audit_log(user_id, created_at);
 
 -- ============================================================
@@ -149,7 +151,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS resend_verification_window_start TIME
 -- Sessions: Entra back-channel logout support (#665)
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS entra_sid TEXT;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS entra_sub TEXT;
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_sessions_entra_sid ON sessions(entra_sid) WHERE entra_sid IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_sessions_entra_sid ON sessions(entra_sid) WHERE entra_sid IS NOT NULL;
 
 -- v9.2: Schema additions for all completion stories (#665-#681)
 
@@ -174,7 +176,7 @@ ALTER TABLE scheduled_reports ADD COLUMN IF NOT EXISTS last_run_at TIMESTAMPTZ;
 ALTER TABLE scheduled_reports ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ;
 
 -- Index for scheduled_reports dispatch
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_scheduled_reports_next_run
+CREATE INDEX IF NOT EXISTS idx_scheduled_reports_next_run
   ON scheduled_reports(next_run_at) WHERE is_active = true;
 
 -- guest_groups: #667 — ensure table exists
@@ -187,7 +189,7 @@ CREATE TABLE IF NOT EXISTS guest_groups (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_guest_groups_event_id ON guest_groups(event_id);
+CREATE INDEX IF NOT EXISTS idx_guest_groups_event_id ON guest_groups(event_id);
 
 -- guest_group_members: #667
 CREATE TABLE IF NOT EXISTS guest_group_members (
