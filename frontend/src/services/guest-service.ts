@@ -234,8 +234,17 @@ export async function importCsv(
 ): Promise<CsvImportResult> {
   const formData = new FormData();
   formData.append('file', file);
-  if (columnMap && Object.keys(columnMap).length > 0) {
-    formData.append('column_map', JSON.stringify(columnMap));
+  if (columnMap) {
+    // Only send explicit (non-empty) mappings so the backend can still fall
+    // back to normalised header names for columns the wizard left unmapped.
+    // A '' value means "wizard found no match" — omitting it lets the backend
+    // handle the column through its default normalisation path.
+    const explicitMappings = Object.fromEntries(
+      Object.entries(columnMap).filter(([, v]) => v !== ''),
+    );
+    if (Object.keys(explicitMappings).length > 0) {
+      formData.append('column_map', JSON.stringify(explicitMappings));
+    }
   }
   const res = await apiFetch(`/api/events/${eventId}/rsvps/import`, {
     method: 'POST',

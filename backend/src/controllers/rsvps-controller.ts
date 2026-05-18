@@ -703,15 +703,31 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
 
   // ── Apply field mapping from the frontend wizard (Story #664, Item 11) ────
   // column_map is sent as a JSON string form field: { csvHeader -> guestField }
-  // A value of '' means "skip this column". Unmapped columns fall back to the
-  // normalised header name so backward-compat is preserved.
-  let columnMap: Record<string, string> = {};
+  // The frontend only serialises explicit (non-empty) mappings, so unmapped
+  // columns are simply absent from the map and fall back to their normalised
+  // header name — preserving backward compatibility.
+
+  // Whitelist of valid target field names prevents prototype-pollution attacks
+  // via user-controlled column_map values (e.g. "__proto__", "constructor").
+  const ALLOWED_GUEST_FIELDS = new Set([
+    'name', 'email', 'phone', 'guests', 'status', 'notes',
+    'dietary_restriction', 'accessibility_needs', 'plus_one', 'plus_one_name',
+    'guest_group', 'company', 'title', 'relation_type', 'age_group',
+    'address_line1', 'address_line2', 'city', 'state_region', 'postal_code',
+    'country', 'emergency_contact_name', 'emergency_contact_phone', 'meal_choice',
+  ]);
+
+  // Use a null-prototype map to avoid prototype-chain reads on columnMap itself.
+  const columnMap: Record<string, string> = Object.create(null) as Record<string, string>;
   const rawMapField = (req.body as Record<string, unknown>)?.column_map;
   if (typeof rawMapField === 'string' && rawMapField) {
     try {
       const parsed = JSON.parse(rawMapField) as unknown;
       if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        columnMap = parsed as Record<string, string>;
+        // Only copy string values for own properties to prevent prototype pollution
+        for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+          if (typeof v === 'string') columnMap[k] = v;
+        }
       }
     } catch { /* ignore malformed column_map */ }
   }
@@ -721,17 +737,20 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
 
   for (const line of dataLines) {
     const values = parseCsvLine(line);
-    const row: Record<string, string> = {};
+    // Null-prototype object prevents prototype-chain key collisions in row.
+    const row: Record<string, string> = Object.create(null) as Record<string, string>;
     rawHeaders.forEach((rawHeader, i) => {
-      const guestField = columnMap[rawHeader];
-      if (typeof guestField === 'string' && guestField !== '') {
-        // Explicitly mapped: store under the target guest field name
-        row[guestField] = values[i] ?? '';
-      } else if (guestField === undefined) {
-        // Not in the map at all: fall back to normalised column name
+      if (Object.prototype.hasOwnProperty.call(columnMap, rawHeader)) {
+        const guestField = columnMap[rawHeader];
+        // Only store to whitelisted field names to prevent prototype pollution
+        if (typeof guestField === 'string' && guestField !== '' && ALLOWED_GUEST_FIELDS.has(guestField)) {
+          row[guestField] = values[i] ?? '';
+        }
+        // guestField === '' or unknown name → skip this column entirely
+      } else {
+        // Not in the map: fall back to normalised column name
         row[normalizedHeaders[i]] = values[i] ?? '';
       }
-      // guestField === '' → caller explicitly marked this column as "skip"
     });
 
     const name = row['name']?.trim();

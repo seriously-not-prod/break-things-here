@@ -216,10 +216,11 @@ describe('importCsv — column_map applied (Item 11 fix)', () => {
     expect(params[7]).toBe('Vegan');              // dietary_restriction ($8)
   });
 
-  it('skips a column mapped to empty string (explicit skip)', async () => {
-    // "Junk" is explicitly skipped; name and email are mapped correctly
+  it('ignores a column mapped to an unrecognised target field name (whitelist protection)', async () => {
+    // "Junk" is mapped to "evil_field" which is not in ALLOWED_GUEST_FIELDS
+    // The column is silently omitted; name and email are mapped correctly
     const csv = 'Junk,Guest Name,Email\nSHOULD_NOT_APPEAR,Frank,frank@test.com';
-    const columnMap = { Junk: '', 'Guest Name': 'name', Email: 'email' };
+    const columnMap = { Junk: 'evil_field', 'Guest Name': 'name', Email: 'email' };
     mockDb.run.mockResolvedValue(dbRunSuccess());
 
     const req = makeImportReq(csv, columnMap);
@@ -274,7 +275,9 @@ describe('importCsv — column_map applied (Item 11 fix)', () => {
       'Isla,isla@test.com,VIP',
       'Jack,jack@test.com,Regular',
     ].join('\n');
-    const columnMap = { Person: 'name', Mail: 'email', Notes: '' };
+    // Notes is not sent (frontend filters '' entries), so it falls back to
+    // normalised header "notes" via the default path — still resolved correctly
+    const columnMap = { Person: 'name', Mail: 'email' };
     mockDb.run
       .mockResolvedValueOnce(dbRunSuccess())
       .mockResolvedValueOnce(dbRunSuccess());
