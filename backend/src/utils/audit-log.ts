@@ -85,6 +85,75 @@ export const AUDIT_ACTIONS = {
   UPLOAD_SCAN_PASS:      'UPLOAD_SCAN_PASS',
   UPLOAD_SCAN_FAIL:      'UPLOAD_SCAN_FAIL',
   UPLOAD_REJECTED:       'UPLOAD_REJECTED',
+  // Domain mutations (create/update/delete) — emitted by C2 wiring
+  EVENT_CREATE:          'EVENT_CREATE',
+  EVENT_UPDATE:          'EVENT_UPDATE',
+  EVENT_DELETE:          'EVENT_DELETE',
+  RSVP_CREATE:           'RSVP_CREATE',
+  RSVP_UPDATE:           'RSVP_UPDATE',
+  RSVP_DELETE:           'RSVP_DELETE',
+  TASK_CREATE:           'TASK_CREATE',
+  TASK_UPDATE:           'TASK_UPDATE',
+  TASK_DELETE:           'TASK_DELETE',
+  SHOPPING_ITEM_CREATE:  'SHOPPING_ITEM_CREATE',
+  SHOPPING_ITEM_UPDATE:  'SHOPPING_ITEM_UPDATE',
+  SHOPPING_ITEM_DELETE:  'SHOPPING_ITEM_DELETE',
+  VENDOR_CREATE:         'VENDOR_CREATE',
+  VENDOR_UPDATE:         'VENDOR_UPDATE',
+  VENDOR_DELETE:         'VENDOR_DELETE',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
+
+// ─── Convenience wrapper for domain-entity mutations ─────────────────────────
+
+/**
+ * Restricting targetType to a closed union turns a typo at a call site into
+ * a compile error rather than an audit row no one can filter on.
+ */
+export type AuditTargetType =
+  | 'event'
+  | 'rsvp'
+  | 'task'
+  | 'shopping_item'
+  | 'vendor';
+
+/**
+ * Thin wrapper around logAuditEvent for create/update/delete on domain
+ * entities. Centralises the targetType/targetId/actorId boilerplate so
+ * controllers only pass the action and the entity id.
+ *
+ * The req parameter is intentionally typed as `{ ip?, user? }` rather than
+ * `AuthRequest` so this helper works with both Express's base `Request`
+ * (where `user` is attached at runtime by authenticateToken) and explicit
+ * `AuthRequest` subtypes — no cast at the call site.
+ *
+ * `action` is constrained to `AuditAction` so a typo becomes a compile
+ * error rather than a misspelled audit row. `targetType` is constrained
+ * to `AuditTargetType` for the same reason.
+ *
+ * `fallbackEmail` is for public/no-auth surfaces (e.g. createRsvp) where
+ * `req.user` is undefined but the submitter's email is in the request body
+ * — passing it through keeps the audit row attributable.
+ */
+export async function logMutation(
+  db: DatabaseAdapter,
+  req: { ip?: string; user?: { id: number; email: string } | null },
+  action: AuditAction,
+  targetType: AuditTargetType,
+  targetId: string | number,
+  context?: Record<string, unknown>,
+  fallbackEmail?: string | null,
+): Promise<void> {
+  await logAuditEvent({
+    db,
+    userId: req.user?.id ?? null,
+    email: req.user?.email ?? fallbackEmail ?? null,
+    action,
+    actorId: req.user?.id ?? null,
+    targetType,
+    targetId: String(targetId),
+    ipAddress: req.ip,
+    context,
+  });
+}
