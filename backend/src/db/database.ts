@@ -2457,7 +2457,166 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     WHERE canonical_status IS NULL OR canonical_status = ''
   `);
 
+  // ============================================================
+  // v9 — Schema gaps from technical audit #678
+  // Mirrors database/migrations/v9-schema-gaps-678.sql so the runner
+  // applies the same delta. Every statement is idempotent (IF NOT EXISTS
+  // / DROP+ADD CONSTRAINT) so re-runs are safe.
+  //
+  // Index creation uses plain CREATE INDEX IF NOT EXISTS (not
+  // CONCURRENTLY): we apply migrations at startup, where CONCURRENTLY
+  // would either fail (it cannot run inside an implicit transaction
+  // and pg's simple-query protocol wraps multi-statement strings) or
+  // would offer no benefit (empty/small tables at install time).
+  // The .sql file mirrors the same plain form. If ops need to apply
+  // additional indexes against a hot, large table out-of-band, they
+  // should use CONCURRENTLY in a separately-issued psql session and
+  // pick a name that doesn't collide with what's installed here.
+  // ============================================================
+
+  // v9 §1 — Missing columns (idempotent)
+  await db.exec(`ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS contract_expiry_date DATE DEFAULT NULL`);
+  await db.exec(`ALTER TABLE vendor_payment_schedules ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP DEFAULT NULL`);
+  await db.exec(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP DEFAULT NULL`);
+  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS email_provider_message_id TEXT DEFAULT NULL`);
+
+  // v9 §2 — Missing tables (idempotent)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS guest_groups (
+      id           SERIAL PRIMARY KEY,
+      event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name         TEXT NOT NULL,
+      description  TEXT,
+      created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS guest_group_members (
+      group_id  INTEGER NOT NULL REFERENCES guest_groups(id) ON DELETE CASCADE,
+      rsvp_id   INTEGER NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
+      PRIMARY KEY (group_id, rsvp_id)
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS email_template_versions (
+      id          SERIAL PRIMARY KEY,
+      template_id INTEGER NOT NULL REFERENCES communication_templates(id) ON DELETE CASCADE,
+      subject     TEXT NOT NULL,
+      body        TEXT NOT NULL,
+      version     INTEGER NOT NULL DEFAULT 1,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS job_queue (
+      id           SERIAL PRIMARY KEY,
+      job_type     TEXT NOT NULL,
+      payload      JSONB NOT NULL DEFAULT '{}',
+      status       TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','running','completed','failed','cancelled')),
+      attempts     INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER NOT NULL DEFAULT 3,
+      run_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      started_at   TIMESTAMP,
+      completed_at TIMESTAMP,
+      error        TEXT,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS password_history (
+      id            SERIAL PRIMARY KEY,
+      user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      password_hash TEXT NOT NULL,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS analytics_snapshots (
+      id          SERIAL PRIMARY KEY,
+      event_id    INTEGER REFERENCES events(id) ON DELETE CASCADE,
+      snapshot_date DATE NOT NULL,
+      metric_type TEXT NOT NULL,
+      value       NUMERIC NOT NULL DEFAULT 0,
+      metadata    JSONB DEFAULT '{}',
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (event_id, snapshot_date, metric_type)
+    )
+  `);
+
+  // v9 §3 — Indexes (plain CREATE INDEX IF NOT EXISTS at startup; see note above)
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned_user_id ON tasks(assigned_user_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_user_expires ON sessions(user_id, expires_at)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_rsvps_phone ON rsvps(phone)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_rsvps_waitlist_position ON rsvps(waitlist_position) WHERE waitlist_position IS NOT NULL`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_events_archived_at ON events(archived_at) WHERE archived_at IS NOT NULL`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_user_created ON audit_log(user_id, created_at)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_guest_groups_event_id ON guest_groups(event_id)`);
+
+  // v9 §4 — Constraints (DROP IF EXISTS then ADD — idempotent across reruns)
+  await db.exec(`ALTER TABLE events DROP CONSTRAINT IF EXISTS chk_events_capacity_non_negative`);
+  await db.exec(`ALTER TABLE events ADD CONSTRAINT chk_events_capacity_non_negative CHECK (capacity IS NULL OR capacity >= 0)`);
+  // The expense_receipt_ocr and vendor_payment_schedules constraints are added
+  // only if those tables exist (older snapshots may not have them yet).
+  await db.exec(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.expense_receipt_ocr') IS NOT NULL THEN
+        ALTER TABLE expense_receipt_ocr DROP CONSTRAINT IF EXISTS chk_ocr_confidence_range;
+        ALTER TABLE expense_receipt_ocr ADD CONSTRAINT chk_ocr_confidence_range
+          CHECK (confidence IS NULL OR (confidence BETWEEN 0 AND 1));
+      END IF;
+      IF to_regclass('public.vendor_payment_schedules') IS NOT NULL THEN
+        ALTER TABLE vendor_payment_schedules DROP CONSTRAINT IF EXISTS chk_payment_amount_positive;
+        ALTER TABLE vendor_payment_schedules ADD CONSTRAINT chk_payment_amount_positive
+          CHECK (amount > 0);
+      END IF;
+    END$$
+  `);
+
+  // v9 §5 — Atomic share-link view counter helper
+  await db.exec(`
+    CREATE OR REPLACE FUNCTION increment_share_link_view(p_token TEXT)
+    RETURNS VOID AS $func$
+      UPDATE gallery_share_links
+      SET    view_count = view_count + 1
+      WHERE  token = p_token;
+    $func$ LANGUAGE sql
+  `);
+
+  // v9.1 — Resend-verification rate limiting & Entra back-channel logout
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS resend_verification_count INTEGER NOT NULL DEFAULT 0`);
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS resend_verification_window_start TIMESTAMPTZ`);
+  await db.exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS entra_sid TEXT`);
+  await db.exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS entra_sub TEXT`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_entra_sid ON sessions(entra_sid) WHERE entra_sid IS NOT NULL`);
+
+  // v9.2 — Completion-story columns referenced by features that already shipped
+  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS opened BOOLEAN NOT NULL DEFAULT false`);
+  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ`);
+  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS recipient_email TEXT`);
+  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS body TEXT`);
+  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`);
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_unsubscribed BOOLEAN NOT NULL DEFAULT false`);
+  await db.exec(`ALTER TABLE exchange_rates ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+  await db.exec(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.scheduled_reports') IS NOT NULL THEN
+        ALTER TABLE scheduled_reports ADD COLUMN IF NOT EXISTS last_run_at TIMESTAMPTZ;
+        ALTER TABLE scheduled_reports ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ;
+        CREATE INDEX IF NOT EXISTS idx_scheduled_reports_next_run
+          ON scheduled_reports(next_run_at) WHERE is_active = true;
+      END IF;
+    END$$
+  `);
+
   // ── Story #664, Item 10: required event time field (HH:MM) ───────────────
+  // Brought in from develop during merge of feature/664-wire-v9-schema-gaps.
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_time TEXT`);
   await db.exec(`ALTER TABLE event_templates ADD COLUMN IF NOT EXISTS default_event_time TEXT`);
 }
