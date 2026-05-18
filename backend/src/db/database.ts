@@ -860,6 +860,9 @@ export async function closeDatabase(): Promise<void> {
 }
 
 async function runMigrations(db: DatabaseAdapter): Promise<void> {
+  // Item #4: apply RLS by default unless explicitly disabled.
+  const isRlsEnabled = (process.env.RLS_PILOT_ENABLED ?? 'true').toLowerCase() !== 'false';
+
   await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -1755,7 +1758,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_entra_oid ON users(entra_oid) WHERE entra_oid IS NOT NULL`);
 
   // ── RLS pilot: enable row-level security (#472) ───────────────────────────
-  if (process.env.RLS_PILOT_ENABLED === 'true') {
+  if (isRlsEnabled) {
     console.log('[RLS] Applying RLS pilot policies on events and event_members…');
 
     await db.exec(`ALTER TABLE events ENABLE ROW LEVEL SECURITY`);
@@ -1809,7 +1812,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   }
 
   // ── RLS v2: extend RLS to tasks, expenses, vendors, rsvps (#564, #632, #633) ──
-  if (process.env.RLS_PILOT_ENABLED === 'true') {
+  if (isRlsEnabled) {
     console.log('[RLS] Applying RLS v2 policies on tasks, expenses, vendors, rsvps…');
     for (const tbl of ['tasks', 'expenses', 'vendors', 'rsvps']) {
       await db.exec(`ALTER TABLE ${tbl} ENABLE ROW LEVEL SECURITY`);
