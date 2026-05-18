@@ -26,9 +26,14 @@ jobs:
         run: |
           echo "✅ Promotion PR (${{ github.head_ref }} → ${{ github.base_ref }}): assignee check not required for environment promotions."
 
+      - name: Pass automatically for automated backup branches
+        if: github.event_name == 'push' && contains(github.ref, '-backup-')
+        run: |
+          echo "✅ Automated backup branch (${GITHUB_REF#refs/heads/}): assignee check not required for programmatic backup branches."
+
       - name: Extract issue number from branch
         id: extract
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && !contains(github.ref, '-backup-')
         run: |
           BRANCH="${GITHUB_REF#refs/heads/}"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
@@ -45,7 +50,7 @@ jobs:
           echo "Extracted issue #$ISSUE_NUMBER from branch '$BRANCH'"
 
       - name: Check if pusher is assigned to issue
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && !contains(github.ref, '-backup-')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.extract.outputs.issue_number }}
