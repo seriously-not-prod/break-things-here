@@ -38,4 +38,7 @@ COPY --from=build /app/package.json ./
 
 EXPOSE 4000
 
+# Run as non-root user for security (#676)
+USER node
+
 CMD ["node", "dist/index.js"]

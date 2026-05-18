@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -23,7 +24,7 @@ export async function getRoleWithPermissions(req: AuthRequest, res: Response): P
   const { roleId } = req.params;
   const db = getDatabase();
 
-  const role = await db.get('SELECT id, name, description FROM roles WHERE id = ?', [roleId]);
+  const role = await db.get('SELECT id, name, description FROM roles WHERE id = $1', [roleId]);
   if (!role) {
     return res.status(404).json({ error: 'Role not found' });
   }
@@ -31,7 +32,7 @@ export async function getRoleWithPermissions(req: AuthRequest, res: Response): P
   const permissions = await db.all(
     `SELECT p.id, p.name, p.description FROM permissions p
      JOIN role_permissions rp ON rp.permission_id = p.id
-     WHERE rp.role_id = ?`,
+     WHERE rp.role_id = $1`,
     [roleId],
   );
 
@@ -50,15 +51,28 @@ export async function createRole(req: AuthRequest, res: Response): Promise<Respo
   }
 
   const db = getDatabase();
-  const existing = await db.get('SELECT id FROM roles WHERE name = ?', [name]);
+  const existing = await db.get('SELECT id FROM roles WHERE name = $1', [name]);
   if (existing) {
     return res.status(409).json({ error: 'Role already exists' });
   }
 
   const result = await db.run(
-    'INSERT INTO roles (name, description) VALUES (?, ?) RETURNING id',
+    'INSERT INTO roles (name, description) VALUES ($1, $2) RETURNING id',
     [name, description || ''],
   );
+
+  await logAuditEvent({
+    db,
+    userId: req.user?.id,
+    email: req.user?.email,
+    action: AUDIT_ACTIONS.ROLE_CHANGE,
+    description: `Role created: ${name}`,
+    ipAddress: req.ip,
+    targetType: 'role',
+    targetId: String(result.lastID),
+    context: { roleName: name },
+    severity: 'INFO',
+  });
 
   return res.status(201).json({ id: result.lastID, name, description });
 }
@@ -76,17 +90,31 @@ export async function assignRoleToUser(req: AuthRequest, res: Response): Promise
 
   const db = getDatabase();
 
-  const role = await db.get('SELECT id FROM roles WHERE id = ?', [roleId]);
+  const role = await db.get('SELECT id FROM roles WHERE id = $1', [roleId]);
   if (!role) {
     return res.status(404).json({ error: 'Role not found' });
   }
 
-  const user = await db.get('SELECT id FROM users WHERE id = ? AND deleted_at IS NULL', [userId]);
+  const user = await db.get('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [userId]);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
 
-  await db.run('UPDATE users SET role_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [roleId, userId]);
+  const previous = await db.get<{ role_id: number }>('SELECT role_id FROM users WHERE id = $1', [userId]);
+  await db.run('UPDATE users SET role_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [roleId, userId]);
+
+  await logAuditEvent({
+    db,
+    userId: req.user?.id,
+    email: req.user?.email,
+    action: AUDIT_ACTIONS.ROLE_CHANGE,
+    description: `Assigned role ${roleId} to user ${userId}`,
+    ipAddress: req.ip,
+    targetType: 'user',
+    targetId: String(userId),
+    context: { previousRoleId: previous?.role_id ?? null, newRoleId: roleId },
+    severity: 'INFO',
+  });
 
   return res.status(200).json({ message: 'Role assigned successfully' });
 }
@@ -105,7 +133,7 @@ export async function addPermissionToRole(req: AuthRequest, res: Response): Prom
   const db = getDatabase();
 
   const existing = await db.get(
-    'SELECT 1 FROM role_permissions WHERE role_id = ? AND permission_id = ?',
+    'SELECT 1 FROM role_permissions WHERE role_id = $1 AND permission_id = $2',
     [roleId, permissionId],
   );
   if (existing) {
@@ -113,9 +141,22 @@ export async function addPermissionToRole(req: AuthRequest, res: Response): Prom
   }
 
   await db.run(
-    'INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)',
+    'INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)',
     [roleId, permissionId],
   );
+
+  await logAuditEvent({
+    db,
+    userId: req.user?.id,
+    email: req.user?.email,
+    action: AUDIT_ACTIONS.ROLE_CHANGE,
+    description: `Added permission ${permissionId} to role ${roleId}`,
+    ipAddress: req.ip,
+    targetType: 'role',
+    targetId: String(roleId),
+    context: { permissionId, operation: 'add-permission' },
+    severity: 'INFO',
+  });
 
   return res.status(201).json({ message: 'Permission added to role' });
 }
@@ -133,9 +174,22 @@ export async function removePermissionFromRole(req: AuthRequest, res: Response):
 
   const db = getDatabase();
   await db.run(
-    'DELETE FROM role_permissions WHERE role_id = ? AND permission_id = ?',
+    'DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2',
     [roleId, permissionId],
   );
+
+  await logAuditEvent({
+    db,
+    userId: req.user?.id,
+    email: req.user?.email,
+    action: AUDIT_ACTIONS.ROLE_CHANGE,
+    description: `Removed permission ${permissionId} from role ${roleId}`,
+    ipAddress: req.ip,
+    targetType: 'role',
+    targetId: String(roleId),
+    context: { permissionId, operation: 'remove-permission' },
+    severity: 'INFO',
+  });
 
   return res.status(200).json({ message: 'Permission removed from role' });
 }
@@ -160,12 +214,12 @@ export async function getUserRoleAndPermissions(req: AuthRequest, res: Response)
   }
 
   const db = getDatabase();
-  const role = await db.get('SELECT id, name, description FROM roles WHERE id = ?', [req.user.role_id]);
+  const role = await db.get('SELECT id, name, description FROM roles WHERE id = $1', [req.user.role_id]);
 
   const permissions = await db.all(
     `SELECT p.id, p.name, p.description FROM permissions p
      JOIN role_permissions rp ON rp.permission_id = p.id
-     WHERE rp.role_id = ?`,
+     WHERE rp.role_id = $1`,
     [req.user.role_id],
   );
 
