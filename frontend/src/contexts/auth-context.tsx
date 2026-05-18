@@ -6,7 +6,8 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { api, setToken, setRefreshToken, getRefreshToken } from '../lib/api-client';
+import { api, setToken } from '../lib/api-client';
+import { useSessionTimeout } from '../hooks/use-session-timeout';
 
 export interface AuthUser {
   id: number;
@@ -22,13 +23,25 @@ interface AuthContextValue {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (email: string, password: string, displayName: string) => Promise<string>;
   logout: () => Promise<void>;
+  loadCurrentUser: () => Promise<void>;
+  /** True when the session was automatically ended after 30 min of inactivity. */
+  sessionTimedOut: boolean;
+  /** Call after showing the "session expired" notice to reset the flag. */
+  clearSessionTimeout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** Rendered only while a user is authenticated; activates the idle hook. */
+function SessionTimeoutWatcher({ onTimeout }: { onTimeout: () => void }) {
+  useSessionTimeout(onTimeout);
+  return null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionTimedOut, setSessionTimedOut] = useState(false);
 
   const loadCurrentUser = useCallback(async () => {
     try {
@@ -47,17 +60,26 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     }
   }, []);
 
-  useEffect(() => {
-    void loadCurrentUser();
+  const restoreSession = useCallback(async () => {
+    try {
+      const data = await api.post<{ accessToken: string }>('/api/auth/refresh');
+      if (data && typeof data.accessToken === 'string') setToken(data.accessToken);
+    } catch {
+      setToken(null);
+    }
+
+    await loadCurrentUser();
   }, [loadCurrentUser]);
 
+  useEffect(() => {
+    void restoreSession();
+  }, [restoreSession]);
+
   const login = useCallback(async (email: string, password: string, _rememberMe = false) => {
-    // POST credentials. Backend sets httpOnly cookies and (in development)
-    // may also return raw tokens in the JSON response. If tokens are present
-    // store them so subsequent requests using Authorization headers work.
+    // POST credentials. Backend sets httpOnly cookies and returns accessToken
+    // in development so requests can attach it from in-memory state only.
     const data = await api.post<Record<string, unknown>>('/api/auth/login', { email, password });
     if (data && typeof data.accessToken === 'string') setToken(data.accessToken);
-    if (data && typeof data.refreshToken === 'string') setRefreshToken(data.refreshToken as string);
     await loadCurrentUser();
   }, [loadCurrentUser]);
 
@@ -73,22 +95,28 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       // ignore errors on logout
     }
     setToken(null);
-    setRefreshToken(null);
     setUser(null);
   }, []);
 
-  // Periodic token refresh
+  const handleSessionTimeout = useCallback(() => {
+    setToken(null);
+    setUser(null);
+    setSessionTimedOut(true);
+  }, []);
+
+  const clearSessionTimeout = useCallback(() => {
+    setSessionTimedOut(false);
+  }, []);
+
+  // Periodic token refresh — cookie attaches automatically, send empty body (#290)
   useEffect(() => {
     const REFRESH_INTERVAL = 50 * 60 * 1000; // 50 minutes
     const interval = setInterval(async () => {
-      const refreshToken = getRefreshToken();
-      if (!refreshToken) return;
       try {
-        const data = await api.post<{ accessToken: string }>('/api/auth/refresh', { refreshToken });
+        const data = await api.post<{ accessToken: string }>('/api/auth/refresh');
         setToken(data.accessToken);
       } catch {
         setToken(null);
-        setRefreshToken(null);
         setUser(null);
       }
     }, REFRESH_INTERVAL);
@@ -96,7 +124,8 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, loadCurrentUser, sessionTimedOut, clearSessionTimeout }}>
+      {user && <SessionTimeoutWatcher onTimeout={handleSessionTimeout} />}
       {children}
     </AuthContext.Provider>
   );
