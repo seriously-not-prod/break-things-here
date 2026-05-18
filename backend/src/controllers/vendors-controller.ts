@@ -4,7 +4,7 @@ import path from 'path';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
 import { scanFile } from '../utils/virus-scan.js';
-import { AUDIT_ACTIONS, logAuditEvent } from '../utils/audit-log.js';
+import { AUDIT_ACTIONS, logAuditEvent, logMutation } from '../utils/audit-log.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -423,6 +423,7 @@ export async function createVendor(req: Request, res: Response): Promise<Respons
   );
 
   const vendor = await db.get<VendorRow>('SELECT * FROM vendors WHERE id = $1', [result.lastID]);
+  await logMutation(db, authReq, AUDIT_ACTIONS.VENDOR_CREATE, 'vendor', result.lastID ?? 0, { eventId });
   return res.status(201).json({ vendor });
 }
 
@@ -482,6 +483,7 @@ export async function updateVendor(req: Request, res: Response): Promise<Respons
   );
 
   const vendor = await db.get<VendorRow>('SELECT * FROM vendors WHERE id = $1', [id]);
+  await logMutation(db, authReq, AUDIT_ACTIONS.VENDOR_UPDATE, 'vendor', id, { eventId });
   return res.json({ vendor });
 }
 
@@ -497,6 +499,7 @@ export async function deleteVendor(req: Request, res: Response): Promise<Respons
   if (!existing) return res.status(404).json({ error: 'Vendor not found.' });
 
   await db.run('DELETE FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
+  await logMutation(db, authReq, AUDIT_ACTIONS.VENDOR_DELETE, 'vendor', id, { eventId });
 
   if (existing.contract_file) {
     await cleanupUploadedFile(existing.contract_file).catch(() => undefined);

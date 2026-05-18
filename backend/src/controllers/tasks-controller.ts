@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { logActivity } from './activity-feed-controller.js';
 import { requireEventAccess } from '../utils/event-access.js';
+import { AUDIT_ACTIONS, logMutation } from '../utils/audit-log.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -98,6 +99,7 @@ export async function createTask(req: AuthRequest, res: Response): Promise<Respo
     `/events/${eventId}`,
   );
 
+  await logMutation(db, req, AUDIT_ACTIONS.TASK_CREATE, 'task', result.lastID ?? 0, { eventId });
   return res.status(201).json({ task });
 }
 
@@ -172,6 +174,7 @@ export async function updateTask(req: Request, res: Response): Promise<Response>
     );
   }
 
+  await logMutation(db, authReq, AUDIT_ACTIONS.TASK_UPDATE, 'task', id, { eventId });
   return res.json({ task: updated });
 }
 
@@ -188,6 +191,7 @@ export async function deleteTask(req: Request, res: Response): Promise<Response>
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   await db.run('DELETE FROM tasks WHERE id = $1', [id]);
+  await logMutation(db, authReq, AUDIT_ACTIONS.TASK_DELETE, 'task', id, { eventId });
   return res.json({ message: 'Task deleted.' });
 }
 

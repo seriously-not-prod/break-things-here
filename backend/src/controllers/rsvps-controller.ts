@@ -15,6 +15,7 @@ import {
   type GuestProfileFields,
 } from '../utils/profile-completeness.js';
 import { listMealOptionsForEvent } from './meal-options-controller.js';
+import { AUDIT_ACTIONS, logMutation } from '../utils/audit-log.js';
 
 interface RsvpRow {
   id: number;
@@ -386,6 +387,10 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
     }
   }
 
+  await logMutation(db, authReq, AUDIT_ACTIONS.RSVP_CREATE, 'rsvp', rsvp?.id ?? result.lastID ?? 0, {
+    eventId,
+    waitlisted: queueOnCreate,
+  });
   return res.status(201).json({ rsvp, waitlisted: queueOnCreate });
 }
 
@@ -504,6 +509,7 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
     }
   }
 
+  await logMutation(db, authReq, AUDIT_ACTIONS.RSVP_UPDATE, 'rsvp', rsvp.id);
   return res.json({ rsvp: updated });
 }
 
@@ -518,6 +524,7 @@ export async function deleteRsvp(req: Request, res: Response): Promise<Response>
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
   await db.run('DELETE FROM rsvps WHERE id = $1', [id]);
+  await logMutation(db, authReq, AUDIT_ACTIONS.RSVP_DELETE, 'rsvp', id, { eventId });
   // Free capacity may have opened a slot — promote the next waitlisted guest.
   void runPromotion(Number(eventId)).catch((err) =>
     console.error('Waitlist promotion failed after RSVP delete:', err),

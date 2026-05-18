@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
+import { AUDIT_ACTIONS, logMutation } from '../utils/audit-log.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -143,6 +144,10 @@ export async function createItem(req: Request, res: Response): Promise<Response>
   );
 
   const item = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = $1', [result.lastID]);
+  await logMutation(db, authReq, AUDIT_ACTIONS.SHOPPING_ITEM_CREATE, 'shopping_item', result.lastID ?? 0, {
+    eventId,
+    listId,
+  });
   return res.status(201).json({ item });
 }
 
@@ -201,6 +206,10 @@ export async function updateItem(req: Request, res: Response): Promise<Response>
   );
 
   const item = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = $1', [itemId]);
+  await logMutation(db, authReq, AUDIT_ACTIONS.SHOPPING_ITEM_UPDATE, 'shopping_item', itemId, {
+    eventId,
+    listId,
+  });
   return res.json({ item });
 }
 
@@ -219,6 +228,10 @@ export async function deleteItem(req: Request, res: Response): Promise<Response>
   if (!existing) return res.status(404).json({ error: 'Shopping item not found.' });
 
   await db.run('DELETE FROM shopping_items WHERE id = $1 AND list_id = $2', [itemId, listId]);
+  await logMutation(db, authReq, AUDIT_ACTIONS.SHOPPING_ITEM_DELETE, 'shopping_item', itemId, {
+    eventId,
+    listId,
+  });
   return res.status(204).send('');
 }
 
