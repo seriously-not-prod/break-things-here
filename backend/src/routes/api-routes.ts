@@ -243,6 +243,7 @@ router.get('/events/:eventId/rsvps/export.xlsx', authenticateToken, guestExportC
 router.get('/events/:eventId/rsvps/export.pdf', authenticateToken, guestExportController.exportRsvpsPdfData);
 router.post('/events/:eventId/rsvps/import', authenticateToken, csvUpload.single('file'), rsvpController.importCsv);
 router.get('/events/:eventId/rsvps/duplicates', authenticateToken, guestMergeController.listDuplicates);
+router.get('/events/:eventId/rsvps/lookup', authenticateToken, guestMergeController.lookupRsvpsByEmail);
 router.get('/events/:eventId/guest-merges', authenticateToken, guestMergeController.listMergeAudit);
 router.post('/events/:eventId/rsvps/:id/merge', authenticateToken, guestMergeController.mergeGuests);
 router.post('/events/:eventId/rsvps/:id/send-confirmation', authenticateToken, rsvpConfirmationController.sendRsvpConfirmation);
