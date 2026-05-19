@@ -69,7 +69,8 @@ describe('archiveEvent', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual(archived);
-    expect(mockDb.run).toHaveBeenCalledTimes(2); // archive + audit
+    // archive UPDATE + audit INSERT + captureEntityVersion INSERT
+    expect(mockDb.run).toHaveBeenCalledTimes(3);
     expect(mockDb.run.mock.calls[0][0]).toMatch(/UPDATE events/);
     expect(mockDb.run.mock.calls[0][1]).toEqual([7, 'historical cleanup', 7, '12']);
     expect(mockDb.run.mock.calls[1][0]).toMatch(/INSERT INTO audit_log/);
