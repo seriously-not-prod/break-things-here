@@ -859,9 +859,42 @@ export async function closeDatabase(): Promise<void> {
   }
 }
 
+export async function resolveRlsEnabled(db: DatabaseAdapter): Promise<boolean> {
+  // Explicit env wins (true or false). Default keeps RLS on the safe path:
+  // policies are only applied when the connecting role bypasses RLS, so
+  // policies are effectively no-ops until controllers set
+  // `app.current_user_id` via `withUserContext`. This prevents the migration
+  // from silently emptying result sets on a hardened non-superuser deployment.
+  const explicit = process.env.RLS_PILOT_ENABLED?.toLowerCase();
+  if (explicit === 'true') return true;
+  if (explicit === 'false') return false;
+
+  try {
+    const row = await db.get<{ rolbypassrls: boolean }>(
+      `SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user`,
+    );
+    const bypasses = Boolean(row?.rolbypassrls);
+    if (bypasses) {
+      console.log(
+        '[RLS] Auto-enabling policies: current DB role bypasses RLS, so policies are inert until per-request context is wired in.',
+      );
+    } else {
+      console.warn(
+        '[RLS] Auto-disabling policies: current DB role is not BYPASSRLS and `app.current_user_id` is not yet set per-request. Set RLS_PILOT_ENABLED=true to force-enable once `withUserContext` is adopted in all controllers.',
+      );
+    }
+    return bypasses;
+  } catch (err) {
+    console.warn(
+      '[RLS] Could not determine role BYPASSRLS attribute; defaulting to disabled for safety:',
+      err instanceof Error ? err.message : err,
+    );
+    return false;
+  }
+}
+
 async function runMigrations(db: DatabaseAdapter): Promise<void> {
-  // Item #4: apply RLS by default unless explicitly disabled.
-  const isRlsEnabled = (process.env.RLS_PILOT_ENABLED ?? 'true').toLowerCase() !== 'false';
+  const isRlsEnabled = await resolveRlsEnabled(db);
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -874,10 +907,10 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       email_verification_token TEXT,
       pending_email TEXT,
       pending_email_token TEXT,
-      pending_email_token_expiry TIMESTAMP,
+      pending_email_token_expiry TIMESTAMPTZ,
       role_id INTEGER DEFAULT 1,
       account_locked INTEGER DEFAULT 0,
-      locked_until TIMESTAMP,
+      locked_until TIMESTAMPTZ,
       login_attempts INTEGER DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -918,7 +951,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       id SERIAL PRIMARY KEY,
       email TEXT NOT NULL,
       request_count INTEGER DEFAULT 1,
-      window_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      window_start TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(email)
     )
   `);
@@ -1054,10 +1087,41 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMP`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_type TEXT DEFAULT 'Other'`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE`);
-  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMP`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMPTZ`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS capacity INTEGER`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
+
+  // ── Idempotent TZ-fixup for high-risk expiry/deadline columns (#664) ────
+  // Some installations created these columns as plain TIMESTAMP before the
+  // TZ-correctness fix. Promote them in place to TIMESTAMPTZ (interpret stored
+  // values as UTC) so NOW()/CURRENT_TIMESTAMP comparisons no longer drift by
+  // the session offset. Each block is a no-op when the column is already
+  // `timestamp with time zone`.
+  for (const [table, column] of [
+    ['users', 'locked_until'],
+    ['users', 'pending_email_token_expiry'],
+    ['events', 'rsvp_deadline'],
+    ['rsvps', 'rsvp_deadline'],
+    ['password_reset_rate_limit', 'window_start'],
+  ] as const) {
+    await db.exec(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = '${table}'
+            AND column_name = '${column}'
+            AND data_type = 'timestamp without time zone'
+        ) THEN
+          ALTER TABLE ${table}
+            ALTER COLUMN ${column} TYPE TIMESTAMPTZ
+            USING ${column} AT TIME ZONE 'UTC';
+        END IF;
+      END $$;
+    `);
+  }
   // Rename legacy event_date column to date if the old schema is still present.
   // Guard: skip rename if date already exists (handles DB state where both columns coexist).
   {
@@ -1134,7 +1198,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS plus_one BOOLEAN DEFAULT FALSE`);
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS plus_one_name TEXT`);
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS guest_group TEXT`);
-  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMP`);
+  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMPTZ`);
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'public'`);
 
   await db.exec(`
@@ -1880,6 +1944,39 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       END $$;
     `);
     console.log('[RLS] RLS v2 policies applied.');
+  } else {
+    // When RLS resolves to disabled at startup we must also clear any prior
+    // ENABLE/FORCE state on the tables, otherwise a previously-RLS-enabled
+    // database keeps enforcing the policies even though we no longer manage
+    // them — which is the exact silent-empty-result bug we are guarding
+    // against. We only DISABLE; the policy definitions themselves are kept
+    // in place so re-enabling later (via RLS_PILOT_ENABLED=true) restores
+    // the same access matrix.
+    const rlsTables = [
+      'events',
+      'event_members',
+      'tasks',
+      'expenses',
+      'vendors',
+      'rsvps',
+    ];
+    for (const tbl of rlsTables) {
+      await db.exec(`
+        DO $$ BEGIN
+          IF EXISTS (
+            SELECT 1 FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public'
+              AND c.relname = '${tbl}'
+              AND (c.relrowsecurity = true OR c.relforcerowsecurity = true)
+          ) THEN
+            ALTER TABLE ${tbl} NO FORCE ROW LEVEL SECURITY;
+            ALTER TABLE ${tbl} DISABLE ROW LEVEL SECURITY;
+            RAISE NOTICE '[RLS] Disabled row-level security on %', '${tbl}';
+          END IF;
+        END $$;
+      `);
+    }
   }
 
   // ── Guest merge audit (#411, #435) ───────────────────────────────────────

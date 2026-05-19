@@ -26,6 +26,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api-client';
 import { setLastEventId } from '../../hooks/use-last-event';
+import { useAuth } from '../../contexts/auth-context';
+import { canEditEvent } from '../../utils/roles';
 
 interface PickerEvent {
   id: number;
@@ -77,6 +79,8 @@ const SUB_LABELS: Record<string, string> = {
 
 export function EventPickerModal({ open, targetSubPath, onClose }: EventPickerModalProps): JSX.Element {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canCreate = canEditEvent(user?.roleName);
   const [events, setEvents] = useState<PickerEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -180,9 +184,13 @@ export function EventPickerModal({ open, targetSubPath, onClose }: EventPickerMo
               {search ? 'No events match your search' : 'No events yet'}
             </Typography>
             <Typography variant="body2" color="text.disabled" sx={{ mt: 0.5 }}>
-              {search ? 'Try a different search term' : 'Create your first event to get started'}
+              {search
+                ? 'Try a different search term'
+                : canCreate
+                  ? 'Create your first event to get started'
+                  : 'Ask an organizer to invite you to an event.'}
             </Typography>
-            {!search && (
+            {!search && canCreate && (
               <Button
                 variant="contained"
                 startIcon={<AddRounded />}
@@ -292,13 +300,15 @@ export function EventPickerModal({ open, targetSubPath, onClose }: EventPickerMo
             <Typography variant="caption" color="text.disabled">
               {filtered.length} event{filtered.length !== 1 ? 's' : ''}
             </Typography>
-            <Button
-              size="small"
-              startIcon={<AddRounded />}
-              onClick={() => { onClose(); navigate('/events/new'); }}
-            >
-              Create New Event
-            </Button>
+            {canCreate && (
+              <Button
+                size="small"
+                startIcon={<AddRounded />}
+                onClick={() => { onClose(); navigate('/events/new'); }}
+              >
+                Create New Event
+              </Button>
+            )}
           </Box>
         </>
       )}

@@ -12,6 +12,7 @@ import MailRoundedIcon from '@mui/icons-material/MailRounded';
 import PersonIcon from '@mui/icons-material/Person';
 import { useNavigate } from 'react-router-dom';
 import type { AuthUser } from '../../contexts/auth-context';
+import { canEditEvent, isAdmin as isAdminRole } from '../../utils/roles';
 
 export interface QuickAccessGridProps {
   user: AuthUser | null;
@@ -19,7 +20,8 @@ export interface QuickAccessGridProps {
 
 export function QuickAccessGrid({ user }: QuickAccessGridProps): JSX.Element {
   const navigate = useNavigate();
-  const isAdmin = user?.roleName === 'Admin';
+  const isAdmin = isAdminRole(user?.roleName);
+  const canCreateEvent = canEditEvent(user?.roleName);
 
   return (
     <Box>
@@ -36,19 +38,21 @@ export function QuickAccessGrid({ user }: QuickAccessGridProps): JSX.Element {
           </Button>
         </Grid>
 
-        <Grid item xs={12} sm={6}>
-          <Button
-            fullWidth
-            variant="outlined"
-            startIcon={<AddCircleOutlineIcon />}
-            onClick={() => navigate('/events/new')}
-            aria-label="Create a new event"
-          >
-            Create Event
-          </Button>
-        </Grid>
+        {canCreateEvent && (
+          <Grid item xs={12} sm={6}>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<AddCircleOutlineIcon />}
+              onClick={() => navigate('/events/new')}
+              aria-label="Create a new event"
+            >
+              Create Event
+            </Button>
+          </Grid>
+        )}
 
-        <Grid item xs={12} sm={6}>
+        <Grid item xs={12} sm={canCreateEvent ? 6 : 12}>
           <Button
             fullWidth
             variant="outlined"

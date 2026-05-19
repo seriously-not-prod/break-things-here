@@ -454,7 +454,7 @@ describe('POST /api/auth/forgot-password — Entra account block (#570)', () => 
     CREATE TABLE IF NOT EXISTS password_reset_rate_limit (
       email TEXT PRIMARY KEY,
       request_count INTEGER DEFAULT 0,
-      window_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      window_start TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS audit_log (
       id SERIAL PRIMARY KEY,

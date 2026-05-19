@@ -15,6 +15,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { PageLayout } from '../layout/page-layout';
 import { api, ApiError } from '../../lib/api-client';
+import { useAuth } from '../../contexts/auth-context';
+import { canEditEvent } from '../../utils/roles';
 
 interface PlannerEvent {
   id: number;
@@ -28,6 +30,8 @@ export default function CalendarPage(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canCreate = canEditEvent(user?.roleName);
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -79,9 +83,11 @@ export default function CalendarPage(): JSX.Element {
             <MenuItem value="week">Week</MenuItem>
             <MenuItem value="day">Day</MenuItem>
           </Select>
-          <Button variant="outlined" onClick={() => navigate('/events/new')}>
-            Create
-          </Button>
+          {canCreate && (
+            <Button variant="outlined" onClick={() => navigate('/events/new')}>
+              Create
+            </Button>
+          )}
         </Stack>
       }
     >
@@ -89,9 +95,11 @@ export default function CalendarPage(): JSX.Element {
       {grouped.size === 0 ? (
         <Box sx={{ textAlign: 'center', mt: 8 }}>
           <Typography color="text.secondary">No events scheduled yet.</Typography>
-          <Button variant="contained" sx={{ mt: 2 }} onClick={() => navigate('/events/new')}>
-            Create your first event
-          </Button>
+          {canCreate && (
+            <Button variant="contained" sx={{ mt: 2 }} onClick={() => navigate('/events/new')}>
+              Create your first event
+            </Button>
+          )}
         </Box>
       ) : (
         <Grid container spacing={2}>

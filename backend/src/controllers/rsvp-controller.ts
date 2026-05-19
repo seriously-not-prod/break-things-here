@@ -5,13 +5,17 @@
 
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database';
+import {
+  normalizeLegacyRsvpStatusInput,
+  RSVP_STATUS_INPUT_ALIAS_LIST,
+} from '../utils/rsvp-taxonomy';
 
 export interface RsvpData {
   event_id: number;
   name: string;
   email: string;
   guests?: number;
-  status: 'Pending' | 'Confirmed' | 'Declined';
+  status?: string;
 }
 
 /**
@@ -99,27 +103,33 @@ export async function submitRsvp(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    if (status && !['Pending', 'Confirmed', 'Declined'].includes(status)) {
-      res.status(400).json({ error: 'Invalid status' });
+    const normalizedStatus = status === undefined
+      ? 'Pending'
+      : normalizeLegacyRsvpStatusInput(status);
+    if (status !== undefined && !normalizedStatus) {
+      res.status(400).json({
+        error: 'Invalid RSVP status.',
+        allowed: RSVP_STATUS_INPUT_ALIAS_LIST,
+      });
       return;
     }
-    
+
     // Check for duplicate RSVP
     const existing = await db.get(
       'SELECT id FROM rsvps WHERE event_id = $1 AND email = $2',
       [event_id, email]
     );
-    
+
     if (existing) {
       res.status(409).json({ error: 'RSVP already exists for this email' });
       return;
     }
-    
+
     const result = await db.run(`
       INSERT INTO rsvps (event_id, name, email, guests, status)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING id
-    `, [event_id, name, email, guests || 1, status || 'Pending']);
+    `, [event_id, name, email, guests || 1, normalizedStatus]);
     
     const newRsvp = await db.get('SELECT * FROM rsvps WHERE id = $1', [result.lastID]);
     
@@ -153,12 +163,19 @@ export async function updateRsvp(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    // Validation
-    if (status && !['Pending', 'Confirmed', 'Declined'].includes(status)) {
-      res.status(400).json({ error: 'Invalid status' });
-      return;
+    // Validation: normalize status alias to its persisted legacy value.
+    let normalizedStatus: string | null = null;
+    if (status !== undefined) {
+      normalizedStatus = normalizeLegacyRsvpStatusInput(status);
+      if (!normalizedStatus) {
+        res.status(400).json({
+          error: 'Invalid RSVP status.',
+          allowed: RSVP_STATUS_INPUT_ALIAS_LIST,
+        });
+        return;
+      }
     }
-    
+
     if (email) {
       // Email validation without regex to prevent ReDoS
       const atIndex = email.indexOf('@');
@@ -177,14 +194,14 @@ export async function updateRsvp(req: Request, res: Response): Promise<void> {
     }
     
     await db.run(`
-      UPDATE rsvps 
+      UPDATE rsvps
       SET name = $1, email = $2, guests = $3, status = $4, updated_at = CURRENT_TIMESTAMP
       WHERE id = $5
     `, [
       name || existingRsvp.name,
       email || existingRsvp.email,
       guests !== undefined ? guests : existingRsvp.guests,
-      status || existingRsvp.status,
+      normalizedStatus || existingRsvp.status,
       id
     ]);
     
