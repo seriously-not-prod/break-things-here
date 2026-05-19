@@ -1,3 +1,10 @@
+/**
+ * Guest Communication Panel — issue #444 (story #413)
+ *
+ * Supports sending invitations, reminders, and post-event thank-you messages.
+ * Shows an advisory banner with the count of unsubscribed guests so planners
+ * know how many recipients will be automatically suppressed on bulk sends.
+ */
 import { FormEvent, useEffect, useState } from 'react';
 import {
   Alert,
@@ -18,14 +25,17 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
-import { SendRounded } from '@mui/icons-material';
+import { SendRounded, VolunteerActivismRounded } from '@mui/icons-material';
 import {
   listCommunicationLog,
   sendInvitation,
   sendReminder,
+  sendThankYou,
   type BulkSendPayload,
+  type BulkSendResult,
   type CommunicationLogEntry,
   type RsvpGuest,
 } from '../../services/guest-service';
@@ -54,7 +64,7 @@ export function GuestCommunicationPanel({
   const [body, setBody] = useState('');
   const [scope, setScope] = useState<RecipientScope>('all');
   const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ sent: number; failed: number } | null>(null);
+  const [sendResult, setSendResult] = useState<BulkSendResult | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
 
   const [log, setLog] = useState<CommunicationLogEntry[]>([]);
@@ -127,6 +137,36 @@ export function GuestCommunicationPanel({
     }
   }
 
+  /**
+   * Send a post-event thank-you message (#444).
+   * Always targets confirmed (Going) guests regardless of the selected scope;
+   * unsubscribed guests are automatically suppressed by the backend.
+   */
+  async function handleSendThankYou(): Promise<void> {
+    if (!subject.trim() || !body.trim()) return;
+    setSending(true);
+    setSendError(null);
+    setSendResult(null);
+    try {
+      const confirmedPayload: BulkSendPayload = {
+        rsvpIds: guests.filter((g) => g.status === 'Going').map((g) => g.id),
+        subject,
+        body,
+      };
+      const result = await sendThankYou(eventId, confirmedPayload);
+      setSendResult(result);
+      setSubject('');
+      setBody('');
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Send failed.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  // Count unsubscribed guests so the planner can see how many will be suppressed.
+  const unsubscribedCount = guests.filter((g) => g.unsubscribed_at).length;
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* ── Compose form ── */}
@@ -135,9 +175,17 @@ export function GuestCommunicationPanel({
           Send Communication
         </Typography>
 
+        {unsubscribedCount > 0 && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            {unsubscribedCount} guest{unsubscribedCount !== 1 ? 's have' : ' has'} unsubscribed and
+            will be automatically skipped on bulk sends.
+          </Alert>
+        )}
         {sendResult && (
           <Alert severity="success" sx={{ mb: 2 }}>
-            Sent to {sendResult.sent} recipient(s).{sendResult.failed > 0 && ` ${sendResult.failed} failed.`}
+            Sent to {sendResult.sent} recipient(s).
+            {sendResult.failed > 0 && ` ${sendResult.failed} failed.`}
+            {sendResult.suppressed ? ` ${sendResult.suppressed} suppressed (unsubscribed).` : ''}
           </Alert>
         )}
         {sendError && (
@@ -187,7 +235,7 @@ export function GuestCommunicationPanel({
             inputProps={{ 'aria-label': 'Email body' }}
           />
 
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button
               type="submit"
               variant="contained"
@@ -203,6 +251,19 @@ export function GuestCommunicationPanel({
             >
               Send Reminder
             </Button>
+            <Tooltip title="Send post-event thank-you to confirmed (Going) guests. Unsubscribed guests are skipped automatically.">
+              <span>
+                <Button
+                  variant="outlined"
+                  color="success"
+                  disabled={sending}
+                  startIcon={<VolunteerActivismRounded />}
+                  onClick={() => void handleSendThankYou()}
+                >
+                  Send Thank-You
+                </Button>
+              </span>
+            </Tooltip>
           </Box>
         </Box>
       </Box>

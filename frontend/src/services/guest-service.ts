@@ -126,6 +126,7 @@ export interface BulkSendPayload {
 export interface BulkSendResult {
   sent: number;
   failed: number;
+  suppressed?: number;
 }
 
 export interface CsvImportResult {
@@ -311,6 +312,33 @@ export async function sendReminder(
   payload: BulkSendPayload,
 ): Promise<BulkSendResult> {
   return api.post<BulkSendResult>(`/api/events/${eventId}/communication/reminder`, payload);
+}
+
+/**
+ * POST /api/events/:eventId/communication/thank-you (#444)
+ *
+ * Sends a post-event thank-you to confirmed attendees (status=Going by default).
+ * Unsubscribed guests are automatically suppressed.
+ */
+export async function sendThankYou(
+  eventId: number | string,
+  payload: BulkSendPayload,
+): Promise<BulkSendResult> {
+  return api.post<BulkSendResult>(`/api/events/${eventId}/communication/thank-you`, payload);
+}
+
+/**
+ * PATCH /api/events/:eventId/rsvps/:rsvpId/unsubscribe (#444)
+ *
+ * Planner-side unsubscribe toggle. Pass `unsubscribed=true` to suppress future
+ * bulk sends to this guest; `false` to re-opt them in.
+ */
+export async function setGuestUnsubscribed(
+  eventId: number | string,
+  rsvpId: number | string,
+  unsubscribed: boolean,
+): Promise<{ rsvp: { id: number; email: string; unsubscribed_at: string | null } }> {
+  return api.patch(`/api/events/${eventId}/rsvps/${rsvpId}/unsubscribe`, { unsubscribed });
 }
 
 /** GET /api/events/:eventId/communication */

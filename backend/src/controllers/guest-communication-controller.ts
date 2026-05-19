@@ -46,10 +46,22 @@ export async function sendReminder(req: Request, res: Response): Promise<Respons
   return bulkSend(req, res, 'reminder');
 }
 
+/**
+ * POST /api/events/:eventId/communication/thank-you (#444)
+ *
+ * Sends a post-event thank-you message to attendees. Unsubscribed guests are
+ * automatically suppressed (same behaviour as invitation/reminder sends).
+ * By default recipients are limited to `status = 'Going'` so only confirmed
+ * attendees receive the thank-you; an explicit `rsvpIds` array overrides this.
+ */
+export async function sendThankYou(req: Request, res: Response): Promise<Response> {
+  return bulkSend(req, res, 'thank_you');
+}
+
 async function bulkSend(
   req: Request,
   res: Response,
-  type: 'invitation' | 'reminder',
+  type: 'invitation' | 'reminder' | 'thank_you',
 ): Promise<Response> {
   const authReq = req as AuthRequest;
   const { eventId } = req.params;
@@ -145,6 +157,13 @@ async function bulkSend(
     recipients = await db.all<RsvpRow>(
       `SELECT id, name, email, status, unsubscribed_at FROM rsvps WHERE event_id = ? AND id IN (${placeholders})`,
       [eventId, ...rsvpIds],
+    );
+  } else if (type === 'thank_you') {
+    // Thank-you sends default to confirmed attendees only (#444).
+    recipients = await db.all<RsvpRow>(
+      `SELECT id, name, email, status, unsubscribed_at FROM rsvps
+       WHERE event_id = ? AND status = 'Going'`,
+      [eventId],
     );
   } else {
     recipients = await db.all<RsvpRow>(

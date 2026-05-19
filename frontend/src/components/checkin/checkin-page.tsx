@@ -1,10 +1,13 @@
 /**
- * Check-In Page — issue #387 (story #379)
+ * Check-In Page — issue #387 (story #379), QR link #445 (story #413)
  *
  * Route: /events/:id/checkin
  *
  * Loads RSVPs for an event and lets staff mark guests as arrived.
  * Optimistic update: row flips to checked-in immediately; reverts on API error.
+ * Always shows a QR Scanner button that links to the scanner page (#445);
+ * the scanner page itself uses BarcodeDetector for camera scanning and falls
+ * back to manual token entry on unsupported browsers.
  */
 import { useEffect, useState, useCallback } from 'react';
 import {
@@ -24,10 +27,11 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
-import { CheckCircleOutlineRounded, SearchRounded } from '@mui/icons-material';
-import { useParams } from 'react-router-dom';
+import { CheckCircleOutlineRounded, QrCodeScannerRounded, SearchRounded } from '@mui/icons-material';
+import { useParams, useNavigate } from 'react-router-dom';
 import { PageLayout } from '../layout/page-layout';
 import * as guestService from '../../services/guest-service';
 import type { Rsvp } from '../../services/guest-service';
@@ -43,8 +47,14 @@ const STATUS_COLORS: Record<string, 'default' | 'primary' | 'success' | 'warning
 
 const RSVP_FILTER_OPTIONS = ['All', 'Going', 'Pending', 'Maybe', 'Not Going', 'Declined'];
 
+/** Returns true when the browser natively supports BarcodeDetector. */
+function hasBarcodeDetector(): boolean {
+  return typeof (window as unknown as { BarcodeDetector?: unknown }).BarcodeDetector === 'function';
+}
+
 export function CheckInPage(): JSX.Element {
   const { id: eventId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
 
   const [rsvps, setRsvps] = useState<Rsvp[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +128,20 @@ export function CheckInPage(): JSX.Element {
     <PageLayout
       title="Guest Check-In"
       breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Check-In' }]}
+      actions={
+        <Tooltip title={hasBarcodeDetector() ? 'Open live QR scanner' : 'QR scanning requires a Chromium-based browser. Use manual token paste on this device.'}>
+          <span>
+            <Button
+              variant="outlined"
+              startIcon={<QrCodeScannerRounded />}
+              onClick={() => navigate(`/events/${eventId ?? ''}/checkin/scan`)}
+              aria-label="Open QR scanner check-in"
+            >
+              QR Scanner
+            </Button>
+          </span>
+        </Tooltip>
+      }
     >
 
       {/* Progress bar */}
