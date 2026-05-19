@@ -301,6 +301,9 @@ ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_rsvps_event_id ON rsvps(event_id);
 
+CREATE OR REPLACE VIEW guests AS
+SELECT * FROM rsvps;
+
 -- ============================================================
 -- Guest Communication Log
 -- ============================================================

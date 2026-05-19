@@ -7,6 +7,7 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
+import { publishRealtimeEvent } from '../utils/realtime-bus.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -28,7 +29,9 @@ export async function heartbeatPresence(req: Request, res: Response): Promise<Re
   };
 
   if (!entity_type || !VALID_ENTITY_TYPES.has(entity_type)) {
-    return res.status(400).json({ error: `entity_type must be one of: ${[...VALID_ENTITY_TYPES].join(', ')}` });
+    return res
+      .status(400)
+      .json({ error: `entity_type must be one of: ${[...VALID_ENTITY_TYPES].join(', ')}` });
   }
   if (!entity_id || !Number.isInteger(Number(entity_id))) {
     return res.status(400).json({ error: 'entity_id must be a positive integer.' });
@@ -59,6 +62,15 @@ export async function heartbeatPresence(req: Request, res: Response): Promise<Re
     [entity_type, Number(entity_id)],
   );
 
+  publishRealtimeEvent({
+    type: 'presence.heartbeat',
+    occurredAt: new Date().toISOString(),
+    entityType: entity_type,
+    entityId: Number(entity_id),
+    actorId: authReq.user?.id ?? null,
+    payload: { presence: active },
+  });
+
   return res.json({ presence: active });
 }
 
@@ -70,17 +82,18 @@ export async function getPresence(req: Request, res: Response): Promise<Response
   const { entity_type, entity_id } = req.query as { entity_type?: string; entity_id?: string };
 
   if (!entity_type || !VALID_ENTITY_TYPES.has(entity_type)) {
-    return res.status(400).json({ error: `entity_type must be one of: ${[...VALID_ENTITY_TYPES].join(', ')}` });
+    return res
+      .status(400)
+      .json({ error: `entity_type must be one of: ${[...VALID_ENTITY_TYPES].join(', ')}` });
   }
   if (!entity_id) return res.status(400).json({ error: 'entity_id is required.' });
 
   const db = getDatabase();
 
   // Purge stale sessions before returning
-  await db.run(
-    `DELETE FROM edit_sessions WHERE last_seen_at < datetime('now', $1)`,
-    [`-${PRESENCE_TIMEOUT_SECS} seconds`],
-  );
+  await db.run(`DELETE FROM edit_sessions WHERE last_seen_at < datetime('now', $1)`, [
+    `-${PRESENCE_TIMEOUT_SECS} seconds`,
+  ]);
 
   const active = await db.all(
     `SELECT es.user_id, COALESCE(u.display_name, u.email) AS display_name,
@@ -101,13 +114,22 @@ export async function leavePresence(req: Request, res: Response): Promise<Respon
 
   // Accept params from query string (DELETE requests don't reliably carry bodies)
   const entity_type = (req.body?.entity_type ?? req.query?.entity_type) as string | undefined;
-  const entity_id   = (req.body?.entity_id   ?? req.query?.entity_id)   as number | string | undefined;
+  const entity_id = (req.body?.entity_id ?? req.query?.entity_id) as number | string | undefined;
 
   const db = getDatabase();
   await db.run(
     'DELETE FROM edit_sessions WHERE entity_type = $1 AND entity_id = $2 AND user_id = $3',
     [entity_type, Number(entity_id), authReq.user.id],
   );
+
+  publishRealtimeEvent({
+    type: 'presence.leave',
+    occurredAt: new Date().toISOString(),
+    entityType: entity_type,
+    entityId: Number(entity_id),
+    actorId: authReq.user.id,
+    payload: {},
+  });
 
   return res.json({ ok: true });
 }
@@ -124,10 +146,9 @@ export async function getEventPresence(req: Request, res: Response): Promise<Res
 
   const db = getDatabase();
 
-  await db.run(
-    `DELETE FROM edit_sessions WHERE last_seen_at < datetime('now', $1)`,
-    [`-${PRESENCE_TIMEOUT_SECS} seconds`],
-  );
+  await db.run(`DELETE FROM edit_sessions WHERE last_seen_at < datetime('now', $1)`, [
+    `-${PRESENCE_TIMEOUT_SECS} seconds`,
+  ]);
 
   const active = await db.all(
     `SELECT es.entity_type, es.entity_id, es.user_id,
@@ -144,6 +165,16 @@ export async function getEventPresence(req: Request, res: Response): Promise<Res
      )`,
     [eventId, eventId, eventId],
   );
+
+  publishRealtimeEvent({
+    type: 'presence.snapshot',
+    occurredAt: new Date().toISOString(),
+    eventId: Number(eventId),
+    entityType: 'event',
+    entityId: Number(eventId),
+    actorId: authReq.user?.id ?? null,
+    payload: { presence: active },
+  });
 
   return res.json({ presence: active });
 }

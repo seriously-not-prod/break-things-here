@@ -7,6 +7,7 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
+import { publishRealtimeEvent } from '../utils/realtime-bus.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -69,6 +70,15 @@ export async function logActivity(
        VALUES ($1, $2, $3, $4, $5)`,
       [eventId, userId ?? null, actionType, description, link ?? null],
     );
+    publishRealtimeEvent({
+      type: 'activity',
+      occurredAt: new Date().toISOString(),
+      eventId: Number(eventId),
+      entityType: 'activity_feed',
+      entityId: null,
+      actorId: userId,
+      payload: { actionType, description, link: link ?? null },
+    });
   } catch (err) {
     console.error('logActivity failed (non-fatal):', err);
   }
