@@ -12,6 +12,7 @@ import type { RsvpGuest } from '../src/services/guest-service';
 vi.mock('../src/services/guest-service', () => ({
   listRsvpGuests: vi.fn(),
   listTables: vi.fn(),
+  lookupRsvpsByEmail: vi.fn(),
   createRsvp: vi.fn(),
   updateRsvp: vi.fn(),
   deleteRsvp: vi.fn(),
@@ -101,6 +102,11 @@ describe('GuestsPage', () => {
   beforeEach(() => {
     vi.mocked(guestService.listRsvpGuests).mockResolvedValue(mockGuests);
     vi.mocked(guestService.listTables).mockResolvedValue(mockTables);
+    vi.mocked(guestService.lookupRsvpsByEmail).mockResolvedValue({
+      email: '',
+      matches: [],
+      mergeSuggestion: null,
+    });
     vi.mocked(guestService.listCommunicationLog).mockResolvedValue([]);
     vi.mocked(guestService.createRsvp).mockResolvedValue(mockGuests[0]);
     vi.mocked(guestService.deleteRsvp).mockResolvedValue(undefined);
@@ -172,6 +178,50 @@ describe('GuestsPage', () => {
     expect(screen.getByRole('textbox', { name: /guest name/i })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /guest email/i })).toBeInTheDocument();
   });
+
+  it('shows duplicate-email warning and merge suggestion in Add Guest dialog', async () => {
+    vi.mocked(guestService.lookupRsvpsByEmail).mockResolvedValue({
+      email: 'alice@example.com',
+      matches: [
+        {
+          id: 1,
+          name: 'Alice Smith',
+          email: 'alice@example.com',
+          status: 'Going',
+          guests: 1,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+        {
+          id: 99,
+          name: 'Alice S.',
+          email: 'alice@example.com',
+          status: 'Pending',
+          guests: 1,
+          created_at: '2026-01-03T00:00:00Z',
+          updated_at: '2026-01-03T00:00:00Z',
+        },
+      ],
+      mergeSuggestion: {
+        recommendedPrimaryId: 99,
+        sourceRsvpIds: [1],
+      },
+    });
+
+    renderGuests();
+    await screen.findByText('Alice Smith');
+    await userEvent.click(screen.getByRole('button', { name: /add guest/i }));
+
+    await userEvent.type(screen.getByRole('textbox', { name: /guest email/i }), 'alice@example.com');
+
+    await waitFor(() => {
+      expect(guestService.lookupRsvpsByEmail).toHaveBeenCalled();
+    });
+
+    expect(await screen.findByText(/duplicate email detected/i)).toBeInTheDocument();
+    expect(screen.getByText(/merge suggestion: keep alice s\./i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /review duplicates/i })).toBeInTheDocument();
+  }, 15000);
 
   it('shows bulk action bar when guests are selected', async () => {
     renderGuests();

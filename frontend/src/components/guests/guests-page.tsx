@@ -529,9 +529,11 @@ export default function GuestsPage(): JSX.Element {
 
       {/* ── Dialogs ── */}
       <AddGuestDialog
+        eventId={eventId ?? ''}
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onSubmit={handleAddGuest}
+        onReviewDuplicates={() => setTab(2)}
       />
 
       {eventId && (

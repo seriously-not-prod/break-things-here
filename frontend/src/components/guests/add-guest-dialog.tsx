@@ -1,8 +1,10 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Box,
   Button,
   Checkbox,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -18,15 +20,19 @@ import {
 } from '@mui/material';
 import type {
   DietaryRestriction,
+  GuestEmailLookupResult,
   GuestGroup,
   RsvpGuestInput,
   RsvpStatus,
 } from '../../services/guest-service';
+import { lookupRsvpsByEmail } from '../../services/guest-service';
 
 interface AddGuestDialogProps {
+  eventId: number | string;
   open: boolean;
   onClose: () => void;
   onSubmit: (input: RsvpGuestInput) => Promise<void>;
+  onReviewDuplicates?: () => void;
 }
 
 const DIETARY_OPTIONS: DietaryRestriction[] = [
@@ -44,7 +50,18 @@ const GROUP_OPTIONS: GuestGroup[] = ['Family', 'Friends', 'Colleagues', 'VIPs', 
 
 const STATUS_OPTIONS: RsvpStatus[] = ['Pending', 'Going', 'Maybe', 'Not Going', 'Declined'];
 
-export function AddGuestDialog({ open, onClose, onSubmit }: AddGuestDialogProps): JSX.Element {
+function hasLikelyEmail(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed.includes('@') && trimmed.includes('.');
+}
+
+export function AddGuestDialog({
+  eventId,
+  open,
+  onClose,
+  onSubmit,
+  onReviewDuplicates,
+}: AddGuestDialogProps): JSX.Element {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -57,6 +74,53 @@ export function AddGuestDialog({ open, onClose, onSubmit }: AddGuestDialogProps)
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupResult, setLookupResult] = useState<GuestEmailLookupResult | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const latestLookupRequest = useRef(0);
+
+  useEffect(() => {
+    if (!open) {
+      latestLookupRequest.current += 1;
+      setLookupLoading(false);
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!hasLikelyEmail(normalizedEmail)) {
+      latestLookupRequest.current += 1;
+      setLookupLoading(false);
+      setLookupResult(null);
+      setLookupError(null);
+      return;
+    }
+
+    const requestId = latestLookupRequest.current + 1;
+    latestLookupRequest.current = requestId;
+
+    const timer = window.setTimeout(() => {
+      setLookupLoading(true);
+      setLookupError(null);
+      void lookupRsvpsByEmail(eventId, normalizedEmail)
+        .then((result) => {
+          if (latestLookupRequest.current !== requestId) return;
+          setLookupResult(result);
+        })
+        .catch((err) => {
+          if (latestLookupRequest.current !== requestId) return;
+          setLookupError(err instanceof Error ? err.message : 'Unable to check for duplicates right now.');
+          setLookupResult(null);
+        })
+        .finally(() => {
+          if (latestLookupRequest.current !== requestId) return;
+          setLookupLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [email, eventId, open]);
 
   function reset(): void {
     setName('');
@@ -70,6 +134,9 @@ export function AddGuestDialog({ open, onClose, onSubmit }: AddGuestDialogProps)
     setStatus('Pending');
     setNotes('');
     setError(null);
+    setLookupLoading(false);
+    setLookupResult(null);
+    setLookupError(null);
   }
 
   function handleClose(): void {
@@ -107,6 +174,14 @@ export function AddGuestDialog({ open, onClose, onSubmit }: AddGuestDialogProps)
     }
   }
 
+  const duplicateMatches = lookupResult?.matches ?? [];
+  const hasDuplicateEmail = duplicateMatches.length > 0;
+  const mergeSuggestion = lookupResult?.mergeSuggestion ?? null;
+  const suggestedPrimary =
+    mergeSuggestion === null
+      ? null
+      : duplicateMatches.find((match) => match.id === mergeSuggestion.recommendedPrimaryId) ?? null;
+
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <form onSubmit={(e) => void handleSubmit(e)}>
@@ -117,6 +192,39 @@ export function AddGuestDialog({ open, onClose, onSubmit }: AddGuestDialogProps)
               <Typography color="error" variant="body2" role="alert">
                 {error}
               </Typography>
+            )}
+
+            {hasDuplicateEmail && (
+              <Alert
+                severity="warning"
+                action={
+                  onReviewDuplicates ? (
+                    <Button
+                      color="inherit"
+                      size="small"
+                      onClick={() => {
+                        onReviewDuplicates();
+                        handleClose();
+                      }}
+                    >
+                      Review Duplicates
+                    </Button>
+                  ) : undefined
+                }
+              >
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Duplicate email detected for {duplicateMatches.length} guest{duplicateMatches.length === 1 ? '' : 's'}.
+                </Typography>
+                {mergeSuggestion && mergeSuggestion.sourceRsvpIds.length > 0 && suggestedPrimary ? (
+                  <Typography variant="body2">
+                    Merge suggestion: keep {suggestedPrimary.name} as primary and merge {mergeSuggestion.sourceRsvpIds.length} duplicate record{mergeSuggestion.sourceRsvpIds.length === 1 ? '' : 's'}.
+                  </Typography>
+                ) : (
+                  <Typography variant="body2">
+                    Consider updating the existing record instead of adding a duplicate guest.
+                  </Typography>
+                )}
+              </Alert>
             )}
 
             <TextField
@@ -134,6 +242,11 @@ export function AddGuestDialog({ open, onClose, onSubmit }: AddGuestDialogProps)
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              helperText={lookupError ?? undefined}
+              error={Boolean(lookupError)}
+              InputProps={{
+                endAdornment: lookupLoading ? <CircularProgress size={16} /> : undefined,
+              }}
               inputProps={{ 'aria-label': 'Guest email' }}
             />
 
