@@ -1,7 +1,6 @@
 import {
   AccountBalanceWalletRounded,
   AddRounded,
-  AdminPanelSettingsRounded,
   AnalyticsRounded,
   CalendarMonthRounded,
   CalendarTodayRounded,
@@ -12,6 +11,7 @@ import {
   ExpandMoreRounded,
   GroupsRounded,
   ImageRounded,
+  ManageAccountsRounded,
   LogoutRounded,
   MailRounded,
   PersonRounded,
@@ -108,7 +108,7 @@ function buildNavGroups(eventId: string | null, onNeedEvent: (sub: string) => vo
 }
 
 const ADMIN_NAV: NavItem[] = [
-  { label: 'Admin', to: '/admin', icon: <AdminPanelSettingsRounded />, adminOnly: true },
+  { label: 'User Management', to: '/admin', icon: <ManageAccountsRounded />, adminOnly: true },
 ];
 
 function NavItemRow({
@@ -294,7 +294,13 @@ export function AppNav({ collapsed, onToggleCollapse }: AppNavProps): React.Reac
   const mainItems: NavItem[] = [
     { label: 'Dashboard', to: '/dashboard', icon: <DashboardRounded /> },
     { label: 'Messages', to: '/messages', icon: <MailRounded /> },
-    { label: 'Analytics', to: analyticsTo, icon: <AnalyticsRounded /> },
+    {
+      label: 'Analytics',
+      to: analyticsTo,
+      icon: <AnalyticsRounded />,
+      subPath: 'analytics',
+      onClickOverride: () => openPicker('analytics'),
+    },
   ];
 
   const handleLogout = useCallback(async (): Promise<void> => {
