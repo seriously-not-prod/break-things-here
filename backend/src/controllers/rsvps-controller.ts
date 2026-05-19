@@ -952,8 +952,9 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
 
   let imported = 0;
   let skipped = 0;
+  const failedRows: Array<{ rowNumber: number; data: Record<string, string>; reason: string }> = [];
 
-  for (const line of dataLines) {
+  for (const [rowIndex, line] of dataLines.entries()) {
     const values = parseCsvLine(line);
     // Null-prototype object prevents prototype-chain key collisions in row.
     const row: Record<string, string> = Object.create(null) as Record<string, string>;
@@ -979,6 +980,9 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
     const email = row['email']?.trim().toLowerCase();
     if (!name || !email) {
       skipped++;
+      const reason =
+        !name && !email ? 'Missing name and email' : !name ? 'Missing name' : 'Missing email';
+      failedRows.push({ rowNumber: rowIndex + 1, data: { ...row }, reason });
       continue;
     }
 
@@ -1028,14 +1032,25 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
           await recomputeCompleteness(result.lastID);
         }
       } else {
+        // ON CONFLICT DO NOTHING — duplicate email
         skipped++;
+        failedRows.push({
+          rowNumber: rowIndex + 1,
+          data: { ...row },
+          reason: 'Duplicate email — already exists for this event',
+        });
       }
-    } catch {
+    } catch (dbErr: unknown) {
       skipped++;
+      failedRows.push({
+        rowNumber: rowIndex + 1,
+        data: { ...row },
+        reason: dbErr instanceof Error ? dbErr.message : 'Database error',
+      });
     }
   }
 
-  return res.json({ imported, skipped });
+  return res.json({ imported, skipped, failedRows });
 }
 
 /**
