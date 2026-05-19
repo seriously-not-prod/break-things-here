@@ -2,8 +2,8 @@
  * Guest Communication Panel — issue #444 (story #413)
  *
  * Supports sending invitations, reminders, and post-event thank-you messages.
- * Displays unsubscribed state on the communication log so planners know which
- * guests will be automatically suppressed on future bulk sends.
+ * Shows an advisory banner with the count of unsubscribed guests so planners
+ * know how many recipients will be automatically suppressed on bulk sends.
  */
 import { FormEvent, useEffect, useState } from 'react';
 import {
@@ -139,8 +139,8 @@ export function GuestCommunicationPanel({
 
   /**
    * Send a post-event thank-you message (#444).
-   * Recipients default to confirmed (Going) guests; unsubscribed guests are
-   * automatically suppressed by the backend.
+   * Always targets confirmed (Going) guests regardless of the selected scope;
+   * unsubscribed guests are automatically suppressed by the backend.
    */
   async function handleSendThankYou(): Promise<void> {
     if (!subject.trim() || !body.trim()) return;
@@ -148,7 +148,12 @@ export function GuestCommunicationPanel({
     setSendError(null);
     setSendResult(null);
     try {
-      const result = await sendThankYou(eventId, buildPayload());
+      const confirmedPayload: BulkSendPayload = {
+        rsvpIds: guests.filter((g) => g.status === 'Going').map((g) => g.id),
+        subject,
+        body,
+      };
+      const result = await sendThankYou(eventId, confirmedPayload);
       setSendResult(result);
       setSubject('');
       setBody('');

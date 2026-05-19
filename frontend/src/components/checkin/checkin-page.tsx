@@ -5,7 +5,9 @@
  *
  * Loads RSVPs for an event and lets staff mark guests as arrived.
  * Optimistic update: row flips to checked-in immediately; reverts on API error.
- * Links to the QR scanner page (#445) when BarcodeDetector is available.
+ * Always shows a QR Scanner button that links to the scanner page (#445);
+ * the scanner page itself uses BarcodeDetector for camera scanning and falls
+ * back to manual token entry on unsupported browsers.
  */
 import { useEffect, useState, useCallback } from 'react';
 import {
