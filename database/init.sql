@@ -1168,7 +1168,7 @@ CREATE INDEX IF NOT EXISTS idx_slideshow_items_slideshow_id ON slideshow_items(s
 
 -- ============================================================
 -- RLS pilot: row-level security on events and event_members (#472)
--- Applied only when RLS_PILOT_ENABLED=true at bootstrap time.
+-- Applied by default at bootstrap time.
 -- The application runtime migration also handles this.
 -- ============================================================
 

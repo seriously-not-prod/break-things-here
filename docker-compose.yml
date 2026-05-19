@@ -88,7 +88,6 @@ services:
       - ENTRA_GROUP_COLLABORATORS=${ENTRA_GROUP_COLLABORATORS:-}
       - ENTRA_GROUP_GUESTS=${ENTRA_GROUP_GUESTS:-}
       - ENTRA_GROUP_VIEWERS=${ENTRA_GROUP_VIEWERS:-}
-      - RLS_PILOT_ENABLED=${RLS_PILOT_ENABLED:-false}
     depends_on:
       db:
         condition: service_healthy

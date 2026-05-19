@@ -72,6 +72,7 @@ export async function attachUserContext(
     released = true;
     client
       .query('RESET app.current_user_id')
+      .then(() => client.query('RESET app.current_role'))
       .catch(() => undefined)
       .finally(() => {
         try {
@@ -87,9 +88,13 @@ export async function attachUserContext(
       'app.current_user_id',
       String(req.user.id),
     ]);
+    await client.query('SELECT set_config($1, $2, false)', [
+      'app.current_role',
+      String(req.user.role_id),
+    ]);
   } catch (err) {
     console.warn(
-      '[RLS] Could not set app.current_user_id; proceeding without RLS binding:',
+      '[RLS] Could not set request RLS context (app.current_user_id/app.current_role); proceeding without RLS binding:',
       err instanceof Error ? err.message : err,
     );
     cleanup();
