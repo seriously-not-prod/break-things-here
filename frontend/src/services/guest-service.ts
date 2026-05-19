@@ -126,6 +126,7 @@ export interface BulkSendPayload {
 export interface BulkSendResult {
   sent: number;
   failed: number;
+  suppressed?: number;
 }
 
 export interface CsvImportResult {

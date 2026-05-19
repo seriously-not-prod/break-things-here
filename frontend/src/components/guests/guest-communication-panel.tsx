@@ -179,7 +179,7 @@ export function GuestCommunicationPanel({
           <Alert severity="success" sx={{ mb: 2 }}>
             Sent to {sendResult.sent} recipient(s).
             {sendResult.failed > 0 && ` ${sendResult.failed} failed.`}
-            {'suppressed' in sendResult && (sendResult as { suppressed?: number }).suppressed ? ` ${(sendResult as { suppressed: number }).suppressed} suppressed (unsubscribed).` : ''}
+            {sendResult.suppressed ? ` ${sendResult.suppressed} suppressed (unsubscribed).` : ''}
           </Alert>
         )}
         {sendError && (

@@ -899,10 +899,10 @@ export async function setUnsubscribed(req: Request, res: Response): Promise<Resp
     return res.status(400).json({ error: 'Body must include `unsubscribed` (boolean).' });
   }
 
-  const newTimestamp = unsubscribed ? 'CURRENT_TIMESTAMP' : 'NULL';
+  const newTimestamp = unsubscribed ? new Date().toISOString() : null;
   await db.run(
-    `UPDATE rsvps SET unsubscribed_at = ${newTimestamp}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-    [id],
+    `UPDATE rsvps SET unsubscribed_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [newTimestamp, id],
   );
 
   const updated = await db.get<{ id: number; email: string; unsubscribed_at: string | null }>(
