@@ -87,13 +87,7 @@ function SlideshowPlayer({ items, onClose }: SlideshowPlayerProps): JSX.Element 
   const hasNext = index < items.length - 1;
 
   return (
-    <Dialog
-      open
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-      aria-labelledby="slideshow-player-title"
-    >
+    <Dialog open onClose={onClose} maxWidth="md" fullWidth aria-labelledby="slideshow-player-title">
       <DialogTitle id="slideshow-player-title">
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -247,14 +241,18 @@ export function GalleryPage(): JSX.Element {
   // ─── Gallery handlers ────────────────────────────────────────────────────
 
   async function handleUpload(e: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = e.target.files?.[0];
-    if (!file || !eventId) return;
+    const files = e.target.files;
+    if (!files || files.length === 0 || !eventId) return;
 
     setUploading(true);
     setError(null);
     try {
       const formData = new FormData();
-      formData.append('document', file);
+      // Append all selected files under the same 'document' field name so the
+      // backend multer.array('document', 20) handler receives them together.
+      for (const file of Array.from(files)) {
+        formData.append('document', file);
+      }
 
       const res = await apiFetch(`/api/events/${eventId}/documents`, {
         method: 'POST',
@@ -266,6 +264,15 @@ export function GalleryPage(): JSX.Element {
           error?: string;
         };
         throw new Error(body.error ?? 'Upload failed');
+      }
+
+      // Handle partial-success (207 Multi-Status) from multi-file batch
+      const body = (await res.json().catch(() => ({}))) as {
+        errors?: Array<{ fileName: string; error: string }>;
+      };
+      if (body.errors && body.errors.length > 0) {
+        const names = body.errors.map((e) => e.fileName).join(', ');
+        setError(`Some files failed to upload: ${names}`);
       }
 
       const refreshed = await listGallery(eventId);
@@ -318,7 +325,11 @@ export function GalleryPage(): JSX.Element {
     if (!eventId || !newAlbumName.trim()) return;
     setAlbumError(null);
     try {
-      const created = await createAlbum(eventId, newAlbumName.trim(), newAlbumDesc.trim() || undefined);
+      const created = await createAlbum(
+        eventId,
+        newAlbumName.trim(),
+        newAlbumDesc.trim() || undefined,
+      );
       setAlbums((prev) => [...prev, created]);
       setNewAlbumName('');
       setNewAlbumDesc('');
@@ -351,7 +362,9 @@ export function GalleryPage(): JSX.Element {
       setAlbums((prev) => prev.filter((a) => a.id !== albumId));
       setSelectedAlbumFilter((prev) => (prev === albumId ? 'all' : prev));
       // Unassign items that belonged to this album
-      setItems((prev) => prev.map((item) => (item.albumId === albumId ? { ...item, albumId: null } : item)));
+      setItems((prev) =>
+        prev.map((item) => (item.albumId === albumId ? { ...item, albumId: null } : item)),
+      );
     } catch (err: unknown) {
       setAlbumError(err instanceof Error ? err.message : 'Failed to delete album');
     }
@@ -476,34 +489,30 @@ export function GalleryPage(): JSX.Element {
     <PageLayout
       title="Gallery"
       breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Gallery' }]}
-      actions={tab === 0 ? (
-        <Button
-          variant="contained"
-          startIcon={<AddPhotoAlternateRounded />}
-          component="label"
-          disabled={uploading}
-          aria-label="Upload image"
-        >
-          {uploading ? 'Uploading…' : 'Upload Image'}
-          <input
-            ref={uploadRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-            hidden
-            onChange={(e) => void handleUpload(e)}
-          />
-        </Button>
-      ) : undefined}
+      actions={
+        tab === 0 ? (
+          <Button
+            variant="contained"
+            startIcon={<AddPhotoAlternateRounded />}
+            component="label"
+            disabled={uploading}
+            aria-label="Upload image"
+          >
+            {uploading ? 'Uploading…' : 'Upload Images'}
+            <input
+              ref={uploadRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+              multiple
+              hidden
+              onChange={(e) => void handleUpload(e)}
+            />
+          </Button>
+        ) : undefined
+      }
     >
-
       {/* BRD v2 (#619, #620, #622) — share links, manifest, quota indicator */}
-      {eventId && (
-        <GalleryShareDownloadPanel
-          eventId={eventId}
-          albums={albums}
-          canManage
-        />
-      )}
+      {eventId && <GalleryShareDownloadPanel eventId={eventId} albums={albums} canManage />}
 
       <Tabs
         value={tab}
@@ -517,12 +526,7 @@ export function GalleryPage(): JSX.Element {
           iconPosition="start"
           aria-label="Gallery tab"
         />
-        <Tab
-          icon={<FolderRounded />}
-          label="Albums"
-          iconPosition="start"
-          aria-label="Albums tab"
-        />
+        <Tab icon={<FolderRounded />} label="Albums" iconPosition="start" aria-label="Albums tab" />
         <Tab
           icon={<QueueRounded />}
           label="Moderation"
@@ -706,9 +710,7 @@ export function GalleryPage(): JSX.Element {
           )}
 
           {/* Create album form */}
-          <Box
-            sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}
-          >
+          <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
             <TextField
               label="Album name"
               value={newAlbumName}
@@ -951,9 +953,7 @@ export function GalleryPage(): JSX.Element {
                   multiple
                   value={newSlideshowIds}
                   onChange={(e) => setNewSlideshowIds(e.target.value as number[])}
-                  renderValue={(selected) =>
-                    `${(selected as number[]).length} image(s) selected`
-                  }
+                  renderValue={(selected) => `${(selected as number[]).length} image(s) selected`}
                 >
                   {items.map((item) => (
                     <MenuItem key={item.id} value={item.id}>
@@ -1310,8 +1310,8 @@ export function GalleryPage(): JSX.Element {
         <DialogTitle id="delete-confirm-title">Delete image?</DialogTitle>
         <DialogContent>
           <DialogContentText id="delete-confirm-description">
-            Are you sure you want to delete{' '}
-            <strong>{confirmDeleteName}</strong>? This action cannot be undone.
+            Are you sure you want to delete <strong>{confirmDeleteName}</strong>? This action cannot
+            be undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
@@ -1329,4 +1329,3 @@ export function GalleryPage(): JSX.Element {
     </PageLayout>
   );
 }
-

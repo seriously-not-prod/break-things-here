@@ -132,11 +132,29 @@ const documentUpload = multer({
   storage: documentStorage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB — spec requirement
   fileFilter: (req, file, cb) => {
-    const allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
-    if (allowedMimes.includes(file.mimetype)) {
+    const allowedMimes = new Set([
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      // HEIC/HEIF from Apple devices — MIME type is frequently reported as
+      // 'image/heic', 'image/heif', or 'application/octet-stream' depending
+      // on the OS / browser. We also allow by extension fallback below.
+      'image/heic',
+      'image/heif',
+    ]);
+    const lowerName = (file.originalname ?? '').toLowerCase();
+    const byExtension =
+      lowerName.endsWith('.heic') ||
+      lowerName.endsWith('.heif') ||
+      // octet-stream upload from iOS: accept when extension is HEIC/HEIF
+      (file.mimetype === 'application/octet-stream' &&
+        (lowerName.endsWith('.heic') || lowerName.endsWith('.heif')));
+
+    if (allowedMimes.has(file.mimetype) || byExtension) {
       cb(null, true);
     } else {
-      cb(new Error('Only PDF, JPEG, PNG, and WebP files are accepted'));
+      cb(new Error('Only PDF, JPEG, PNG, WebP, HEIC, and HEIF files are accepted'));
     }
   },
 });
@@ -677,7 +695,10 @@ router.get(
 router.post(
   '/events/:eventId/documents',
   authenticateToken,
-  documentUpload.single('document'),
+  // Accept up to 20 files in a single multipart request under the 'document'
+  // field name. The controller iterates req.files; a single-file upload via
+  // req.file continues to work because multer populates both when array() is used.
+  documentUpload.array('document', 20),
   eventDocumentsController.uploadEventDocument,
 );
 router.get(
