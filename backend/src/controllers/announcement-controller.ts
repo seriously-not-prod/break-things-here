@@ -10,6 +10,7 @@ import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
 import { logger } from '../utils/logger.js';
+import { sendMail } from '../utils/mailer.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -66,30 +67,45 @@ export async function sendAnnouncement(req: AuthRequest, res: Response): Promise
     const batch = recipients.slice(i, i + BATCH_SIZE);
     for (const recipient of batch) {
       if (!recipient.email) continue;
+      let status: 'sent' | 'failed' | 'queued' = 'sent';
       try {
-        // Log to communication_log; actual email sending is handled by email service
+        // Attempt the actual send first; sendMail falls back to console.info
+        // when SMTP_HOST is unset, so dev/test paths still flow through here.
+        await sendMail({ to: recipient.email, subject, text: body });
+      } catch (err) {
+        status = 'failed';
+        logger.warn('[Announcement] sendMail failed', {
+          recipient: recipient.email,
+          error: String(err),
+        });
+      }
+      try {
         await db.run(
           `INSERT INTO communication_log
              (event_id, user_id, channel, subject, body, status, sent_at)
-           VALUES ($1, $2, 'email', $3, $4, 'queued', CURRENT_TIMESTAMP)`,
-          [eventId, recipient.user_id ?? null, subject, body],
+           VALUES ($1, $2, 'email', $3, $4, $5, CURRENT_TIMESTAMP)`,
+          [eventId, recipient.user_id ?? null, subject, body, status],
         );
-        successCount++;
+        if (status === 'sent') successCount++;
+        else failCount++;
       } catch (err) {
         failCount++;
-        logger.warn('[Announcement] Failed to queue email', { recipient: recipient.email, error: String(err) });
+        logger.warn('[Announcement] Failed to log communication_log row', {
+          recipient: recipient.email,
+          error: String(err),
+        });
       }
     }
   }
 
-  logger.info(`[Announcement] Queued announcement for event ${eventId}`, {
-    total: recipients.length, success: successCount, failed: failCount,
+  logger.info(`[Announcement] Dispatched announcement for event ${eventId}`, {
+    total: recipients.length, sent: successCount, failed: failCount,
   });
 
   return res.json({
-    message: 'Announcement queued.',
+    message: 'Announcement dispatched.',
     total: recipients.length,
-    queued: successCount,
+    sent: successCount,
     failed: failCount,
   });
 }

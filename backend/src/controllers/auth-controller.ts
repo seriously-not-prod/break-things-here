@@ -5,6 +5,7 @@ import { getDatabase } from '../db/database.js';
 import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken, hashToken, encryptToken, decryptToken } from '../utils/auth-helpers.js';
 import { generateTokens, verifyToken, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
 import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
+import { sendVerificationEmail } from '../utils/mailer.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -234,6 +235,16 @@ export async function register(req: Request, res: Response): Promise<Response> {
      RETURNING id`,
     [normalizedEmail, passwordHash, displayName.trim(), verificationToken],
   );
+
+  // Send the verification email. sendVerificationEmail falls back to a
+  // console.info stub when SMTP_HOST is unset (preserves dev/test behaviour);
+  // we don't want a transport failure to wedge registration, so swallow and
+  // log — the user can use POST /auth/resend-verification to retry.
+  try {
+    await sendVerificationEmail(normalizedEmail, verificationToken);
+  } catch (err) {
+    console.error('[Auth] Failed to send verification email at registration:', err);
+  }
 
   return res.status(201).json({
     message: 'Registration successful. Please check your email to verify your account.',
@@ -553,8 +564,15 @@ export async function resendVerification(req: Request, res: Response): Promise<R
     [newToken, count + 1, newWindowStart, user.id],
   );
 
-  // In production this would send an email; for now log and return success
-  console.info(`[Auth] Resend verification token generated for user ${user.id}`);
+  // Same fail-soft posture as registration: the token has already been
+  // persisted, so a transport failure here is logged but doesn't break the
+  // user-facing flow. The caller can retry; per-email rate-limit above will
+  // still apply on the retried attempt.
+  try {
+    await sendVerificationEmail(normalizedEmail, newToken);
+  } catch (err) {
+    console.error('[Auth] Failed to send resend-verification email:', err);
+  }
 
   return res.status(200).json({ message: 'If the email is registered and unverified, a new verification email has been sent.' });
 }

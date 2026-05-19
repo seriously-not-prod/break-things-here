@@ -15,6 +15,7 @@ import {
   type GuestProfileFields,
 } from '../utils/profile-completeness.js';
 import { listMealOptionsForEvent } from './meal-options-controller.js';
+import { AUDIT_ACTIONS, logMutation } from '../utils/audit-log.js';
 
 interface RsvpRow {
   id: number;
@@ -172,6 +173,33 @@ function csvEscape(value: unknown): string {
   const text = String(value ?? '');
   return `"${text.replace(/"/g, '""')}"`;
 }
+
+const IMPORT_TEMPLATE_COLUMNS = [
+  'name',
+  'email',
+  'phone',
+  'guests',
+  'status',
+  'notes',
+  'dietary_restriction',
+  'accessibility_needs',
+  'plus_one',
+  'plus_one_name',
+  'guest_group',
+  'company',
+  'title',
+  'relation_type',
+  'age_group',
+  'address_line1',
+  'address_line2',
+  'city',
+  'state_region',
+  'postal_code',
+  'country',
+  'emergency_contact_name',
+  'emergency_contact_phone',
+  'meal_choice',
+] as const;
 
 /** GET /api/events/:eventId/rsvps */
 export async function listRsvps(req: Request, res: Response): Promise<Response> {
@@ -386,6 +414,19 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
     }
   }
 
+  if (rsvp) {
+    // Public/no-auth surface: fall back to submitter email so the audit row
+    // is attributable even when authReq.user is undefined.
+    await logMutation(
+      db,
+      authReq,
+      AUDIT_ACTIONS.RSVP_CREATE,
+      'rsvp',
+      rsvp.id,
+      { eventId, waitlisted: queueOnCreate },
+      email,
+    );
+  }
   return res.status(201).json({ rsvp, waitlisted: queueOnCreate });
 }
 
@@ -504,6 +545,7 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
     }
   }
 
+  await logMutation(db, authReq, AUDIT_ACTIONS.RSVP_UPDATE, 'rsvp', rsvp.id, { eventId });
   return res.json({ rsvp: updated });
 }
 
@@ -518,6 +560,7 @@ export async function deleteRsvp(req: Request, res: Response): Promise<Response>
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
   await db.run('DELETE FROM rsvps WHERE id = $1', [id]);
+  await logMutation(db, authReq, AUDIT_ACTIONS.RSVP_DELETE, 'rsvp', id, { eventId });
   // Free capacity may have opened a slot — promote the next waitlisted guest.
   void runPromotion(Number(eventId)).catch((err) =>
     console.error('Waitlist promotion failed after RSVP delete:', err),
@@ -576,6 +619,22 @@ export async function exportRsvpsCsv(req: Request, res: Response): Promise<Respo
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="event-${eventId}-rsvps.csv"`);
+  return res.send(csv);
+}
+
+/** GET /api/events/:eventId/rsvps/import/template.csv */
+export async function exportRsvpsImportTemplateCsv(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId } = req.params;
+  const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
+  if (!event) return res as Response;
+
+  const csv = `${IMPORT_TEMPLATE_COLUMNS.join(',')}\n`;
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="event-${eventId}-rsvp-import-template.csv"`,
+  );
   return res.send(csv);
 }
 
@@ -697,16 +756,61 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
     return result;
   }
 
-  const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, '_'));
+  const rawHeaders = parseCsvLine(lines[0]);
+  const normalizedHeaders = rawHeaders.map((h) => h.toLowerCase().replace(/\s+/g, '_'));
   const dataLines = lines.slice(1);
+
+  // ── Apply field mapping from the frontend wizard (Story #664, Item 11) ────
+  // column_map is sent as a JSON string form field: { csvHeader -> guestField }
+  // The frontend only serialises explicit (non-empty) mappings, so unmapped
+  // columns are simply absent from the map and fall back to their normalised
+  // header name — preserving backward compatibility.
+
+  // Whitelist of valid target field names prevents prototype-pollution attacks
+  // via user-controlled column_map values (e.g. "__proto__", "constructor").
+  const ALLOWED_GUEST_FIELDS = new Set([
+    'name', 'email', 'phone', 'guests', 'status', 'notes',
+    'dietary_restriction', 'accessibility_needs', 'plus_one', 'plus_one_name',
+    'guest_group', 'company', 'title', 'relation_type', 'age_group',
+    'address_line1', 'address_line2', 'city', 'state_region', 'postal_code',
+    'country', 'emergency_contact_name', 'emergency_contact_phone', 'meal_choice',
+  ]);
+
+  // Use a null-prototype map to avoid prototype-chain reads on columnMap itself.
+  const columnMap: Record<string, string> = Object.create(null) as Record<string, string>;
+  const rawMapField = (req.body as Record<string, unknown>)?.column_map;
+  if (typeof rawMapField === 'string' && rawMapField) {
+    try {
+      const parsed = JSON.parse(rawMapField) as unknown;
+      if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        // Only copy string values for own properties to prevent prototype pollution
+        for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+          if (typeof v === 'string') columnMap[k] = v;
+        }
+      }
+    } catch { /* ignore malformed column_map */ }
+  }
 
   let imported = 0;
   let skipped = 0;
 
   for (const line of dataLines) {
     const values = parseCsvLine(line);
-    const row: Record<string, string> = {};
-    headers.forEach((h, i) => { row[h] = values[i] ?? ''; });
+    // Null-prototype object prevents prototype-chain key collisions in row.
+    const row: Record<string, string> = Object.create(null) as Record<string, string>;
+    rawHeaders.forEach((rawHeader, i) => {
+      if (Object.prototype.hasOwnProperty.call(columnMap, rawHeader)) {
+        const guestField = columnMap[rawHeader];
+        // Only store to whitelisted field names to prevent prototype pollution
+        if (typeof guestField === 'string' && guestField !== '' && ALLOWED_GUEST_FIELDS.has(guestField)) {
+          row[guestField] = values[i] ?? '';
+        }
+        // guestField === '' or unknown name → skip this column entirely
+      } else {
+        // Not in the map: fall back to normalised column name
+        row[normalizedHeaders[i]] = values[i] ?? '';
+      }
+    });
 
     const name = row['name']?.trim();
     const email = row['email']?.trim().toLowerCase();

@@ -22,7 +22,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import { importCsv } from '../../services/guest-service';
+import { importCsv, importCsvTemplateUrl } from '../../services/guest-service';
 
 // Columns that can be mapped from CSV
 const GUEST_FIELDS = [
@@ -111,7 +111,8 @@ export function CsvImportDialog({
     setImporting(true);
     setError(null);
     try {
-      const result = await importCsv(eventId, selectedFile);
+      // Pass the field mapping from the wizard so the backend applies it
+      const result = await importCsv(eventId, selectedFile, columnMap);
       onImported(result.imported, result.skipped);
       reset();
       onClose();
@@ -194,6 +195,15 @@ export function CsvImportDialog({
         </Box>
       </DialogContent>
       <DialogActions>
+        <Button
+          onClick={() => {
+            window.location.href = importCsvTemplateUrl(eventId);
+          }}
+          disabled={importing}
+          variant="text"
+        >
+          Download CSV Template
+        </Button>
         <Button onClick={handleClose} disabled={importing}>Cancel</Button>
         <Button
           variant="contained"

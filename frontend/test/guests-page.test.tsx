@@ -221,6 +221,7 @@ describe('GuestsPage', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
     expect(screen.getByText('Import Guests from CSV')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /download csv template/i })).toBeInTheDocument();
   });
 
   it('switching to Communication tab shows send form', async () => {

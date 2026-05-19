@@ -2554,7 +2554,284 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     WHERE canonical_status IS NULL OR canonical_status = ''
   `);
 
+  // ============================================================
+  // v9 — Schema gaps from technical audit #678
+  // Mirrors database/migrations/v9-schema-gaps-678.sql so the runner
+  // applies the same delta. Every statement is idempotent (IF NOT EXISTS
+  // / DROP+ADD CONSTRAINT) so re-runs are safe.
+  //
+  // Index creation uses plain CREATE INDEX IF NOT EXISTS (not
+  // CONCURRENTLY): we apply migrations at startup, where CONCURRENTLY
+  // would either fail (it cannot run inside an implicit transaction
+  // and pg's simple-query protocol wraps multi-statement strings) or
+  // would offer no benefit (empty/small tables at install time).
+  // The .sql file mirrors the same plain form. If ops need to apply
+  // additional indexes against a hot, large table out-of-band, they
+  // should use CONCURRENTLY in a separately-issued psql session and
+  // pick a name that doesn't collide with what's installed here.
+  // ============================================================
+
+  // v9 §1 — Missing columns (idempotent)
+  await db.exec(`ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS contract_expiry_date DATE DEFAULT NULL`);
+  await db.exec(`ALTER TABLE vendor_payment_schedules ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP DEFAULT NULL`);
+  await db.exec(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP DEFAULT NULL`);
+  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS email_provider_message_id TEXT DEFAULT NULL`);
+
+  // v9 §2 — Missing tables (idempotent)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS guest_groups (
+      id           SERIAL PRIMARY KEY,
+      event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name         TEXT NOT NULL,
+      description  TEXT,
+      created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS guest_group_members (
+      group_id  INTEGER NOT NULL REFERENCES guest_groups(id) ON DELETE CASCADE,
+      rsvp_id   INTEGER NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
+      PRIMARY KEY (group_id, rsvp_id)
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS email_template_versions (
+      id          SERIAL PRIMARY KEY,
+      template_id INTEGER NOT NULL REFERENCES communication_templates(id) ON DELETE CASCADE,
+      subject     TEXT NOT NULL,
+      body        TEXT NOT NULL,
+      version     INTEGER NOT NULL DEFAULT 1,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS job_queue (
+      id           SERIAL PRIMARY KEY,
+      job_type     TEXT NOT NULL,
+      payload      JSONB NOT NULL DEFAULT '{}',
+      status       TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','running','completed','failed','cancelled')),
+      attempts     INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER NOT NULL DEFAULT 3,
+      run_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      started_at   TIMESTAMP,
+      completed_at TIMESTAMP,
+      error        TEXT,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS password_history (
+      id            SERIAL PRIMARY KEY,
+      user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      password_hash TEXT NOT NULL,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS analytics_snapshots (
+      id          SERIAL PRIMARY KEY,
+      event_id    INTEGER REFERENCES events(id) ON DELETE CASCADE,
+      snapshot_date DATE NOT NULL,
+      metric_type TEXT NOT NULL,
+      value       NUMERIC NOT NULL DEFAULT 0,
+      metadata    JSONB DEFAULT '{}',
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (event_id, snapshot_date, metric_type)
+    )
+  `);
+
+  // v9 §3 — Indexes (plain CREATE INDEX IF NOT EXISTS at startup; see note above)
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned_user_id ON tasks(assigned_user_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_user_expires ON sessions(user_id, expires_at)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_rsvps_phone ON rsvps(phone)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_rsvps_waitlist_position ON rsvps(waitlist_position) WHERE waitlist_position IS NOT NULL`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_events_archived_at ON events(archived_at) WHERE archived_at IS NOT NULL`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_user_created ON audit_log(user_id, created_at)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_guest_groups_event_id ON guest_groups(event_id)`);
+
+  // v9 §4 — Constraints (DROP IF EXISTS then ADD — idempotent across reruns)
+  await db.exec(`ALTER TABLE events DROP CONSTRAINT IF EXISTS chk_events_capacity_non_negative`);
+  await db.exec(`ALTER TABLE events ADD CONSTRAINT chk_events_capacity_non_negative CHECK (capacity IS NULL OR capacity >= 0)`);
+  // The expense_receipt_ocr and vendor_payment_schedules constraints are added
+  // only if those tables exist (older snapshots may not have them yet).
+  await db.exec(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.expense_receipt_ocr') IS NOT NULL THEN
+        ALTER TABLE expense_receipt_ocr DROP CONSTRAINT IF EXISTS chk_ocr_confidence_range;
+        ALTER TABLE expense_receipt_ocr ADD CONSTRAINT chk_ocr_confidence_range
+          CHECK (confidence IS NULL OR (confidence BETWEEN 0 AND 1));
+      END IF;
+      IF to_regclass('public.vendor_payment_schedules') IS NOT NULL THEN
+        ALTER TABLE vendor_payment_schedules DROP CONSTRAINT IF EXISTS chk_payment_amount_positive;
+        ALTER TABLE vendor_payment_schedules ADD CONSTRAINT chk_payment_amount_positive
+          CHECK (amount > 0);
+      END IF;
+    END$$
+  `);
+
+  // v9 §5 — Atomic share-link view counter helper
+  await db.exec(`
+    CREATE OR REPLACE FUNCTION increment_share_link_view(p_token TEXT)
+    RETURNS VOID AS $func$
+      UPDATE gallery_share_links
+      SET    view_count = view_count + 1
+      WHERE  token = p_token;
+    $func$ LANGUAGE sql
+  `);
+
+  // v9.1 — Resend-verification rate limiting & Entra back-channel logout
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS resend_verification_count INTEGER NOT NULL DEFAULT 0`);
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS resend_verification_window_start TIMESTAMPTZ`);
+  await db.exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS entra_sid TEXT`);
+  await db.exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS entra_sub TEXT`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_entra_sid ON sessions(entra_sid) WHERE entra_sid IS NOT NULL`);
+
+  // v9.2 — Completion-story columns referenced by features that already shipped
+  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS opened BOOLEAN NOT NULL DEFAULT false`);
+  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ`);
+  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS recipient_email TEXT`);
+  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS body TEXT`);
+  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`);
+  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_unsubscribed BOOLEAN NOT NULL DEFAULT false`);
+  await db.exec(`ALTER TABLE exchange_rates ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+  await db.exec(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.scheduled_reports') IS NOT NULL THEN
+        ALTER TABLE scheduled_reports ADD COLUMN IF NOT EXISTS last_run_at TIMESTAMPTZ;
+        ALTER TABLE scheduled_reports ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ;
+        CREATE INDEX IF NOT EXISTS idx_scheduled_reports_next_run
+          ON scheduled_reports(next_run_at) WHERE is_active = true;
+      END IF;
+    END$$
+  `);
+
   // ── Story #664, Item 10: required event time field (HH:MM) ───────────────
+  // Brought in from develop during merge of feature/664-wire-v9-schema-gaps.
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_time TEXT`);
   await db.exec(`ALTER TABLE event_templates ADD COLUMN IF NOT EXISTS default_event_time TEXT`);
+
+  // v9.3 — Persist AI rate-limit state so a single user's 20/hr budget survives
+  //         server restarts and is enforced across multiple replicas. Previously
+  //         lived in an in-process Map (backend/src/controllers/ai-controller.ts).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_rate_limits (
+      user_id      INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      window_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      count        INTEGER NOT NULL DEFAULT 0,
+      updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // ============================================================
+  // v10 — Foundation schema for story #523 (tasks/timeline/collab parity)
+  //
+  // Schema only — no controller wiring. Subsequent PRs (B1.2 multi-assignee
+  // API, B1.3 escalation worker, B1.4 timeline-template apply flow, B1.5
+  // SSE collab, B1.6 rollback) build on these tables. Every statement is
+  // idempotent so re-runs are safe; the backfill of task_assignees from
+  // existing tasks.assigned_user_id is ON CONFLICT DO NOTHING.
+  // ============================================================
+
+  // task_assignees — many-to-many replacement for tasks.assigned_user_id.
+  // Old single-assignee column stays in place during the migration window so
+  // the API still works; B1.2 will start reading/writing through this table.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_assignees (
+      task_id     INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      is_primary  BOOLEAN NOT NULL DEFAULT FALSE,
+      assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (task_id, user_id)
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_assignees_user ON task_assignees(user_id)`);
+  // One-time backfill: copy the existing single assignee in as the primary
+  // row. ON CONFLICT means re-runs after B1.2 starts writing both columns
+  // won't clobber later state.
+  await db.exec(`
+    INSERT INTO task_assignees (task_id, user_id, is_primary)
+    SELECT id, assigned_user_id, TRUE
+      FROM tasks
+     WHERE assigned_user_id IS NOT NULL
+    ON CONFLICT DO NOTHING
+  `);
+
+  // task_escalation_rules — per-event policy for stale-task escalation.
+  // Each row says: "if a task on this event has been in <status> for more
+  // than <threshold_hours>, notify <escalate_to_user_id> (or the event
+  // owner when null)". B1.3 ships the worker that consumes these rules.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_escalation_rules (
+      id                   SERIAL PRIMARY KEY,
+      event_id             INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      status               TEXT NOT NULL,
+      threshold_hours      INTEGER NOT NULL CHECK (threshold_hours > 0),
+      escalate_to_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      active               BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_escalation_rules_event ON task_escalation_rules(event_id) WHERE active = TRUE`);
+
+  // timeline_templates + items — reusable blueprints applied to new events.
+  // Offset/duration are stored in minutes-from-start so a template can be
+  // re-anchored to any event's start_time without floating-point dates.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS timeline_templates (
+      id          SERIAL PRIMARY KEY,
+      name        TEXT NOT NULL,
+      description TEXT,
+      event_type  TEXT,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      is_public   BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS timeline_template_items (
+      id               SERIAL PRIMARY KEY,
+      template_id      INTEGER NOT NULL REFERENCES timeline_templates(id) ON DELETE CASCADE,
+      title            TEXT NOT NULL,
+      description      TEXT,
+      offset_minutes   INTEGER NOT NULL,
+      duration_minutes INTEGER NOT NULL DEFAULT 0,
+      buffer_minutes   INTEGER NOT NULL DEFAULT 0,
+      sort_order       INTEGER NOT NULL DEFAULT 0,
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_timeline_template_items_template ON timeline_template_items(template_id)`);
+
+  // Buffer-time on the existing timeline_activities table — adds a slack
+  // window after each activity. Default 0 keeps existing data unchanged.
+  await db.exec(`ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS buffer_minutes INTEGER NOT NULL DEFAULT 0`);
+
+  // entity_change_history — append-only version log used by B1.6 rollback.
+  // before/after are full JSONB snapshots; the (entity_type, entity_id,
+  // version) unique constraint enforces monotonic versioning per entity.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS entity_change_history (
+      id            BIGSERIAL PRIMARY KEY,
+      entity_type   TEXT NOT NULL,
+      entity_id     TEXT NOT NULL,
+      version       INTEGER NOT NULL,
+      changed_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      change_action TEXT NOT NULL CHECK (change_action IN ('create','update','delete')),
+      before        JSONB,
+      after         JSONB,
+      changed_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (entity_type, entity_id, version)
+    )
+  `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_entity_change_history_entity ON entity_change_history(entity_type, entity_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_entity_change_history_changed_at ON entity_change_history(changed_at DESC)`);
 }

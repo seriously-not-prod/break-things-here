@@ -238,6 +238,7 @@ router.get('/events/:eventId/rsvps', authenticateToken, rsvpController.listRsvps
 router.post('/events/:eventId/rsvps', rsvpController.createRsvp);
 // Specific sub-paths must be registered BEFORE /:id parameterized routes
 router.get('/events/:eventId/rsvps/export', authenticateToken, rsvpController.exportRsvpsCsv);
+router.get('/events/:eventId/rsvps/import/template.csv', authenticateToken, rsvpController.exportRsvpsImportTemplateCsv);
 router.get('/events/:eventId/rsvps/export.xlsx', authenticateToken, guestExportController.exportRsvpsXlsx);
 router.get('/events/:eventId/rsvps/export.pdf', authenticateToken, guestExportController.exportRsvpsPdfData);
 router.post('/events/:eventId/rsvps/import', authenticateToken, csvUpload.single('file'), rsvpController.importCsv);
@@ -480,6 +481,10 @@ router.post('/events/:eventId/tasks', authenticateToken, tasksController.createT
 router.put('/events/:eventId/tasks/:id', authenticateToken, tasksController.updateTask);
 router.patch('/events/:eventId/tasks/:id', authenticateToken, tasksController.updateTask);
 router.delete('/events/:eventId/tasks/:id', authenticateToken, tasksController.deleteTask);
+// Multi-assignee task API (#523 B1.2)
+router.get('/events/:eventId/tasks/:taskId/assignees', authenticateToken, tasksController.listAssignees);
+router.post('/events/:eventId/tasks/:taskId/assignees', authenticateToken, tasksController.addAssignee);
+router.delete('/events/:eventId/tasks/:taskId/assignees/:userId', authenticateToken, tasksController.removeAssignee);
 router.get('/events/:eventId/tasks/:taskId/comments', authenticateToken, tasksController.listComments);
 router.post('/events/:eventId/tasks/:taskId/comments', authenticateToken, tasksController.addComment);
 router.post('/events/:eventId/tasks/:taskId/subtasks', authenticateToken, tasksController.addSubtask);
@@ -705,12 +710,11 @@ router.post('/admin/users/:id/erase', authenticateToken, authorizeRole(['Admin']
 // ============ ANNOUNCEMENTS & EMAIL WEBHOOKS — #671 ============
 router.post('/events/:eventId/announcements', authenticateToken, announcementController.sendAnnouncement);
 router.get('/events/:eventId/communication/stats', authenticateToken, announcementController.getCommunicationStats);
-// Bounce webhook is public (called by email provider) — no auth required.
-// NOT rate-limited per-IP: email providers (SES, SendGrid, Mailgun, etc.)
-// dispatch from many rotating IPs and can legitimately spike during bulk
-// sends. The correct defence is HMAC signature validation against the
-// provider's signing key — tracked as a deferred follow-up.
-router.post('/webhooks/email/bounce', announcementController.handleEmailBounce);
+// Bounce webhook is registered at the TOP LEVEL (see backend/src/index.ts)
+// rather than under /api. The /api mount applies a double-submit CSRF check
+// to every non-GET request, and external email providers cannot send our
+// CSRF token. Mounting the webhook directly on the app bypasses that check;
+// the HMAC signature verifier (verify-email-webhook.ts) is the real auth.
 
 // ============ BUDGET EXTENSIONS — #668 ============
 router.get('/events/:eventId/budget/expenses/export', authenticateToken, budgetController.exportExpensesAsCsv);
