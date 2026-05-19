@@ -6,6 +6,7 @@
 import pg from 'pg';
 import { hashPassword } from '../utils/auth-helpers.js';
 import { isSecureDeploymentEnv } from '../config/security-controls.js';
+import { getCurrentUserContext } from './request-user-context.js';
 
 export interface RunResult {
   lastID?: number;
@@ -50,10 +51,23 @@ class PgWrapper {
     this.pool = pool;
   }
 
+  /**
+   * Pick the query runner for this call: if the request middleware has bound
+   * a per-request client (with `app.current_user_id` set) via
+   * `AsyncLocalStorage`, queries route through that client so RLS policies
+   * see the user context. Otherwise we fall through to the pool, matching
+   * legacy/non-request behaviour (jobs, migrations, tests).
+   */
+  private getQueryRunner(): pg.PoolClient | pg.Pool {
+    const ctx = getCurrentUserContext();
+    return ctx?.client ?? this.pool;
+  }
+
   async get<T = DatabaseRow>(sql: string, params?: QueryParams): Promise<T | undefined> {
     const converted = convertPlaceholders(sql);
     const t0 = Date.now();
-    const result = await this.pool.query<DatabaseRow>(converted, params ?? []);
+    const runner = this.getQueryRunner();
+    const result = await runner.query<DatabaseRow>(converted, params ?? []);
     logSlowQuery(sql, Date.now() - t0);
     return result.rows[0] as T | undefined;
   }
@@ -61,7 +75,8 @@ class PgWrapper {
   async all<T = DatabaseRow>(sql: string, params?: QueryParams): Promise<T[]> {
     const converted = convertPlaceholders(sql);
     const t0 = Date.now();
-    const result = await this.pool.query<DatabaseRow>(converted, params ?? []);
+    const runner = this.getQueryRunner();
+    const result = await runner.query<DatabaseRow>(converted, params ?? []);
     logSlowQuery(sql, Date.now() - t0);
     return result.rows as T[];
   }
@@ -70,14 +85,16 @@ class PgWrapper {
     const trimmedUpper = sql.trim().toUpperCase();
     const converted = convertPlaceholders(sql);
     const t0 = Date.now();
-    const result = await this.pool.query<{ id?: number }>(converted, params ?? []);
+    const runner = this.getQueryRunner();
+    const result = await runner.query<{ id?: number }>(converted, params ?? []);
     logSlowQuery(sql, Date.now() - t0);
     const lastID = /\bRETURNING\b/.test(trimmedUpper) ? result.rows[0]?.id : undefined;
     return { lastID, changes: result.rowCount ?? 0 };
   }
 
   async exec(sql: string): Promise<void> {
-    await this.pool.query(sql);
+    const runner = this.getQueryRunner();
+    await runner.query(sql);
   }
 
   async close(): Promise<void> {
@@ -2834,4 +2851,135 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   `);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_entity_change_history_entity ON entity_change_history(entity_type, entity_id)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_entity_change_history_changed_at ON entity_change_history(changed_at DESC)`);
+
+  // ── v12 — RLS coverage follow-up for the v10 tables (#702) ───────────────
+  // The v10 schema added task_assignees, task_escalation_rules, the
+  // timeline_templates pair, and entity_change_history without RLS. Apply
+  // the same fail-open-on-no-context pattern used by v2 so RLS coverage
+  // matches the rest of the event-scoped surface. Gated on isRlsEnabled so
+  // a deployment that has explicitly opted out doesn't get policies forced.
+  if (isRlsEnabled) {
+    console.log('[RLS] Applying v12 policies on v10 tables…');
+
+    // Missing FK index flagged alongside the policy gap.
+    await db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_task_escalation_rules_escalate_to_user
+        ON task_escalation_rules(escalate_to_user_id)
+        WHERE escalate_to_user_id IS NOT NULL
+    `);
+
+    for (const tbl of [
+      'task_assignees',
+      'task_escalation_rules',
+      'timeline_templates',
+      'timeline_template_items',
+      'entity_change_history',
+    ]) {
+      await db.exec(`ALTER TABLE ${tbl} ENABLE ROW LEVEL SECURITY`);
+      await db.exec(`ALTER TABLE ${tbl} FORCE ROW LEVEL SECURITY`);
+    }
+
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'task_assignees' AND policyname = 'rls_task_assignees_access'
+        ) THEN
+          CREATE POLICY rls_task_assignees_access ON task_assignees
+            USING (
+              user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+              OR task_id IN (
+                SELECT t.id FROM tasks t
+                JOIN event_members em ON em.event_id = t.event_id
+                WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+              )
+              OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+            );
+        END IF;
+      END $$;
+    `);
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'task_escalation_rules' AND policyname = 'rls_task_escalation_rules_event_member'
+        ) THEN
+          CREATE POLICY rls_task_escalation_rules_event_member ON task_escalation_rules
+            USING (
+              event_id IN (
+                SELECT event_id FROM event_members
+                WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+              )
+              OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+            );
+        END IF;
+      END $$;
+    `);
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'timeline_templates' AND policyname = 'rls_timeline_templates_public_or_owner'
+        ) THEN
+          CREATE POLICY rls_timeline_templates_public_or_owner ON timeline_templates
+            USING (
+              is_public = TRUE
+              OR created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+              OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+            );
+        END IF;
+      END $$;
+    `);
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'timeline_template_items' AND policyname = 'rls_timeline_template_items_via_template'
+        ) THEN
+          CREATE POLICY rls_timeline_template_items_via_template ON timeline_template_items
+            USING (
+              template_id IN (SELECT id FROM timeline_templates)
+              OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+            );
+        END IF;
+      END $$;
+    `);
+    await db.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'entity_change_history' AND policyname = 'rls_entity_change_history_actor'
+        ) THEN
+          CREATE POLICY rls_entity_change_history_actor ON entity_change_history
+            USING (
+              changed_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+              OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+            );
+        END IF;
+      END $$;
+    `);
+
+    console.log('[RLS] v12 policies applied.');
+  } else {
+    // Mirror the v2 "disable cleanly when RLS is off" behaviour so a
+    // formerly-enabled DB doesn't keep enforcing the new policies.
+    for (const tbl of [
+      'task_assignees',
+      'task_escalation_rules',
+      'timeline_templates',
+      'timeline_template_items',
+      'entity_change_history',
+    ]) {
+      await db.exec(`
+        DO $$ BEGIN
+          IF EXISTS (
+            SELECT 1 FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public'
+              AND c.relname = '${tbl}'
+              AND (c.relrowsecurity = true OR c.relforcerowsecurity = true)
+          ) THEN
+            ALTER TABLE ${tbl} NO FORCE ROW LEVEL SECURITY;
+            ALTER TABLE ${tbl} DISABLE ROW LEVEL SECURITY;
+            RAISE NOTICE '[RLS] Disabled row-level security on %', '${tbl}';
+          END IF;
+        END $$;
+      `);
+    }
+  }
 }

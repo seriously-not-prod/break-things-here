@@ -1806,3 +1806,113 @@ INSERT INTO gallery_albums (event_id, name, description, created_by, created_at,
   (16, 'Artist Showcases',     'Photos of featured artists and their work.',    12, NOW(), NOW()),
   (10, 'Summer Beats Preview', 'Pre-festival venue and setup photos.',          11, NOW(), NOW())
 ON CONFLICT DO NOTHING;
+
+-- ==============================================================
+-- Row-Level Security (#702 follow-up)
+--
+-- Mirror the policies installed by the v2 migration directly into init.sql
+-- so a freshly-bootstrapped database (Postgres docker-entrypoint loads this
+-- file before the backend runs `runMigrations`) is not briefly exposed
+-- without policies on event-scoped tables.
+--
+-- Every policy carries a fail-open "no context" branch
+-- (`NULLIF(current_setting('app.current_user_id', true), '') IS NULL`) so
+-- jobs, migrations, tests, and BYPASSRLS-less seed steps keep working
+-- exactly as they did before. Coverage for the v10 tables
+-- (task_assignees, task_escalation_rules, timeline_templates*,
+-- entity_change_history) lives in migrations/v12-rls-coverage-followup-702
+-- and is applied at backend startup.
+--
+-- All statements are idempotent: ENABLE/FORCE is a no-op if already set,
+-- and policies are guarded by pg_policies existence checks.
+-- ==============================================================
+
+ALTER TABLE events        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE events        FORCE  ROW LEVEL SECURITY;
+ALTER TABLE event_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE event_members FORCE  ROW LEVEL SECURITY;
+ALTER TABLE tasks         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks         FORCE  ROW LEVEL SECURITY;
+ALTER TABLE expenses      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE expenses      FORCE  ROW LEVEL SECURITY;
+ALTER TABLE vendors       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vendors       FORCE  ROW LEVEL SECURITY;
+ALTER TABLE rsvps         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rsvps         FORCE  ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'events' AND policyname = 'rls_events_owner_or_member') THEN
+    CREATE POLICY rls_events_owner_or_member ON events
+      USING (
+        created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+        OR id IN (
+          SELECT event_id FROM event_members
+          WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+        )
+        OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+      );
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'event_members' AND policyname = 'rls_event_members_self') THEN
+    CREATE POLICY rls_event_members_self ON event_members
+      USING (
+        user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+        OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+      );
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'tasks' AND policyname = 'rls_tasks_event_member') THEN
+    CREATE POLICY rls_tasks_event_member ON tasks
+      USING (
+        event_id IN (
+          SELECT event_id FROM event_members
+          WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+        )
+        OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+      );
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'expenses' AND policyname = 'rls_expenses_event_member') THEN
+    CREATE POLICY rls_expenses_event_member ON expenses
+      USING (
+        event_id IN (
+          SELECT event_id FROM event_members
+          WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+        )
+        OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+      );
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'vendors' AND policyname = 'rls_vendors_event_member') THEN
+    CREATE POLICY rls_vendors_event_member ON vendors
+      USING (
+        event_id IN (
+          SELECT event_id FROM event_members
+          WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+        )
+        OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+      );
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'rsvps' AND policyname = 'rls_rsvps_access') THEN
+    CREATE POLICY rls_rsvps_access ON rsvps
+      USING (
+        user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+        OR event_id IN (
+          SELECT event_id FROM event_members
+          WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+        )
+        OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+      );
+  END IF;
+END $$;

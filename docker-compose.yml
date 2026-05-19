@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: festival_planner
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env (see .env.example)}
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
@@ -27,7 +27,7 @@ services:
     environment:
       POSTGRES_DB: festival_planner_test
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env (see .env.example)}
     ports:
       - "${TEST_DB_PORT:-5433}:5432"
     volumes:
@@ -57,13 +57,17 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=4000
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/festival_planner
-      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env (see .env.example)}@db:5432/festival_planner
+      # Secrets must be provided via .env (or your secrets manager). No
+      # ${VAR:-default} fallbacks — those bake credentials into the committed
+      # file and bypass the backend's "missing secret" startup check (#702).
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env (see .env.example)}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
-      - CSRF_SECRET=${CSRF_SECRET:-38a6e2426c2168dd83a4ab321467479d2141463f9c610487e4bf9b82af66cec7}
+      - CSRF_SECRET=${CSRF_SECRET:?CSRF_SECRET must be set in .env (see .env.example)}
       - SESSION_TIMEOUT_MS=${SESSION_TIMEOUT_MS:-1800000}
-      - TOKEN_HASH_SECRET=${TOKEN_HASH_SECRET:-change-this-token-hash-secret}
-      - REFRESH_TOKEN_ENC_KEY=${REFRESH_TOKEN_ENC_KEY:-3Ipit2WZgUvcC+hCaaEQsfHCR852VBFimoyoob8r22A=}
+      - TOKEN_HASH_SECRET=${TOKEN_HASH_SECRET:?TOKEN_HASH_SECRET must be set in .env (see .env.example)}
+      - REFRESH_TOKEN_ENC_KEY=${REFRESH_TOKEN_ENC_KEY:?REFRESH_TOKEN_ENC_KEY must be set in .env (see .env.example)}
+      - EMAIL_WEBHOOK_SECRET=${EMAIL_WEBHOOK_SECRET:-}
       - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_SECURE=${SMTP_SECURE:-false}

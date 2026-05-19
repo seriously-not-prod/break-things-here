@@ -114,6 +114,14 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Apply database schema (init.sql + RLS policies)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          # Smoke-test that init.sql (including the #702 RLS appendix) loads
+          # cleanly. The backend tests bootstrap migrations on top of this.
+          psql -h localhost -U postgres -d festival_planner_test -v ON_ERROR_STOP=1 -f database/init.sql
+
       - name: Run backend tests
         working-directory: backend
         run: npm test
@@ -171,10 +179,55 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # High-severity advisories block the merge. `--audit-level=high` ignores
+      # informational/moderate findings so the gate is enforceable without
+      # noise. Run in every workspace so each lock file is covered.
+      - name: npm audit (root)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (backend)
+        working-directory: backend
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (frontend)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
   ci-complete:
+    # NOTE: This is the job to mark as a Required status check in branch
+    # protection for `develop` / `test` / `stage` / `main`. It fails fast
+    # whenever any upstream job fails, so requiring `ci-complete` is enough
+    # to gate merges on the entire pipeline (tests, lint, build, audit).
     name: CI Complete
     runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, test-root, test-backend, test-frontend, build-check]
+    needs: [lint-and-typecheck, test-root, test-backend, test-frontend, build-check, security-audit]
     if: always()
     steps:
       - name: Check all jobs passed
@@ -183,7 +236,8 @@ jobs:
                 "${{ needs['test-root'].result }}" != "success" || \
                 "${{ needs['test-backend'].result }}" != "success" || \
                 "${{ needs['test-frontend'].result }}" != "success" || \
-                "${{ needs['build-check'].result }}" != "success" ]]; then
+                "${{ needs['build-check'].result }}" != "success" || \
+                "${{ needs['security-audit'].result }}" != "success" ]]; then
             echo "❌ One or more CI jobs failed"
             exit 1
           fi
