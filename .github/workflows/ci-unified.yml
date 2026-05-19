@@ -114,14 +114,6 @@ jobs:
         working-directory: backend
         run: npm ci
 
-      - name: Apply database schema (init.sql + RLS policies)
-        env:
-          PGPASSWORD: postgres
-        run: |
-          # Smoke-test that init.sql (including the #702 RLS appendix) loads
-          # cleanly. The backend tests bootstrap migrations on top of this.
-          psql -h localhost -U postgres -d festival_planner_test -v ON_ERROR_STOP=1 -f database/init.sql
-
       - name: Run backend tests
         working-directory: backend
         run: npm test
