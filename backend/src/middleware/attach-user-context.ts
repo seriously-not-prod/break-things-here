@@ -14,8 +14,17 @@
  * "no context → allow" branch.
  *
  * Fail-open semantics: if acquiring the client or setting the GUC fails we
- * log and continue without ALS binding. RLS still falls back to the no-
- * context branch (visible to all rows), but the request does not 500.
+ * log and continue without ALS binding. RLS still falls back to the
+ * "no-context branch" of each policy, which is intentionally permissive
+ * so background jobs and migrations keep working — meaning under pool
+ * exhaustion or a transient pg error, an authenticated request can
+ * temporarily bypass RLS. This is a deliberate trade-off: the deployed
+ * authorization model is enforced primarily by `authorizePermission` and
+ * `requireEventAccess` (which run independently of pg health), with RLS
+ * acting as defence-in-depth. A future change can wrap the fail-open
+ * branch in `if (isSecureDeploymentEnv(NODE_ENV))` to fail closed in
+ * prod/staging once we have confidence the pool sizing is sufficient
+ * (tracked as a follow-up to this PR).
  */
 import { NextFunction, Request, Response } from 'express';
 import type { PoolClient } from 'pg';

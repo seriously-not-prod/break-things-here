@@ -102,7 +102,14 @@ class PgWrapper {
   }
 
   async transaction<T>(fn: (tx: DatabaseAdapter) => Promise<T>): Promise<T> {
-    const client = await this.pool.connect();
+    // If a request-scoped client is already bound via ALS (#702), run the
+    // transaction on it so the BEGIN/COMMIT inherits `app.current_user_id`
+    // and queries inside the transaction remain RLS-scoped to the request
+    // user. Otherwise acquire a fresh client from the pool — legacy
+    // behaviour for jobs/migrations/tests with no request context.
+    const ctx = getCurrentUserContext();
+    const client = ctx?.client ?? await this.pool.connect();
+    const ownsClient = !ctx;
     try {
       await client.query('BEGIN');
       const txDb: DatabaseAdapter = {
@@ -131,7 +138,9 @@ class PgWrapper {
       await client.query('ROLLBACK').catch(() => undefined);
       throw err;
     } finally {
-      client.release();
+      // Only release if we own the client. The ALS-bound client is owned
+      // by the request middleware and will be released on res.finish.
+      if (ownsClient) client.release();
     }
   }
 
@@ -2889,8 +2898,13 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
               user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
               OR task_id IN (
                 SELECT t.id FROM tasks t
-                JOIN event_members em ON em.event_id = t.event_id
-                WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+                WHERE t.event_id IN (
+                  SELECT e.id FROM events e
+                  WHERE e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+                  UNION
+                  SELECT em.event_id FROM event_members em
+                  WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+                )
               )
               OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
             );
@@ -2905,8 +2919,11 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
           CREATE POLICY rls_task_escalation_rules_event_member ON task_escalation_rules
             USING (
               event_id IN (
-                SELECT event_id FROM event_members
-                WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+                SELECT e.id FROM events e
+                WHERE e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+                UNION
+                SELECT em.event_id FROM event_members em
+                WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
               )
               OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
             );

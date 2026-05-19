@@ -1866,12 +1866,21 @@ END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'tasks' AND policyname = 'rls_tasks_event_member') THEN
+    -- Mirrors the v2 migration policy: event owners (events.created_by),
+    -- event members, and the task's own creator all retain access. Event
+    -- creators are not always inserted into event_members, so omitting the
+    -- events.created_by branch would silently lock owners out of their own
+    -- task lists.
     CREATE POLICY rls_tasks_event_member ON tasks
       USING (
         event_id IN (
-          SELECT event_id FROM event_members
-          WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+          SELECT e.id FROM events e
+          WHERE e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+          UNION
+          SELECT em.event_id FROM event_members em
+          WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
         )
+        OR created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
       );
   END IF;
@@ -1882,8 +1891,11 @@ DO $$ BEGIN
     CREATE POLICY rls_expenses_event_member ON expenses
       USING (
         event_id IN (
-          SELECT event_id FROM event_members
-          WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+          SELECT e.id FROM events e
+          WHERE e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+          UNION
+          SELECT em.event_id FROM event_members em
+          WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
         )
         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
       );
@@ -1895,8 +1907,11 @@ DO $$ BEGIN
     CREATE POLICY rls_vendors_event_member ON vendors
       USING (
         event_id IN (
-          SELECT event_id FROM event_members
-          WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+          SELECT e.id FROM events e
+          WHERE e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+          UNION
+          SELECT em.event_id FROM event_members em
+          WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
         )
         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
       );
@@ -1909,8 +1924,11 @@ DO $$ BEGIN
       USING (
         user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
         OR event_id IN (
-          SELECT event_id FROM event_members
-          WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+          SELECT e.id FROM events e
+          WHERE e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+          UNION
+          SELECT em.event_id FROM event_members em
+          WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
         )
         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
       );

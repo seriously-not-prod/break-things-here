@@ -161,9 +161,16 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
 
   // #702 — bind the user to a per-request pg client so RLS policies that
   // gate on `current_setting('app.current_user_id', true)` are enforced.
-  // attachUserContext is fail-open: it logs and continues if the pool is
-  // unavailable, so this never turns a 200 into a 500.
-  attachUserContext(req, res, next);
+  // attachUserContext is fail-open for *expected* pool/GUC errors (it
+  // catches them internally and calls next()), but await + try/catch
+  // here guards against any unexpected rejection (programmer bug, ALS
+  // misuse) so it surfaces through the Express error handler instead of
+  // becoming an unhandled promise rejection.
+  try {
+    await attachUserContext(req, res, next);
+  } catch (err) {
+    next(err);
+  }
 }
 
 export function authorizeRole(

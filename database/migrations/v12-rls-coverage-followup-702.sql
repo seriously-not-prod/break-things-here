@@ -24,13 +24,23 @@ DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'task_assignees' AND policyname = 'rls_task_assignees_access'
   ) THEN
+    -- Access for: the assignee themselves, OR anyone with access to the
+    -- parent event (owner via events.created_by OR event_members member),
+    -- matching the v2 RLS policy shape. Without the events.created_by
+    -- branch, event owners not in event_members would lose visibility of
+    -- their own task assignments.
     CREATE POLICY rls_task_assignees_access ON task_assignees
       USING (
         user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
         OR task_id IN (
           SELECT t.id FROM tasks t
-          JOIN event_members em ON em.event_id = t.event_id
-          WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+          WHERE t.event_id IN (
+            SELECT e.id FROM events e
+            WHERE e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+            UNION
+            SELECT em.event_id FROM event_members em
+            WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+          )
         )
         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
       );
@@ -47,8 +57,11 @@ DO $$ BEGIN
     CREATE POLICY rls_task_escalation_rules_event_member ON task_escalation_rules
       USING (
         event_id IN (
-          SELECT event_id FROM event_members
-          WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+          SELECT e.id FROM events e
+          WHERE e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+          UNION
+          SELECT em.event_id FROM event_members em
+          WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
         )
         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
       );

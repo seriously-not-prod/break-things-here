@@ -3,8 +3,9 @@
 // Do NOT inline credentials here — this file is committed.
 //
 // Required variables (see .env.example): DATABASE_URL, JWT_SECRET,
-// TOKEN_HASH_SECRET, REFRESH_TOKEN_ENC_KEY. The backend refuses to start in
-// production when any of these are missing, so PM2 will surface the failure.
+// CSRF_SECRET, TOKEN_HASH_SECRET, REFRESH_TOKEN_ENC_KEY. The backend
+// refuses to start in production when any of these are missing, so PM2
+// will surface the failure as a crashloop on `pm2 start`.
 
 module.exports = {
   apps: [
