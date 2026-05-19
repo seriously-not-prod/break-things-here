@@ -1504,6 +1504,14 @@ router.get(
   authenticateToken,
   realtimeController.streamEventRealtime,
 );
+// ── #809: Unified multiplexed SSE stream ─────────────────────────────────────────────────
+// SSE — EventSource cannot set Authorization headers; auth flows through the
+// HttpOnly `accessToken` cookie already supported by `authenticateToken`.
+router.get(
+  '/realtime/stream',
+  authenticateToken,
+  realtimeController.streamRealtime,
+);
 
 // ── #628: Event team chat ─────────────────────────────────────────────────────────────────
 router.get('/events/:eventId/chat', authenticateToken, eventChatController.listChatMessages);
