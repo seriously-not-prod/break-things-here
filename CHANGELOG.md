@@ -11,13 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Track C — Import/Export & Media)
+
+- **FR-GUEST-002 (XLSX import)**: Guest import wizard now accepts `.xlsx` and `.xls` files in addition to CSV. SheetJS (`xlsx`) parses the first sheet server-side (RSVP controller) and client-side (import dialog preview). The multer filter and file-input `accept` attribute are updated to allow Excel MIME types (#2, #14).
+- **FR-GUEST-002 (Download Failed Rows)**: After a guest import, any rows that were skipped or rejected (missing name/email, duplicate email, or DB error) are returned in the API response as `failedRows`. The import dialog shows a count alert with a "Download Failed Rows" button that exports a CSV containing the original data and failure reason (#3).
+- **FR-RPT-002 (Analytics PDF/Excel export)**: The analytics page Export button is replaced with a split-button dropdown offering CSV (existing), PDF (via jsPDF + jspdf-autotable), and Excel (via SheetJS) exports. PDF includes KPI summary, budget breakdown, and task breakdown sections; Excel has four sheets (Summary, Budget, Tasks, Dietary) (#9).
+- **FR-GALLERY-001 (HEIC MIME handling and multi-file upload)**: Gallery document upload now accepts `image/heic`, `image/heif`, and `application/octet-stream` with `.heic`/`.heif` extension (iOS sends octet-stream for HEIC). The effective MIME type is normalised to `image/heic` in the database. The multer handler is changed from `.single()` to `.array('document', 20)` and the controller iterates all uploaded files, scanning and persisting each. The frontend file input gains the `multiple` attribute and appends all selected files in one FormRequest. Partial-success (207) is returned when some files fail (#12).
+- **FR-RPT-001 (Scheduled report email dispatch)**: The `dispatchScheduledReports` job scheduler now calls `renderPayload()` from the reports controller to build a structured JSON body for each due report, then dispatches it via `sendMail()` to every recipient. Per-recipient failures are logged without aborting the batch. Delivery attempts are recorded in `scheduled_report_deliveries` for audit. `renderPayload` is exported from `reports-controller.ts` to allow reuse without HTTP round-trips (#8).
+
 ### Fixed
+
 - **Entra group overage fallback for RBAC**: Entra callback now handles group overage tokens (`hasgroups` / `_claim_names.groups`) by fetching group IDs from Microsoft Graph `me/memberOf` when direct `groups` claims are omitted, ensuring role mapping remains accurate for high-membership users.
 - **Secure-environment MFA/auth startup enforcement**: strict startup security controls now require `ENTRA_AUTH_ENABLED=true` and `ENTRA_MFA_REQUIRED=true` in `production`/`staging`, eliminating drift where Entra or MFA could be disabled in secure deployments.
 - **API cache policy evidence**: API GET/HEAD responses now emit explicit cache headers (`Cache-Control: private, max-age=300`) with auth-safe `Vary` headers; integration tests assert the policy.
 - **Entra role re-sync on every login (FR-AUTH-003)**: returning users matched by `entra_oid` were not getting their role re-synced from Azure group membership on subsequent logins — only initial provisioning updated the role. `entra-auth-controller.ts` now re-evaluates group membership and updates `role_id` on every Entra authentication, ensuring group changes in Azure AD propagate immediately.
 - **`/health` canonical endpoint path**: Docker-compose healthcheck targets `/health` but only `/api/health` existed in `server.js`. Added canonical `GET /health` endpoint alongside the legacy `/api/health` alias so container healthchecks pass.
+
 ### Added (2026-05-19 compliance sprint)
+
 - **Universal audit/RLS enforcement migration**: added `database/migrations/v14-universal-audit-rls-enforcement.sql` to baseline-enforce audit columns (`created_at`, `created_by`, `updated_at`, `updated_by`) and RLS enablement/policy coverage across all public tables.
 - **Compliance evidence report**: added `docs/processes/compliance-evidence-2026-05-19.md` mapping each previously partial requirement to concrete implementation artifacts and verification commands.
 - **Browser support evidence expansion**: Playwright matrix now includes Chromium, Firefox, and WebKit, and frontend declares explicit latest-2 browser support policy via `browserslist`.
@@ -44,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed obsolete SQLite-style migration tests (`backend/__tests__/budget-expenses-migration.test.ts`, `backend/__tests__/venues-vendors-migration.test.ts`) that used `PRAGMA table_info()` against the PostgreSQL backend and could not be run.
 
 ### Added
+
 - **P1-Duplicate Guest Detection UX (#727, Item 13):** Add Guest now performs immediate duplicate-email lookup and shows a warning before submit, including a merge recommendation and quick action to jump to the Duplicates tab; backend adds `GET /api/events/:eventId/rsvps/lookup?email=...` for exact-email match suggestions, with frontend/backend test coverage.
 - **Post-event thank-you send and unsubscribe management** (#444, story #413): Added `POST /api/events/:eventId/communication/thank-you` endpoint that bulk-sends thank-you messages to confirmed (Going) guests with automatic suppression of unsubscribed recipients; added planner-side `PATCH /api/events/:eventId/rsvps/:id/unsubscribe` toggle; `guest-communication-panel` now surfaces a "Send Thank-You" button, unsubscribed-count advisory, and suppression summary on send results; `sendThankYou` and `setGuestUnsubscribed` added to `frontend/src/services/guest-service.ts`
 - **QR scanning check-in page** (#445, story #413): `frontend/src/components/checkin/qr-scanner-page.tsx` provides a live camera scanner using the browser-native `BarcodeDetector` API (Chrome/Edge/Android) with a manual token-paste fallback for Safari/Firefox; tokens map to RSVP records via `POST /api/events/:eventId/checkin/scan`; route wired at `/events/:id/checkin/scan` in `App.tsx`; the existing check-in page always shows a QR Scanner button; the scanner page uses BarcodeDetector for camera scanning and falls back to manual token entry on unsupported browsers
@@ -79,12 +91,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed pre-existing test timeout instability in `seating.test.tsx` and `events-page-compatibility.test.tsx` by adding explicit 15 s timeout per test
 
 ### Added
+
 - Gallery albums: organise gallery images into named albums with create/edit/delete/assign workflows; `gallery_albums` table and `/api/events/:eventId/gallery/albums` CRUD + `PATCH .../gallery/:id/album` assignment endpoint (#417 #459)
 - Gallery moderation queue: guest submissions enter a pending state; event members can approve or reject via `PATCH .../gallery/:id/moderate` and `PATCH .../gallery/:id/submit`; moderation tab in gallery UI with approve/reject actions (#417 #459)
 - Gallery slideshows: create named slideshows from gallery images with ordered item lists; full-screen player dialog; `gallery_slideshows` and `slideshow_items` tables; CRUD + items endpoint; slideshows tab in gallery UI (#417 #459)
 - Gallery page tabs: gallery images (with album filter chips) · Albums · Moderation · Slideshows (#417 #459)
 
 ### Added
+
 - Seating chart editor: tables now persist visual layout coordinates, can be dragged around the room canvas, and support visual guest reassignment by dragging guests between tables or back to the unassigned pool (#457)
 - Event templates: persistence (`event_templates` table) and `/api/event-templates` CRUD + apply endpoints; organizer-scoped permissions, admin-wide visibility (#410 #432)
 - Bulk event actions: `POST /api/events/bulk` with `archive`, `delete`, `export` actions, partial-success per-event reporting and CSV export (#410 #433)
@@ -113,6 +127,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Name tag PDF export: guest list and seating pages now generate printable name-tag sheets with guest identity details, party size, and seating assignment context via a shared PDF utility (`name-tag-pdf-export.ts`) (#458)
 
 ### Changed
+
 - API route ordering fixed: static sub-paths (`/vendors/compare`, `/vendors/performance`, `/timeline/conflicts`) now registered before parameterised `/:id` routes to prevent shadowing
 
 - Gallery image delete: hover overlay with delete button on gallery grid; delete button in preview dialog (`GalleryPage`, `MediaPreviewDialog`) (#409)
@@ -128,6 +143,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `backend/__tests__/events-list-filter.test.ts` — 7 unit tests covering owner filter, tag filter, combined filters, no-auth guard, and error path
 
 ### Fixed
+
 - RBAC UI enforcement hardening: added a reusable `RoleGuard` for route-level access control, enforced role-gated access to `/admin` (admin-only) and `/events/new` (organizer/collaborator/admin), and replaced numeric `roleId` checks in event detail controls with role-name helper checks to align with the five-role model (#664)
 - Story #417 UX polish: gallery now loads albums on initial render so filter chips and album assignment are available without visiting the Albums tab first, slideshow edits preserve existing selected items, seating tables support keyboard repositioning, and timeline comparison now shows end variance; regression tests added for each path (#417)
 - Frontend suite stability: analytics page tests now mock communication metrics consistently, and slower page smoke tests have explicit time budgets so the full Vitest run completes reliably under suite-wide load
@@ -142,6 +158,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Restored event date compatibility across backend and frontend event flows by returning both `date` and `event_date`, fixing calendar chips, event detail, and public RSVP pages
 
 ### Added
+
 - Gallery and messages route wiring is now complete: backend `GET /api/events/:eventId/gallery`, frontend `/events/:id/gallery`, and frontend `/messages`
 - Event analytics reporting endpoints and frontend analytics UI, including CSV export and dashboard global analytics widget (BRD 3.10, 3.11)
 - Notifications controller helpers, due-task digest endpoint, and frontend notification bell/panel components (BRD 3.11)
@@ -155,6 +172,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - npm packages: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@testing-library/user-event`
 
 ### Migration
+
 - Migrated backend database from SQLite to PostgreSQL (`pg` v8)
 - Replaced `sqlite` / `sqlite3` npm packages with `pg` and `@types/pg`
 - Rewrote `backend/src/db/database.ts`: PostgreSQL connection pool with a SQLite-compatible wrapper (`get`, `all`, `run`, `exec`) that auto-converts `?` placeholders to `$N` positional parameters
@@ -169,10 +187,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `database/init.sql` to full PostgreSQL application schema (all tables, indexes, reference data)
 
 ### Security
+
 - Replace SHA-256 token hashing with scrypt KDF in `hashToken` (auth-helpers.ts) to address CodeQL high-severity "insufficient computational effort" alert (#77)
 - Fix session lookup in auth middleware to use `hashToken` (scrypt) instead of raw SHA-256, ensuring consistency with stored session hashes
 
 ### Added
+
 - Responsive event planner workspace with dashboard, sidebar navigation, event CRUD screens, task tracking, RSVP management, calendar view, and admin overview
 - Public RSVP route at `/rsvp/:eventId` backed by seeded local planner data
 - Root app planner store, validation helpers, and regression tests for dashboard rendering and public RSVP submission
@@ -195,6 +215,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tests for JWT token refresh, session timeout, remember-me sessions, forgot/reset password, admin user management
 
 ### Fixed
+
 - Seed default `role_permissions` rows during backend migrations for Admin, Organizer, and Attendee roles, and add coverage that verifies `authorizePermission` succeeds with Postgres-backed seeded permissions (#265, #287)
 - Backend entry point (`index.ts`) rewritten from PostgreSQL to SQLite for consistency with rest of codebase
 - `AuthRequest` interface in profile-controller.ts no longer conflicts with multer file types (#102)
@@ -209,6 +230,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frontend `App.tsx` import updated from PascalCase `LoginForm` to kebab-case `login-form`
 
 ### Changed
+
 - User registration endpoint with bcrypt password hashing, email normalization, and validation (#16, #20)
 - Email confirmation flow with token generation and single-use enforcement (#16, #74)
 - Password reset and recovery with secure token generation and audit logging (#74)
@@ -240,7 +262,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Auto draft PR workflow for first push to feature/bugfix branches (#48)
 - Code quality and CodeQL workflows for PR quality gates (#48)
 - Repository ruleset definition files for PR quality gates and branch naming (#48)
+
 ### Changed
+
 - Updated README.md with GitHub Projects workflow integration
 - Updated docs/processes/release-process.md with Project 1 details and workflow states
 - Enhanced Making Changes section with project board workflow steps
@@ -249,6 +273,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased - Previously]
 
 ### Added
+
 - Initial project structure
 - Documentation framework
 - Issue templates for project management (Theme, User Story, Task, Sub-Task, Bug, Defect, Security Issue, Feature Request)
@@ -264,6 +289,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automated CI comments on PRs for validation results
 
 ### Changed
+
 - Issue templates updated to use GitHub native sub-issues instead of manual parent references
 - User Story template: removed story points, added hour estimation ranges
 - Task and Sub-Task templates: converted estimated hours to dropdown ranges
@@ -284,7 +310,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Releases will be documented below in reverse chronological order -->
 
-<!-- 
+<!--
 ## [X.Y.Z] - YYYY-MM-DD
 
 ### Added

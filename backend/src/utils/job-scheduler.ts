@@ -14,6 +14,8 @@
  */
 import { getDatabase } from '../db/database.js';
 import { logger } from './logger.js';
+import { sendMail } from './mailer.js';
+import { renderPayload } from '../controllers/reports-controller.js';
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 const FIVE_MINUTES = 5 * 60 * 1000;
@@ -34,7 +36,9 @@ function guard(name: string, fn: () => Promise<void>): () => void {
     running = true;
     fn()
       .catch((err: unknown) => logger.error(`[Scheduler] ${name} error`, { error: String(err) }))
-      .finally(() => { running = false; });
+      .finally(() => {
+        running = false;
+      });
   };
 }
 
@@ -42,10 +46,9 @@ function guard(name: string, fn: () => Promise<void>): () => void {
 async function cleanupExpiredSessions(): Promise<void> {
   try {
     const db = getDatabase();
-    const result = await db.run(
-      `DELETE FROM sessions WHERE expires_at < $1`,
-      [new Date().toISOString()],
-    );
+    const result = await db.run(`DELETE FROM sessions WHERE expires_at < $1`, [
+      new Date().toISOString(),
+    ]);
     if ((result.changes ?? 0) > 0) {
       logger.info(`[Scheduler] Session cleanup removed ${result.changes} expired sessions`);
     }
@@ -59,7 +62,12 @@ async function dispatchScheduledReports(): Promise<void> {
   try {
     const db = getDatabase();
     const now = new Date().toISOString();
-    const due = await db.all<{ id: number; report_type: string; recipients: unknown; event_id: number | null }>(
+    const due = await db.all<{
+      id: number;
+      report_type: string;
+      recipients: unknown;
+      event_id: number | null;
+    }>(
       `SELECT id, report_type, recipients, event_id
        FROM scheduled_reports
        WHERE is_active = true AND next_run_at <= $1`,
@@ -68,13 +76,78 @@ async function dispatchScheduledReports(): Promise<void> {
 
     for (const report of due) {
       // Mark in-flight to prevent duplicate dispatch
-      await db.run(
-        `UPDATE scheduled_reports SET last_run_at = $1 WHERE id = $2`,
-        [now, report.id],
-      );
-      logger.info(`[Scheduler] Dispatching report ${report.id} (${report.report_type})`);
-      // Actual email sending is handled by the communication layer.
-      // Here we update the next_run_at based on frequency.
+      await db.run(`UPDATE scheduled_reports SET last_run_at = $1 WHERE id = $2`, [now, report.id]);
+
+      const eventId = report.event_id ? String(report.event_id) : null;
+      if (!eventId) {
+        logger.warn(`[Scheduler] Skipping report ${report.id}: no event_id`);
+      } else {
+        logger.info(`[Scheduler] Dispatching report ${report.id} (${report.report_type})`);
+
+        // Build the plain-text email body from the report payload.
+        let emailText: string;
+        let deliveryStatus: 'success' | 'failed' = 'success';
+        let deliveryError: string | null = null;
+        try {
+          const payload = await renderPayload(eventId, report.report_type);
+          emailText = `Scheduled report: ${report.report_type}\nGenerated: ${new Date().toUTCString()}\n\n${JSON.stringify(payload, null, 2)}`;
+        } catch (payloadErr: unknown) {
+          deliveryStatus = 'failed';
+          deliveryError = payloadErr instanceof Error ? payloadErr.message : String(payloadErr);
+          emailText = `Report generation failed: ${deliveryError}`;
+          logger.error(`[Scheduler] Failed to render payload for report ${report.id}`, {
+            error: deliveryError,
+          });
+        }
+
+        // Parse recipients — stored as a JSON array in the DB.
+        let recipientList: string[] = [];
+        try {
+          const parsed: unknown =
+            typeof report.recipients === 'string'
+              ? (JSON.parse(report.recipients) as unknown)
+              : report.recipients;
+          if (Array.isArray(parsed)) {
+            recipientList = parsed.filter((r): r is string => typeof r === 'string');
+          }
+        } catch {
+          logger.warn(`[Scheduler] Could not parse recipients for report ${report.id}`);
+        }
+
+        // Send to each recipient; log failures but don't abort the loop.
+        for (const recipient of recipientList) {
+          try {
+            await sendMail({
+              to: recipient,
+              subject: `Scheduled Report: ${report.report_type}`,
+              text: emailText,
+            });
+            logger.info(`[Scheduler] Sent report ${report.id} to ${recipient}`);
+          } catch (mailErr: unknown) {
+            deliveryStatus = 'failed';
+            deliveryError = mailErr instanceof Error ? mailErr.message : String(mailErr);
+            logger.error(`[Scheduler] Failed to send report ${report.id} to ${recipient}`, {
+              error: deliveryError,
+            });
+          }
+        }
+
+        // Record delivery attempt for audit trail.
+        try {
+          await db.run(
+            `INSERT INTO scheduled_report_deliveries (report_id, recipients, status, error_message)
+             VALUES ($1, $2::jsonb, $3, $4)`,
+            [report.id, JSON.stringify(recipientList), deliveryStatus, deliveryError],
+          );
+        } catch (auditErr: unknown) {
+          logger.error(`[Scheduler] Failed to record delivery for report ${report.id}`, {
+            error: String(auditErr),
+          });
+        }
+      }
+
+      // Advance next_run_at regardless of send success so the report
+      // doesn't get stuck firing on every tick.
       await db.run(
         `UPDATE scheduled_reports
          SET next_run_at = CASE frequency
@@ -98,7 +171,13 @@ async function sendPaymentMilestoneReminders(): Promise<void> {
     const db = getDatabase();
     const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
     const now = new Date().toISOString();
-    const milestones = await db.all<{ id: number; vendor_booking_id: number; amount: number; due_date: string; reminder_sent_at: string | null }>(
+    const milestones = await db.all<{
+      id: number;
+      vendor_booking_id: number;
+      amount: number;
+      due_date: string;
+      reminder_sent_at: string | null;
+    }>(
       `SELECT id, vendor_booking_id, amount, due_date, reminder_sent_at
        FROM vendor_payment_schedules
        WHERE due_date <= $1 AND due_date >= $2
@@ -108,10 +187,10 @@ async function sendPaymentMilestoneReminders(): Promise<void> {
     );
     for (const m of milestones) {
       logger.info(`[Scheduler] Payment reminder for milestone ${m.id} due ${m.due_date}`);
-      await db.run(
-        `UPDATE vendor_payment_schedules SET reminder_sent_at = $1 WHERE id = $2`,
-        [new Date().toISOString(), m.id],
-      );
+      await db.run(`UPDATE vendor_payment_schedules SET reminder_sent_at = $1 WHERE id = $2`, [
+        new Date().toISOString(),
+        m.id,
+      ]);
     }
   } catch (err) {
     logger.error('[Scheduler] Payment reminder failed', { error: String(err) });
@@ -153,15 +232,25 @@ export function startJobScheduler(): void {
 
   // Daily GDPR purge at next midnight UTC
   const now = new Date();
-  const midnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const midnight = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
+  );
   const msToMidnight = midnight.getTime() - now.getTime();
   setTimeout(() => {
-    purgeExpiredPersonalData().catch(err => logger.error('[Scheduler] GDPR purge failed', { error: String(err) }));
+    purgeExpiredPersonalData().catch((err) =>
+      logger.error('[Scheduler] GDPR purge failed', { error: String(err) }),
+    );
     setInterval(guard('GdprPurge', purgeExpiredPersonalData), ONE_DAY);
   }, msToMidnight);
 
   logger.info('[Scheduler] Job scheduler started', {
-    jobs: ['SessionCleanup', 'ReportDispatch', 'PaymentReminders', 'WaitlistPromotion', 'GdprPurge'],
+    jobs: [
+      'SessionCleanup',
+      'ReportDispatch',
+      'PaymentReminders',
+      'WaitlistPromotion',
+      'GdprPurge',
+    ],
   });
 }
 
