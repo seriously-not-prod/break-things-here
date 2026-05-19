@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Autocomplete,
@@ -89,6 +89,11 @@ export function EventAccessPanel(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Tracks the latest loadMembers request so stale responses from a previously
+  // selected event don't overwrite the current event's data when the user
+  // switches events quickly.
+  const latestRequestRef = useRef(0);
+
   useEffect(() => {
     setEventsLoading(true);
     api
@@ -104,25 +109,34 @@ export function EventAccessPanel(): JSX.Element {
   }, []);
 
   async function loadMembers(eventId: number): Promise<void> {
+    const requestId = ++latestRequestRef.current;
     setMembersLoading(true);
     setError(null);
     try {
       const data = await api.get<MembersResponse>(`/api/events/${eventId}/members`);
+      if (requestId !== latestRequestRef.current) return;
       setMembers(data.members ?? []);
       setAvailableUsers(data.availableUsers ?? []);
     } catch (err) {
+      if (requestId !== latestRequestRef.current) return;
       setError(err instanceof ApiError ? err.message : 'Failed to load members.');
       setMembers([]);
       setAvailableUsers([]);
     } finally {
-      setMembersLoading(false);
+      if (requestId === latestRequestRef.current) {
+        setMembersLoading(false);
+      }
     }
   }
 
   useEffect(() => {
     if (!selectedEvent) {
+      // Bump the request token so any in-flight loadMembers from a previously
+      // selected event won't update state after it resolves.
+      latestRequestRef.current++;
       setMembers([]);
       setAvailableUsers([]);
+      setMembersLoading(false);
       return;
     }
     void loadMembers(selectedEvent.id);

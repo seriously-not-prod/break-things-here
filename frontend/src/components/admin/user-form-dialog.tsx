@@ -294,7 +294,6 @@ export function UserFormDialog({
                       size="small"
                       onClick={() => setShowPassword((v) => !v)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      tabIndex={-1}
                     >
                       {showPassword ? <VisibilityOffRounded fontSize="small" /> : <VisibilityRounded fontSize="small" />}
                     </IconButton>
