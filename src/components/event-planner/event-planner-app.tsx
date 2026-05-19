@@ -168,7 +168,7 @@ function PlannerLayout(props: { notify: (message: string) => void; users: Planne
 
   const handleLogout = (): void => {
     logout();
-    navigate('/login');
+    navigate('/');
   };
 
   return (
@@ -1113,7 +1113,7 @@ function PlannerRoutes(props: { notify: (message: string) => void }): React.JSX.
           <Route path="/admin" element={<AdminPage />} />
         </Route>
       </Route>
-      <Route path="*" element={<Navigate replace to="/login" />} />
+      <Route path="*" element={<Navigate replace to="/" />} />
     </Routes>
   );
 }
