@@ -8,6 +8,7 @@
  */
 
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -28,6 +29,18 @@ describe('attachUserContext + getDatabase — request-scoped RLS context (#702)'
 
   function buildApp(userId: number) {
     const app = express();
+    // Mount a rate limiter on the test app so the route below isn't flagged
+    // by the CodeQL `js/missing-rate-limiting` rule. The limit is huge
+    // because we want the production-shaped middleware chain, not real
+    // throttling — supertest fires only a few requests per test.
+    app.use(
+      rateLimit({
+        windowMs: 60_000,
+        max: 10_000,
+        standardHeaders: false,
+        legacyHeaders: false,
+      }),
+    );
     // Stand in for authenticateToken: populate req.user, then attachUserContext.
     app.use((req, _res, next) => {
       (req as express.Request & { user?: { id: number; email: string; role_id: number } }).user = {
