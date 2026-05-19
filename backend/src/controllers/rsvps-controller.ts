@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import * as XLSX from 'xlsx';
 import { getDatabase } from '../db/database.js';
 import { createRsvpNotification } from './notifications-controller.js';
 import { logActivity } from './activity-feed-controller.js';
@@ -838,65 +839,104 @@ export async function checkInGuest(req: Request, res: Response): Promise<Respons
   return res.json({ rsvp: updated });
 }
 
-/** POST /api/events/:eventId/rsvps/import — CSV file upload via multer */
+/** POST /api/events/:eventId/rsvps/import — CSV or XLSX file upload via multer */
 export async function importCsv(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
   if (!authReq.user) return res.status(401).json({ error: 'Authentication required.' });
 
   const { eventId } = req.params;
   const file = (req as Request & { file?: Express.Multer.File }).file;
-  if (!file) return res.status(400).json({ error: 'No CSV file uploaded.' });
+  if (!file) return res.status(400).json({ error: 'No file uploaded.' });
 
   const db = getDatabase();
   const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
   if (!event) return res as Response;
 
-  const MAX_CSV_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
+  const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
   const MAX_CSV_LINE_CHARS = 10_000;
-  const MAX_CSV_ROWS = 10_000;
+  const MAX_ROWS = 10_000;
 
-  if (file.buffer.length > MAX_CSV_FILE_BYTES) {
-    return res.status(400).json({ error: 'CSV file exceeds maximum allowed size of 5 MB.' });
+  if (file.buffer.length > MAX_FILE_BYTES) {
+    return res.status(400).json({ error: 'File exceeds maximum allowed size of 5 MB.' });
   }
 
-  const content = file.buffer.toString('utf8');
-  const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lines.length < 2) return res.status(400).json({ error: 'CSV file has no data rows.' });
-  if (lines.length > MAX_CSV_ROWS + 1) {
-    return res
-      .status(400)
-      .json({ error: `CSV file exceeds maximum of ${MAX_CSV_ROWS} data rows.` });
-  }
+  // ── Detect file type and normalise to string[][] ────────────────────────
+  const lowerName = (file.originalname ?? '').toLowerCase();
+  const isExcel =
+    lowerName.endsWith('.xlsx') ||
+    lowerName.endsWith('.xls') ||
+    file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    file.mimetype === 'application/vnd.ms-excel';
 
-  // Parse simple CSV (supports quoted fields)
-  function parseCsvLine(line: string): string[] {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    const safeLength = Math.min(line.length, MAX_CSV_LINE_CHARS);
-    for (let i = 0; i < safeLength; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQuotes && line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (ch === ',' && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += ch;
+  let rawHeaders: string[] = [];
+  let dataLines2d: string[][] = [];
+
+  if (isExcel) {
+    try {
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) return res.status(400).json({ error: 'Excel file has no sheets.' });
+      const sheet = workbook.Sheets[sheetName];
+      const allRows = XLSX.utils.sheet_to_json<string[]>(sheet, {
+        header: 1,
+        defval: '',
+        range: 0,
+      }) as string[][];
+      const nonEmpty = allRows.filter((r) => r.some((c) => String(c ?? '').trim() !== ''));
+      if (nonEmpty.length < 2)
+        return res.status(400).json({ error: 'Excel file has no data rows.' });
+      if (nonEmpty.length > MAX_ROWS + 1) {
+        return res
+          .status(400)
+          .json({ error: `Excel file exceeds maximum of ${MAX_ROWS} data rows.` });
       }
+      rawHeaders = nonEmpty[0].map((h) => String(h ?? ''));
+      dataLines2d = nonEmpty.slice(1).map((r) => r.map((c) => String(c ?? '')));
+    } catch {
+      return res
+        .status(400)
+        .json({ error: 'Failed to parse Excel file. Please check the format.' });
     }
-    result.push(current.trim());
-    return result;
-  }
+  } else {
+    // ── CSV path ──────────────────────────────────────────────────────────
+    const content = file.buffer.toString('utf8');
+    const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    if (lines.length < 2) return res.status(400).json({ error: 'CSV file has no data rows.' });
+    if (lines.length > MAX_ROWS + 1) {
+      return res.status(400).json({ error: `CSV file exceeds maximum of ${MAX_ROWS} data rows.` });
+    }
 
-  const rawHeaders = parseCsvLine(lines[0]);
+    // Parse simple CSV (supports quoted fields)
+    function parseCsvLine(line: string): string[] {
+      const result: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      const safeLength = Math.min(line.length, MAX_CSV_LINE_CHARS);
+      for (let i = 0; i < safeLength; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (ch === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += ch;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    }
+
+    rawHeaders = parseCsvLine(lines[0]);
+    dataLines2d = lines.slice(1).map((l) => parseCsvLine(l));
+  } // end CSV path
+
   const normalizedHeaders = rawHeaders.map((h) => h.toLowerCase().replace(/\s+/g, '_'));
-  const dataLines = lines.slice(1);
 
   // ── Apply field mapping from the frontend wizard (Story #664, Item 11) ────
   // column_map is sent as a JSON string form field: { csvHeader -> guestField }
@@ -953,8 +993,7 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
   let imported = 0;
   let skipped = 0;
 
-  for (const line of dataLines) {
-    const values = parseCsvLine(line);
+  for (const values of dataLines2d) {
     // Null-prototype object prevents prototype-chain key collisions in row.
     const row: Record<string, string> = Object.create(null) as Record<string, string>;
     rawHeaders.forEach((rawHeader, i) => {

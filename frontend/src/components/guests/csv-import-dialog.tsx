@@ -1,5 +1,6 @@
 import { ChangeEvent, useRef, useState } from 'react';
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import {
   Alert,
   Box,
@@ -23,6 +24,16 @@ import {
   Typography,
 } from '@mui/material';
 import { importCsv, importCsvTemplateUrl } from '../../services/guest-service';
+
+/** File extensions accepted by the upload input. */
+const ACCEPTED_EXTENSIONS =
+  '.csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel';
+
+/** Returns true when the selected file is an Excel workbook (.xlsx / .xls). */
+function isExcelFile(file: File): boolean {
+  const lower = file.name.toLowerCase();
+  return lower.endsWith('.xlsx') || lower.endsWith('.xls');
+}
 
 // Columns that can be mapped from CSV
 const GUEST_FIELDS = [
@@ -74,36 +85,75 @@ export function CsvImportDialog({
     onClose();
   }
 
+  function applyPreview(rows: string[][]): void {
+    if (rows.length < 2) {
+      setError('File appears empty or has no data rows.');
+      return;
+    }
+    const fileHeaders = rows[0];
+    const dataRows = rows.slice(1, 6);
+    setHeaders(fileHeaders);
+    setPreviewRows(dataRows);
+    // Auto-map headers that match field names (case-insensitive)
+    const autoMap: Record<string, string> = {};
+    fileHeaders.forEach((h) => {
+      const normalised = h.toLowerCase().replace(/\s+/g, '_');
+      const match = GUEST_FIELDS.find((f) => f.value === normalised);
+      autoMap[h] = match ? match.value : '';
+    });
+    setColumnMap(autoMap);
+  }
+
   function handleFileChange(e: ChangeEvent<HTMLInputElement>): void {
     const file = e.target.files?.[0];
     if (!file) return;
     setSelectedFile(file);
     setError(null);
 
-    Papa.parse<string[]>(file, {
-      preview: 6,
-      skipEmptyLines: true,
-      complete: (result) => {
-        const rows = result.data as string[][];
-        if (rows.length < 2) {
-          setError('CSV appears empty or has no data rows.');
-          return;
+    if (isExcelFile(file)) {
+      // Parse with SheetJS — read first 6 rows from the first sheet
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const data = evt.target?.result;
+          if (!data) {
+            setError('Failed to read Excel file.');
+            return;
+          }
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          if (!sheetName) {
+            setError('Excel file has no sheets.');
+            return;
+          }
+          const sheet = workbook.Sheets[sheetName];
+          // sheet_to_json with header:1 gives string[][] (first row = headers)
+          const allRows = XLSX.utils.sheet_to_json<string[]>(sheet, {
+            header: 1,
+            defval: '',
+            range: 0,
+          });
+          // Filter out completely empty rows
+          const rows = allRows
+            .filter((r) => r.some((cell) => String(cell ?? '').trim() !== ''))
+            .map((r) => r.map((cell) => String(cell ?? '')));
+          applyPreview(rows);
+        } catch {
+          setError('Failed to parse Excel file. Please check the format.');
         }
-        const csvHeaders = rows[0];
-        const dataRows = rows.slice(1, 6);
-        setHeaders(csvHeaders);
-        setPreviewRows(dataRows);
-        // Auto-map headers that match field names (case-insensitive)
-        const autoMap: Record<string, string> = {};
-        csvHeaders.forEach((h) => {
-          const normalised = h.toLowerCase().replace(/\s+/g, '_');
-          const match = GUEST_FIELDS.find((f) => f.value === normalised);
-          autoMap[h] = match ? match.value : '';
-        });
-        setColumnMap(autoMap);
-      },
-      error: () => setError('Failed to parse CSV file. Please check the format.'),
-    });
+      };
+      reader.onerror = () => setError('Failed to read Excel file.');
+      reader.readAsArrayBuffer(file);
+    } else {
+      Papa.parse<string[]>(file, {
+        preview: 6,
+        skipEmptyLines: true,
+        complete: (result) => {
+          applyPreview(result.data as string[][]);
+        },
+        error: () => setError('Failed to parse CSV file. Please check the format.'),
+      });
+    }
   }
 
   async function handleImport(): Promise<void> {
@@ -125,7 +175,7 @@ export function CsvImportDialog({
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-      <DialogTitle>Import Guests from CSV</DialogTitle>
+      <DialogTitle>Import Guests from CSV / Excel</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
@@ -134,22 +184,22 @@ export function CsvImportDialog({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept={ACCEPTED_EXTENSIONS}
               style={{ display: 'none' }}
               id="csv-file-input"
-              aria-label="Select CSV file"
+              aria-label="Select CSV or Excel file"
               onChange={handleFileChange}
             />
             <label htmlFor="csv-file-input">
               <Button component="span" variant="outlined">
-                {selectedFile ? selectedFile.name : 'Choose CSV File'}
+                {selectedFile ? selectedFile.name : 'Choose CSV or Excel File'}
               </Button>
             </label>
           </Box>
 
           {headers.length > 0 && (
             <>
-              <Typography variant="subtitle2">Map CSV columns to guest fields:</Typography>
+              <Typography variant="subtitle2">Map columns to guest fields:</Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                 {headers.map((h) => (
                   <FormControl key={h} size="small" sx={{ minWidth: 180 }}>
@@ -162,7 +212,9 @@ export function CsvImportDialog({
                       }
                     >
                       {GUEST_FIELDS.map((f) => (
-                        <MenuItem key={f.value} value={f.value}>{f.label}</MenuItem>
+                        <MenuItem key={f.value} value={f.value}>
+                          {f.label}
+                        </MenuItem>
                       ))}
                     </Select>
                   </FormControl>
@@ -204,7 +256,9 @@ export function CsvImportDialog({
         >
           Download CSV Template
         </Button>
-        <Button onClick={handleClose} disabled={importing}>Cancel</Button>
+        <Button onClick={handleClose} disabled={importing}>
+          Cancel
+        </Button>
         <Button
           variant="contained"
           disabled={!selectedFile || importing}

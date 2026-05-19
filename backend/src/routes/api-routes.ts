@@ -96,15 +96,26 @@ if (!fs.existsSync(DOCUMENTS_DIR)) fs.mkdirSync(DOCUMENTS_DIR, { recursive: true
 const VENDOR_CONTRACTS_DIR = path.resolve('uploads/vendor-contracts');
 if (!fs.existsSync(VENDOR_CONTRACTS_DIR)) fs.mkdirSync(VENDOR_CONTRACTS_DIR, { recursive: true });
 
-// In-memory multer for CSV imports (no disk write needed)
+// In-memory multer for CSV / XLSX imports (no disk write needed)
 const csvUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'text/csv' || file.originalname.toLowerCase().endsWith('.csv')) {
+    const lower = file.originalname.toLowerCase();
+    const acceptedMimes = new Set([
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ]);
+    if (
+      acceptedMimes.has(file.mimetype) ||
+      lower.endsWith('.csv') ||
+      lower.endsWith('.xlsx') ||
+      lower.endsWith('.xls')
+    ) {
       cb(null, true);
     } else {
-      cb(new Error('Only CSV files are accepted'));
+      cb(new Error('Only CSV and Excel files (.csv, .xlsx, .xls) are accepted'));
     }
   },
 });
