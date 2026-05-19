@@ -40,7 +40,11 @@ function makeReq(params: any = {}, body: any = {}, user?: { id: number; email: s
   return { params, body, user } as any;
 }
 
-const apiRoutesSource = readFileSync(new URL('../src/routes/api-routes.ts', import.meta.url), 'utf8');
+const apiRoutesSource = readFileSync(new URL('../src/routes/api-routes.ts', import.meta.url), 'utf8')
+  .replace(/\s+/g, ' ')   // collapse all whitespace (including newlines) to single space
+  .replace(/\( /g, '(')   // remove space after opening paren
+  .replace(/, \)/g, ')')  // remove trailing comma+space before closing paren
+  .replace(/,\)/g, ')');  // remove trailing comma before closing paren (no space variant)
 
 async function seedUser(
   email: string,
