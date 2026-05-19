@@ -34,7 +34,6 @@ function convertPlaceholders(sql: string): string {
   return sql.replace(/\?/g, () => `$${++index}`);
 }
 
-
 const SLOW_QUERY_MS = 1000;
 
 function logSlowQuery(sql: string, durationMs: number): void {
@@ -108,7 +107,7 @@ class PgWrapper {
     // user. Otherwise acquire a fresh client from the pool — legacy
     // behaviour for jobs/migrations/tests with no request context.
     const ctx = getCurrentUserContext();
-    const client = ctx?.client ?? await this.pool.connect();
+    const client = ctx?.client ?? (await this.pool.connect());
     const ownsClient = !ctx;
     try {
       await client.query('BEGIN');
@@ -148,7 +147,10 @@ class PgWrapper {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query('SELECT set_config($1, $2, true)', ['app.current_user_id', String(userId)]);
+      await client.query('SELECT set_config($1, $2, true)', [
+        'app.current_user_id',
+        String(userId),
+      ]);
       const contextDb: DatabaseAdapter = {
         async get<R = DatabaseRow>(sql: string, params?: QueryParams): Promise<R | undefined> {
           const res = await client.query<DatabaseRow>(convertPlaceholders(sql), params ?? []);
@@ -309,28 +311,19 @@ const COLLABORATOR_PERMISSION_NAMES = [
   'checkin.perform',
 ];
 
-const GUEST_PERMISSION_NAMES = [
-  'events.view',
-  'rsvp.create',
-  'rsvp.view',
-  'gallery.view',
-];
+const GUEST_PERMISSION_NAMES = ['events.view', 'rsvp.create', 'rsvp.view', 'gallery.view'];
 
-const VIEWER_PERMISSION_NAMES = [
-  'events.view',
-  'rsvp.view',
-  'gallery.view',
-];
+const VIEWER_PERMISSION_NAMES = ['events.view', 'rsvp.view', 'gallery.view'];
 
 const ATTENDEE_PERMISSION_NAMES = GUEST_PERMISSION_NAMES;
 
 const ROLE_NAMES = {
-  attendee:     'Attendee',
-  organizer:    'Organizer',
-  admin:        'Admin',
+  attendee: 'Attendee',
+  organizer: 'Organizer',
+  admin: 'Admin',
   collaborator: 'Collaborator',
-  guest:        'Guest',
-  viewer:       'Viewer',
+  guest: 'Guest',
+  viewer: 'Viewer',
 } as const;
 
 const DEV_DEMO_USERS = [
@@ -395,21 +388,21 @@ type RoleName = (typeof ROLE_NAMES)[keyof typeof ROLE_NAMES];
 async function seedRolePermissions(db: DatabaseAdapter): Promise<void> {
   // Ensure extended permissions exist for new BRD v2 role model (#537, #573)
   const extendedPermissions = [
-    ['rsvp.create',      'Submit an RSVP'],
-    ['rsvp.view',        'View own RSVP'],
-    ['rsvp.manage',      'Manage all RSVPs for an event'],
-    ['tasks.view',       'View event tasks'],
-    ['tasks.edit',       'Create and update tasks'],
-    ['guests.view',      'View guest list'],
-    ['guests.manage',    'Manage guest records'],
-    ['budget.view',      'View budget'],
-    ['budget.edit',      'Edit budget items'],
-    ['gallery.view',     'View gallery'],
-    ['gallery.upload',   'Upload gallery media'],
+    ['rsvp.create', 'Submit an RSVP'],
+    ['rsvp.view', 'View own RSVP'],
+    ['rsvp.manage', 'Manage all RSVPs for an event'],
+    ['tasks.view', 'View event tasks'],
+    ['tasks.edit', 'Create and update tasks'],
+    ['guests.view', 'View guest list'],
+    ['guests.manage', 'Manage guest records'],
+    ['budget.view', 'View budget'],
+    ['budget.edit', 'Edit budget items'],
+    ['gallery.view', 'View gallery'],
+    ['gallery.upload', 'Upload gallery media'],
     ['gallery.moderate', 'Moderate gallery items'],
-    ['checkin.perform',  'Perform attendee check-in'],
-    ['reports.view',     'View analytics and reports'],
-    ['users.manage',     'Manage user accounts (admin only)'],
+    ['checkin.perform', 'Perform attendee check-in'],
+    ['reports.view', 'View analytics and reports'],
+    ['users.manage', 'Manage user accounts (admin only)'],
   ];
   for (const [name, description] of extendedPermissions) {
     await db.run(
@@ -425,9 +418,15 @@ async function seedRolePermissions(db: DatabaseAdapter): Promise<void> {
   ]);
 
   // Seed new BRD v2 roles — created with ON CONFLICT DO NOTHING so idempotent
-  const collaboratorRole = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [ROLE_NAMES.collaborator]);
-  const guestRole        = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [ROLE_NAMES.guest]);
-  const viewerRole       = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [ROLE_NAMES.viewer]);
+  const collaboratorRole = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [
+    ROLE_NAMES.collaborator,
+  ]);
+  const guestRole = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [
+    ROLE_NAMES.guest,
+  ]);
+  const viewerRole = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [
+    ROLE_NAMES.viewer,
+  ]);
 
   await insertRolePermissions(db, adminRoleId);
   await insertRolePermissions(db, organizerRoleId, ORGANIZER_PERMISSION_NAMES);
@@ -495,8 +494,12 @@ async function seedDevelopmentDemoUsers(db: DatabaseAdapter): Promise<void> {
 async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> {
   if (process.env.NODE_ENV === 'production') return;
 
-  const admin = await db.get<{ id: number }>('SELECT id FROM users WHERE email = $1', ['admin@festival.local']);
-  const attendee = await db.get<{ id: number }>('SELECT id FROM users WHERE email = $1', ['alice@email.com']);
+  const admin = await db.get<{ id: number }>('SELECT id FROM users WHERE email = $1', [
+    'admin@festival.local',
+  ]);
+  const attendee = await db.get<{ id: number }>('SELECT id FROM users WHERE email = $1', [
+    'alice@email.com',
+  ]);
 
   if (!admin) return;
 
@@ -594,9 +597,15 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
        ($4, 'Review volunteer roster', 'Assign the evening gate team.', 'Alice', $5, '2026-06-05', 'Pending', 'Medium', $6, 'Volunteer shift review for festival weekend.'),
        ($7, 'Print VIP wristbands', 'Prepare 75 gold wristbands.', 'Admin User', $8, '2026-06-10', 'Blocked', 'Low', $9, 'Waiting on final sponsor guest list.')`,
       [
-        event.id, admin.id, admin.id,
-        event.id, attendee?.id ?? null, admin.id,
-        event.id, admin.id, admin.id,
+        event.id,
+        admin.id,
+        admin.id,
+        event.id,
+        attendee?.id ?? null,
+        admin.id,
+        event.id,
+        admin.id,
+        admin.id,
       ],
     );
   }
@@ -635,8 +644,14 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
     [event.id],
   );
   if (Number(seatingAssignmentCount?.count ?? '0') === 0) {
-    const vipTable = await db.get<{ id: number }>('SELECT id FROM seating_tables WHERE event_id = $1 AND name = $2', [event.id, 'VIP Table']);
-    const firstGuest = await db.get<{ id: number }>('SELECT id FROM rsvps WHERE event_id = $1 ORDER BY id LIMIT 1', [event.id]);
+    const vipTable = await db.get<{ id: number }>(
+      'SELECT id FROM seating_tables WHERE event_id = $1 AND name = $2',
+      [event.id, 'VIP Table'],
+    );
+    const firstGuest = await db.get<{ id: number }>(
+      'SELECT id FROM rsvps WHERE event_id = $1 ORDER BY id LIMIT 1',
+      [event.id],
+    );
     if (vipTable && firstGuest) {
       await db.run(
         `INSERT INTO seating_assignments (table_id, rsvp_id)
@@ -647,7 +662,10 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
     }
   }
 
-  const vendorCount = await db.get<{ count: string }>('SELECT COUNT(*)::text AS count FROM vendors WHERE event_id = $1', [event.id]);
+  const vendorCount = await db.get<{ count: string }>(
+    'SELECT COUNT(*)::text AS count FROM vendors WHERE event_id = $1',
+    [event.id],
+  );
   if (Number(vendorCount?.count ?? '0') === 0) {
     await db.run(
       `INSERT INTO vendors (event_id, name, category, email, phone, website, status, quoted_amount, notes, rating, created_by)
@@ -656,7 +674,10 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
     );
   }
 
-  const shoppingList = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE event_id = $1 ORDER BY id LIMIT 1', [event.id]);
+  const shoppingList = await db.get<{ id: number }>(
+    'SELECT id FROM shopping_lists WHERE event_id = $1 ORDER BY id LIMIT 1',
+    [event.id],
+  );
   let shoppingListId = shoppingList?.id;
   if (!shoppingListId) {
     const createdList = await db.run(
@@ -669,7 +690,10 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
   }
 
   const shoppingItemCount = shoppingListId
-    ? await db.get<{ count: string }>('SELECT COUNT(*)::text AS count FROM shopping_items WHERE list_id = $1', [shoppingListId])
+    ? await db.get<{ count: string }>(
+        'SELECT COUNT(*)::text AS count FROM shopping_items WHERE list_id = $1',
+        [shoppingListId],
+      )
     : undefined;
   if (shoppingListId && Number(shoppingItemCount?.count ?? '0') === 0) {
     await db.run(
@@ -681,7 +705,10 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
     );
   }
 
-  const timelineCount = await db.get<{ count: string }>('SELECT COUNT(*)::text AS count FROM timeline_activities WHERE event_id = $1', [event.id]);
+  const timelineCount = await db.get<{ count: string }>(
+    'SELECT COUNT(*)::text AS count FROM timeline_activities WHERE event_id = $1',
+    [event.id],
+  );
   if (Number(timelineCount?.count ?? '0') === 0) {
     await db.run(
       `INSERT INTO timeline_activities (event_id, title, description, start_time, end_time, location, sort_order, created_by)
@@ -693,7 +720,10 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
     );
   }
 
-  const messageCount = await db.get<{ count: string }>('SELECT COUNT(*)::text AS count FROM event_messages WHERE event_id = $1', [event.id]);
+  const messageCount = await db.get<{ count: string }>(
+    'SELECT COUNT(*)::text AS count FROM event_messages WHERE event_id = $1',
+    [event.id],
+  );
   if (Number(messageCount?.count ?? '0') === 0) {
     await db.run(
       `INSERT INTO event_messages (event_id, sender_id, body)
@@ -708,8 +738,12 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
 async function seedDevelopmentExtraData(db: DatabaseAdapter): Promise<void> {
   if (process.env.NODE_ENV === 'production') return;
 
-  const admin = await db.get<{ id: number }>('SELECT id FROM users WHERE email = $1', ['admin@festival.local']);
-  const attendee = await db.get<{ id: number }>('SELECT id FROM users WHERE email = $1', ['alice@email.com']);
+  const admin = await db.get<{ id: number }>('SELECT id FROM users WHERE email = $1', [
+    'admin@festival.local',
+  ]);
+  const attendee = await db.get<{ id: number }>('SELECT id FROM users WHERE email = $1', [
+    'alice@email.com',
+  ]);
   if (!admin) return;
 
   const draftTitle = 'Autumn Wine Festival (Draft)';
@@ -722,7 +756,15 @@ async function seedDevelopmentExtraData(db: DatabaseAdapter): Promise<void> {
       `INSERT INTO events (title, date, location, description, capacity, status, created_by,
         created_at, updated_at, event_type, tags, is_public, end_date)
        VALUES ($1, $2, $3, $4, $5, 'Draft', $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Food', 'wine,fall,private', FALSE, $7)`,
-      [draftTitle, '2026-10-12', 'Vine & Hill Estate', 'Planning stage for the autumn invitational tasting.', 120, admin.id, '2026-10-13'],
+      [
+        draftTitle,
+        '2026-10-12',
+        'Vine & Hill Estate',
+        'Planning stage for the autumn invitational tasting.',
+        120,
+        admin.id,
+        '2026-10-13',
+      ],
     );
   }
 
@@ -736,7 +778,15 @@ async function seedDevelopmentExtraData(db: DatabaseAdapter): Promise<void> {
       `INSERT INTO events (title, date, location, description, capacity, status, created_by,
         created_at, updated_at, event_type, tags, is_public, end_date)
        VALUES ($1, $2, $3, $4, $5, 'Completed', $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Conference', 'tech,past', TRUE, $7)`,
-      [completedTitle, '2026-03-04', 'Innovation Hall', 'Annual tech meetup that wrapped up successfully.', 400, admin.id, '2026-03-06'],
+      [
+        completedTitle,
+        '2026-03-04',
+        'Innovation Hall',
+        'Annual tech meetup that wrapped up successfully.',
+        400,
+        admin.id,
+        '2026-03-06',
+      ],
     );
   }
 
@@ -746,7 +796,10 @@ async function seedDevelopmentExtraData(db: DatabaseAdapter): Promise<void> {
   );
 
   if (launchEvent?.id) {
-    const musicCategory = await db.get<{ id: number }>('SELECT id FROM categories WHERE name = $1', ['Music']);
+    const musicCategory = await db.get<{ id: number }>(
+      'SELECT id FROM categories WHERE name = $1',
+      ['Music'],
+    );
     if (musicCategory) {
       await db.run(
         `INSERT INTO event_categories (event_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
@@ -778,9 +831,15 @@ async function seedDevelopmentExtraData(db: DatabaseAdapter): Promise<void> {
          ($4, $5, 'rsvp_added', 'Alice confirmed her RSVP.', $6),
          ($7, $8, 'expense_added', 'Main stage lighting expense recorded.', $9)`,
         [
-          launchEvent.id, admin.id, `/events/${launchEvent.id}`,
-          launchEvent.id, admin.id, `/events/${launchEvent.id}/rsvps`,
-          launchEvent.id, admin.id, `/events/${launchEvent.id}/budget`,
+          launchEvent.id,
+          admin.id,
+          `/events/${launchEvent.id}`,
+          launchEvent.id,
+          admin.id,
+          `/events/${launchEvent.id}/rsvps`,
+          launchEvent.id,
+          admin.id,
+          `/events/${launchEvent.id}/budget`,
         ],
       );
     }
@@ -996,7 +1055,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   `);
 
   // BRD v2 #538/#572: extend audit_log with richer security event fields
-  await db.exec(`ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS actor_id    INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(
+    `ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS actor_id    INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+  );
   await db.exec(`ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS target_type TEXT`);
   await db.exec(`ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS target_id   TEXT`);
   await db.exec(`ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS context     JSONB`);
@@ -1013,7 +1074,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   `);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_action     ON audit_log(action)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_user_id    ON audit_log(user_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at DESC)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at DESC)`,
+  );
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS roles (
@@ -1219,7 +1282,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS checked_in BOOLEAN DEFAULT FALSE`);
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP`);
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS phone TEXT`);
-  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS dietary_restriction TEXT DEFAULT 'None'`);
+  await db.exec(
+    `ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS dietary_restriction TEXT DEFAULT 'None'`,
+  );
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS accessibility_needs TEXT`);
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS plus_one BOOLEAN DEFAULT FALSE`);
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS plus_one_name TEXT`);
@@ -1241,7 +1306,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     )
   `);
 
-  await db.exec('CREATE INDEX IF NOT EXISTS idx_communication_log_event_id ON communication_log(event_id)');
+  await db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_communication_log_event_id ON communication_log(event_id)',
+  );
 
   // ── Communication tracking (#419, #465, #466) ───────────────────────────
   // Append-only event log for email opens (pixel) and clicks (redirect).
@@ -1367,7 +1434,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     )
   `);
 
-  await db.exec('CREATE INDEX IF NOT EXISTS idx_event_documents_event_id ON event_documents(event_id)');
+  await db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_event_documents_event_id ON event_documents(event_id)',
+  );
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS event_members (
@@ -1382,7 +1451,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   `);
 
   // Normalize legacy role labels to BRD role model.
-  await db.exec(`UPDATE event_members SET role = 'Helper' WHERE LOWER(COALESCE(role, '')) = 'member'`);
+  await db.exec(
+    `UPDATE event_members SET role = 'Helper' WHERE LOWER(COALESCE(role, '')) = 'member'`,
+  );
 
   // ── Vendor Management (BRD 3.6) ──────────────────────────────────────────
   await db.exec(`
@@ -1454,9 +1525,13 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS description TEXT`);
   await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS estimated_hours NUMERIC(5,2)`);
   // Schema drift fix: tasks created before full migration were missing these columns
-  await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+  );
   await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'Medium'`);
-  await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+  );
 
   // ── Vendors schema drift fix ──────────────────────────────────────────────
   // Older DB had company_name/booking_status; current code expects name/status
@@ -1481,9 +1556,15 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS vendor_name TEXT`);
 
   // ── Budget planning schema drift fix (#596, #597) ─────────────────────────
-  await db.exec(`ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(5,2) DEFAULT 0`);
-  await db.exec(`ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS gratuity_rate NUMERIC(5,2) DEFAULT 0`);
-  await db.exec(`ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS contingency_rate NUMERIC(5,2) DEFAULT 0`);
+  await db.exec(
+    `ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(5,2) DEFAULT 0`,
+  );
+  await db.exec(
+    `ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS gratuity_rate NUMERIC(5,2) DEFAULT 0`,
+  );
+  await db.exec(
+    `ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS contingency_rate NUMERIC(5,2) DEFAULT 0`,
+  );
   await db.exec(`
     DO $$
     BEGIN
@@ -1548,8 +1629,12 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     )
   `);
 
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_messages_event_id ON event_messages(event_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_messages_sender_id ON event_messages(sender_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_event_messages_event_id ON event_messages(event_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_event_messages_sender_id ON event_messages(sender_id)`,
+  );
 
   // ── Multi-day events: add end_date column (#217) ──────────────────────────
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS end_date TEXT`);
@@ -1587,7 +1672,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     )
   `);
 
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_categories_event_id ON event_categories(event_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_event_categories_event_id ON event_categories(event_id)`,
+  );
 
   // ── Gallery caption support (#409, #430) ─────────────────────────────────
   await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS caption TEXT`);
@@ -1613,8 +1700,12 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     EXCEPTION WHEN duplicate_object THEN NULL;
     END $$
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_dependencies_task_id ON task_dependencies(task_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on_id ON task_dependencies(depends_on_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_task_dependencies_task_id ON task_dependencies(task_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on_id ON task_dependencies(depends_on_id)`,
+  );
 
   // ── Budget templates (#438) ───────────────────────────────────────────────
   await db.exec(`
@@ -1636,7 +1727,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_budget_template_items_template_id ON budget_template_items(template_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_budget_template_items_template_id ON budget_template_items(template_id)`,
+  );
 
   // ── Task templates & time entries (#450) ─────────────────────────────────
   await db.exec(`
@@ -1651,7 +1744,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_templates_event_id ON task_templates(event_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_task_templates_event_id ON task_templates(event_id)`,
+  );
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS task_time_entries (
@@ -1664,7 +1759,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_time_entries_task_id ON task_time_entries(task_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_task_time_entries_task_id ON task_time_entries(task_id)`,
+  );
 
   // Recurring task support columns
   await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT FALSE`);
@@ -1676,7 +1773,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='task_templates') AS exists`,
     );
     if (tmplExists?.exists) {
-      await db.exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS template_id INTEGER REFERENCES task_templates(id) ON DELETE SET NULL`);
+      await db.exec(
+        `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS template_id INTEGER REFERENCES task_templates(id) ON DELETE SET NULL`,
+      );
     }
   }
 
@@ -1694,7 +1793,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     END $$
   `);
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_end_date DATE`);
-  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS is_installment BOOLEAN DEFAULT FALSE`);
+  await db.exec(
+    `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS is_installment BOOLEAN DEFAULT FALSE`,
+  );
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS installment_total INTEGER`);
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS installment_number INTEGER`);
 
@@ -1711,8 +1812,12 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_vendor_id ON vendor_communication_log(vendor_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_event_id ON vendor_communication_log(event_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_vendor_id ON vendor_communication_log(vendor_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_vendor_comm_log_event_id ON vendor_communication_log(event_id)`,
+  );
 
   // ── Vendor lifecycle parity (#553, #609, #610, #611) ───────────────────
   await db.exec(`
@@ -1725,9 +1830,15 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       UNIQUE(event_id, vendor_id, user_id)
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_favorites_event_id ON vendor_favorites(event_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_favorites_vendor_id ON vendor_favorites(vendor_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_favorites_user_id ON vendor_favorites(user_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_vendor_favorites_event_id ON vendor_favorites(event_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_vendor_favorites_vendor_id ON vendor_favorites(vendor_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_vendor_favorites_user_id ON vendor_favorites(user_id)`,
+  );
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS vendor_bookings (
@@ -1749,8 +1860,12 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       CHECK(status IN ('requested','quoted','negotiating','approved','contracted','scheduled','in_progress','completed','cancelled'))
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_bookings_event_id ON vendor_bookings(event_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_bookings_vendor_id ON vendor_bookings(vendor_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_vendor_bookings_event_id ON vendor_bookings(event_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_vendor_bookings_vendor_id ON vendor_bookings(vendor_id)`,
+  );
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS vendor_payment_schedules (
@@ -1771,8 +1886,12 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       CHECK(amount >= 0)
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_payment_sched_event_id ON vendor_payment_schedules(event_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_vendor_payment_sched_vendor_id ON vendor_payment_schedules(vendor_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_vendor_payment_sched_event_id ON vendor_payment_schedules(event_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_vendor_payment_sched_vendor_id ON vendor_payment_schedules(vendor_id)`,
+  );
 
   // ── Store suggestions (#464) ──────────────────────────────────────────────
   await db.exec(`
@@ -1789,7 +1908,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_store_suggestions_event_id ON store_suggestions(event_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_store_suggestions_event_id ON store_suggestions(event_id)`,
+  );
   await db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_store_suggestions_unique
     ON store_suggestions(event_id, lower(name))
@@ -1845,7 +1966,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   // ── Entra ID identity linking (#468, #470) ────────────────────────────────
   await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS entra_oid TEXT`);
   await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT DEFAULT 'local'`);
-  await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_entra_oid ON users(entra_oid) WHERE entra_oid IS NOT NULL`);
+  await db.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_entra_oid ON users(entra_oid) WHERE entra_oid IS NOT NULL`,
+  );
 
   // ── RLS pilot: enable row-level security (#472) ───────────────────────────
   if (isRlsEnabled) {
@@ -1978,14 +2101,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     // against. We only DISABLE; the policy definitions themselves are kept
     // in place so re-enabling later (via RLS_PILOT_ENABLED=true) restores
     // the same access matrix.
-    const rlsTables = [
-      'events',
-      'event_members',
-      'tasks',
-      'expenses',
-      'vendors',
-      'rsvps',
-    ];
+    const rlsTables = ['events', 'event_members', 'tasks', 'expenses', 'vendors', 'rsvps'];
     for (const tbl of rlsTables) {
       await db.exec(`
         DO $$ BEGIN
@@ -2084,31 +2200,63 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   );
 
   // ── Planned-vs-actual timeline workflow (#460) ───────────────────────────
-  await db.exec(`ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS planned_start_time TIMESTAMP`);
-  await db.exec(`ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS planned_end_time TIMESTAMP`);
-  await db.exec(`ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS actual_start_time TIMESTAMP`);
-  await db.exec(`ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS actual_end_time TIMESTAMP`);
-  await db.exec(`ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'planned' CHECK (status IN ('planned','in-progress','completed','skipped'))`);
+  await db.exec(
+    `ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS planned_start_time TIMESTAMP`,
+  );
+  await db.exec(
+    `ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS planned_end_time TIMESTAMP`,
+  );
+  await db.exec(
+    `ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS actual_start_time TIMESTAMP`,
+  );
+  await db.exec(
+    `ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS actual_end_time TIMESTAMP`,
+  );
+  await db.exec(
+    `ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'planned' CHECK (status IN ('planned','in-progress','completed','skipped'))`,
+  );
 
   // ── Currency & exchange rates (#418, #461) ────────────────────────────────
-  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'USD'`);
+  await db.exec(
+    `ALTER TABLE events ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'USD'`,
+  );
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency_code TEXT`);
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_base NUMERIC(14,4)`);
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(18,8)`);
-  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
-  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'pending'`);
+  await db.exec(
+    `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+  );
+  await db.exec(
+    `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'pending'`,
+  );
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approval_note TEXT`);
-  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(
+    `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+  );
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`);
-  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_status TEXT NOT NULL DEFAULT 'not_requested'`);
-  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_requested_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
-  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_requested_at TIMESTAMP`);
-  await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursed_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(
+    `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_status TEXT NOT NULL DEFAULT 'not_requested'`,
+  );
+  await db.exec(
+    `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_requested_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+  );
+  await db.exec(
+    `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursement_requested_at TIMESTAMP`,
+  );
+  await db.exec(
+    `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursed_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+  );
   await db.exec(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reimbursed_at TIMESTAMP`);
   await db.exec(`ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expenses_approval_status_check`);
-  await db.exec(`ALTER TABLE expenses ADD CONSTRAINT expenses_approval_status_check CHECK (approval_status IN ('pending','approved','rejected'))`);
-  await db.exec(`ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expenses_reimbursement_status_check`);
-  await db.exec(`ALTER TABLE expenses ADD CONSTRAINT expenses_reimbursement_status_check CHECK (reimbursement_status IN ('not_requested','requested','reimbursed','rejected'))`);
+  await db.exec(
+    `ALTER TABLE expenses ADD CONSTRAINT expenses_approval_status_check CHECK (approval_status IN ('pending','approved','rejected'))`,
+  );
+  await db.exec(
+    `ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expenses_reimbursement_status_check`,
+  );
+  await db.exec(
+    `ALTER TABLE expenses ADD CONSTRAINT expenses_reimbursement_status_check CHECK (reimbursement_status IN ('not_requested','requested','reimbursed','rejected'))`,
+  );
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS expense_workflow_events (
@@ -2123,8 +2271,12 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_event_id ON expense_workflow_events(event_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_expense_id ON expense_workflow_events(expense_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_event_id ON expense_workflow_events(event_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_expense_workflow_events_expense_id ON expense_workflow_events(expense_id)`,
+  );
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS expense_receipt_ocr (
@@ -2149,8 +2301,12 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       CHECK (confidence >= 0 AND confidence <= 1)
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_receipt_ocr_event_id ON expense_receipt_ocr(event_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_receipt_ocr_expense_id ON expense_receipt_ocr(expense_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_expense_receipt_ocr_event_id ON expense_receipt_ocr(event_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_expense_receipt_ocr_expense_id ON expense_receipt_ocr(expense_id)`,
+  );
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS expense_reconciliation_logs (
@@ -2170,8 +2326,12 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       CHECK (overrides_count >= 0)
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_reconciliation_logs_event_id ON expense_reconciliation_logs(event_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_expense_reconciliation_logs_expense_id ON expense_reconciliation_logs(expense_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_expense_reconciliation_logs_event_id ON expense_reconciliation_logs(event_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_expense_reconciliation_logs_expense_id ON expense_reconciliation_logs(expense_id)`,
+  );
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS exchange_rates (
@@ -2208,7 +2368,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       deleted_at   TIMESTAMP
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_templates_created_by ON event_templates(created_by)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_event_templates_created_by ON event_templates(created_by)`,
+  );
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS event_filter_presets (
@@ -2220,8 +2382,12 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_filter_presets_user ON event_filter_presets(user_id)`);
-  await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_event_filter_presets_user_name ON event_filter_presets(user_id, name)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_event_filter_presets_user ON event_filter_presets(user_id)`,
+  );
+  await db.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_event_filter_presets_user_name ON event_filter_presets(user_id, name)`,
+  );
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS gallery_albums (
@@ -2234,13 +2400,25 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_albums_event_id ON gallery_albums(event_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gallery_albums_event_id ON gallery_albums(event_id)`,
+  );
 
-  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS album_id INTEGER REFERENCES gallery_albums(id) ON DELETE SET NULL`);
-  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS moderation_status TEXT NOT NULL DEFAULT 'approved'`);
-  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS submitted_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_documents_album_id ON event_documents(album_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_documents_moderation ON event_documents(event_id, moderation_status)`);
+  await db.exec(
+    `ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS album_id INTEGER REFERENCES gallery_albums(id) ON DELETE SET NULL`,
+  );
+  await db.exec(
+    `ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS moderation_status TEXT NOT NULL DEFAULT 'approved'`,
+  );
+  await db.exec(
+    `ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS submitted_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_event_documents_album_id ON event_documents(album_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_event_documents_moderation ON event_documents(event_id, moderation_status)`,
+  );
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS gallery_slideshows (
@@ -2252,7 +2430,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_slideshows_event_id ON gallery_slideshows(event_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gallery_slideshows_event_id ON gallery_slideshows(event_id)`,
+  );
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS slideshow_items (
@@ -2263,7 +2443,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       UNIQUE (slideshow_id, document_id)
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_slideshow_items_slideshow_id ON slideshow_items(slideshow_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_slideshow_items_slideshow_id ON slideshow_items(slideshow_id)`,
+  );
 
   // ─── BRD v2 parity: lifecycle, archive, custom fields, gallery, reports ────
   // Stories #528, #533 — tasks #539-#542, #560-#563, #574-#581, #617-#622.
@@ -2284,21 +2466,37 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
   // Archival fields distinct from soft-delete (#540, #578).
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP`);
-  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS archived_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(
+    `ALTER TABLE events ADD COLUMN IF NOT EXISTS archived_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+  );
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS archive_reason TEXT`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_events_archived_at ON events(archived_at) WHERE archived_at IS NOT NULL`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_events_archived_at ON events(archived_at) WHERE archived_at IS NOT NULL`,
+  );
 
   // Audit field (#542) — who last updated the event.
-  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await db.exec(
+    `ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+  );
 
   // Gallery permission flags per-event (#618, #621).
-  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_comments_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
-  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_guest_uploads BOOLEAN NOT NULL DEFAULT FALSE`);
-  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_public BOOLEAN NOT NULL DEFAULT FALSE`);
+  await db.exec(
+    `ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_comments_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
+  );
+  await db.exec(
+    `ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_guest_uploads BOOLEAN NOT NULL DEFAULT FALSE`,
+  );
+  await db.exec(
+    `ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_public BOOLEAN NOT NULL DEFAULT FALSE`,
+  );
 
   // Storage quota — bytes, default 100MB per event (spec requirement: 100MB/event).
-  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS storage_quota_bytes BIGINT NOT NULL DEFAULT 104857600`);
-  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS storage_used_bytes BIGINT NOT NULL DEFAULT 0`);
+  await db.exec(
+    `ALTER TABLE events ADD COLUMN IF NOT EXISTS storage_quota_bytes BIGINT NOT NULL DEFAULT 104857600`,
+  );
+  await db.exec(
+    `ALTER TABLE events ADD COLUMN IF NOT EXISTS storage_used_bytes BIGINT NOT NULL DEFAULT 0`,
+  );
 
   // Cover image resize pipeline (#541, #576).
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS cover_image_sizes JSONB`);
@@ -2322,10 +2520,14 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       UNIQUE (event_id, field_key)
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_custom_fields_event_id ON event_custom_fields(event_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_event_custom_fields_event_id ON event_custom_fields(event_id)`,
+  );
 
   // Gallery per-photo permissions + conversion metadata (#560, #617, #618).
-  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'event'`);
+  await db.exec(
+    `ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'event'`,
+  );
   await db.exec(`
     DO $$
     BEGIN
@@ -2338,9 +2540,15 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     ALTER TABLE event_documents ADD CONSTRAINT event_documents_visibility_check
       CHECK (visibility IN ('private','event','public'))
   `);
-  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS allow_download BOOLEAN NOT NULL DEFAULT TRUE`);
-  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS allow_comments BOOLEAN NOT NULL DEFAULT TRUE`);
-  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS conversion_status TEXT NOT NULL DEFAULT 'none'`);
+  await db.exec(
+    `ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS allow_download BOOLEAN NOT NULL DEFAULT TRUE`,
+  );
+  await db.exec(
+    `ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS allow_comments BOOLEAN NOT NULL DEFAULT TRUE`,
+  );
+  await db.exec(
+    `ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS conversion_status TEXT NOT NULL DEFAULT 'none'`,
+  );
   await db.exec(`
     DO $$
     BEGIN
@@ -2357,9 +2565,15 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS converted_file_name TEXT`);
   await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS thumbnail_url TEXT`);
   await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS medium_url TEXT`);
-  await db.exec(`ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_documents_visibility ON event_documents(event_id, visibility)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_documents_conversion ON event_documents(conversion_status) WHERE conversion_status <> 'none'`);
+  await db.exec(
+    `ALTER TABLE event_documents ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_event_documents_visibility ON event_documents(event_id, visibility)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_event_documents_conversion ON event_documents(conversion_status) WHERE conversion_status <> 'none'`,
+  );
 
   // Gallery share links (#619).
   await db.exec(`
@@ -2379,9 +2593,15 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_share_links_event_id ON gallery_share_links(event_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_share_links_album_id ON gallery_share_links(album_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_share_links_token_active ON gallery_share_links(token) WHERE revoked_at IS NULL`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gallery_share_links_event_id ON gallery_share_links(event_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gallery_share_links_album_id ON gallery_share_links(album_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gallery_share_links_token_active ON gallery_share_links(token) WHERE revoked_at IS NULL`,
+  );
 
   // Gallery comments (#621).
   await db.exec(`
@@ -2400,9 +2620,15 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       updated_by   INTEGER REFERENCES users(id) ON DELETE SET NULL
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_comments_document_id ON gallery_comments(document_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_comments_event_id ON gallery_comments(event_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_gallery_comments_parent_id ON gallery_comments(parent_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gallery_comments_document_id ON gallery_comments(document_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gallery_comments_event_id ON gallery_comments(event_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gallery_comments_parent_id ON gallery_comments(parent_id)`,
+  );
 
   // Scheduled reports (#562).
   await db.exec(`
@@ -2422,8 +2648,12 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_scheduled_reports_event_id ON scheduled_reports(event_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_scheduled_reports_due ON scheduled_reports(next_run_at) WHERE is_active = TRUE`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_scheduled_reports_event_id ON scheduled_reports(event_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_scheduled_reports_due ON scheduled_reports(next_run_at) WHERE is_active = TRUE`,
+  );
   await db.exec(`
     CREATE TABLE IF NOT EXISTS scheduled_report_deliveries (
       id            SERIAL PRIMARY KEY,
@@ -2435,7 +2665,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       payload_kind  TEXT NOT NULL DEFAULT 'json'
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_scheduled_report_deliveries_report_id ON scheduled_report_deliveries(report_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_scheduled_report_deliveries_report_id ON scheduled_report_deliveries(report_id)`,
+  );
 
   // Event template depth (#579).
   await db.exec(`
@@ -2450,7 +2682,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       UNIQUE (template_id, section_key)
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_event_template_sections_template_id ON event_template_sections(template_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_event_template_sections_template_id ON event_template_sections(template_id)`,
+  );
 
   // ── Guest profile completeness fields (#529, #543, #547, #582) ────────────
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS address_line1 TEXT`);
@@ -2465,7 +2699,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS age_group TEXT`);
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS emergency_contact_name TEXT`);
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS emergency_contact_phone TEXT`);
-  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS profile_completeness INTEGER DEFAULT 0`);
+  await db.exec(
+    `ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS profile_completeness INTEGER DEFAULT 0`,
+  );
 
   // ── RSVP taxonomy alignment (#544, #584) ─────────────────────────────────
   // Add canonical_status that maps legacy free-text status to the BRD/FRD set:
@@ -2477,7 +2713,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
 
   // ── Meal selection (#591) ────────────────────────────────────────────────
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS meal_choice TEXT`);
-  await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS meal_options_locked BOOLEAN DEFAULT FALSE`);
+  await db.exec(
+    `ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS meal_options_locked BOOLEAN DEFAULT FALSE`,
+  );
 
   // ── Late arrival flag (#594) ─────────────────────────────────────────────
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS late_arrival BOOLEAN DEFAULT FALSE`);
@@ -2560,9 +2798,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     )
   `);
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS seating_group_id INTEGER`);
-  await db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_rsvps_seating_group ON rsvps(seating_group_id)`,
-  );
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_rsvps_seating_group ON rsvps(seating_group_id)`);
 
   // Backfill canonical_status from legacy free-text status on first run.
   await db.exec(`
@@ -2578,6 +2814,11 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       ELSE 'pending'
     END
     WHERE canonical_status IS NULL OR canonical_status = ''
+  `);
+
+  await db.exec(`
+    CREATE OR REPLACE VIEW guests AS
+    SELECT * FROM rsvps
   `);
 
   // ============================================================
@@ -2598,10 +2839,18 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   // ============================================================
 
   // v9 §1 — Missing columns (idempotent)
-  await db.exec(`ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS contract_expiry_date DATE DEFAULT NULL`);
-  await db.exec(`ALTER TABLE vendor_payment_schedules ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP DEFAULT NULL`);
-  await db.exec(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP DEFAULT NULL`);
-  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS email_provider_message_id TEXT DEFAULT NULL`);
+  await db.exec(
+    `ALTER TABLE vendor_bookings ADD COLUMN IF NOT EXISTS contract_expiry_date DATE DEFAULT NULL`,
+  );
+  await db.exec(
+    `ALTER TABLE vendor_payment_schedules ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP DEFAULT NULL`,
+  );
+  await db.exec(
+    `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP DEFAULT NULL`,
+  );
+  await db.exec(
+    `ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS email_provider_message_id TEXT DEFAULT NULL`,
+  );
 
   // v9 §2 — Missing tables (idempotent)
   await db.exec(`
@@ -2673,16 +2922,26 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   // v9 §3 — Indexes (plain CREATE INDEX IF NOT EXISTS at startup; see note above)
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned_user_id ON tasks(assigned_user_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_user_expires ON sessions(user_id, expires_at)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_sessions_user_expires ON sessions(user_id, expires_at)`,
+  );
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_rsvps_phone ON rsvps(phone)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_rsvps_waitlist_position ON rsvps(waitlist_position) WHERE waitlist_position IS NOT NULL`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_events_archived_at ON events(archived_at) WHERE archived_at IS NOT NULL`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_user_created ON audit_log(user_id, created_at)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_rsvps_waitlist_position ON rsvps(waitlist_position) WHERE waitlist_position IS NOT NULL`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_events_archived_at ON events(archived_at) WHERE archived_at IS NOT NULL`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_audit_log_user_created ON audit_log(user_id, created_at)`,
+  );
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_guest_groups_event_id ON guest_groups(event_id)`);
 
   // v9 §4 — Constraints (DROP IF EXISTS then ADD — idempotent across reruns)
   await db.exec(`ALTER TABLE events DROP CONSTRAINT IF EXISTS chk_events_capacity_non_negative`);
-  await db.exec(`ALTER TABLE events ADD CONSTRAINT chk_events_capacity_non_negative CHECK (capacity IS NULL OR capacity >= 0)`);
+  await db.exec(
+    `ALTER TABLE events ADD CONSTRAINT chk_events_capacity_non_negative CHECK (capacity IS NULL OR capacity >= 0)`,
+  );
   // The expense_receipt_ocr and vendor_payment_schedules constraints are added
   // only if those tables exist (older snapshots may not have them yet).
   await db.exec(`
@@ -2712,20 +2971,32 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   `);
 
   // v9.1 — Resend-verification rate limiting & Entra back-channel logout
-  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS resend_verification_count INTEGER NOT NULL DEFAULT 0`);
-  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS resend_verification_window_start TIMESTAMPTZ`);
+  await db.exec(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS resend_verification_count INTEGER NOT NULL DEFAULT 0`,
+  );
+  await db.exec(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS resend_verification_window_start TIMESTAMPTZ`,
+  );
   await db.exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS entra_sid TEXT`);
   await db.exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS entra_sub TEXT`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_entra_sid ON sessions(entra_sid) WHERE entra_sid IS NOT NULL`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_sessions_entra_sid ON sessions(entra_sid) WHERE entra_sid IS NOT NULL`,
+  );
 
   // v9.2 — Completion-story columns referenced by features that already shipped
-  await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS opened BOOLEAN NOT NULL DEFAULT false`);
+  await db.exec(
+    `ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS opened BOOLEAN NOT NULL DEFAULT false`,
+  );
   await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ`);
   await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS recipient_email TEXT`);
   await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS body TEXT`);
   await db.exec(`ALTER TABLE communication_log ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`);
-  await db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_unsubscribed BOOLEAN NOT NULL DEFAULT false`);
-  await db.exec(`ALTER TABLE exchange_rates ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+  await db.exec(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_unsubscribed BOOLEAN NOT NULL DEFAULT false`,
+  );
+  await db.exec(
+    `ALTER TABLE exchange_rates ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
+  );
   await db.exec(`
     DO $$
     BEGIN
@@ -2805,7 +3076,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_task_escalation_rules_event ON task_escalation_rules(event_id) WHERE active = TRUE`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_task_escalation_rules_event ON task_escalation_rules(event_id) WHERE active = TRUE`,
+  );
 
   // timeline_templates + items — reusable blueprints applied to new events.
   // Offset/duration are stored in minutes-from-start so a template can be
@@ -2835,11 +3108,15 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_timeline_template_items_template ON timeline_template_items(template_id)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_timeline_template_items_template ON timeline_template_items(template_id)`,
+  );
 
   // Buffer-time on the existing timeline_activities table — adds a slack
   // window after each activity. Default 0 keeps existing data unchanged.
-  await db.exec(`ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS buffer_minutes INTEGER NOT NULL DEFAULT 0`);
+  await db.exec(
+    `ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS buffer_minutes INTEGER NOT NULL DEFAULT 0`,
+  );
 
   // entity_change_history — append-only version log used by B1.6 rollback.
   // before/after are full JSONB snapshots; the (entity_type, entity_id,
@@ -2858,8 +3135,12 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       UNIQUE (entity_type, entity_id, version)
     )
   `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_entity_change_history_entity ON entity_change_history(entity_type, entity_id)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_entity_change_history_changed_at ON entity_change_history(changed_at DESC)`);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_entity_change_history_entity ON entity_change_history(entity_type, entity_id)`,
+  );
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_entity_change_history_changed_at ON entity_change_history(changed_at DESC)`,
+  );
 
   // ── v12 — RLS coverage follow-up for the v10 tables (#702) ───────────────
   // The v10 schema added task_assignees, task_escalation_rules, the

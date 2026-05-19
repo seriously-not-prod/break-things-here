@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import path from 'path';
 import { getDatabase } from '../db/database';
+import { captureEntityVersion } from './entity-versions-controller.js';
 import {
   EVENT_STATUSES,
   EventStatus,
@@ -14,6 +15,7 @@ import {
   validateEventDate,
 } from '../utils/event-lifecycle.js';
 import { buildCoverRenditionUrls, materialiseRenditions } from '../utils/image-processing.js';
+import { publishRealtimeEvent } from '../utils/realtime-bus.js';
 
 export interface EventData {
   title: string;
@@ -79,11 +81,7 @@ const EVENT_RESTORE_WINDOW_MS = EVENT_RESTORE_WINDOW_DAYS * 24 * 60 * 60 * 1000;
  *   - null when the input is null/undefined/empty (to clear the column),
  *   - 'invalid' when out of range or non-numeric (caller should reject the request).
  */
-function normalizeCoordinate(
-  value: unknown,
-  min: number,
-  max: number,
-): number | null | 'invalid' {
+function normalizeCoordinate(value: unknown, min: number, max: number): number | null | 'invalid' {
   if (value === null || value === undefined || value === '') return null;
   const n = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(n)) return 'invalid';
@@ -212,7 +210,10 @@ export async function getAllEvents(req: Request, res: Response): Promise<void> {
     }
 
     if (tags) {
-      const tagList = tags.split(',').map((t) => t.trim()).filter(Boolean);
+      const tagList = tags
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
       if (tagList.length > 0) {
         const tagConditions = tagList
           .map(() => "(',' || COALESCE(e.tags, '') || ',') ILIKE ?")
@@ -297,19 +298,22 @@ export async function getEventById(req: Request, res: Response): Promise<void> {
   try {
     const db = getDatabase();
     const { id } = req.params;
-    
-    const event = await db.get(`
+
+    const event = await db.get(
+      `
       SELECT ${EVENT_SELECT_COLUMNS}
       FROM events e
       LEFT JOIN users u ON e.created_by = u.id
       WHERE e.id = $1 AND e.deleted_at IS NULL
-    `, [id]);
-    
+    `,
+      [id],
+    );
+
     if (!event) {
       res.status(404).json({ error: 'Event not found' });
       return;
     }
-    
+
     const tasks = await db.all(
       `SELECT t.*, COALESCE(u.display_name, t.assignee_name) AS assignee_name
        FROM tasks t
@@ -318,7 +322,9 @@ export async function getEventById(req: Request, res: Response): Promise<void> {
        ORDER BY t.due_date ASC, t.priority ASC`,
       [id],
     );
-    const rsvps = await db.all('SELECT * FROM rsvps WHERE event_id = $1 ORDER BY created_at DESC', [id]);
+    const rsvps = await db.all('SELECT * FROM rsvps WHERE event_id = $1 ORDER BY created_at DESC', [
+      id,
+    ]);
     const members = await db.all(
       `SELECT em.user_id, em.role, em.joined_at, u.display_name, u.email
        FROM event_members em
@@ -351,18 +357,20 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
     const authReq = req as AuthRequest;
     const userId = authReq.user?.id;
     const userEmail = authReq.user?.email;
-    
+
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
       return;
     }
-    
+
     const {
       title,
       // support both 'date' and 'start_date' as field name
-      date: _date, start_date,
+      date: _date,
+      start_date,
       // support both 'location' and 'venue_name' as field name
-      location: _location, venue_name,
+      location: _location,
+      venue_name,
       description,
       capacity,
       status,
@@ -425,23 +433,65 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const result = await db.run(`
+    const result = await db.run(
+      `
       INSERT INTO events (title, date, location, description, capacity, status, event_type, is_public, tags,
                           latitude, longitude, waitlist_enabled, event_time, created_by, updated_by)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING id
-    `, [title, date, location, description ?? null, capacity ?? null, initialStatus,
-        event_type ?? 'Other', is_public ?? false, tags ?? null,
-        lat, lng, waitlist_enabled ?? false,
+    `,
+      [
+        title,
+        date,
+        location,
+        description ?? null,
+        capacity ?? null,
+        initialStatus,
+        event_type ?? 'Other',
+        is_public ?? false,
+        tags ?? null,
+        lat,
+        lng,
+        waitlist_enabled ?? false,
         event_time,
-        userId, userId]);
-    
-    const newEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`, [result.lastID]);
+        userId,
+        userId,
+      ],
+    );
+
+    const newEvent = await db.get(
+      `SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`,
+      [result.lastID],
+    );
+    if (newEvent?.id) {
+      await captureEntityVersion(
+        'event',
+        Number(newEvent.id),
+        newEvent as Record<string, unknown>,
+        userId ?? null,
+        'Event created',
+      );
+    }
     await db.run(
       'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
-      [userId, userEmail ?? null, 'event.created', `Created event #${result.lastID}: ${title}`, authReq.ip ?? null],
+      [
+        userId,
+        userEmail ?? null,
+        'event.created',
+        `Created event #${result.lastID}: ${title}`,
+        authReq.ip ?? null,
+      ],
     );
-    
+    publishRealtimeEvent({
+      type: 'event.created',
+      occurredAt: new Date().toISOString(),
+      eventId: Number(result.lastID),
+      entityType: 'event',
+      entityId: Number(result.lastID),
+      actorId: userId,
+      payload: { title },
+    });
+
     res.status(201).json(newEvent);
   } catch (error) {
     console.error('Error creating event:', error);
@@ -458,16 +508,18 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
     const { id } = req.params;
     const authReq = req as AuthRequest;
     const userId = authReq.user?.id;
-    
+
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
       return;
     }
-    
+
     const {
       title,
-      date: _date, start_date,
-      location: _location, venue_name,
+      date: _date,
+      start_date,
+      location: _location,
+      venue_name,
       description,
       capacity,
       status,
@@ -488,7 +540,10 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
     const location = _location || venue_name;
 
     // Check if event exists
-    const existingEvent = await db.get('SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL', [id]);
+    const existingEvent = await db.get(
+      'SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL',
+      [id],
+    );
     if (!existingEvent) {
       res.status(404).json({ error: 'Event not found' });
       return;
@@ -582,9 +637,12 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       }
     }
     const nextEventTime =
-      event_time !== undefined ? event_time : (existingEvent['event_time'] as string | null ?? null);
+      event_time !== undefined
+        ? event_time
+        : ((existingEvent['event_time'] as string | null) ?? null);
 
-    await db.run(`
+    await db.run(
+      `
       UPDATE events
       SET title = $1, date = $2, location = $3, description = $4, capacity = $5, status = $6,
           event_type = $7, is_public = $8, tags = $9, latitude = $10, longitude = $11, waitlist_enabled = $12,
@@ -592,40 +650,69 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
           storage_quota_bytes = $16, event_time = $17,
           updated_by = $18, updated_at = CURRENT_TIMESTAMP
       WHERE id = $19
-    `, [
-      title || existingEvent.title,
-      date || existingEvent.date,
-      location || existingEvent.location,
-      description !== undefined ? description : existingEvent.description,
-      capacity !== undefined ? capacity : existingEvent.capacity,
-      status || existingEvent.status,
-      event_type !== undefined ? event_type : existingEvent.event_type,
-      is_public !== undefined ? is_public : existingEvent.is_public,
-      tags !== undefined ? tags : existingEvent.tags,
-      nextLat,
-      nextLng,
-      waitlist_enabled !== undefined ? waitlist_enabled : existingEvent['waitlist_enabled'],
-      gallery_comments_enabled !== undefined
-        ? Boolean(gallery_comments_enabled)
-        : (existingEvent['gallery_comments_enabled'] as boolean | undefined) ?? true,
-      gallery_guest_uploads !== undefined
-        ? Boolean(gallery_guest_uploads)
-        : (existingEvent['gallery_guest_uploads'] as boolean | undefined) ?? false,
-      gallery_public !== undefined
-        ? Boolean(gallery_public)
-        : (existingEvent['gallery_public'] as boolean | undefined) ?? false,
-      nextQuota,
-      nextEventTime,
-      userId,
-      id,
-    ]);
-    
-    const updatedEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`, [id]);
+    `,
+      [
+        title || existingEvent.title,
+        date || existingEvent.date,
+        location || existingEvent.location,
+        description !== undefined ? description : existingEvent.description,
+        capacity !== undefined ? capacity : existingEvent.capacity,
+        status || existingEvent.status,
+        event_type !== undefined ? event_type : existingEvent.event_type,
+        is_public !== undefined ? is_public : existingEvent.is_public,
+        tags !== undefined ? tags : existingEvent.tags,
+        nextLat,
+        nextLng,
+        waitlist_enabled !== undefined ? waitlist_enabled : existingEvent['waitlist_enabled'],
+        gallery_comments_enabled !== undefined
+          ? Boolean(gallery_comments_enabled)
+          : ((existingEvent['gallery_comments_enabled'] as boolean | undefined) ?? true),
+        gallery_guest_uploads !== undefined
+          ? Boolean(gallery_guest_uploads)
+          : ((existingEvent['gallery_guest_uploads'] as boolean | undefined) ?? false),
+        gallery_public !== undefined
+          ? Boolean(gallery_public)
+          : ((existingEvent['gallery_public'] as boolean | undefined) ?? false),
+        nextQuota,
+        nextEventTime,
+        userId,
+        id,
+      ],
+    );
+
+    const updatedEvent = await db.get(
+      `SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`,
+      [id],
+    );
+    if (updatedEvent?.id) {
+      await captureEntityVersion(
+        'event',
+        Number(updatedEvent.id),
+        updatedEvent as Record<string, unknown>,
+        userId ?? null,
+        'Event updated',
+      );
+    }
     await db.run(
       'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
-      [userId, authReq.user?.email ?? null, 'event.updated', `Updated event #${id}: ${updatedEvent?.title ?? existingEvent.title}`, authReq.ip ?? null],
+      [
+        userId,
+        authReq.user?.email ?? null,
+        'event.updated',
+        `Updated event #${id}: ${updatedEvent?.title ?? existingEvent.title}`,
+        authReq.ip ?? null,
+      ],
     );
-    
+    publishRealtimeEvent({
+      type: 'event.updated',
+      occurredAt: new Date().toISOString(),
+      eventId: Number(id),
+      entityType: 'event',
+      entityId: Number(id),
+      actorId: userId,
+      payload: { title: updatedEvent?.title ?? existingEvent.title },
+    });
+
     res.json(updatedEvent);
   } catch (error) {
     console.error('Error updating event:', error);
@@ -642,29 +729,54 @@ export async function deleteEvent(req: Request, res: Response): Promise<void> {
     const { id } = req.params;
     const authReq = req as AuthRequest;
     const userId = authReq.user?.id;
-    
+
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
       return;
     }
-    
+
     const event = await db.get('SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!event) {
       res.status(404).json({ error: 'Event not found' });
       return;
     }
-    
+
     if (Number(event.created_by) !== Number(userId) && authReq.user?.role_id !== 3) {
       res.status(403).json({ error: 'Not authorised to delete this event.' });
       return;
     }
 
-    await db.run('UPDATE events SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+    await captureEntityVersion(
+      'event',
+      Number(id),
+      event as Record<string, unknown>,
+      userId ?? null,
+      'Event deleted',
+    );
+    await db.run(
+      'UPDATE events SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [id],
+    );
     await db.run(
       'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
-      [userId, authReq.user?.email ?? null, 'event.deleted', `Soft-deleted event #${id}: ${event.title}`, authReq.ip ?? null],
+      [
+        userId,
+        authReq.user?.email ?? null,
+        'event.deleted',
+        `Soft-deleted event #${id}: ${event.title}`,
+        authReq.ip ?? null,
+      ],
     );
-    
+    publishRealtimeEvent({
+      type: 'event.deleted',
+      occurredAt: new Date().toISOString(),
+      eventId: Number(id),
+      entityType: 'event',
+      entityId: Number(id),
+      actorId: userId,
+      payload: { title: event.title },
+    });
+
     res.json({ message: 'Event deleted successfully' });
   } catch (error) {
     console.error('Error deleting event:', error);
@@ -689,10 +801,7 @@ export async function cloneEvent(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const source = await db.get(
-      'SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL',
-      [id],
-    );
+    const source = await db.get('SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!source) {
       res.status(404).json({ error: 'Event not found' });
       return;
@@ -723,10 +832,7 @@ export async function cloneEvent(req: Request, res: Response): Promise<void> {
     const newEventId: number = result.lastID as number;
 
     if (req.query['includeTasks'] === 'true') {
-      const tasks = await db.all(
-        'SELECT * FROM tasks WHERE event_id = ?',
-        [id],
-      );
+      const tasks = await db.all('SELECT * FROM tasks WHERE event_id = ?', [id]);
       for (const task of tasks as Record<string, unknown>[]) {
         await db.run(
           `INSERT INTO tasks
@@ -746,7 +852,10 @@ export async function cloneEvent(req: Request, res: Response): Promise<void> {
       }
     }
 
-    const newEvent = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`, [newEventId]);
+    const newEvent = await db.get(
+      `SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`,
+      [newEventId],
+    );
 
     await recordEventAudit(
       db,
@@ -780,10 +889,7 @@ export async function setCoverImage(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const event = await db.get(
-      'SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL',
-      [id],
-    );
+    const event = await db.get('SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!event) {
       res.status(404).json({ error: 'Event not found' });
       return;
@@ -829,7 +935,9 @@ export async function setCoverImage(req: Request, res: Response): Promise<void> 
       [cover_image_url, renditions ? JSON.stringify(renditions) : null, userId, id],
     );
 
-    const updated = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`, [id]);
+    const updated = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`, [
+      id,
+    ]);
     res.json(updated);
   } catch (error) {
     console.error('Error setting cover image:', error);
@@ -879,9 +987,7 @@ export async function archiveEvent(req: Request, res: Response): Promise<void> {
 
     const { reason } = (req.body ?? {}) as { reason?: unknown };
     const safeReason =
-      typeof reason === 'string' && reason.trim()
-        ? reason.trim().substring(0, 500)
-        : null;
+      typeof reason === 'string' && reason.trim() ? reason.trim().substring(0, 500) : null;
 
     await db.run(
       `UPDATE events
@@ -897,10 +1003,27 @@ export async function archiveEvent(req: Request, res: Response): Promise<void> {
       `Archived event #${id}: ${event.title}${safeReason ? ` — ${safeReason}` : ''}`,
     );
 
-    const updated = await db.get(
-      `SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`,
-      [id],
-    );
+    const updated = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`, [
+      id,
+    ]);
+    if (updated?.id) {
+      await captureEntityVersion(
+        'event',
+        Number(updated.id),
+        updated as Record<string, unknown>,
+        user.id ?? null,
+        'Event archived',
+      );
+    }
+    publishRealtimeEvent({
+      type: 'event.archived',
+      occurredAt: new Date().toISOString(),
+      eventId: Number(id),
+      entityType: 'event',
+      entityId: Number(id),
+      actorId: user.id,
+      payload: { reason: safeReason },
+    });
     res.json(updated);
   } catch (error) {
     console.error('Error archiving event:', error);
@@ -956,10 +1079,27 @@ export async function unarchiveEvent(req: Request, res: Response): Promise<void>
       `Unarchived event #${id}: ${event.title}`,
     );
 
-    const updated = await db.get(
-      `SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`,
-      [id],
-    );
+    const updated = await db.get(`SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`, [
+      id,
+    ]);
+    if (updated?.id) {
+      await captureEntityVersion(
+        'event',
+        Number(updated.id),
+        updated as Record<string, unknown>,
+        user.id ?? null,
+        'Event unarchived',
+      );
+    }
+    publishRealtimeEvent({
+      type: 'event.unarchived',
+      occurredAt: new Date().toISOString(),
+      eventId: Number(id),
+      entityType: 'event',
+      entityId: Number(id),
+      actorId: user.id,
+      payload: {},
+    });
     res.json(updated);
   } catch (error) {
     console.error('Error unarchiving event:', error);
@@ -987,7 +1127,9 @@ export async function restoreEvent(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const event = await db.get('SELECT * FROM events WHERE id = $1 AND deleted_at IS NOT NULL', [id]);
+    const event = await db.get('SELECT * FROM events WHERE id = $1 AND deleted_at IS NOT NULL', [
+      id,
+    ]);
     if (!event) {
       res.status(404).json({ error: 'Event not found' });
       return;
@@ -996,7 +1138,9 @@ export async function restoreEvent(req: Request, res: Response): Promise<void> {
     const deletedAtRaw = event.deleted_at as string | Date | null | undefined;
     const deletedAt = deletedAtRaw ? new Date(deletedAtRaw) : null;
     if (!deletedAt || Number.isNaN(deletedAt.getTime())) {
-      res.status(409).json({ error: 'Event cannot be restored due to invalid deletion timestamp.' });
+      res
+        .status(409)
+        .json({ error: 'Event cannot be restored due to invalid deletion timestamp.' });
       return;
     }
 
@@ -1010,11 +1154,42 @@ export async function restoreEvent(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    await db.run('UPDATE events SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+    await db.run(
+      'UPDATE events SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [id],
+    );
     await db.run(
       'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
-      [user.id, user.email, 'event.restored', `Restored event #${id}: ${event.title}`, authReq.ip ?? null],
+      [
+        user.id,
+        user.email,
+        'event.restored',
+        `Restored event #${id}: ${event.title}`,
+        authReq.ip ?? null,
+      ],
     );
+    const restoredEvent = await db.get(
+      `SELECT ${EVENT_BY_ID_SELECT_COLUMNS} FROM events WHERE id = $1`,
+      [id],
+    );
+    if (restoredEvent?.id) {
+      await captureEntityVersion(
+        'event',
+        Number(restoredEvent.id),
+        restoredEvent as Record<string, unknown>,
+        user.id ?? null,
+        'Event restored',
+      );
+    }
+    publishRealtimeEvent({
+      type: 'event.restored',
+      occurredAt: new Date().toISOString(),
+      eventId: Number(id),
+      entityType: 'event',
+      entityId: Number(id),
+      actorId: user.id,
+      payload: {},
+    });
 
     res.json({ message: 'Event restored successfully' });
   } catch (error) {

@@ -6,6 +6,7 @@ import type { Request, Response } from 'express';
 import { getDatabase, getPool } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
 import { logActivity } from './activity-feed-controller.js';
+import { captureEntityVersion } from './entity-versions-controller.js';
 import {
   detectDuplicateClusters,
   type DuplicateCandidateRow,
@@ -38,7 +39,6 @@ const RSVP_COLUMNS =
 
 interface DuplicateEmailLookupMatch {
   id: number;
-  name: string;
   email: string;
   status: string;
   guests: number;
@@ -53,12 +53,13 @@ function toTimestamp(value: string | Date): number {
 
 function pickMergePrimary(matches: DuplicateEmailLookupMatch[]): number | null {
   if (matches.length === 0) return null;
-  return [...matches]
-    .sort((a, b) => {
+  return (
+    [...matches].sort((a, b) => {
       const byUpdated = toTimestamp(b.updated_at) - toTimestamp(a.updated_at);
       if (byUpdated !== 0) return byUpdated;
       return b.id - a.id;
-    })[0]?.id ?? null;
+    })[0]?.id ?? null
+  );
 }
 
 /** GET /api/events/:eventId/rsvps/lookup?email=person@example.com */
@@ -171,8 +172,8 @@ export async function mergeGuests(req: Request, res: Response): Promise<Response
       [eventId, ...ids],
     );
     const rows = lockResult.rows;
-    const survivor = rows.find((r) => r.id === survivorId);
-    if (!survivor) {
+    const survivorRow = rows.find((r) => r.id === survivorId);
+    if (!survivorRow) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Survivor RSVP not found.' });
     }
@@ -201,15 +202,15 @@ export async function mergeGuests(req: Request, res: Response): Promise<Response
       | 'rsvp_deadline';
 
     const merged: Pick<RsvpRow, MergeableKey> = {
-      name: survivor.name,
-      email: survivor.email,
-      phone: survivor.phone,
-      notes: survivor.notes,
-      dietary_restriction: survivor.dietary_restriction,
-      accessibility_needs: survivor.accessibility_needs,
-      plus_one_name: survivor.plus_one_name,
-      guest_group: survivor.guest_group,
-      rsvp_deadline: survivor.rsvp_deadline,
+      name: survivorRow.name,
+      email: survivorRow.email,
+      phone: survivorRow.phone,
+      notes: survivorRow.notes,
+      dietary_restriction: survivorRow.dietary_restriction,
+      accessibility_needs: survivorRow.accessibility_needs,
+      plus_one_name: survivorRow.plus_one_name,
+      guest_group: survivorRow.guest_group,
+      rsvp_deadline: survivorRow.rsvp_deadline,
     };
 
     function isEmpty(v: unknown): boolean {
@@ -228,12 +229,13 @@ export async function mergeGuests(req: Request, res: Response): Promise<Response
       });
     }
 
-    const totalGuests = [survivor, ...sources].reduce(
+    const totalGuests = [survivorRow, ...sources].reduce(
       (sum, r) => sum + (Number(r.guests) || 1),
       0,
     );
-    const goingAfterMerge = sources.some((s) => s.status === 'Going') || survivor.status === 'Going';
-    const finalStatus = goingAfterMerge ? 'Going' : survivor.status;
+    const goingAfterMerge =
+      sources.some((s) => s.status === 'Going') || survivorRow.status === 'Going';
+    const finalStatus = goingAfterMerge ? 'Going' : survivorRow.status;
 
     // Capacity check: sum of all 'Going' guests for the event after the merge
     // must fit within event.capacity (if set). We exclude all sources (they are
@@ -271,20 +273,20 @@ export async function mergeGuests(req: Request, res: Response): Promise<Response
              AND table_id IN (SELECT table_id FROM seating_assignments WHERE rsvp_id = $2)`,
         [src.id, survivorId],
       );
-      await client.query(
-        `UPDATE seating_assignments SET rsvp_id = $1 WHERE rsvp_id = $2`,
-        [survivorId, src.id],
-      );
+      await client.query(`UPDATE seating_assignments SET rsvp_id = $1 WHERE rsvp_id = $2`, [
+        survivorId,
+        src.id,
+      ]);
       await client.query(
         `DELETE FROM rsvp_question_responses
            WHERE rsvp_id = $1
              AND question_id IN (SELECT question_id FROM rsvp_question_responses WHERE rsvp_id = $2)`,
         [src.id, survivorId],
       );
-      await client.query(
-        `UPDATE rsvp_question_responses SET rsvp_id = $1 WHERE rsvp_id = $2`,
-        [survivorId, src.id],
-      );
+      await client.query(`UPDATE rsvp_question_responses SET rsvp_id = $1 WHERE rsvp_id = $2`, [
+        survivorId,
+        src.id,
+      ]);
       await client.query(
         `UPDATE rsvp_access_tokens SET revoked_at = CURRENT_TIMESTAMP
          WHERE rsvp_id = $1 AND revoked_at IS NULL`,
@@ -341,6 +343,20 @@ export async function mergeGuests(req: Request, res: Response): Promise<Response
         survivorId,
       ],
     );
+
+    const survivorResult = await client.query<{ [key: string]: unknown }>(
+      'SELECT * FROM rsvps WHERE id = $1',
+      [survivorId],
+    );
+    if (survivorResult.rows[0]) {
+      await captureEntityVersion(
+        'rsvp',
+        survivorId,
+        survivorResult.rows[0] as unknown as Record<string, unknown>,
+        authReq.user?.id ?? null,
+        'Guest merge survivor updated',
+      );
+    }
 
     await client.query('COMMIT');
 

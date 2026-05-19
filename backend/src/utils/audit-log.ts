@@ -1,4 +1,5 @@
 import { DatabaseAdapter } from '../db/database.js';
+import { publishRealtimeEvent } from './realtime-bus.js';
 
 export type AuditSeverity = 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL';
 
@@ -66,41 +67,41 @@ export async function logAuditEvent(params: AuditEventParams): Promise<void> {
 
 export const AUDIT_ACTIONS = {
   // Auth events
-  LOGIN_SUCCESS:         'LOGIN_SUCCESS',
-  LOGIN_FAILURE:         'LOGIN_FAILURE',
-  LOGIN_ACCOUNT_LOCKED:  'LOGIN_ACCOUNT_LOCKED',
-  LOGOUT:                'LOGOUT',
-  LOGOUT_ALL_SESSIONS:   'LOGOUT_ALL_SESSIONS',
+  LOGIN_SUCCESS: 'LOGIN_SUCCESS',
+  LOGIN_FAILURE: 'LOGIN_FAILURE',
+  LOGIN_ACCOUNT_LOCKED: 'LOGIN_ACCOUNT_LOCKED',
+  LOGOUT: 'LOGOUT',
+  LOGOUT_ALL_SESSIONS: 'LOGOUT_ALL_SESSIONS',
   TOKEN_REFRESH_SUCCESS: 'TOKEN_REFRESH_SUCCESS',
   TOKEN_REFRESH_FAILURE: 'TOKEN_REFRESH_FAILURE',
-  SESSION_EXPIRED:       'SESSION_EXPIRED',
+  SESSION_EXPIRED: 'SESSION_EXPIRED',
   // RBAC events
-  ROLE_CHANGE:           'ROLE_CHANGE',
-  PERMISSION_DENIED:     'PERMISSION_DENIED',
+  ROLE_CHANGE: 'ROLE_CHANGE',
+  PERMISSION_DENIED: 'PERMISSION_DENIED',
   // Account events
   PASSWORD_RESET_REQUEST: 'PASSWORD_RESET_REQUEST',
   PASSWORD_RESET_COMPLETED: 'PASSWORD_RESET_COMPLETED',
-  EMAIL_VERIFIED:        'EMAIL_VERIFIED',
+  EMAIL_VERIFIED: 'EMAIL_VERIFIED',
   // Upload events
-  UPLOAD_SCAN_PASS:      'UPLOAD_SCAN_PASS',
-  UPLOAD_SCAN_FAIL:      'UPLOAD_SCAN_FAIL',
-  UPLOAD_REJECTED:       'UPLOAD_REJECTED',
+  UPLOAD_SCAN_PASS: 'UPLOAD_SCAN_PASS',
+  UPLOAD_SCAN_FAIL: 'UPLOAD_SCAN_FAIL',
+  UPLOAD_REJECTED: 'UPLOAD_REJECTED',
   // Domain mutations (create/update/delete) — emitted by C2 wiring
-  EVENT_CREATE:          'EVENT_CREATE',
-  EVENT_UPDATE:          'EVENT_UPDATE',
-  EVENT_DELETE:          'EVENT_DELETE',
-  RSVP_CREATE:           'RSVP_CREATE',
-  RSVP_UPDATE:           'RSVP_UPDATE',
-  RSVP_DELETE:           'RSVP_DELETE',
-  TASK_CREATE:           'TASK_CREATE',
-  TASK_UPDATE:           'TASK_UPDATE',
-  TASK_DELETE:           'TASK_DELETE',
-  SHOPPING_ITEM_CREATE:  'SHOPPING_ITEM_CREATE',
-  SHOPPING_ITEM_UPDATE:  'SHOPPING_ITEM_UPDATE',
-  SHOPPING_ITEM_DELETE:  'SHOPPING_ITEM_DELETE',
-  VENDOR_CREATE:         'VENDOR_CREATE',
-  VENDOR_UPDATE:         'VENDOR_UPDATE',
-  VENDOR_DELETE:         'VENDOR_DELETE',
+  EVENT_CREATE: 'EVENT_CREATE',
+  EVENT_UPDATE: 'EVENT_UPDATE',
+  EVENT_DELETE: 'EVENT_DELETE',
+  RSVP_CREATE: 'RSVP_CREATE',
+  RSVP_UPDATE: 'RSVP_UPDATE',
+  RSVP_DELETE: 'RSVP_DELETE',
+  TASK_CREATE: 'TASK_CREATE',
+  TASK_UPDATE: 'TASK_UPDATE',
+  TASK_DELETE: 'TASK_DELETE',
+  SHOPPING_ITEM_CREATE: 'SHOPPING_ITEM_CREATE',
+  SHOPPING_ITEM_UPDATE: 'SHOPPING_ITEM_UPDATE',
+  SHOPPING_ITEM_DELETE: 'SHOPPING_ITEM_DELETE',
+  VENDOR_CREATE: 'VENDOR_CREATE',
+  VENDOR_UPDATE: 'VENDOR_UPDATE',
+  VENDOR_DELETE: 'VENDOR_DELETE',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -111,12 +112,7 @@ export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
  * Restricting targetType to a closed union turns a typo at a call site into
  * a compile error rather than an audit row no one can filter on.
  */
-export type AuditTargetType =
-  | 'event'
-  | 'rsvp'
-  | 'task'
-  | 'shopping_item'
-  | 'vendor';
+export type AuditTargetType = 'event' | 'rsvp' | 'task' | 'shopping_item' | 'vendor';
 
 /**
  * Thin wrapper around logAuditEvent for create/update/delete on domain
@@ -145,6 +141,7 @@ export async function logMutation(
   context?: Record<string, unknown>,
   fallbackEmail?: string | null,
 ): Promise<void> {
+  const eventId = context?.eventId;
   await logAuditEvent({
     db,
     userId: req.user?.id ?? null,
@@ -155,5 +152,25 @@ export async function logMutation(
     targetId: String(targetId),
     ipAddress: req.ip,
     context,
+  });
+
+  publishRealtimeEvent({
+    type: 'mutation',
+    occurredAt: new Date().toISOString(),
+    eventId:
+      typeof eventId === 'number'
+        ? eventId
+        : typeof eventId === 'string' && Number.isFinite(Number(eventId))
+          ? Number(eventId)
+          : undefined,
+    entityType: targetType,
+    entityId: Number(targetId),
+    actorId: req.user?.id ?? null,
+    payload: {
+      action,
+      targetType,
+      targetId: String(targetId),
+      context: context ?? {},
+    },
   });
 }

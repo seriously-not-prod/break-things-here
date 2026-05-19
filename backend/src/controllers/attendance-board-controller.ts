@@ -17,6 +17,7 @@
 import type { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
+import { publishRealtimeEvent } from '../utils/realtime-bus.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -87,9 +88,8 @@ export async function computeAttendanceStats(eventId: number): Promise<Attendanc
     else if (c === 'pending' || c === 'maybe') stats.pending += count;
     else if (c === 'checked_in') stats.confirmed += count; // checked-in implies prior confirmed
   }
-  stats.attendance_rate = stats.confirmed > 0
-    ? Math.round((stats.checked_in / stats.confirmed) * 100)
-    : 0;
+  stats.attendance_rate =
+    stats.confirmed > 0 ? Math.round((stats.checked_in / stats.confirmed) * 100) : 0;
   return stats;
 }
 
@@ -145,7 +145,11 @@ export async function streamAttendance(req: Request, res: Response): Promise<voi
   }
 
   const heartbeat = setInterval(() => {
-    try { res.write(`:hb ${Date.now()}\n\n`); } catch { /* noop */ }
+    try {
+      res.write(`:hb ${Date.now()}\n\n`);
+    } catch {
+      /* noop */
+    }
   }, 25_000);
 
   const sub: Subscriber = { eventId: Number(eventId), res, heartbeat };
@@ -154,15 +158,25 @@ export async function streamAttendance(req: Request, res: Response): Promise<voi
   req.on('close', () => {
     clearInterval(heartbeat);
     subscribers.delete(sub);
-    try { res.end(); } catch { /* noop */ }
+    try {
+      res.end();
+    } catch {
+      /* noop */
+    }
   });
 }
 
 /** Called by other controllers to push a new event onto the SSE stream. */
-export function broadcastAttendanceEvent(
-  eventId: number,
-  payload: Record<string, unknown>,
-): void {
+export function broadcastAttendanceEvent(eventId: number, payload: Record<string, unknown>): void {
+  publishRealtimeEvent({
+    type: 'attendance',
+    occurredAt: new Date().toISOString(),
+    eventId,
+    entityType: 'attendance_event',
+    entityId: null,
+    actorId: typeof payload.actorId === 'number' ? payload.actorId : null,
+    payload,
+  });
   const body = `event: attendance\ndata: ${JSON.stringify(payload)}\n\n`;
   // Recompute summary asynchronously and push as a second SSE frame so
   // subscribers stay in sync without an extra round-trip.
@@ -171,7 +185,11 @@ export function broadcastAttendanceEvent(
     try {
       sub.res.write(body);
     } catch {
-      try { clearInterval(sub.heartbeat); } catch { /* noop */ }
+      try {
+        clearInterval(sub.heartbeat);
+      } catch {
+        /* noop */
+      }
       subscribers.delete(sub);
     }
   }
@@ -180,7 +198,11 @@ export function broadcastAttendanceEvent(
       const summaryFrame = `event: summary\ndata: ${JSON.stringify({ stats })}\n\n`;
       for (const sub of subscribers) {
         if (sub.eventId !== eventId) continue;
-        try { sub.res.write(summaryFrame); } catch { /* noop */ }
+        try {
+          sub.res.write(summaryFrame);
+        } catch {
+          /* noop */
+        }
       }
     })
     .catch(() => undefined);

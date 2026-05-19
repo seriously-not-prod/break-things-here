@@ -16,6 +16,7 @@ import {
 } from '../utils/profile-completeness.js';
 import { listMealOptionsForEvent } from './meal-options-controller.js';
 import { AUDIT_ACTIONS, logMutation } from '../utils/audit-log.js';
+import { captureEntityVersion } from './entity-versions-controller.js';
 
 interface RsvpRow {
   id: number;
@@ -82,16 +83,20 @@ async function recomputeCompleteness(rsvpId: number): Promise<void> {
   await db.run(`UPDATE rsvps SET profile_completeness = $1 WHERE id = $2`, [score, rsvpId]);
 }
 
-async function recomputeCanonicalStatus(rsvpId: number, override?: CanonicalRsvpStatus): Promise<void> {
+async function recomputeCanonicalStatus(
+  rsvpId: number,
+  override?: CanonicalRsvpStatus,
+): Promise<void> {
   const db = getDatabase();
   if (override) {
     await db.run(`UPDATE rsvps SET canonical_status = $1 WHERE id = $2`, [override, rsvpId]);
     return;
   }
-  const row = await db.get<{ status: string; waitlist_position: number | null; checked_in: boolean }>(
-    `SELECT status, waitlist_position, checked_in FROM rsvps WHERE id = $1`,
-    [rsvpId],
-  );
+  const row = await db.get<{
+    status: string;
+    waitlist_position: number | null;
+    checked_in: boolean;
+  }>(`SELECT status, waitlist_position, checked_in FROM rsvps WHERE id = $1`, [rsvpId]);
   if (!row) return;
   const canonical = toCanonicalStatus(row.status, {
     waitlisted: row.waitlist_position !== null,
@@ -109,16 +114,17 @@ async function recomputeCanonicalStatus(rsvpId: number, override?: CanonicalRsvp
  * `pg` driver returns it as a JS `Date` parsed in UTC. Comparison is therefore
  * UTC-safe — both sides become millisecond epoch values via `.getTime()`.
  */
-async function isDeadlinePassed(eventId: string | number): Promise<{ passed: boolean; deadline: string | null }> {
+async function isDeadlinePassed(
+  eventId: string | number,
+): Promise<{ passed: boolean; deadline: string | null }> {
   const db = getDatabase();
   const row = await db.get<{ rsvp_deadline: string | Date | null }>(
     `SELECT rsvp_deadline FROM events WHERE id = $1 AND deleted_at IS NULL`,
     [eventId],
   );
   if (!row?.rsvp_deadline) return { passed: false, deadline: null };
-  const deadline = row.rsvp_deadline instanceof Date
-    ? row.rsvp_deadline
-    : new Date(row.rsvp_deadline);
+  const deadline =
+    row.rsvp_deadline instanceof Date ? row.rsvp_deadline : new Date(row.rsvp_deadline);
   if (Number.isNaN(deadline.getTime())) {
     return { passed: false, deadline: String(row.rsvp_deadline) };
   }
@@ -152,12 +158,22 @@ function isGoing(status?: string): boolean {
   return status === 'Going';
 }
 
-async function getEventCapacity(db: ReturnType<typeof getDatabase>, eventId: string): Promise<number | null> {
-  const event = await db.get<{ capacity: number | null }>('SELECT capacity FROM events WHERE id = $1 AND deleted_at IS NULL', [eventId]);
+async function getEventCapacity(
+  db: ReturnType<typeof getDatabase>,
+  eventId: string,
+): Promise<number | null> {
+  const event = await db.get<{ capacity: number | null }>(
+    'SELECT capacity FROM events WHERE id = $1 AND deleted_at IS NULL',
+    [eventId],
+  );
   return event?.capacity ?? null;
 }
 
-async function getGoingGuestsTotal(db: ReturnType<typeof getDatabase>, eventId: string, excludeRsvpId?: string): Promise<number> {
+async function getGoingGuestsTotal(
+  db: ReturnType<typeof getDatabase>,
+  eventId: string,
+  excludeRsvpId?: string,
+): Promise<number> {
   // Waitlisted entries keep status='Going' but are not occupying a confirmed
   // seat — exclude them so capacity checks measure actual confirmed guests.
   const rows = await db.all<{ total_guests: number }>(
@@ -208,10 +224,9 @@ export async function listRsvps(req: Request, res: Response): Promise<Response> 
   const { eventId } = req.params;
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
-  const rows = await db.all(
-    'SELECT * FROM rsvps WHERE event_id = $1 ORDER BY created_at DESC',
-    [eventId],
-  );
+  const rows = await db.all('SELECT * FROM rsvps WHERE event_id = $1 ORDER BY created_at DESC', [
+    eventId,
+  ]);
   return res.json({ rsvps: rows });
 }
 
@@ -220,8 +235,14 @@ export async function getPublicRsvpContext(req: Request, res: Response): Promise
   const db = getDatabase();
   const { eventId } = req.params;
   const event = await db.get<{
-    id: number; title: string; description: string | null; location: string | null;
-    date: string; event_date: string; capacity: number | null; rsvp_deadline: string | null;
+    id: number;
+    title: string;
+    description: string | null;
+    location: string | null;
+    date: string;
+    event_date: string;
+    capacity: number | null;
+    rsvp_deadline: string | null;
     waitlist_enabled: boolean | null;
   }>(
     `SELECT id, title, description, location, date, date AS event_date, capacity,
@@ -232,7 +253,8 @@ export async function getPublicRsvpContext(req: Request, res: Response): Promise
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
   const goingGuests = await getGoingGuestsTotal(db, eventId);
-  const remainingCapacity = event.capacity === null ? null : Math.max(event.capacity - goingGuests, 0);
+  const remainingCapacity =
+    event.capacity === null ? null : Math.max(event.capacity - goingGuests, 0);
 
   // Public-facing meal options (#591) so the no-login RSVP page can render
   // a meal picker. Inactive options are hidden.
@@ -262,9 +284,8 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   const guests = body.guests as number | string | undefined;
   const waitlist = body.waitlist as boolean | undefined;
 
-  const normalizedStatus = status === undefined
-    ? 'Pending'
-    : normalizeLegacyRsvpStatusInput(status);
+  const normalizedStatus =
+    status === undefined ? 'Pending' : normalizeLegacyRsvpStatusInput(status);
   if (status !== undefined && !normalizedStatus) {
     return res.status(400).json({
       error: 'Invalid RSVP status.',
@@ -279,11 +300,16 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   try {
     guestCount = parseGuests(guests);
   } catch (error) {
-    return res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid guest count.' });
+    return res
+      .status(400)
+      .json({ error: error instanceof Error ? error.message : 'Invalid guest count.' });
   }
 
   const db = getDatabase();
-  const event = await db.get<{ id: number }>('SELECT id FROM events WHERE id = $1 AND deleted_at IS NULL', [eventId]);
+  const event = await db.get<{ id: number }>(
+    'SELECT id FROM events WHERE id = $1 AND deleted_at IS NULL',
+    [eventId],
+  );
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
   // Deadline enforcement (#585) — public submissions are rejected after the
@@ -301,7 +327,11 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
 
   // Per-guest rsvp_deadline override must be UTC-explicit so cross-TZ
   // submissions are unambiguous (#585).
-  if (body.rsvp_deadline !== undefined && body.rsvp_deadline !== null && body.rsvp_deadline !== '') {
+  if (
+    body.rsvp_deadline !== undefined &&
+    body.rsvp_deadline !== null &&
+    body.rsvp_deadline !== ''
+  ) {
     if (!isUtcIso8601(body.rsvp_deadline)) {
       return res.status(400).json({
         error: 'rsvp_deadline must be a UTC ISO-8601 timestamp ending in "Z".',
@@ -347,33 +377,50 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   // does not require touching every code path.
   const profileValues: Record<ProfileField, unknown> = {
     phone: typeof body.phone === 'string' ? body.phone.trim() || null : null,
-    dietary_restriction: typeof body.dietary_restriction === 'string'
-      ? (body.dietary_restriction.trim() || 'None')
-      : 'None',
-    accessibility_needs: typeof body.accessibility_needs === 'string'
-      ? body.accessibility_needs.trim() || null
-      : null,
+    dietary_restriction:
+      typeof body.dietary_restriction === 'string'
+        ? body.dietary_restriction.trim() || 'None'
+        : 'None',
+    accessibility_needs:
+      typeof body.accessibility_needs === 'string' ? body.accessibility_needs.trim() || null : null,
     plus_one: Boolean(body.plus_one),
-    plus_one_name: typeof body.plus_one_name === 'string' ? body.plus_one_name.trim() || null : null,
+    plus_one_name:
+      typeof body.plus_one_name === 'string' ? body.plus_one_name.trim() || null : null,
     guest_group: typeof body.guest_group === 'string' ? body.guest_group.trim() || null : null,
-    rsvp_deadline: typeof body.rsvp_deadline === 'string' && body.rsvp_deadline ? body.rsvp_deadline : null,
-    address_line1: typeof body.address_line1 === 'string' ? body.address_line1.trim() || null : null,
-    address_line2: typeof body.address_line2 === 'string' ? body.address_line2.trim() || null : null,
+    rsvp_deadline:
+      typeof body.rsvp_deadline === 'string' && body.rsvp_deadline ? body.rsvp_deadline : null,
+    address_line1:
+      typeof body.address_line1 === 'string' ? body.address_line1.trim() || null : null,
+    address_line2:
+      typeof body.address_line2 === 'string' ? body.address_line2.trim() || null : null,
     city: typeof body.city === 'string' ? body.city.trim() || null : null,
     state_region: typeof body.state_region === 'string' ? body.state_region.trim() || null : null,
     postal_code: typeof body.postal_code === 'string' ? body.postal_code.trim() || null : null,
     country: typeof body.country === 'string' ? body.country.trim() || null : null,
     company: typeof body.company === 'string' ? body.company.trim() || null : null,
     title: typeof body.title === 'string' ? body.title.trim() || null : null,
-    relation_type: typeof body.relation_type === 'string' ? body.relation_type.trim() || null : null,
+    relation_type:
+      typeof body.relation_type === 'string' ? body.relation_type.trim() || null : null,
     age_group: typeof body.age_group === 'string' ? body.age_group.trim() || null : null,
-    emergency_contact_name: typeof body.emergency_contact_name === 'string' ? body.emergency_contact_name.trim() || null : null,
-    emergency_contact_phone: typeof body.emergency_contact_phone === 'string' ? body.emergency_contact_phone.trim() || null : null,
+    emergency_contact_name:
+      typeof body.emergency_contact_name === 'string'
+        ? body.emergency_contact_name.trim() || null
+        : null,
+    emergency_contact_phone:
+      typeof body.emergency_contact_phone === 'string'
+        ? body.emergency_contact_phone.trim() || null
+        : null,
     meal_choice: typeof body.meal_choice === 'string' ? body.meal_choice.trim() || null : null,
   };
 
   const columns = [
-    'event_id', 'name', 'email', 'guests', 'status', 'notes', 'source',
+    'event_id',
+    'name',
+    'email',
+    'guests',
+    'status',
+    'notes',
+    'source',
     ...PROFILE_FIELDS,
   ];
   const placeholders = columns.map(() => '?').join(', ');
@@ -402,13 +449,21 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   }
 
   const rsvp = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = $1', [result.lastID]);
+  if (rsvp?.id) {
+    await captureEntityVersion(
+      'rsvp',
+      rsvp.id,
+      rsvp as unknown as Record<string, unknown>,
+      authReq.user?.id ?? null,
+      'RSVP created',
+    );
+  }
 
   // Fire notification to event owner when a new RSVP is confirmed
   if ((normalizedStatus || 'Pending') === 'Going' && !queueOnCreate) {
-    const ev = await db.get<{ created_by: number }>(
-      'SELECT created_by FROM events WHERE id = $1',
-      [eventId],
-    );
+    const ev = await db.get<{ created_by: number }>('SELECT created_by FROM events WHERE id = $1', [
+      eventId,
+    ]);
     if (ev) {
       await createRsvpNotification(Number(eventId), ev.created_by, name.trim());
     }
@@ -437,7 +492,10 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
   const { id, eventId } = req.params;
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
-  const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = $1 AND event_id = $2', [id, eventId]);
+  const rsvp = await db.get<RsvpRow>('SELECT * FROM rsvps WHERE id = $1 AND event_id = $2', [
+    id,
+    eventId,
+  ]);
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
   const body = (req.body ?? {}) as Record<string, unknown>;
@@ -475,11 +533,24 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
     }
   }
 
-  if (typeof body.name === 'string') { fields.push('name = ?'); params.push(body.name.trim()); }
-  if (typeof body.email === 'string') { fields.push('email = ?'); params.push(body.email.trim().toLowerCase()); }
-  if (body.notes !== undefined) { fields.push('notes = ?'); params.push(typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim() : null); }
+  if (typeof body.name === 'string') {
+    fields.push('name = ?');
+    params.push(body.name.trim());
+  }
+  if (typeof body.email === 'string') {
+    fields.push('email = ?');
+    params.push(body.email.trim().toLowerCase());
+  }
+  if (body.notes !== undefined) {
+    fields.push('notes = ?');
+    params.push(typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim() : null);
+  }
 
-  if (body.rsvp_deadline !== undefined && body.rsvp_deadline !== null && body.rsvp_deadline !== '') {
+  if (
+    body.rsvp_deadline !== undefined &&
+    body.rsvp_deadline !== null &&
+    body.rsvp_deadline !== ''
+  ) {
     if (!isUtcIso8601(body.rsvp_deadline)) {
       return res.status(400).json({
         error: 'rsvp_deadline must be a UTC ISO-8601 timestamp ending in "Z".',
@@ -512,8 +583,11 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
       continue;
     }
     fields.push(`${field} = ?`);
-    if (raw === null) { params.push(null); continue; }
-    params.push(typeof raw === 'string' ? (raw.trim() || null) : (raw as string));
+    if (raw === null) {
+      params.push(null);
+      continue;
+    }
+    params.push(typeof raw === 'string' ? raw.trim() || null : (raw as string));
   }
 
   if (fields.length === 0) return res.status(400).json({ error: 'No fields to update.' });
@@ -525,6 +599,15 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
   await recomputeCanonicalStatus(Number(id));
   await recomputeCompleteness(Number(id));
   const updated = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = $1', [id]);
+  if (updated?.id) {
+    await captureEntityVersion(
+      'rsvp',
+      updated.id,
+      updated as unknown as Record<string, unknown>,
+      authReq.user?.id ?? null,
+      'RSVP updated',
+    );
+  }
 
   if (nextStatus === 'Going') {
     await logActivity(
@@ -535,10 +618,9 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
       `/events/${rsvp.event_id}`,
     );
     // Notify event owner of the confirmed RSVP
-    const ev = await db.get<{ created_by: number }>(
-      'SELECT created_by FROM events WHERE id = $1',
-      [rsvp.event_id],
-    );
+    const ev = await db.get<{ created_by: number }>('SELECT created_by FROM events WHERE id = $1', [
+      rsvp.event_id,
+    ]);
     if (ev) {
       const guestName = (updated as RsvpRow & { name?: string }).name ?? 'A guest';
       await createRsvpNotification(rsvp.event_id, ev.created_by, String(guestName));
@@ -556,9 +638,21 @@ export async function deleteRsvp(req: Request, res: Response): Promise<Response>
   const { id, eventId } = req.params;
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
-  const rsvp = await db.get<Pick<RsvpRow, 'id'>>('SELECT id FROM rsvps WHERE id = $1 AND event_id = $2', [id, eventId]);
+  const rsvp = await db.get<Pick<RsvpRow, 'id'>>(
+    'SELECT id FROM rsvps WHERE id = $1 AND event_id = $2',
+    [id, eventId],
+  );
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
 
+  if (rsvp?.id) {
+    await captureEntityVersion(
+      'rsvp',
+      rsvp.id,
+      rsvp as Record<string, unknown>,
+      authReq.user?.id ?? null,
+      'RSVP deleted',
+    );
+  }
   await db.run('DELETE FROM rsvps WHERE id = $1', [id]);
   await logMutation(db, authReq, AUDIT_ACTIONS.RSVP_DELETE, 'rsvp', id, { eventId });
   // Free capacity may have opened a slot — promote the next waitlisted guest.
@@ -596,25 +690,52 @@ export async function exportRsvpsCsv(req: Request, res: Response): Promise<Respo
   );
 
   const columns = [
-    'name', 'email', 'phone', 'status', 'canonical_status', 'guests', 'notes',
-    'dietary_restriction', 'accessibility_needs', 'meal_choice',
-    'plus_one', 'plus_one_name', 'guest_group',
-    'company', 'title', 'relation_type', 'age_group',
-    'address_line1', 'address_line2', 'city', 'state_region', 'postal_code', 'country',
-    'emergency_contact_name', 'emergency_contact_phone',
-    'checked_in', 'checked_in_at', 'late_arrival',
-    'profile_completeness', 'unsubscribed_at', 'submitted_at',
+    'name',
+    'email',
+    'phone',
+    'status',
+    'canonical_status',
+    'guests',
+    'notes',
+    'dietary_restriction',
+    'accessibility_needs',
+    'meal_choice',
+    'plus_one',
+    'plus_one_name',
+    'guest_group',
+    'company',
+    'title',
+    'relation_type',
+    'age_group',
+    'address_line1',
+    'address_line2',
+    'city',
+    'state_region',
+    'postal_code',
+    'country',
+    'emergency_contact_name',
+    'emergency_contact_phone',
+    'checked_in',
+    'checked_in_at',
+    'late_arrival',
+    'profile_completeness',
+    'unsubscribed_at',
+    'submitted_at',
   ];
 
   const csv = [
     columns.join(','),
-    ...rows.map((row) => columns.map((col) => {
-      const key = col === 'submitted_at' ? 'created_at' : col;
-      const v = row[key];
-      if (v === null || v === undefined) return csvEscape('');
-      if (typeof v === 'boolean') return csvEscape(v ? 'true' : 'false');
-      return csvEscape(v);
-    }).join(',')),
+    ...rows.map((row) =>
+      columns
+        .map((col) => {
+          const key = col === 'submitted_at' ? 'created_at' : col;
+          const v = row[key];
+          if (v === null || v === undefined) return csvEscape('');
+          if (typeof v === 'boolean') return csvEscape(v ? 'true' : 'false');
+          return csvEscape(v);
+        })
+        .join(','),
+    ),
   ].join('\n');
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -659,10 +780,9 @@ export async function checkInGuest(req: Request, res: Response): Promise<Respons
   }
 
   // Compute late-arrival flag against the event start (#594).
-  const ev = await db.get<{ date: string | null }>(
-    `SELECT date FROM events WHERE id = $1`,
-    [eventId],
-  );
+  const ev = await db.get<{ date: string | null }>(`SELECT date FROM events WHERE id = $1`, [
+    eventId,
+  ]);
   let isLate = false;
   let delayMin: number | null = null;
   if (ev?.date) {
@@ -684,12 +804,28 @@ export async function checkInGuest(req: Request, res: Response): Promise<Respons
   );
 
   const updated = await db.get<RsvpFull>('SELECT * FROM rsvps WHERE id = $1', [id]);
+  if (updated?.id) {
+    await captureEntityVersion(
+      'rsvp',
+      updated.id,
+      updated as unknown as Record<string, unknown>,
+      authReq.user?.id ?? null,
+      'RSVP checked in',
+    );
+  }
 
-  await db.run(
-    `INSERT INTO attendance_events (event_id, rsvp_id, action, source, actor_id, metadata)
+  await db
+    .run(
+      `INSERT INTO attendance_events (event_id, rsvp_id, action, source, actor_id, metadata)
      VALUES ($1, $2, 'checked_in', 'manual', $3, $4::jsonb)`,
-    [eventId, id, authReq.user?.id ?? null, JSON.stringify({ late: isLate, delay_minutes: delayMin })],
-  ).catch(() => undefined);
+      [
+        eventId,
+        id,
+        authReq.user?.id ?? null,
+        JSON.stringify({ late: isLate, delay_minutes: delayMin }),
+      ],
+    )
+    .catch(() => undefined);
 
   await logActivity(
     eventId,
@@ -727,7 +863,9 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
   const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length < 2) return res.status(400).json({ error: 'CSV file has no data rows.' });
   if (lines.length > MAX_CSV_ROWS + 1) {
-    return res.status(400).json({ error: `CSV file exceeds maximum of ${MAX_CSV_ROWS} data rows.` });
+    return res
+      .status(400)
+      .json({ error: `CSV file exceeds maximum of ${MAX_CSV_ROWS} data rows.` });
   }
 
   // Parse simple CSV (supports quoted fields)
@@ -769,11 +907,30 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
   // Whitelist of valid target field names prevents prototype-pollution attacks
   // via user-controlled column_map values (e.g. "__proto__", "constructor").
   const ALLOWED_GUEST_FIELDS = new Set([
-    'name', 'email', 'phone', 'guests', 'status', 'notes',
-    'dietary_restriction', 'accessibility_needs', 'plus_one', 'plus_one_name',
-    'guest_group', 'company', 'title', 'relation_type', 'age_group',
-    'address_line1', 'address_line2', 'city', 'state_region', 'postal_code',
-    'country', 'emergency_contact_name', 'emergency_contact_phone', 'meal_choice',
+    'name',
+    'email',
+    'phone',
+    'guests',
+    'status',
+    'notes',
+    'dietary_restriction',
+    'accessibility_needs',
+    'plus_one',
+    'plus_one_name',
+    'guest_group',
+    'company',
+    'title',
+    'relation_type',
+    'age_group',
+    'address_line1',
+    'address_line2',
+    'city',
+    'state_region',
+    'postal_code',
+    'country',
+    'emergency_contact_name',
+    'emergency_contact_phone',
+    'meal_choice',
   ]);
 
   // Use a null-prototype map to avoid prototype-chain reads on columnMap itself.
@@ -788,7 +945,9 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
           if (typeof v === 'string') columnMap[k] = v;
         }
       }
-    } catch { /* ignore malformed column_map */ }
+    } catch {
+      /* ignore malformed column_map */
+    }
   }
 
   let imported = 0;
@@ -802,7 +961,11 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
       if (Object.prototype.hasOwnProperty.call(columnMap, rawHeader)) {
         const guestField = columnMap[rawHeader];
         // Only store to whitelisted field names to prevent prototype pollution
-        if (typeof guestField === 'string' && guestField !== '' && ALLOWED_GUEST_FIELDS.has(guestField)) {
+        if (
+          typeof guestField === 'string' &&
+          guestField !== '' &&
+          ALLOWED_GUEST_FIELDS.has(guestField)
+        ) {
           row[guestField] = values[i] ?? '';
         }
         // guestField === '' or unknown name → skip this column entirely
@@ -814,7 +977,10 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
 
     const name = row['name']?.trim();
     const email = row['email']?.trim().toLowerCase();
-    if (!name || !email) { skipped++; continue; }
+    if (!name || !email) {
+      skipped++;
+      continue;
+    }
 
     try {
       const result = await db.run(
