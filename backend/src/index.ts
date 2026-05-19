@@ -167,6 +167,17 @@ export function createApp(): express.Express {
 
   app.use(requestLogger);
 
+  // Explicit API cache strategy (NFR §5.1):
+  // - API GET/HEAD responses: 5-minute private cache
+  // - vary on auth credentials to prevent cross-user cache bleed
+  app.use('/api', (req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      res.setHeader('Cache-Control', 'private, max-age=300, stale-while-revalidate=60');
+      res.setHeader('Vary', 'Authorization, Cookie');
+    }
+    next();
+  });
+
   const enforceHttps = shouldEnforceHttps(process.env.NODE_ENV);
   if (enforceHttps) {
     app.use((req, res, next) => {
