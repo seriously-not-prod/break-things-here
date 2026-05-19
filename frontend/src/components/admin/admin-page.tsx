@@ -9,17 +9,28 @@ import {
   Paper,
   Select,
   Stack,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Tabs,
 } from '@mui/material';
-import { LockRounded, LockOpenRounded, DeleteRounded, RestoreRounded } from '@mui/icons-material';
+import {
+  LockRounded,
+  LockOpenRounded,
+  DeleteRounded,
+  RestoreRounded,
+  EditRounded,
+  PersonAddRounded,
+} from '@mui/icons-material';
 import { api, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
 import { PageLayout } from '../layout/page-layout';
+import { UserFormDialog } from './user-form-dialog';
+import { EventAccessPanel } from './event-access-panel';
 
 interface AdminUser {
   id: number;
@@ -45,6 +56,25 @@ export default function AdminPage(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [tab, setTab] = useState<'users' | 'access'>('users');
+
+  function openCreate(): void {
+    setEditingUser(null);
+    setFormOpen(true);
+  }
+
+  function openEdit(u: AdminUser): void {
+    setEditingUser(u);
+    setFormOpen(true);
+  }
+
+  async function handleSaved(message: string): Promise<void> {
+    setSuccess(message);
+    setError(null);
+    await load();
+  }
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -121,7 +151,31 @@ export default function AdminPage(): JSX.Element {
       title="User Management"
       subtitle="Manage user accounts, roles, and access control"
       breadcrumbs={[{ label: 'Admin' }, { label: 'User Management' }]}
+      actions={
+        tab === 'users' ? (
+          <Button
+            variant="contained"
+            startIcon={<PersonAddRounded />}
+            onClick={openCreate}
+          >
+            Create User
+          </Button>
+        ) : undefined
+      }
     >
+      <Tabs
+        value={tab}
+        onChange={(_, val) => setTab(val as 'users' | 'access')}
+        sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab value="users" label="All Users" />
+        <Tab value="access" label="Event Access" />
+      </Tabs>
+
+      {tab === 'access' ? (
+        <EventAccessPanel />
+      ) : (
+        <>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
@@ -170,6 +224,15 @@ export default function AdminPage(): JSX.Element {
                   <TableCell>{new Date(u.created_at).toLocaleDateString()}</TableCell>
                   <TableCell align="right">
                     <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                      {!isDeleted && (
+                        <Button
+                          size="small"
+                          startIcon={<EditRounded />}
+                          onClick={() => openEdit(u)}
+                        >
+                          Edit
+                        </Button>
+                      )}
                       {!isSelf && !isDeleted && (
                         <>
                           <Button
@@ -208,6 +271,16 @@ export default function AdminPage(): JSX.Element {
           </TableBody>
         </Table>
       </TableContainer>
+        </>
+      )}
+
+      <UserFormDialog
+        open={formOpen}
+        user={editingUser}
+        roles={roles}
+        onClose={() => setFormOpen(false)}
+        onSaved={handleSaved}
+      />
     </PageLayout>
   );
 }

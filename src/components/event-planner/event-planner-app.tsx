@@ -30,7 +30,6 @@ import {
 import { AuthProvider, useAuth } from '../../contexts/auth-context';
 import { seededUsers } from '../../data/event-planner-seed';
 import { useEventPlannerStore } from '../../hooks/use-event-planner-store';
-import { LoginPage } from '../login-page/login-page';
 import { ProtectedRoute } from '../protected-route/protected-route';
 import {
   EventDraft,
@@ -169,7 +168,7 @@ function PlannerLayout(props: { notify: (message: string) => void; users: Planne
 
   const handleLogout = (): void => {
     logout();
-    navigate('/login');
+    navigate('/');
   };
 
   return (
@@ -1091,7 +1090,6 @@ function PlannerRoutes(props: { notify: (message: string) => void }): React.JSX.
 
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
       <Route element={<Outlet context={outletContext} />}>
         <Route path="/rsvp/:eventId" element={<PublicRsvpPage />} />
       </Route>
@@ -1115,7 +1113,7 @@ function PlannerRoutes(props: { notify: (message: string) => void }): React.JSX.
           <Route path="/admin" element={<AdminPage />} />
         </Route>
       </Route>
-      <Route path="*" element={<Navigate replace to="/login" />} />
+      <Route path="*" element={<Navigate replace to="/" />} />
     </Routes>
   );
 }
