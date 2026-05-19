@@ -92,7 +92,7 @@ export async function lookupRsvpsByEmail(req: Request, res: Response): Promise<R
     email: normalizedEmail,
     matches,
     mergeSuggestion:
-      recommendedPrimaryId === null
+      recommendedPrimaryId === null || sourceRsvpIds.length === 0
         ? null
         : {
             recommendedPrimaryId,

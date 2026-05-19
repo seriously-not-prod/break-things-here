@@ -80,10 +80,15 @@ export function AddGuestDialog({
   const latestLookupRequest = useRef(0);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      latestLookupRequest.current += 1;
+      setLookupLoading(false);
+      return;
+    }
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!hasLikelyEmail(normalizedEmail)) {
+      latestLookupRequest.current += 1;
       setLookupLoading(false);
       setLookupResult(null);
       setLookupError(null);
@@ -210,7 +215,7 @@ export function AddGuestDialog({
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   Duplicate email detected for {duplicateMatches.length} guest{duplicateMatches.length === 1 ? '' : 's'}.
                 </Typography>
-                {mergeSuggestion && suggestedPrimary ? (
+                {mergeSuggestion && mergeSuggestion.sourceRsvpIds.length > 0 && suggestedPrimary ? (
                   <Typography variant="body2">
                     Merge suggestion: keep {suggestedPrimary.name} as primary and merge {mergeSuggestion.sourceRsvpIds.length} duplicate record{mergeSuggestion.sourceRsvpIds.length === 1 ? '' : 's'}.
                   </Typography>

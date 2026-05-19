@@ -143,4 +143,22 @@ describe('lookupRsvpsByEmail', () => {
     expect(res.statusCode).toBe(400);
     expect(res.body).toEqual({ error: 'email query parameter is required.' });
   });
+
+  it('returns null mergeSuggestion when exactly one match exists', async () => {
+    const req = {
+      params: { eventId: String(eventId) },
+      query: { email: 'other@example.com' },
+      user: { id: ownerId, email: 'owner@example.com', role_id: 2 },
+    } as unknown as Request;
+    const res = makeResponse();
+
+    await lookupRsvpsByEmail(req, res as unknown as Response);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      email: 'other@example.com',
+      matches: [expect.objectContaining({ email: 'other@example.com' })],
+      mergeSuggestion: null,
+    });
+  });
 });
