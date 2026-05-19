@@ -859,7 +859,7 @@ export async function closeDatabase(): Promise<void> {
   }
 }
 
-async function resolveRlsEnabled(db: DatabaseAdapter): Promise<boolean> {
+export async function resolveRlsEnabled(db: DatabaseAdapter): Promise<boolean> {
   // Explicit env wins (true or false). Default keeps RLS on the safe path:
   // policies are only applied when the connecting role bypasses RLS, so
   // policies are effectively no-ops until controllers set
@@ -1944,6 +1944,39 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       END $$;
     `);
     console.log('[RLS] RLS v2 policies applied.');
+  } else {
+    // When RLS resolves to disabled at startup we must also clear any prior
+    // ENABLE/FORCE state on the tables, otherwise a previously-RLS-enabled
+    // database keeps enforcing the policies even though we no longer manage
+    // them — which is the exact silent-empty-result bug we are guarding
+    // against. We only DISABLE; the policy definitions themselves are kept
+    // in place so re-enabling later (via RLS_PILOT_ENABLED=true) restores
+    // the same access matrix.
+    const rlsTables = [
+      'events',
+      'event_members',
+      'tasks',
+      'expenses',
+      'vendors',
+      'rsvps',
+    ];
+    for (const tbl of rlsTables) {
+      await db.exec(`
+        DO $$ BEGIN
+          IF EXISTS (
+            SELECT 1 FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public'
+              AND c.relname = '${tbl}'
+              AND (c.relrowsecurity = true OR c.relforcerowsecurity = true)
+          ) THEN
+            ALTER TABLE ${tbl} NO FORCE ROW LEVEL SECURITY;
+            ALTER TABLE ${tbl} DISABLE ROW LEVEL SECURITY;
+            RAISE NOTICE '[RLS] Disabled row-level security on %', '${tbl}';
+          END IF;
+        END $$;
+      `);
+    }
   }
 
   // ── Guest merge audit (#411, #435) ───────────────────────────────────────

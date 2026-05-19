@@ -3,7 +3,7 @@
 --
 -- PR #698 fixed the DST/TZ-offset bug class for `sessions.expires_at`,
 -- `sessions.last_activity`, and `password_reset_tokens.*` by switching those
--- columns to TIMESTAMPTZ. The post-merge review identified four sibling
+-- columns to TIMESTAMPTZ. The post-merge review identified **five** sibling
 -- columns with the same class of bug — they are compared against `NOW()` /
 -- `CURRENT_TIMESTAMP` in authorisation paths and so silently drift by the
 -- session TZ offset whenever the DB session is not UTC:
@@ -23,10 +23,14 @@
 -- startup; this file exists so DBAs running prod databases that bypass the
 -- app-managed migration path can apply the change directly.
 --
--- This migration is intentionally NOT wrapped in CONCURRENTLY: ALTER COLUMN
--- TYPE acquires an ACCESS EXCLUSIVE lock by definition. The four target
--- tables are small (sessions/auth-side rows), so the lock window is
--- negligible in practice.
+-- Lock-window caveat: ALTER COLUMN TYPE acquires an ACCESS EXCLUSIVE lock by
+-- definition (CONCURRENTLY is not supported for ALTER COLUMN TYPE). The
+-- auth-side tables (`users`, `password_reset_rate_limit`) are typically
+-- small. However, `events` and `rsvps` grow with application usage and the
+-- ALTER also rewrites their row layout. For deployments with large
+-- `events`/`rsvps` tables, schedule this migration in a maintenance window
+-- and consider running it inside a short transaction with `lock_timeout`
+-- set defensively, since writers will be blocked for the duration.
 
 -- ============================================================
 -- users.locked_until

@@ -184,7 +184,11 @@ export function EventPickerModal({ open, targetSubPath, onClose }: EventPickerMo
               {search ? 'No events match your search' : 'No events yet'}
             </Typography>
             <Typography variant="body2" color="text.disabled" sx={{ mt: 0.5 }}>
-              {search ? 'Try a different search term' : 'Create your first event to get started'}
+              {search
+                ? 'Try a different search term'
+                : canCreate
+                  ? 'Create your first event to get started'
+                  : 'Ask an organizer to invite you to an event.'}
             </Typography>
             {!search && canCreate && (
               <Button
