@@ -14,7 +14,19 @@
     "backend:build": "cd backend && npm run build",
     "backend:test": "docker compose up -d db-test && cd backend && npm test",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "prepare": "git config core.hooksPath .githooks || true"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,css,md}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -30,7 +42,9 @@
     "react-router-dom": "^6.30.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
     "@eslint/eslintrc": "^3.3.5",
+    "@playwright/test": "^1.48.0",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.2",
@@ -47,10 +61,11 @@
     "eslint": "^9.39.4",
     "eslint-plugin-react": "^7.37.5",
     "jsdom": "^24.1.1",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3",
     "supertest": "^7.2.2",
     "typescript": "^5.5.3",
     "vite": "^5.4.1",
-    "vitest": "^2.0.5",
-    "@playwright/test": "^1.48.0"
+    "vitest": "^2.0.5"
   }
 }

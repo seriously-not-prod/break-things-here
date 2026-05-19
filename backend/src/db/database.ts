@@ -2296,8 +2296,8 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_guest_uploads BOOLEAN NOT NULL DEFAULT FALSE`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_public BOOLEAN NOT NULL DEFAULT FALSE`);
 
-  // Storage quota (#622) — bytes, default 500MB.
-  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS storage_quota_bytes BIGINT NOT NULL DEFAULT 524288000`);
+  // Storage quota — bytes, default 100MB per event (spec requirement: 100MB/event).
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS storage_quota_bytes BIGINT NOT NULL DEFAULT 104857600`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS storage_used_bytes BIGINT NOT NULL DEFAULT 0`);
 
   // Cover image resize pipeline (#541, #576).

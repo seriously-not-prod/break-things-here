@@ -8,6 +8,7 @@ import { RegisterForm } from './components/register-form/register-form';
 import { ForgotPasswordForm } from './components/forgot-password-form/forgot-password-form';
 import { ResetPasswordForm } from './components/reset-password-form/reset-password-form';
 import { AppNav } from './components/nav/app-nav';
+import { GlobalCommandPalette } from './components/nav/global-command-palette';
 import Dashboard from './components/dashboard/Dashboard';
 import EventsPage from './components/events/events-page';
 import CalendarPage from './components/events/calendar-page';
@@ -424,6 +425,8 @@ function AppShell(): JSX.Element {
         onClose={handleCloseHelp}
         shortcuts={shortcuts}
       />
+      {/* Global Ctrl+K command palette — accessible from any page (NFR §5.3) */}
+      <GlobalCommandPalette />
     </Box>
   );
 }

@@ -76,8 +76,8 @@ services:
       - SMTP_FROM=${SMTP_FROM:-noreply@festivalplanner.local}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT:-8081},http://localhost}
-      - ENTRA_AUTH_ENABLED=${ENTRA_AUTH_ENABLED:-false}
-      - ENTRA_MFA_REQUIRED=${ENTRA_MFA_REQUIRED:-false}
+      - ENTRA_AUTH_ENABLED=${ENTRA_AUTH_ENABLED:-true}
+      - ENTRA_MFA_REQUIRED=${ENTRA_MFA_REQUIRED:-true}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
       - AZURE_AUTHORITY=${AZURE_AUTHORITY:-}
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
@@ -120,6 +120,59 @@ services:
       - app-network
     restart: unless-stopped
 
+  # PostgREST — auto-generated RESTful API from the PostgreSQL schema (TRD v1.0)
+  # Exposes the database schema as a REST API on port 3001.
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    container_name: festival-postgrest
+    ports:
+      - "${POSTGREST_PORT:-3001}:3000"
+    environment:
+      PGRST_DB_URI: postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env (see .env.example)}@db:5432/festival_planner
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: ${PGRST_ANON_ROLE:-web_anon}
+      PGRST_JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (see .env.example)}
+      PGRST_DB_MAX_ROWS: ${PGRST_DB_MAX_ROWS:-1000}
+      PGRST_LOG_LEVEL: ${PGRST_LOG_LEVEL:-info}
+      PGRST_OPENAPI_MODE: follow-privileges
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Automated database backup — daily full + hourly incremental (NFR reliability)
+  db-backup:
+    image: postgres:16-alpine
+    container_name: festival-db-backup
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env (see .env.example)}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env (see .env.example)}
+    volumes:
+      - db-backups:/backups
+    entrypoint: >
+      sh -c "
+        apk add --no-cache dcron &&
+        echo '0 * * * * pg_dump -h db -U postgres festival_planner | gzip > /backups/hourly_$$(date +\\%Y\\%m\\%d_\\%H\\%M\\%S).sql.gz' > /etc/crontabs/root &&
+        echo '0 2 * * * pg_dump -h db -U postgres festival_planner | gzip > /backups/daily_$$(date +\\%Y\\%m\\%d).sql.gz' >> /etc/crontabs/root &&
+        echo '0 3 * * 0 find /backups -name \\''hourly_*\\'' -mtime +14 -delete' >> /etc/crontabs/root &&
+        echo '0 4 * * 0 find /backups -name \\''daily_*\\'' -mtime +30 -delete' >> /etc/crontabs/root &&
+        crond -f
+      "
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+
 volumes:
   postgres-data:
     name: festival-postgres-data
@@ -127,6 +180,8 @@ volumes:
     name: festival-postgres-test-data
   uploads-data:
     name: festival-uploads-data
+  db-backups:
+    name: festival-db-backups
 
 networks:
   app-network:
