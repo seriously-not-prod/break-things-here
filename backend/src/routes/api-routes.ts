@@ -123,7 +123,7 @@ const documentStorage = multer.diskStorage({
 
 const documentUpload = multer({
   storage: documentStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB — spec requirement
   fileFilter: (req, file, cb) => {
     const allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
     if (allowedMimes.includes(file.mimetype)) {
@@ -157,7 +157,7 @@ const contractUpload = multer({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB — issue #38
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB — spec requirement (BRD/FRD)
   fileFilter: (req, file, cb) => {
     // Validate by MIME type (not just extension) — issue #38
     const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];

@@ -17,6 +17,8 @@ import helmet from 'helmet';
 import cors from 'cors';
 import crypto from 'crypto';
 import { pathToFileURL } from 'url';
+import swaggerJsdoc from 'swagger-jsdoc';
+import swaggerUi from 'swagger-ui-express';
 import { initializeDatabase } from './db/database.js';
 import { sanitizeRequestBody } from './middleware/sanitize-input.js';
 import { apiLimiter, csrfLimiter, healthLimiter } from './middleware/rate-limit.js';
@@ -237,6 +239,43 @@ export function createApp(): express.Express {
   // directly in auth.ts and auth-controller.ts only where needed, so there is
   // no global "cookie middleware" for CodeQL's missing-csrf query to flag.
   app.use('/api', apiLimiter, csrfProtection, sanitizeRequestBody, apiRoutes);
+
+  // OpenAPI / Swagger docs — served at /api-docs (TRD maintainability requirement).
+  // Only exposed in non-production environments.
+  if (process.env.NODE_ENV !== 'production') {
+    const swaggerSpec = swaggerJsdoc({
+      definition: {
+        openapi: '3.0.3',
+        info: {
+          title: 'Festival & Event Planner API',
+          version: '2.0.0',
+          description:
+            'RESTful API documentation for the Festival & Event Planner application. ' +
+            'Generated from JSDoc annotations on route handlers.',
+          contact: { name: 'API Support', email: 'support@festivalplanner.local' },
+        },
+        servers: [
+          { url: `http://localhost:${port}/api`, description: 'Development' },
+          { url: 'https://api.festivalplanner.example/api', description: 'Production' },
+        ],
+        components: {
+          securitySchemes: {
+            BearerAuth: {
+              type: 'http',
+              scheme: 'bearer',
+              bearerFormat: 'JWT',
+              description: 'JWT access token issued by /api/auth/login or Entra ID callback.',
+            },
+          },
+        },
+        security: [{ BearerAuth: [] }],
+      },
+      apis: ['./src/routes/*.ts', './src/routes/*.js', './src/controllers/*.ts', './src/controllers/*.js'],
+    });
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
+    app.get('/api-docs.json', (_req, res) => res.json(swaggerSpec));
+    logger.info(`Swagger UI available at http://localhost:${port}/api-docs`);
+  }
 
   return app;
 }

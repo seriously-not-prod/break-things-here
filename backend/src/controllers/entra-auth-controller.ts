@@ -171,6 +171,19 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
     [entraOid],
   );
 
+  // FR-AUTH-003: re-sync role from Azure group membership on every login.
+  // requestedRoleId is null when no group env vars are configured — in that
+  // case keep the existing role so manual assignments are preserved.
+  if (user && requestedRoleId !== null && user.role_id !== requestedRoleId) {
+    await db.run(
+      `UPDATE users
+       SET role_id = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [requestedRoleId, user.id],
+    );
+    user.role_id = requestedRoleId;
+  }
+
   if (!user) {
     user = await db.get<UserRow>(
       'SELECT id, email, role_id, entra_oid FROM users WHERE LOWER(email) = $1 AND deleted_at IS NULL',
