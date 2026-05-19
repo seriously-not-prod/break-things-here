@@ -35,6 +35,7 @@ import {
   sendReminder,
   sendThankYou,
   type BulkSendPayload,
+  type BulkSendResult,
   type CommunicationLogEntry,
   type RsvpGuest,
 } from '../../services/guest-service';
@@ -63,7 +64,7 @@ export function GuestCommunicationPanel({
   const [body, setBody] = useState('');
   const [scope, setScope] = useState<RecipientScope>('all');
   const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ sent: number; failed: number } | null>(null);
+  const [sendResult, setSendResult] = useState<BulkSendResult | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
 
   const [log, setLog] = useState<CommunicationLogEntry[]>([]);
