@@ -5,6 +5,7 @@ import { Request, Response, NextFunction } from 'express';
 import { getDatabase } from '../db/database.js';
 import { hashToken } from '../utils/auth-helpers.js';
 import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
+import { attachUserContext } from './attach-user-context.js';
 
 interface AuthRequest extends Request {
   user?: {
@@ -158,7 +159,18 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
     role_id: payload.role_id,
   };
 
-  next();
+  // #702 — bind the user to a per-request pg client so RLS policies that
+  // gate on `current_setting('app.current_user_id', true)` are enforced.
+  // attachUserContext is fail-open for *expected* pool/GUC errors (it
+  // catches them internally and calls next()), but await + try/catch
+  // here guards against any unexpected rejection (programmer bug, ALS
+  // misuse) so it surfaces through the Express error handler instead of
+  // becoming an unhandled promise rejection.
+  try {
+    await attachUserContext(req, res, next);
+  } catch (err) {
+    next(err);
+  }
 }
 
 export function authorizeRole(
