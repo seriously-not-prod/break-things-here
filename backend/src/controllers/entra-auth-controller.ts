@@ -13,6 +13,52 @@ interface UserRow {
   entra_oid: string | null;
 }
 
+function tokenHasGroupOverage(claims: Record<string, unknown>): boolean {
+  const hasgroups = claims.hasgroups === true;
+  const claimNames = claims._claim_names;
+  const groupsPointer =
+    typeof claimNames === 'object' && claimNames !== null
+      ? (claimNames as Record<string, unknown>).groups
+      : undefined;
+  return hasgroups || typeof groupsPointer === 'string';
+}
+
+async function fetchGroupIdsFromGraph(accessToken: string): Promise<string[]> {
+  const groupIds = new Set<string>();
+  let nextUrl: string | null = 'https://graph.microsoft.com/v1.0/me/memberOf?$select=id';
+
+  while (nextUrl) {
+    const graphRes = await fetch(nextUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    });
+
+    if (!graphRes.ok) {
+      const detail = await graphRes.text().catch(() => '');
+      throw new Error(`Graph memberOf request failed (${graphRes.status}): ${detail.slice(0, 300)}`);
+    }
+
+    const data = (await graphRes.json()) as {
+      value?: Array<Record<string, unknown>>;
+      '@odata.nextLink'?: string;
+    };
+
+    for (const item of data.value ?? []) {
+      const id = item.id;
+      if (typeof id === 'string' && id.trim()) {
+        groupIds.add(id.trim());
+      }
+    }
+
+    nextUrl = typeof data['@odata.nextLink'] === 'string' ? data['@odata.nextLink'] : null;
+  }
+
+  return [...groupIds];
+}
+
 export function getEntraStatus(_req: Request, res: Response): void {
   res.json({ enabled: isEntraEnabled() });
 }
@@ -77,6 +123,7 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
 
   const config = getEntraConfig();
   let idToken: string;
+  let accessTokenForGraph: string | null = null;
 
   if (directIdToken) {
     idToken = directIdToken;
@@ -117,7 +164,7 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
       return;
     }
 
-    const tokenData = await tokenRes.json() as { id_token?: string };
+    const tokenData = await tokenRes.json() as { id_token?: string; access_token?: string };
     if (!tokenData.id_token) {
       res.clearCookie('entra_state');
       res.clearCookie('entra_pkce_verifier');
@@ -125,6 +172,7 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
       return;
     }
     idToken = tokenData.id_token;
+    accessTokenForGraph = typeof tokenData.access_token === 'string' ? tokenData.access_token : null;
   }
 
   res.clearCookie('entra_state');
@@ -159,7 +207,23 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
 
   const db = getDatabase();
 
-  const requestedRoleName = resolveRoleFromEntraGroups(Array.isArray(claims.groups) ? claims.groups : []);
+  let resolvedGroupIds = Array.isArray(claims.groups) ? claims.groups : [];
+
+  // FR-AUTH-003: When Entra token has group overage indicators, fetch groups via Graph.
+  // This handles large group memberships where `groups` claim is omitted.
+  if (resolvedGroupIds.length === 0 && tokenHasGroupOverage(claims as unknown as Record<string, unknown>)) {
+    if (accessTokenForGraph) {
+      try {
+        resolvedGroupIds = await fetchGroupIdsFromGraph(accessTokenForGraph);
+      } catch (error) {
+        console.warn('[Entra] Failed to resolve group overage via Graph; proceeding without group-derived role.', error);
+      }
+    } else {
+      console.warn('[Entra] Token indicates group overage but no Graph access token is available.');
+    }
+  }
+
+  const requestedRoleName = resolveRoleFromEntraGroups(resolvedGroupIds);
   let requestedRoleId: number | null = null;
   if (requestedRoleName) {
     const role = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [requestedRoleName]);

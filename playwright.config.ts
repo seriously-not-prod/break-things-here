@@ -29,6 +29,14 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
   ],
   // In CI the dev stack is booted in a dedicated step. Locally we boot the
   // Vite dev server on demand; reuseExistingServer lets you keep `npm run dev`

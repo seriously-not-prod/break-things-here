@@ -177,6 +177,7 @@ describe('POST /api/auth/entra/callback — identity mapping', () => {
     delete process.env.AZURE_TENANT_ID;
     delete process.env.AZURE_CLIENT_ID;
     delete process.env.AZURE_CLIENT_SECRET;
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -279,6 +280,56 @@ describe('POST /api/auth/entra/callback — identity mapping', () => {
     delete process.env.ENTRA_GROUP_COLLABORATORS;
     delete process.env.ENTRA_GROUP_GUESTS;
     delete process.env.ENTRA_GROUP_VIEWERS;
+  });
+
+  it('resolves Entra group overage via Graph memberOf fallback', async () => {
+    process.env.ENTRA_GROUP_ADMINS = 'group-admin';
+
+    vi.doMock('../src/utils/entra-token.js', () => ({
+      validateEntraIdToken: vi.fn().mockResolvedValue({
+        oid: 'entra-oid-overage',
+        email: 'overage@example.com',
+        name: 'Overage User',
+        tid: 'test-tenant',
+        aud: 'test-client',
+        iss: 'https://login.microsoftonline.com/test-tenant/v2.0',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+        hasgroups: true,
+        _claim_names: { groups: 'src1' },
+      }),
+    }));
+
+    const mockedFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id_token: 'graph.id.token', access_token: 'graph.access.token' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ value: [{ id: 'group-admin' }] }),
+      });
+
+    vi.stubGlobal('fetch', mockedFetch as unknown as typeof fetch);
+
+    const { handleEntraCallback } = await import('../src/controllers/entra-auth-controller.js');
+    const req = {
+      body: { code: 'auth-code', state: 'state-1' },
+      cookies: { entra_state: 'state-1', entra_pkce_verifier: 'verifier-1' },
+    } as import('express').Request;
+    const res = makeRes();
+
+    await handleEntraCallback(req, res as unknown as import('express').Response);
+
+    expect(res.statusCode).toBe(200);
+    const user = await testDb.get<{ role_id: number }>(
+      `SELECT role_id FROM users WHERE email = 'overage@example.com'`,
+    );
+    expect(user?.role_id).toBe(3);
+
+    vi.unstubAllGlobals();
+    delete process.env.ENTRA_GROUP_ADMINS;
   });
 
   it('returns 404 when Entra auth is disabled', async () => {

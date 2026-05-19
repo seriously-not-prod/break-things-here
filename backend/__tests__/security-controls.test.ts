@@ -19,6 +19,8 @@ describe('strict data security startup controls', () => {
 
   it('throws when any required security flag is missing in production', () => {
     const snapshot = {
+      ENTRA_AUTH_ENABLED: process.env.ENTRA_AUTH_ENABLED,
+      ENTRA_MFA_REQUIRED: process.env.ENTRA_MFA_REQUIRED,
       ENFORCE_HTTPS: process.env.ENFORCE_HTTPS,
       EDGE_TLS_MIN_VERSION: process.env.EDGE_TLS_MIN_VERSION,
       DB_SSL_REQUIRED: process.env.DB_SSL_REQUIRED,
@@ -27,6 +29,8 @@ describe('strict data security startup controls', () => {
       VIRUS_SCAN_BLOCK_ON_ERROR: process.env.VIRUS_SCAN_BLOCK_ON_ERROR,
     };
 
+    delete process.env.ENTRA_AUTH_ENABLED;
+    delete process.env.ENTRA_MFA_REQUIRED;
     delete process.env.ENFORCE_HTTPS;
     delete process.env.EDGE_TLS_MIN_VERSION;
     delete process.env.DB_SSL_REQUIRED;
@@ -49,6 +53,8 @@ describe('strict data security startup controls', () => {
 
   it('passes when all strict flags are correctly set in production', () => {
     const snapshot = {
+      ENTRA_AUTH_ENABLED: process.env.ENTRA_AUTH_ENABLED,
+      ENTRA_MFA_REQUIRED: process.env.ENTRA_MFA_REQUIRED,
       ENFORCE_HTTPS: process.env.ENFORCE_HTTPS,
       EDGE_TLS_MIN_VERSION: process.env.EDGE_TLS_MIN_VERSION,
       DB_SSL_REQUIRED: process.env.DB_SSL_REQUIRED,
@@ -57,6 +63,8 @@ describe('strict data security startup controls', () => {
       VIRUS_SCAN_BLOCK_ON_ERROR: process.env.VIRUS_SCAN_BLOCK_ON_ERROR,
     };
 
+    process.env.ENTRA_AUTH_ENABLED = 'true';
+    process.env.ENTRA_MFA_REQUIRED = 'true';
     process.env.ENFORCE_HTTPS = 'true';
     process.env.EDGE_TLS_MIN_VERSION = 'TLSv1.3';
     process.env.DB_SSL_REQUIRED = 'true';

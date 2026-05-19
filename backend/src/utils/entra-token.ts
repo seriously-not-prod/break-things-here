@@ -30,6 +30,10 @@ export interface EntraTokenClaims {
   amr?: string[];
   /** Optional Entra group object IDs for RBAC mapping. */
   groups?: string[];
+  /** Present on some Entra tokens when group claims are overage-trimmed. */
+  hasgroups?: boolean;
+  /** Claims overage pointers, e.g. { groups: 'src1' }. */
+  _claim_names?: Record<string, string>;
 }
 
 let _jwksCache: { keys: JwksKey[]; fetchedAt: number } | null = null;

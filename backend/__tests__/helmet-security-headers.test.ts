@@ -86,6 +86,13 @@ describe('HTTP Security Headers — helmet middleware (#266)', () => {
     expect(res.headers['strict-transport-security']).toContain('preload');
   });
 
+  it('applies explicit 5-minute cache policy to API GET responses', async () => {
+    const res = await request(createApp()).get('/api/auth/entra/config');
+    expect(res.headers['cache-control']).toContain('max-age=300');
+    expect(res.headers['cache-control']).toContain('private');
+    expect(res.headers.vary).toContain('Authorization');
+  });
+
   it('enforces HTTPS in production when ENFORCE_HTTPS=true', async () => {
     process.env.NODE_ENV = 'production';
     process.env.ENFORCE_HTTPS = 'true';

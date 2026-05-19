@@ -6,6 +6,16 @@ interface SecurityRequirement {
 
 const REQUIRED_SECURITY_FLAGS: SecurityRequirement[] = [
   {
+    envVar: 'ENTRA_AUTH_ENABLED',
+    expected: 'true',
+    reason: 'Azure Entra ID must be the primary authentication method.',
+  },
+  {
+    envVar: 'ENTRA_MFA_REQUIRED',
+    expected: 'true',
+    reason: 'MFA enforcement must be enabled for all Entra sign-ins.',
+  },
+  {
     envVar: 'ENFORCE_HTTPS',
     expected: 'true',
     reason: 'Application must reject insecure HTTP requests.',
