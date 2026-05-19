@@ -298,9 +298,10 @@ export async function recordDelivery(req: Request, res: Response): Promise<Respo
   return res.json({ delivered: true, status });
 }
 
-async function renderPayload(eventId: string, type: ReportType): Promise<Record<string, unknown>> {
+/** Exported so the job scheduler can build email bodies without HTTP round-trips. */
+export async function renderPayload(eventId: string, type: string): Promise<Record<string, unknown>> {
   const db = getDatabase();
-  switch (type) {
+  switch (type as ReportType) {
     case 'rsvp_summary': {
       const counts = await db.get(
         `SELECT
