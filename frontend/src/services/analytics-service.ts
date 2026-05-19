@@ -233,18 +233,19 @@ export async function exportEventReportPdf(
 
 /**
  * Exports the currently loaded EventAnalytics as an Excel (.xlsx) workbook.
- * Generated client-side using SheetJS.
+ * Generated client-side using ExcelJS.
  */
 export async function exportEventReportExcel(
   eventId: string | number,
   data: EventAnalytics,
   eventTitle?: string,
 ): Promise<void> {
-  const XLSX = await import('xlsx');
-  const wb = XLSX.utils.book_new();
+  const ExcelJS = await import('exceljs');
+  const wb = new ExcelJS.Workbook();
 
   // ── Summary sheet ─────────────────────────────────────────────────────────
-  const summaryRows = [
+  const wsSummary = wb.addWorksheet('Summary');
+  wsSummary.addRows([
     ['Event Analytics Report', eventTitle ?? `Event ${eventId}`],
     ['Generated', new Date().toLocaleString()],
     [],
@@ -258,38 +259,38 @@ export async function exportEventReportExcel(
     ['Checked-in', data.checkedInCount],
     ['Total Budget Allocated ($)', data.totalBudgetAllocated],
     ['Total Budget Spent ($)', data.totalBudgetSpent],
-  ];
-  const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+  ]);
 
   // ── Budget sheet ──────────────────────────────────────────────────────────
-  const budgetRows: (string | number)[][] = [
-    ['Category', 'Spent ($)'],
-    ...data.topExpenseCategories.map((c) => [c.category, c.spent]),
-  ];
-  const wsBudget = XLSX.utils.aoa_to_sheet(budgetRows);
-  XLSX.utils.book_append_sheet(wb, wsBudget, 'Budget');
+  const wsBudget = wb.addWorksheet('Budget');
+  wsBudget.addRow(['Category', 'Spent ($)']);
+  data.topExpenseCategories.forEach((c) => wsBudget.addRow([c.category, c.spent]));
 
   // ── Tasks sheet ───────────────────────────────────────────────────────────
-  const taskRows: (string | number)[][] = [
+  const wsTasks = wb.addWorksheet('Tasks');
+  wsTasks.addRows([
     ['Status', 'Count'],
     ['Pending', data.tasksByStatus.Pending],
     ['In Progress', data.tasksByStatus.InProgress],
     ['Blocked', data.tasksByStatus.Blocked],
     ['Complete', data.tasksByStatus.Complete],
-  ];
-  const wsTasks = XLSX.utils.aoa_to_sheet(taskRows);
-  XLSX.utils.book_append_sheet(wb, wsTasks, 'Tasks');
+  ]);
 
   // ── Dietary sheet ─────────────────────────────────────────────────────────
   if (data.rsvpByDietaryRestriction.length > 0) {
-    const dietRows: (string | number)[][] = [
-      ['Dietary Restriction', 'Count'],
-      ...data.rsvpByDietaryRestriction.map((d) => [d.dietary, d.count]),
-    ];
-    const wsDiet = XLSX.utils.aoa_to_sheet(dietRows);
-    XLSX.utils.book_append_sheet(wb, wsDiet, 'Dietary');
+    const wsDiet = wb.addWorksheet('Dietary');
+    wsDiet.addRow(['Dietary Restriction', 'Count']);
+    data.rsvpByDietaryRestriction.forEach((d) => wsDiet.addRow([d.dietary, d.count]));
   }
 
-  XLSX.writeFile(wb, `event-${eventId}-analytics.xlsx`);
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `event-${eventId}-analytics.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
