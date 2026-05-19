@@ -10,15 +10,15 @@
 
 BRD v2 (Business Requirements Document version 2) delivers the following parity improvements across authentication, RBAC, Row Level Security, and the audit subsystem:
 
-| Area | What Changed | Issues |
-|------|-------------|--------|
-| 5-Role Model | Added Collaborator (4), Guest (5), Viewer (6) roles | #537, #573 |
-| Audit Log | Extended `audit_log` with actor_id, target_type, target_id, context, severity | #538, #572 |
-| Audit Coverage | Added audit events for login, logout, session expiry, role change, token refresh, upload scans | #538, #572 |
-| Session Policy | 30-min inactivity timeout enforced; SESSION_EXPIRED audit events emitted | #536, #571 |
-| RLS Extension | Enabled RLS on tasks, expenses, vendors, rsvps | #564, #632, #633 |
-| Upload Scanning | Virus scanning on all file uploads (profile photos, event documents) | #565, #634 |
-| Frontend RBAC | Role checks use role names (not IDs); Collaborator/Viewer support added | #535, #573 |
+| Area            | What Changed                                                                                   | Issues           |
+| --------------- | ---------------------------------------------------------------------------------------------- | ---------------- |
+| 5-Role Model    | Added Collaborator (4), Guest (5), Viewer (6) roles                                            | #537, #573       |
+| Audit Log       | Extended `audit_log` with actor_id, target_type, target_id, context, severity                  | #538, #572       |
+| Audit Coverage  | Added audit events for login, logout, session expiry, role change, token refresh, upload scans | #538, #572       |
+| Session Policy  | 30-min inactivity timeout enforced; SESSION_EXPIRED audit events emitted                       | #536, #571       |
+| RLS Extension   | Enabled RLS on tasks, expenses, vendors, rsvps                                                 | #564, #632, #633 |
+| Upload Scanning | Virus scanning on all file uploads (profile photos, event documents)                           | #565, #634       |
+| Frontend RBAC   | Role checks use role names (not IDs); Collaborator/Viewer support added                        | #535, #573       |
 
 ---
 
@@ -88,16 +88,15 @@ The Node.js backend applies BRD v2 changes at startup via `backend/src/db/databa
 
 1. **5-Role INSERT**: Upserts all 6 roles on every startup (idempotent)
 2. **Audit Column Migrations**: `ALTER TABLE IF NOT EXISTS` blocks run on startup
-3. **RLS v2**: Enabled when `RLS_PILOT_ENABLED=true` — applies policies to tasks/expenses/vendors/rsvps in addition to events/event_members
+3. **RLS v2**: Enabled by default — applies policies to tasks/expenses/vendors/rsvps in addition to events/event_members
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `RLS_PILOT_ENABLED` | `false` | Enable Row Level Security on data tables |
-| `SESSION_TIMEOUT_MS` | `1800000` (30 min) | Inactivity session timeout |
-| `VIRUS_SCAN_ENABLED` | `false` | Enable ClamAV virus scanning on uploads |
-| `VIRUS_SCAN_BLOCK_ON_ERROR` | `false` | Fail-closed on scanner errors (production hardening) |
+| Variable                    | Default            | Description                                          |
+| --------------------------- | ------------------ | ---------------------------------------------------- |
+| `SESSION_TIMEOUT_MS`        | `1800000` (30 min) | Inactivity session timeout                           |
+| `VIRUS_SCAN_ENABLED`        | `false`            | Enable ClamAV virus scanning on uploads              |
+| `VIRUS_SCAN_BLOCK_ON_ERROR` | `false`            | Fail-closed on scanner errors (production hardening) |
 
 ---
 
@@ -124,6 +123,7 @@ await logAuditEvent({
 **Severity Levels**: `INFO | WARN | ERROR | CRITICAL`
 
 **Covered Events**:
+
 - LOGIN_SUCCESS / LOGIN_FAILURE / LOGIN_ACCOUNT_LOCKED
 - LOGOUT / LOGOUT_ALL_SESSIONS
 - TOKEN_REFRESH_SUCCESS / TOKEN_REFRESH_FAILURE
@@ -146,9 +146,9 @@ Frontend role checks use `frontend/src/utils/roles.ts`:
 ```typescript
 import { canEditEvent, isAdmin, isViewOnly } from '../../utils/roles';
 
-const canEdit = canEditEvent(user.roleName);  // Organizer, Admin, Collaborator
-const admin = isAdmin(user.roleName);          // Admin only
-const readOnly = isViewOnly(user.roleName);    // Viewer or Guest
+const canEdit = canEditEvent(user.roleName); // Organizer, Admin, Collaborator
+const admin = isAdmin(user.roleName); // Admin only
+const readOnly = isViewOnly(user.roleName); // Viewer or Guest
 ```
 
 **Do NOT use `user.roleId >= N` comparisons** — role IDs are not ordinal with BRD v2.
@@ -164,6 +164,7 @@ File uploads are scanned via `backend/src/utils/virus-scan.ts`:
 - **Fail-closed** (`VIRUS_SCAN_BLOCK_ON_ERROR=true`): scanner errors reject the upload
 
 Covered upload endpoints:
+
 - `POST /api/profile/photo` (profile photos)
 - `POST /api/events/:eventId/documents` (event documents)
 
@@ -190,8 +191,8 @@ cd frontend && npm run build
 - [ ] Apply `database/migrations/v2-brd-auth-rbac-rls-parity.sql` to target DB
 - [ ] Verify all 6 roles exist: `SELECT id, name FROM roles ORDER BY id;`
 - [ ] Verify audit_log columns: `\d audit_log` in psql
-- [ ] Set `RLS_PILOT_ENABLED=true` if RLS enforcement is desired
+- [ ] Verify startup role does not have `BYPASSRLS` in production/staging
 - [ ] (Optional) Set `VIRUS_SCAN_ENABLED=true` and ensure `clamscan` is installed
 - [ ] (Optional) Set `VIRUS_SCAN_BLOCK_ON_ERROR=true` for fail-closed upload policy
 - [ ] Run backend tests: `cd backend && npm test`
-- [ ] Deploy backend, verify startup logs show `[RLS] RLS v2 policies applied.` if enabled
+- [ ] Deploy backend, verify startup logs show `[RLS] RLS policies on tasks, expenses, vendors, rsvps applied.`
