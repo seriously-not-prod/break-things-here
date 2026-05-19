@@ -36,6 +36,71 @@ const RSVP_COLUMNS =
   'guest_group, rsvp_deadline, checked_in, checked_in_at, waitlist_position, ' +
   'created_at, updated_at';
 
+interface DuplicateEmailLookupMatch {
+  id: number;
+  name: string;
+  email: string;
+  status: string;
+  guests: number;
+  created_at: string | Date;
+  updated_at: string | Date;
+}
+
+function toTimestamp(value: string | Date): number {
+  if (value instanceof Date) return value.getTime();
+  return new Date(value).getTime();
+}
+
+function pickMergePrimary(matches: DuplicateEmailLookupMatch[]): number | null {
+  if (matches.length === 0) return null;
+  return [...matches]
+    .sort((a, b) => {
+      const byUpdated = toTimestamp(b.updated_at) - toTimestamp(a.updated_at);
+      if (byUpdated !== 0) return byUpdated;
+      return b.id - a.id;
+    })[0]?.id ?? null;
+}
+
+/** GET /api/events/:eventId/rsvps/lookup?email=person@example.com */
+export async function lookupRsvpsByEmail(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId } = req.params;
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+
+  const rawEmail = typeof req.query.email === 'string' ? req.query.email.trim() : '';
+  if (!rawEmail) {
+    return res.status(400).json({ error: 'email query parameter is required.' });
+  }
+
+  const normalizedEmail = rawEmail.toLowerCase();
+  const db = getDatabase();
+  const matches = await db.all<DuplicateEmailLookupMatch>(
+    `SELECT id, name, email, status, guests, created_at, updated_at
+     FROM rsvps
+     WHERE event_id = $1 AND LOWER(email) = $2
+     ORDER BY updated_at DESC, id DESC`,
+    [eventId, normalizedEmail],
+  );
+
+  const recommendedPrimaryId = pickMergePrimary(matches);
+  const sourceRsvpIds = matches
+    .filter((row) => row.id !== recommendedPrimaryId)
+    .map((row) => row.id);
+
+  return res.json({
+    email: normalizedEmail,
+    matches,
+    mergeSuggestion:
+      recommendedPrimaryId === null
+        ? null
+        : {
+            recommendedPrimaryId,
+            sourceRsvpIds,
+          },
+  });
+}
+
 /** GET /api/events/:eventId/rsvps/duplicates */
 export async function listDuplicates(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;

@@ -175,6 +175,34 @@ export async function listRsvpGuests(eventId: number | string): Promise<RsvpGues
   return data.rsvps;
 }
 
+export interface GuestEmailLookupMatch {
+  id: number;
+  name: string;
+  email: string;
+  status: RsvpStatus;
+  guests: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GuestEmailLookupResult {
+  email: string;
+  matches: GuestEmailLookupMatch[];
+  mergeSuggestion: {
+    recommendedPrimaryId: number;
+    sourceRsvpIds: number[];
+  } | null;
+}
+
+/** GET /api/events/:eventId/rsvps/lookup?email=person@example.com */
+export async function lookupRsvpsByEmail(
+  eventId: number | string,
+  email: string,
+): Promise<GuestEmailLookupResult> {
+  const query = new URLSearchParams({ email: email.trim().toLowerCase() }).toString();
+  return api.get<GuestEmailLookupResult>(`/api/events/${eventId}/rsvps/lookup?${query}`);
+}
+
 /** POST /api/events/:eventId/rsvps */
 export async function createRsvp(
   eventId: number | string,
