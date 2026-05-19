@@ -1,6 +1,6 @@
 import { ChangeEvent, useRef, useState } from 'react';
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
   Alert,
   Box,
@@ -23,7 +23,11 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import { importCsv, importCsvTemplateUrl } from '../../services/guest-service';
+import {
+  importCsv,
+  importCsvTemplateUrl,
+  type FailedImportRow,
+} from '../../services/guest-service';
 
 /** File extensions accepted by the upload input. */
 const ACCEPTED_EXTENSIONS =
@@ -70,6 +74,7 @@ export function CsvImportDialog({
   const [columnMap, setColumnMap] = useState<Record<string, string>>({});
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failedRows, setFailedRows] = useState<FailedImportRow[]>([]);
 
   function reset(): void {
     setSelectedFile(null);
@@ -77,6 +82,7 @@ export function CsvImportDialog({
     setPreviewRows([]);
     setColumnMap({});
     setError(null);
+    setFailedRows([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
@@ -111,32 +117,28 @@ export function CsvImportDialog({
     setError(null);
 
     if (isExcelFile(file)) {
-      // Parse with SheetJS — read first 6 rows from the first sheet
+      // Parse with ExcelJS — read first sheet for column preview
       const reader = new FileReader();
-      reader.onload = (evt) => {
+      reader.onload = async (evt) => {
         try {
           const data = evt.target?.result;
-          if (!data) {
+          if (!data || !(data instanceof ArrayBuffer)) {
             setError('Failed to read Excel file.');
             return;
           }
-          const workbook = XLSX.read(data, { type: 'array' });
-          const sheetName = workbook.SheetNames[0];
-          if (!sheetName) {
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(data);
+          const worksheet = workbook.worksheets[0];
+          if (!worksheet) {
             setError('Excel file has no sheets.');
             return;
           }
-          const sheet = workbook.Sheets[sheetName];
-          // sheet_to_json with header:1 gives string[][] (first row = headers)
-          const allRows = XLSX.utils.sheet_to_json<string[]>(sheet, {
-            header: 1,
-            defval: '',
-            range: 0,
+          const allRows: string[][] = [];
+          worksheet.eachRow({ includeEmpty: false }, (row) => {
+            const values = (row.values as (string | number | boolean | null | undefined)[]).slice(1);
+            allRows.push(values.map((c) => String(c ?? '')));
           });
-          // Filter out completely empty rows
-          const rows = allRows
-            .filter((r) => r.some((cell) => String(cell ?? '').trim() !== ''))
-            .map((r) => r.map((cell) => String(cell ?? '')));
+          const rows = allRows.filter((r) => r.some((cell) => cell.trim() !== ''));
           applyPreview(rows);
         } catch {
           setError('Failed to parse Excel file. Please check the format.');
@@ -160,17 +162,47 @@ export function CsvImportDialog({
     if (!selectedFile) return;
     setImporting(true);
     setError(null);
+    setFailedRows([]);
     try {
       // Pass the field mapping from the wizard so the backend applies it
       const result = await importCsv(eventId, selectedFile, columnMap);
+      if (result.failedRows && result.failedRows.length > 0) {
+        setFailedRows(result.failedRows);
+      }
       onImported(result.imported, result.skipped);
-      reset();
-      onClose();
+      // If there are failed rows, stay open to let the user download them;
+      // otherwise close the dialog automatically.
+      if (!result.failedRows || result.failedRows.length === 0) {
+        reset();
+        onClose();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import failed.');
     } finally {
       setImporting(false);
     }
+  }
+
+  /** Build and trigger a CSV download of all failed rows. */
+  function handleDownloadFailedRows(): void {
+    if (failedRows.length === 0) return;
+    const allKeys = Array.from(new Set(failedRows.flatMap((r) => Object.keys(r.data))));
+    const esc = (v: unknown): string => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const headerLine = [...allKeys, 'Row #', 'Reason'].map(esc).join(',');
+    const dataLines = failedRows.map((r) =>
+      [...allKeys.map((k) => esc(r.data[k] ?? '')), esc(r.rowNumber), esc(r.reason)].join(','),
+    );
+    const csv = [headerLine, ...dataLines].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'import-failed-rows.csv';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -243,6 +275,25 @@ export function CsvImportDialog({
                 </Table>
               </TableContainer>
             </>
+          )}
+
+          {failedRows.length > 0 && (
+            <Alert
+              severity="warning"
+              action={
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={handleDownloadFailedRows}
+                  aria-label="Download failed rows as CSV"
+                >
+                  Download Failed Rows
+                </Button>
+              }
+            >
+              {failedRows.length} row{failedRows.length !== 1 ? 's' : ''} could not be imported.
+              Download the file to review and correct them.
+            </Alert>
           )}
         </Box>
       </DialogContent>
