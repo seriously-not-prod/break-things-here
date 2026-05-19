@@ -8,16 +8,20 @@ import {
   Alert,
   Box,
   Button,
+  ButtonGroup,
   Card,
   CardContent,
   Chip,
   Grid,
   LinearProgress,
+  Menu,
+  MenuItem,
   Skeleton,
   Stack,
   Typography,
 } from '@mui/material';
 import DownloadRounded from '@mui/icons-material/DownloadRounded';
+import ArrowDropDownRounded from '@mui/icons-material/ArrowDropDownRounded';
 import { useParams } from 'react-router-dom';
 import { PageLayout } from '../layout/page-layout';
 import {
@@ -33,6 +37,8 @@ import {
 } from 'recharts';
 import {
   exportEventReport,
+  exportEventReportPdf,
+  exportEventReportExcel,
   getEventAnalytics,
   type EventAnalytics,
 } from '../../services/analytics-service';
@@ -68,7 +74,13 @@ function StatCard({ label, value }: { label: string; value: string | number }): 
   );
 }
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
+function SectionCard({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}): JSX.Element {
   return (
     <Card elevation={2} sx={{ height: '100%' }}>
       <CardContent>
@@ -89,6 +101,7 @@ export function AnalyticsPage(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exportMenuAnchor, setExportMenuAnchor] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -125,20 +138,23 @@ export function AnalyticsPage(): JSX.Element {
   );
 
   const budgetChartData = useMemo(
-    () => (data?.topExpenseCategories ?? []).map((item) => ({
-      category: item.category,
-      spent: item.spent,
-      allocated: data?.totalBudgetAllocated && (data.topExpenseCategories.length > 0)
-        ? Math.round(data.totalBudgetAllocated / data.topExpenseCategories.length)
-        : 0,
-    })),
+    () =>
+      (data?.topExpenseCategories ?? []).map((item) => ({
+        category: item.category,
+        spent: item.spent,
+        allocated:
+          data?.totalBudgetAllocated && data.topExpenseCategories.length > 0
+            ? Math.round(data.totalBudgetAllocated / data.topExpenseCategories.length)
+            : 0,
+      })),
     [data],
   );
 
-  const taskTotal = (data?.tasksByStatus.Pending ?? 0)
-    + (data?.tasksByStatus.InProgress ?? 0)
-    + (data?.tasksByStatus.Blocked ?? 0)
-    + (data?.tasksByStatus.Complete ?? 0);
+  const taskTotal =
+    (data?.tasksByStatus.Pending ?? 0) +
+    (data?.tasksByStatus.InProgress ?? 0) +
+    (data?.tasksByStatus.Blocked ?? 0) +
+    (data?.tasksByStatus.Complete ?? 0);
 
   async function handleExport(): Promise<void> {
     if (!id) return;
@@ -147,6 +163,32 @@ export function AnalyticsPage(): JSX.Element {
       await exportEventReport(id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to export report.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleExportPdf(): Promise<void> {
+    if (!id || !data) return;
+    setExportMenuAnchor(null);
+    setExporting(true);
+    try {
+      await exportEventReportPdf(id, data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export PDF report.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleExportExcel(): Promise<void> {
+    if (!id || !data) return;
+    setExportMenuAnchor(null);
+    setExporting(true);
+    try {
+      await exportEventReportExcel(id, data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export Excel report.');
     } finally {
       setExporting(false);
     }
@@ -182,14 +224,36 @@ export function AnalyticsPage(): JSX.Element {
       subtitle="RSVP, budget, and task reporting for this event"
       breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Analytics' }]}
       actions={
-        <Button
-          variant="contained"
-          startIcon={<DownloadRounded />}
-          onClick={() => void handleExport()}
-          disabled={exporting || !id}
-        >
-          {exporting ? 'Exporting...' : 'Export CSV'}
-        </Button>
+        <>
+          <ButtonGroup variant="contained" disabled={exporting || !id || !data}>
+            <Button
+              startIcon={<DownloadRounded />}
+              onClick={() => void handleExport()}
+              aria-label="Export analytics as CSV"
+            >
+              {exporting ? 'Exporting…' : 'Export CSV'}
+            </Button>
+            <Button
+              size="small"
+              aria-label="Open export format menu"
+              aria-haspopup="menu"
+              onClick={(e) => setExportMenuAnchor(e.currentTarget)}
+            >
+              <ArrowDropDownRounded />
+            </Button>
+          </ButtonGroup>
+          <Menu
+            anchorEl={exportMenuAnchor}
+            open={Boolean(exportMenuAnchor)}
+            onClose={() => setExportMenuAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          >
+            <MenuItem onClick={() => void handleExport()}>Export CSV</MenuItem>
+            <MenuItem onClick={() => void handleExportPdf()}>Export PDF</MenuItem>
+            <MenuItem onClick={() => void handleExportExcel()}>Export Excel (.xlsx)</MenuItem>
+          </Menu>
+        </>
       }
     >
       <Stack spacing={3}>
@@ -197,8 +261,16 @@ export function AnalyticsPage(): JSX.Element {
 
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <KpiChip label="Acceptance rate" value={`${data?.acceptanceRate ?? 0}%`} tone="success" />
-          <KpiChip label="Budget utilization" value={`${data?.budgetUtilizationPct ?? 0}%`} tone="warning" />
-          <KpiChip label="Task completion" value={`${data?.taskCompletionRate ?? 0}%`} tone="info" />
+          <KpiChip
+            label="Budget utilization"
+            value={`${data?.budgetUtilizationPct ?? 0}%`}
+            tone="warning"
+          />
+          <KpiChip
+            label="Task completion"
+            value={`${data?.taskCompletionRate ?? 0}%`}
+            tone="info"
+          />
         </Stack>
 
         <Grid container spacing={3}>
@@ -209,7 +281,13 @@ export function AnalyticsPage(): JSX.Element {
                   <Box sx={{ width: '100%', height: 280 }}>
                     <ResponsiveContainer>
                       <PieChart>
-                        <Pie data={rsvpPieData} dataKey="value" nameKey="name" outerRadius={90} innerRadius={50}>
+                        <Pie
+                          data={rsvpPieData}
+                          dataKey="value"
+                          nameKey="name"
+                          outerRadius={90}
+                          innerRadius={50}
+                        >
                           {rsvpPieData.map((entry, index) => (
                             <Cell key={entry.name} fill={RSVP_COLORS[index % RSVP_COLORS.length]} />
                           ))}
@@ -221,10 +299,18 @@ export function AnalyticsPage(): JSX.Element {
                 </Grid>
                 <Grid item xs={12} md={5}>
                   <Grid container spacing={2}>
-                    <Grid item xs={6}><StatCard label="Confirmed" value={data?.confirmedRsvps ?? 0} /></Grid>
-                    <Grid item xs={6}><StatCard label="Pending" value={data?.pendingRsvps ?? 0} /></Grid>
-                    <Grid item xs={6}><StatCard label="Declined" value={data?.declinedRsvps ?? 0} /></Grid>
-                    <Grid item xs={6}><StatCard label="Checked-in" value={data?.checkedInCount ?? 0} /></Grid>
+                    <Grid item xs={6}>
+                      <StatCard label="Confirmed" value={data?.confirmedRsvps ?? 0} />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <StatCard label="Pending" value={data?.pendingRsvps ?? 0} />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <StatCard label="Declined" value={data?.declinedRsvps ?? 0} />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <StatCard label="Checked-in" value={data?.checkedInCount ?? 0} />
+                    </Grid>
                   </Grid>
                 </Grid>
               </Grid>
@@ -241,7 +327,9 @@ export function AnalyticsPage(): JSX.Element {
                   <Box sx={{ flexGrow: 1 }}>
                     <LinearProgress
                       variant="determinate"
-                      value={taskTotal > 0 ? ((data?.tasksByStatus.Complete ?? 0) / taskTotal) * 100 : 0}
+                      value={
+                        taskTotal > 0 ? ((data?.tasksByStatus.Complete ?? 0) / taskTotal) * 100 : 0
+                      }
                       sx={{ height: 12, borderRadius: 999 }}
                     />
                   </Box>
@@ -250,10 +338,18 @@ export function AnalyticsPage(): JSX.Element {
                   </Typography>
                 </Stack>
                 <Grid container spacing={2}>
-                  <Grid item xs={6}><StatCard label="Pending" value={data?.tasksByStatus.Pending ?? 0} /></Grid>
-                  <Grid item xs={6}><StatCard label="In progress" value={data?.tasksByStatus.InProgress ?? 0} /></Grid>
-                  <Grid item xs={6}><StatCard label="Blocked" value={data?.tasksByStatus.Blocked ?? 0} /></Grid>
-                  <Grid item xs={6}><StatCard label="Complete" value={data?.tasksByStatus.Complete ?? 0} /></Grid>
+                  <Grid item xs={6}>
+                    <StatCard label="Pending" value={data?.tasksByStatus.Pending ?? 0} />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <StatCard label="In progress" value={data?.tasksByStatus.InProgress ?? 0} />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <StatCard label="Blocked" value={data?.tasksByStatus.Blocked ?? 0} />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <StatCard label="Complete" value={data?.tasksByStatus.Complete ?? 0} />
+                  </Grid>
                 </Grid>
               </Stack>
             </SectionCard>
@@ -263,8 +359,14 @@ export function AnalyticsPage(): JSX.Element {
             <SectionCard title="Budget">
               <Stack spacing={2}>
                 <Stack direction="row" spacing={2}>
-                  <StatCard label="Allocated" value={`$${(data?.totalBudgetAllocated ?? 0).toLocaleString()}`} />
-                  <StatCard label="Spent" value={`$${(data?.totalBudgetSpent ?? 0).toLocaleString()}`} />
+                  <StatCard
+                    label="Allocated"
+                    value={`$${(data?.totalBudgetAllocated ?? 0).toLocaleString()}`}
+                  />
+                  <StatCard
+                    label="Spent"
+                    value={`$${(data?.totalBudgetSpent ?? 0).toLocaleString()}`}
+                  />
                 </Stack>
                 <Box sx={{ width: '100%', height: 300 }}>
                   <ResponsiveContainer>

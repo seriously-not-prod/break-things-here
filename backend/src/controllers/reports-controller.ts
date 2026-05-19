@@ -152,10 +152,7 @@ export async function updateReport(req: Request, res: Response): Promise<Respons
   );
   if (!existing) return res.status(404).json({ error: 'Report not found.' });
 
-  const { frequency, recipients, filters, isActive } = (req.body ?? {}) as Record<
-    string,
-    unknown
-  >;
+  const { frequency, recipients, filters, isActive } = (req.body ?? {}) as Record<string, unknown>;
 
   let nextFrequency: Frequency = existing.frequency;
   if (frequency !== undefined) {
@@ -168,15 +165,11 @@ export async function updateReport(req: Request, res: Response): Promise<Respons
   let nextRecipients: string[] | null = null;
   if (recipients !== undefined) {
     if (!Array.isArray(recipients) || recipients.length === 0) {
-      return res
-        .status(400)
-        .json({ error: 'recipients must be a non-empty array of emails.' });
+      return res.status(400).json({ error: 'recipients must be a non-empty array of emails.' });
     }
     const valid = (recipients as unknown[]).filter(isValidEmail);
     if (valid.length !== recipients.length) {
-      return res
-        .status(400)
-        .json({ error: 'One or more recipients are not valid emails.' });
+      return res.status(400).json({ error: 'One or more recipients are not valid emails.' });
     }
     nextRecipients = valid;
   }
@@ -191,7 +184,11 @@ export async function updateReport(req: Request, res: Response): Promise<Respons
     [
       nextFrequency,
       nextRecipients ? JSON.stringify(nextRecipients) : JSON.stringify(existing.recipients ?? []),
-      filters !== undefined ? JSON.stringify(filters) : (existing.filters ? JSON.stringify(existing.filters) : null),
+      filters !== undefined
+        ? JSON.stringify(filters)
+        : existing.filters
+          ? JSON.stringify(existing.filters)
+          : null,
       nextIsActive,
       nextIsActive ? nextRunDate(nextFrequency).toISOString() : null,
       authReq.user?.id ?? null,
@@ -240,14 +237,19 @@ export async function renderReport(req: Request, res: Response): Promise<Respons
     id: number;
     report_type: ReportType;
     filters: unknown;
-  }>(
-    'SELECT id, report_type, filters FROM scheduled_reports WHERE id = $1 AND event_id = $2',
-    [reportId, eventId],
-  );
+  }>('SELECT id, report_type, filters FROM scheduled_reports WHERE id = $1 AND event_id = $2', [
+    reportId,
+    eventId,
+  ]);
   if (!report) return res.status(404).json({ error: 'Report not found.' });
 
   const payload = await renderPayload(eventId, report.report_type);
-  return res.json({ reportId: report.id, type: report.report_type, generatedAt: new Date().toISOString(), payload });
+  return res.json({
+    reportId: report.id,
+    type: report.report_type,
+    generatedAt: new Date().toISOString(),
+    payload,
+  });
 }
 
 /**
@@ -269,7 +271,9 @@ export async function recordDelivery(req: Request, res: Response): Promise<Respo
     return res.status(400).json({ error: 'status must be success|failed|partial.' });
   }
   const safeError = typeof errorMessage === 'string' ? errorMessage.substring(0, 1000) : null;
-  const recipientList = Array.isArray(recipients) ? (recipients as unknown[]).filter(isValidEmail) : [];
+  const recipientList = Array.isArray(recipients)
+    ? (recipients as unknown[]).filter(isValidEmail)
+    : [];
 
   const db = getDatabase();
   const report = await db.get<{ id: number; frequency: Frequency; is_active: boolean }>(
@@ -298,9 +302,13 @@ export async function recordDelivery(req: Request, res: Response): Promise<Respo
   return res.json({ delivered: true, status });
 }
 
-async function renderPayload(eventId: string, type: ReportType): Promise<Record<string, unknown>> {
+/** Exported so the job scheduler can build email bodies without HTTP round-trips. */
+export async function renderPayload(
+  eventId: string,
+  type: string,
+): Promise<Record<string, unknown>> {
   const db = getDatabase();
-  switch (type) {
+  switch (type as ReportType) {
     case 'rsvp_summary': {
       const counts = await db.get(
         `SELECT

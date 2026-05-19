@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { getDatabase } from '../db/database.js';
 import { createRsvpNotification } from './notifications-controller.js';
 import { logActivity } from './activity-feed-controller.js';
@@ -873,16 +873,21 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
 
   if (isExcel) {
     try {
-      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-      const sheetName = workbook.SheetNames[0];
-      if (!sheetName) return res.status(400).json({ error: 'Excel file has no sheets.' });
-      const sheet = workbook.Sheets[sheetName];
-      const allRows = XLSX.utils.sheet_to_json<string[]>(sheet, {
-        header: 1,
-        defval: '',
-        range: 0,
-      }) as string[][];
-      const nonEmpty = allRows.filter((r) => r.some((c) => String(c ?? '').trim() !== ''));
+      const workbook = new ExcelJS.Workbook();
+      // exceljs's Buffer type clashes with @types/node v20+ generic Buffer; the
+      // value is a real Buffer at runtime, so cast through unknown.
+      await workbook.xlsx.load(file.buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) return res.status(400).json({ error: 'Excel file has no sheets.' });
+
+      // Collect all rows as string[][] (ExcelJS row.values[0] is always undefined)
+      const allRows: string[][] = [];
+      worksheet.eachRow({ includeEmpty: false }, (row) => {
+        const values = (row.values as (string | number | boolean | null | undefined)[]).slice(1);
+        allRows.push(values.map((c) => String(c ?? '')));
+      });
+
+      const nonEmpty = allRows.filter((r) => r.some((c) => c.trim() !== ''));
       if (nonEmpty.length < 2)
         return res.status(400).json({ error: 'Excel file has no data rows.' });
       if (nonEmpty.length > MAX_ROWS + 1) {
@@ -890,8 +895,8 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
           .status(400)
           .json({ error: `Excel file exceeds maximum of ${MAX_ROWS} data rows.` });
       }
-      rawHeaders = nonEmpty[0].map((h) => String(h ?? ''));
-      dataLines2d = nonEmpty.slice(1).map((r) => r.map((c) => String(c ?? '')));
+      rawHeaders = nonEmpty[0];
+      dataLines2d = nonEmpty.slice(1);
     } catch {
       return res
         .status(400)
@@ -992,8 +997,9 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
 
   let imported = 0;
   let skipped = 0;
+  const failedRows: Array<{ rowNumber: number; data: Record<string, string>; reason: string }> = [];
 
-  for (const values of dataLines2d) {
+  for (const [rowIndex, values] of dataLines2d.entries()) {
     // Null-prototype object prevents prototype-chain key collisions in row.
     const row: Record<string, string> = Object.create(null) as Record<string, string>;
     rawHeaders.forEach((rawHeader, i) => {
@@ -1018,6 +1024,9 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
     const email = row['email']?.trim().toLowerCase();
     if (!name || !email) {
       skipped++;
+      const reason =
+        !name && !email ? 'Missing name and email' : !name ? 'Missing name' : 'Missing email';
+      failedRows.push({ rowNumber: rowIndex + 1, data: { ...row }, reason });
       continue;
     }
 
@@ -1067,14 +1076,25 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
           await recomputeCompleteness(result.lastID);
         }
       } else {
+        // ON CONFLICT DO NOTHING — duplicate email
         skipped++;
+        failedRows.push({
+          rowNumber: rowIndex + 1,
+          data: { ...row },
+          reason: 'Duplicate email — already exists for this event',
+        });
       }
-    } catch {
+    } catch (dbErr: unknown) {
       skipped++;
+      failedRows.push({
+        rowNumber: rowIndex + 1,
+        data: { ...row },
+        reason: dbErr instanceof Error ? dbErr.message : 'Database error',
+      });
     }
   }
 
-  return res.json({ imported, skipped });
+  return res.json({ imported, skipped, failedRows });
 }
 
 /**

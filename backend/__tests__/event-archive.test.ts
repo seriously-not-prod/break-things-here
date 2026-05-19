@@ -18,7 +18,12 @@ vi.mock('../src/db/database', () => ({
   getDatabase: () => mockDb,
 }));
 
-import { archiveEvent, restoreEvent, unarchiveEvent, updateEvent } from '../src/controllers/event-controller.js';
+import {
+  archiveEvent,
+  restoreEvent,
+  unarchiveEvent,
+  updateEvent,
+} from '../src/controllers/event-controller.js';
 
 function makeRes() {
   const res: {
@@ -69,14 +74,20 @@ describe('archiveEvent', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual(archived);
-    expect(mockDb.run).toHaveBeenCalledTimes(2); // archive + audit
+    // archive UPDATE + audit INSERT + captureEntityVersion INSERT
+    expect(mockDb.run).toHaveBeenCalledTimes(3);
     expect(mockDb.run.mock.calls[0][0]).toMatch(/UPDATE events/);
     expect(mockDb.run.mock.calls[0][1]).toEqual([7, 'historical cleanup', 7, '12']);
     expect(mockDb.run.mock.calls[1][0]).toMatch(/INSERT INTO audit_log/);
   });
 
   it('rejects non-owners who are not admin', async () => {
-    mockDb.get.mockResolvedValueOnce({ id: 12, title: 'Festival', created_by: 999, archived_at: null });
+    mockDb.get.mockResolvedValueOnce({
+      id: 12,
+      title: 'Festival',
+      created_by: 999,
+      archived_at: null,
+    });
     const req = makeReq({ id: '12' }, {});
     const res = makeRes();
     await archiveEvent(req, res as unknown as import('express').Response);
@@ -193,11 +204,7 @@ describe('restoreEvent 30-day rule', () => {
       deleted_at: deletedAt,
     });
 
-    const req = makeReq(
-      { id: '12' },
-      {},
-      { id: 3, email: 'admin@test.com', role_id: 3 },
-    );
+    const req = makeReq({ id: '12' }, {}, { id: 3, email: 'admin@test.com', role_id: 3 });
     const res = makeRes();
     await restoreEvent(req, res as unknown as import('express').Response);
 
@@ -216,11 +223,7 @@ describe('restoreEvent 30-day rule', () => {
       deleted_at: deletedAt,
     });
 
-    const req = makeReq(
-      { id: '12' },
-      {},
-      { id: 3, email: 'admin@test.com', role_id: 3 },
-    );
+    const req = makeReq({ id: '12' }, {}, { id: 3, email: 'admin@test.com', role_id: 3 });
     const res = makeRes();
     await restoreEvent(req, res as unknown as import('express').Response);
 
@@ -233,11 +236,7 @@ describe('restoreEvent 30-day rule', () => {
   });
 
   it('returns 403 for non-admin users', async () => {
-    const req = makeReq(
-      { id: '12' },
-      {},
-      { id: 7, email: 'owner@test.com', role_id: 2 },
-    );
+    const req = makeReq({ id: '12' }, {}, { id: 7, email: 'owner@test.com', role_id: 2 });
     const res = makeRes();
     await restoreEvent(req, res as unknown as import('express').Response);
 

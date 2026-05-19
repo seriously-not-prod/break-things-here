@@ -36,11 +36,22 @@ function makeRes() {
   } as any;
 }
 
-function makeReq(params: any = {}, body: any = {}, user?: { id: number; email: string; role_id: number }) {
+function makeReq(
+  params: any = {},
+  body: any = {},
+  user?: { id: number; email: string; role_id: number },
+) {
   return { params, body, user } as any;
 }
 
-const apiRoutesSource = readFileSync(new URL('../src/routes/api-routes.ts', import.meta.url), 'utf8');
+const apiRoutesSource = readFileSync(
+  new URL('../src/routes/api-routes.ts', import.meta.url),
+  'utf8',
+)
+  .replace(/\s+/g, ' ') // collapse all whitespace (including newlines) to single space
+  .replace(/\( /g, '(') // remove space after opening paren
+  .replace(/, \)/g, ')') // remove trailing comma+space before closing paren
+  .replace(/,\)/g, ')'); // remove trailing comma before closing paren (no space variant)
 
 async function seedUser(
   email: string,
@@ -310,7 +321,9 @@ describe('Admin API — integration tests (#260 #279 #280)', () => {
       expect(res.statusCode).toBe(200);
       expect(res.body.message).toMatch(/user restored/i);
 
-      const restoredUser = await db.get('SELECT deleted_at FROM users WHERE id = ?', [regularUserId]);
+      const restoredUser = await db.get('SELECT deleted_at FROM users WHERE id = ?', [
+        regularUserId,
+      ]);
       expect(restoredUser.deleted_at).toBeNull();
     });
 

@@ -129,9 +129,20 @@ export interface BulkSendResult {
   suppressed?: number;
 }
 
+export interface FailedImportRow {
+  /** 1-based row number in the uploaded file (counting from the first data row). */
+  rowNumber: number;
+  /** Raw cell values for the row, keyed by header name. */
+  data: Record<string, string>;
+  /** Human-readable reason the row was not imported. */
+  reason: string;
+}
+
 export interface CsvImportResult {
   imported: number;
   skipped: number;
+  /** Rows that were explicitly rejected with a structured reason (missing name/email, duplicate, etc.). */
+  failedRows?: FailedImportRow[];
 }
 
 /** Legacy flat interface kept for backward compat with check-in / seating code */
@@ -227,10 +238,7 @@ export async function updateRsvp(
 }
 
 /** DELETE /api/events/:eventId/rsvps/:id */
-export async function deleteRsvp(
-  eventId: number | string,
-  rsvpId: number | string,
-): Promise<void> {
+export async function deleteRsvp(eventId: number | string, rsvpId: number | string): Promise<void> {
   await api.delete(`/api/events/${eventId}/rsvps/${rsvpId}`);
 }
 
@@ -247,9 +255,7 @@ export async function checkInGuest(
   eventId: number | string,
   rsvpId: number | string,
 ): Promise<Rsvp> {
-  const data = await api.patch<{ rsvp: Rsvp }>(
-    `/api/events/${eventId}/rsvps/${rsvpId}/checkin`,
-  );
+  const data = await api.patch<{ rsvp: Rsvp }>(`/api/events/${eventId}/rsvps/${rsvpId}/checkin`);
   return data.rsvp;
 }
 
@@ -280,7 +286,7 @@ export async function importCsv(
     body: formData,
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string };
+    const body = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string };
     throw new Error(body.error ?? res.statusText);
   }
   return res.json() as Promise<CsvImportResult>;
@@ -355,9 +361,7 @@ export async function listCommunicationLog(
 
 /** GET /api/events/:eventId/seating/tables */
 export async function listTables(eventId: number | string): Promise<SeatingTable[]> {
-  const data = await api.get<{ tables: SeatingTable[] }>(
-    `/api/events/${eventId}/seating/tables`,
-  );
+  const data = await api.get<{ tables: SeatingTable[] }>(`/api/events/${eventId}/seating/tables`);
   return data.tables;
 }
 
@@ -400,9 +404,7 @@ export async function assignGuest(
   tableId: number | string,
   rsvpId: number | string,
 ): Promise<void> {
-  await api.post(
-    `/api/events/${eventId}/seating/tables/${tableId}/assign/${rsvpId}`,
-  );
+  await api.post(`/api/events/${eventId}/seating/tables/${tableId}/assign/${rsvpId}`);
 }
 
 /** DELETE /api/events/:eventId/seating/tables/:tableId/assign/:rsvpId */
@@ -411,9 +413,7 @@ export async function unassignGuest(
   tableId: number | string,
   rsvpId: number | string,
 ): Promise<void> {
-  await api.delete(
-    `/api/events/${eventId}/seating/tables/${tableId}/assign/${rsvpId}`,
-  );
+  await api.delete(`/api/events/${eventId}/seating/tables/${tableId}/assign/${rsvpId}`);
 }
 
 // ─── Duplicate detection & merge (#411, #435) ───────────────────────────────
@@ -481,10 +481,7 @@ export async function issueRsvpToken(
   rsvpId: number | string,
   rotate = false,
 ): Promise<{ token: string }> {
-  return api.post<{ token: string }>(
-    `/api/events/${eventId}/rsvps/${rsvpId}/token`,
-    { rotate },
-  );
+  return api.post<{ token: string }>(`/api/events/${eventId}/rsvps/${rsvpId}/token`, { rotate });
 }
 
 // ─── Waitlist (#442) ────────────────────────────────────────────────────────
@@ -663,7 +660,10 @@ export async function updateMealOption(
   id: number,
   input: Partial<{ name: string; description: string; is_active: boolean; sort_order: number }>,
 ): Promise<MealOption> {
-  const data = await api.patch<{ option: MealOption }>(`/api/events/${eventId}/meal-options/${id}`, input);
+  const data = await api.patch<{ option: MealOption }>(
+    `/api/events/${eventId}/meal-options/${id}`,
+    input,
+  );
   return data.option;
 }
 export async function deleteMealOption(eventId: number | string, id: number): Promise<void> {
@@ -724,10 +724,7 @@ export interface QrScanResult {
   alreadyCheckedIn: boolean;
 }
 
-export async function scanQrToken(
-  eventId: number | string,
-  token: string,
-): Promise<QrScanResult> {
+export async function scanQrToken(eventId: number | string, token: string): Promise<QrScanResult> {
   return api.post<QrScanResult>(`/api/events/${eventId}/checkin/scan`, { token });
 }
 
@@ -738,10 +735,7 @@ export async function undoCheckIn(
   await api.post(`/api/events/${eventId}/checkin/${rsvpId}/undo`);
 }
 
-export async function markNoShow(
-  eventId: number | string,
-  rsvpIds: number[],
-): Promise<void> {
+export async function markNoShow(eventId: number | string, rsvpIds: number[]): Promise<void> {
   await api.post(`/api/events/${eventId}/checkin/mark-no-show`, { rsvpIds });
 }
 
@@ -803,9 +797,7 @@ export interface SeatingGroup {
 }
 
 export async function listSeatingGroups(eventId: number | string): Promise<SeatingGroup[]> {
-  const data = await api.get<{ groups: SeatingGroup[] }>(
-    `/api/events/${eventId}/seating/groups`,
-  );
+  const data = await api.get<{ groups: SeatingGroup[] }>(`/api/events/${eventId}/seating/groups`);
   return data.groups;
 }
 export async function createSeatingGroup(
@@ -832,9 +824,6 @@ export async function seatGroupAtTable(
 ): Promise<void> {
   await api.post(`/api/events/${eventId}/seating/groups/${groupId}/seat`, { tableId });
 }
-export async function deleteSeatingGroup(
-  eventId: number | string,
-  groupId: number,
-): Promise<void> {
+export async function deleteSeatingGroup(eventId: number | string, groupId: number): Promise<void> {
   await api.delete(`/api/events/${eventId}/seating/groups/${groupId}`);
 }
