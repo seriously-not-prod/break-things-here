@@ -5,13 +5,17 @@
 
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database';
+import {
+  normalizeLegacyRsvpStatusInput,
+  RSVP_STATUS_INPUT_ALIAS_LIST,
+} from '../utils/rsvp-taxonomy';
 
 export interface RsvpData {
   event_id: number;
   name: string;
   email: string;
   guests?: number;
-  status: 'Pending' | 'Confirmed' | 'Declined';
+  status?: string;
 }
 
 /**
@@ -26,7 +30,7 @@ export async function getAllRsvps(req: Request, res: Response): Promise<void> {
     const params: any[] = [];
     
     if (event_id) {
-      query += ' WHERE event_id = ?';
+      query += ' WHERE event_id = $1';
       params.push(event_id);
     }
     
@@ -49,7 +53,7 @@ export async function getRsvpById(req: Request, res: Response): Promise<void> {
     const db = getDatabase();
     const { id } = req.params;
     
-    const rsvp = await db.get('SELECT * FROM rsvps WHERE id = ?', [id]);
+    const rsvp = await db.get('SELECT * FROM rsvps WHERE id = $1', [id]);
     
     if (!rsvp) {
       res.status(404).json({ error: 'RSVP not found' });
@@ -93,35 +97,41 @@ export async function submitRsvp(req: Request, res: Response): Promise<void> {
     }
     
     // Check if event exists
-    const event = await db.get('SELECT id FROM events WHERE id = ?', [event_id]);
+    const event = await db.get('SELECT id FROM events WHERE id = $1', [event_id]);
     if (!event) {
       res.status(404).json({ error: 'Event not found' });
       return;
     }
     
-    if (status && !['Pending', 'Confirmed', 'Declined'].includes(status)) {
-      res.status(400).json({ error: 'Invalid status' });
+    const normalizedStatus = status === undefined
+      ? 'Pending'
+      : normalizeLegacyRsvpStatusInput(status);
+    if (status !== undefined && !normalizedStatus) {
+      res.status(400).json({
+        error: 'Invalid RSVP status.',
+        allowed: RSVP_STATUS_INPUT_ALIAS_LIST,
+      });
       return;
     }
-    
+
     // Check for duplicate RSVP
     const existing = await db.get(
-      'SELECT id FROM rsvps WHERE event_id = ? AND email = ?',
+      'SELECT id FROM rsvps WHERE event_id = $1 AND email = $2',
       [event_id, email]
     );
-    
+
     if (existing) {
       res.status(409).json({ error: 'RSVP already exists for this email' });
       return;
     }
-    
+
     const result = await db.run(`
       INSERT INTO rsvps (event_id, name, email, guests, status)
-      VALUES (?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING id
-    `, [event_id, name, email, guests || 1, status || 'Pending']);
+    `, [event_id, name, email, guests || 1, normalizedStatus]);
     
-    const newRsvp = await db.get('SELECT * FROM rsvps WHERE id = ?', [result.lastID]);
+    const newRsvp = await db.get('SELECT * FROM rsvps WHERE id = $1', [result.lastID]);
     
     res.status(201).json(newRsvp);
   } catch (error) {
@@ -147,18 +157,25 @@ export async function updateRsvp(req: Request, res: Response): Promise<void> {
     const { name, email, guests, status } = req.body;
     
     // Check if RSVP exists
-    const existingRsvp = await db.get('SELECT * FROM rsvps WHERE id = ?', [id]);
+    const existingRsvp = await db.get('SELECT * FROM rsvps WHERE id = $1', [id]);
     if (!existingRsvp) {
       res.status(404).json({ error: 'RSVP not found' });
       return;
     }
     
-    // Validation
-    if (status && !['Pending', 'Confirmed', 'Declined'].includes(status)) {
-      res.status(400).json({ error: 'Invalid status' });
-      return;
+    // Validation: normalize status alias to its persisted legacy value.
+    let normalizedStatus: string | null = null;
+    if (status !== undefined) {
+      normalizedStatus = normalizeLegacyRsvpStatusInput(status);
+      if (!normalizedStatus) {
+        res.status(400).json({
+          error: 'Invalid RSVP status.',
+          allowed: RSVP_STATUS_INPUT_ALIAS_LIST,
+        });
+        return;
+      }
     }
-    
+
     if (email) {
       // Email validation without regex to prevent ReDoS
       const atIndex = email.indexOf('@');
@@ -177,18 +194,18 @@ export async function updateRsvp(req: Request, res: Response): Promise<void> {
     }
     
     await db.run(`
-      UPDATE rsvps 
-      SET name = ?, email = ?, guests = ?, status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      UPDATE rsvps
+      SET name = $1, email = $2, guests = $3, status = $4, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5
     `, [
       name || existingRsvp.name,
       email || existingRsvp.email,
       guests !== undefined ? guests : existingRsvp.guests,
-      status || existingRsvp.status,
+      normalizedStatus || existingRsvp.status,
       id
     ]);
     
-    const updatedRsvp = await db.get('SELECT * FROM rsvps WHERE id = ?', [id]);
+    const updatedRsvp = await db.get('SELECT * FROM rsvps WHERE id = $1', [id]);
     
     res.json(updatedRsvp);
   } catch (error) {
@@ -211,13 +228,13 @@ export async function deleteRsvp(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    const rsvp = await db.get('SELECT * FROM rsvps WHERE id = ?', [id]);
+    const rsvp = await db.get('SELECT * FROM rsvps WHERE id = $1', [id]);
     if (!rsvp) {
       res.status(404).json({ error: 'RSVP not found' });
       return;
     }
     
-    await db.run('DELETE FROM rsvps WHERE id = ?', [id]);
+    await db.run('DELETE FROM rsvps WHERE id = $1', [id]);
     
     res.json({ message: 'RSVP deleted successfully' });
   } catch (error) {
