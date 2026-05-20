@@ -6,7 +6,11 @@
 import { Box, Skeleton, Stack, Typography } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-import type { Formatter, NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
+import type {
+  Formatter,
+  NameType,
+  ValueType,
+} from 'recharts/types/component/DefaultTooltipContent';
 import type { DashboardRsvp } from '../../services/dashboard-service';
 
 export interface RsvpSummaryPanelProps {
@@ -20,14 +24,22 @@ interface StatusConfig {
 }
 
 const STATUS_CONFIG: Record<string, StatusConfig> = {
-  Going: { label: 'Going', color: '#22c55e' },
-  Pending: { label: 'Pending', color: '#f59e0b' },
-  Maybe: { label: 'Maybe', color: '#6366f1' },
-  'Not Going': { label: 'Not Going', color: '#ef4444' },
-  Declined: { label: 'Declined', color: '#94a3b8' },
+  confirmed: { label: 'Confirmed', color: '#22c55e' },
+  pending: { label: 'Pending', color: '#f59e0b' },
+  maybe: { label: 'Maybe', color: '#6366f1' },
+  declined: { label: 'Declined', color: '#ef4444' },
+  waitlist: { label: 'Waitlist', color: '#8b5cf6' },
+  cancelled: { label: 'Cancelled', color: '#94a3b8' },
 };
 
-const STATUS_ORDER = ['Going', 'Pending', 'Maybe', 'Not Going', 'Declined'] as const;
+const STATUS_ORDER = [
+  'confirmed',
+  'pending',
+  'maybe',
+  'declined',
+  'waitlist',
+  'cancelled',
+] as const;
 
 function normalizeTooltipValue(value: ValueType | undefined): number {
   if (Array.isArray(value)) {
@@ -63,7 +75,7 @@ export function RsvpSummaryPanel({ rsvps, loading }: RsvpSummaryPanelProps): JSX
   }
 
   const chartData = STATUS_ORDER.map((status) => {
-    const group = rsvps.filter((r) => r.status === status);
+    const group = rsvps.filter((r) => r.canonical_status === status);
     return {
       name: STATUS_CONFIG[status]?.label ?? status,
       value: group.reduce((sum, r) => sum + (r.guests ?? 1), 0),
@@ -95,7 +107,8 @@ export function RsvpSummaryPanel({ rsvps, loading }: RsvpSummaryPanelProps): JSX
       </ResponsiveContainer>
 
       <Typography variant="caption" color="text.secondary" textAlign="center">
-        {totalGuests} total guest{totalGuests !== 1 ? 's' : ''} across {rsvps.length} RSVP{rsvps.length !== 1 ? 's' : ''}
+        {totalGuests} total guest{totalGuests !== 1 ? 's' : ''} across {rsvps.length} RSVP
+        {rsvps.length !== 1 ? 's' : ''}
       </Typography>
 
       <Stack spacing={0.75} role="list" aria-label="RSVP status breakdown">

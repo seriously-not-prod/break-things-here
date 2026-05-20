@@ -283,7 +283,7 @@ async function promoteWaitlist(): Promise<void> {
       );
       for (const rsvp of waiting) {
         await db.run(
-          `UPDATE rsvps SET waitlist_position = NULL, status = 'Going', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+          `UPDATE rsvps SET waitlist_position = NULL, canonical_status = 'confirmed', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
           [rsvp.id],
         );
         logger.info(`[Scheduler] Promoted waitlisted RSVP ${rsvp.id} for event ${event.id}`);

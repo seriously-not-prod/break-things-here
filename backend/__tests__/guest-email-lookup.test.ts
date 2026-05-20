@@ -56,23 +56,29 @@ beforeAll(async (): Promise<void> => {
   eventId = Number(eventResult.lastID);
 
   const one = await db.run(
-    `INSERT INTO rsvps (event_id, name, email, guests, status)
+    `INSERT INTO rsvps (event_id, name, email, guests, canonical_status)
      VALUES (?, ?, ?, ?, ?) RETURNING id`,
-    [eventId, 'Alex Guest', 'alex@example.com', 1, 'Going'],
+    [eventId, 'Alex Guest', 'alex@example.com', 1, 'confirmed'],
   );
   const two = await db.run(
-    `INSERT INTO rsvps (event_id, name, email, guests, status)
+    `INSERT INTO rsvps (event_id, name, email, guests, canonical_status)
      VALUES (?, ?, ?, ?, ?) RETURNING id`,
-    [eventId, 'A. Guest', 'Alex@Example.com', 2, 'Pending'],
+    [eventId, 'A. Guest', 'Alex@Example.com', 2, 'pending'],
   );
 
-  await db.run(`UPDATE rsvps SET updated_at = ? WHERE id = ?`, ['2026-01-01T00:00:00.000Z', Number(one.lastID)]);
-  await db.run(`UPDATE rsvps SET updated_at = ? WHERE id = ?`, ['2026-01-03T00:00:00.000Z', Number(two.lastID)]);
+  await db.run(`UPDATE rsvps SET updated_at = ? WHERE id = ?`, [
+    '2026-01-01T00:00:00.000Z',
+    Number(one.lastID),
+  ]);
+  await db.run(`UPDATE rsvps SET updated_at = ? WHERE id = ?`, [
+    '2026-01-03T00:00:00.000Z',
+    Number(two.lastID),
+  ]);
 
   await db.run(
-    `INSERT INTO rsvps (event_id, name, email, guests, status)
+    `INSERT INTO rsvps (event_id, name, email, guests, canonical_status)
      VALUES (?, ?, ?, ?, ?)`,
-    [eventId, 'Other Person', 'other@example.com', 1, 'Going'],
+    [eventId, 'Other Person', 'other@example.com', 1, 'confirmed'],
   );
 });
 
