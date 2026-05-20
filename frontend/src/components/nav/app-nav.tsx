@@ -39,7 +39,7 @@ import {
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/auth-context';
 import { isAdmin } from '../../utils/roles';
-import { NotificationBell } from '../notifications/notification-bell';
+import { NotificationCenter } from './notification-center';
 import { useThemeMode } from '../../theme/theme-mode-context';
 import { LightModeRounded, DarkModeRounded } from '@mui/icons-material';
 import { useState, useCallback } from 'react';
@@ -68,7 +68,7 @@ interface NavItem {
 }
 
 function buildNavGroups(eventId: string | null, onNeedEvent: (sub: string) => void): NavGroup[] {
-  const ws = (sub: string): NavItem["to"] => eventId ? `/events/${eventId}/${sub}` : '/events';
+  const ws = (sub: string): NavItem['to'] => (eventId ? `/events/${eventId}/${sub}` : '/events');
   // Workspace items ALWAYS open the event picker so the user can choose
   // which event to view — never silently default to the last-used event.
   const wsItem = (label: string, sub: string, icon: JSX.Element): NavItem => ({
@@ -111,13 +111,7 @@ const ADMIN_NAV: NavItem[] = [
   { label: 'User Management', to: '/admin', icon: <ManageAccountsRounded />, adminOnly: true },
 ];
 
-function NavItemRow({
-  item,
-  collapsed,
-}: {
-  item: NavItem;
-  collapsed: boolean;
-}): JSX.Element {
+function NavItemRow({ item, collapsed }: { item: NavItem; collapsed: boolean }): JSX.Element {
   const location = useLocation();
   // For workspace items that use onClickOverride (no NavLink), detect active
   // state manually: match /events/<any-id>/<subPath>
@@ -173,18 +167,17 @@ function NavItemRow({
       {inner}
     </ListItemButton>
   ) : (
-    <ListItemButton
-      component={NavLink}
-      to={item.to}
-      end={item.end}
-      sx={sharedSx}
-    >
+    <ListItemButton component={NavLink} to={item.to} end={item.end} sx={sharedSx}>
       {inner}
     </ListItemButton>
   );
 
   if (collapsed) {
-    return <Tooltip title={item.label} placement="right">{btn}</Tooltip>;
+    return (
+      <Tooltip title={item.label} placement="right">
+        {btn}
+      </Tooltip>
+    );
   }
   return btn;
 }
@@ -207,8 +200,8 @@ function NavGroupSection({
     return true;
   });
 
-  const isGroupActive = visibleItems.some((item) =>
-    location.pathname === item.to || location.pathname.startsWith(item.to.split('?')[0])
+  const isGroupActive = visibleItems.some(
+    (item) => location.pathname === item.to || location.pathname.startsWith(item.to.split('?')[0]),
   );
 
   if (collapsed) {
@@ -257,7 +250,11 @@ function NavGroupSection({
             textTransform: 'uppercase',
           }}
         />
-        {open ? <ExpandLessRounded sx={{ fontSize: 16, color: 'rgba(255,255,255,0.4)' }} /> : <ExpandMoreRounded sx={{ fontSize: 16, color: 'rgba(255,255,255,0.4)' }} />}
+        {open ? (
+          <ExpandLessRounded sx={{ fontSize: 16, color: 'rgba(255,255,255,0.4)' }} />
+        ) : (
+          <ExpandMoreRounded sx={{ fontSize: 16, color: 'rgba(255,255,255,0.4)' }} />
+        )}
       </ListItemButton>
       <Collapse in={open} timeout="auto">
         <List dense disablePadding sx={{ pl: 0.5 }}>
@@ -323,36 +320,71 @@ export function AppNav({ collapsed, onToggleCollapse }: AppNavProps): React.Reac
 
   return (
     <>
-    <Drawer
-      variant="permanent"
-      sx={{
-        width: drawerWidth,
-        flexShrink: 0,
-        transition: 'width 250ms cubic-bezier(0.4,0,0.2,1)',
-        '& .MuiDrawer-paper': {
-          width: drawerWidth,
-          overflowX: 'hidden',
-          transition: 'width 250ms cubic-bezier(0.4,0,0.2,1)',
-          boxSizing: 'border-box',
-          display: 'flex',
-          flexDirection: 'column',
-        },
-      }}
-    >
-      {/* ── Logo / Brand ── */}
-      <Box
+      <Drawer
+        variant="permanent"
         sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: collapsed ? 'center' : 'space-between',
-          px: collapsed ? 1 : 2,
-          py: 1.5,
-          minHeight: 60,
-          borderBottom: '1px solid rgba(255,255,255,0.07)',
+          width: drawerWidth,
+          flexShrink: 0,
+          transition: 'width 250ms cubic-bezier(0.4,0,0.2,1)',
+          '& .MuiDrawer-paper': {
+            width: drawerWidth,
+            overflowX: 'hidden',
+            transition: 'width 250ms cubic-bezier(0.4,0,0.2,1)',
+            boxSizing: 'border-box',
+            display: 'flex',
+            flexDirection: 'column',
+          },
         }}
       >
-        {!collapsed && (
-          <Stack direction="row" alignItems="center" spacing={1.25}>
+        {/* ── Logo / Brand ── */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: collapsed ? 'center' : 'space-between',
+            px: collapsed ? 1 : 2,
+            py: 1.5,
+            minHeight: 60,
+            borderBottom: '1px solid rgba(255,255,255,0.07)',
+          }}
+        >
+          {!collapsed && (
+            <Stack direction="row" alignItems="center" spacing={1.25}>
+              <Box
+                sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #2563EB 0%, #0ea5e9 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  color: '#fff',
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                EF
+              </Box>
+              <Box>
+                <Typography
+                  variant="subtitle1"
+                  sx={{ color: '#fff', fontWeight: 800, lineHeight: 1.1, fontSize: '0.9375rem' }}
+                >
+                  eQuip Fest
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.625rem', lineHeight: 1 }}
+                >
+                  Festival Management
+                </Typography>
+              </Box>
+            </Stack>
+          )}
+          {collapsed && (
             <Box
               sx={{
                 width: 32,
@@ -362,217 +394,227 @@ export function AppNav({ collapsed, onToggleCollapse }: AppNavProps): React.Reac
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                flexShrink: 0,
                 fontSize: '0.75rem',
                 fontWeight: 800,
                 color: '#fff',
-                letterSpacing: '-0.5px',
               }}
             >
               EF
             </Box>
-            <Box>
-              <Typography
-                variant="subtitle1"
-                sx={{ color: '#fff', fontWeight: 800, lineHeight: 1.1, fontSize: '0.9375rem' }}
-              >
-                eQuip Fest
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.625rem', lineHeight: 1 }}
-              >
-                Festival Management
-              </Typography>
-            </Box>
-          </Stack>
-        )}
-        {collapsed && (
-          <Box
-            sx={{
-              width: 32,
-              height: 32,
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, #2563EB 0%, #0ea5e9 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.75rem',
-              fontWeight: 800,
-              color: '#fff',
-            }}
-          >
-            EF
-          </Box>
-        )}
-        {!collapsed && (
-          <IconButton
-            size="small"
-            onClick={onToggleCollapse}
-            sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.08)' } }}
-            aria-label="Collapse sidebar"
-          >
-            <ChevronLeftRounded />
-          </IconButton>
-        )}
-      </Box>
-
-      {/* ── Expand button when collapsed ── */}
-      {collapsed && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 1, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-          <Tooltip title="Expand sidebar" placement="right">
+          )}
+          {!collapsed && (
             <IconButton
               size="small"
               onClick={onToggleCollapse}
-              sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.08)' } }}
-              aria-label="Expand sidebar"
+              sx={{
+                color: 'rgba(255,255,255,0.4)',
+                '&:hover': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.08)' },
+              }}
+              aria-label="Collapse sidebar"
             >
-              <ChevronRightRounded />
+              <ChevronLeftRounded />
             </IconButton>
-          </Tooltip>
-        </Box>
-      )}
-
-      {/* ── Notification Bell ── */}
-      {!collapsed && (
-        <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-          <NotificationBell />
-        </Box>
-      )}
-      {collapsed && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 0.5 }}>
-          <NotificationBell />
-        </Box>
-      )}
-
-      {/* ── Scrollable Nav ── */}
-      <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 1 }}>
-        {/* Main items */}
-        <List dense disablePadding>
-          {mainItems.map((item) => (
-            <NavItemRow key={item.to} item={item} collapsed={collapsed} />
-          ))}
-        </List>
-
-        <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.07)' }} />
-
-        {/* Grouped nav sections */}
-        {!collapsed && navGroups.map((group, idx) => (
-          <NavGroupSection key={group.id} group={group} collapsed={false} defaultOpen={idx === 0} />
-        ))}
-        {collapsed && navGroups.map((group) => (
-          <NavGroupSection key={group.id} group={group} collapsed={true} />
-        ))}
-
-        {/* Admin */}
-        {adminItems.length > 0 && (
-          <>
-            <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.07)' }} />
-            <List dense disablePadding>
-              {adminItems.map((item) => (
-                <NavItemRow key={item.to} item={item} collapsed={collapsed} />
-              ))}
-            </List>
-          </>
-        )}
-      </Box>
-
-      {/* ── Bottom: theme toggle + user profile ── */}
-      <Divider sx={{ borderColor: 'rgba(255,255,255,0.07)' }} />
-      <Box sx={{ p: collapsed ? 1 : 1.5 }}>
-        {/* Dark mode toggle */}
-        <Box sx={{ display: 'flex', justifyContent: collapsed ? 'center' : 'flex-end', mb: 1 }}>
-          <Tooltip title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} placement="right">
-            <IconButton
-              size="small"
-              onClick={toggleMode}
-              sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.08)' } }}
-              aria-label={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {mode === 'dark' ? <LightModeRounded fontSize="small" /> : <DarkModeRounded fontSize="small" />}
-            </IconButton>
-          </Tooltip>
+          )}
         </Box>
 
-        {/* User profile */}
-        <Tooltip title={collapsed ? (user?.displayName ?? user?.email ?? 'Profile') : ''} placement="right">
-          <ListItemButton
-            component={NavLink}
-            to="/profile"
+        {/* ── Expand button when collapsed ── */}
+        {collapsed && (
+          <Box
             sx={{
-              borderRadius: 8,
-              px: collapsed ? 1 : 1.25,
-              py: 0.75,
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              color: 'rgba(255,255,255,0.7)',
-              '&:hover': { backgroundColor: 'rgba(255,255,255,0.07)', color: '#fff' },
-              '&.active': { backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff' },
+              display: 'flex',
+              justifyContent: 'center',
+              py: 1,
+              borderBottom: '1px solid rgba(255,255,255,0.07)',
             }}
           >
-            <Avatar
+            <Tooltip title="Expand sidebar" placement="right">
+              <IconButton
+                size="small"
+                onClick={onToggleCollapse}
+                sx={{
+                  color: 'rgba(255,255,255,0.4)',
+                  '&:hover': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.08)' },
+                }}
+                aria-label="Expand sidebar"
+              >
+                <ChevronRightRounded />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )}
+
+        {/* ── Notification Centre ── */}
+        {!collapsed && (
+          <Box
+            sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}
+          >
+            <NotificationCenter />
+          </Box>
+        )}
+        {collapsed && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 0.5 }}>
+            <NotificationCenter />
+          </Box>
+        )}
+
+        {/* ── Scrollable Nav ── */}
+        <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 1 }}>
+          {/* Main items */}
+          <List dense disablePadding>
+            {mainItems.map((item) => (
+              <NavItemRow key={item.to} item={item} collapsed={collapsed} />
+            ))}
+          </List>
+
+          <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.07)' }} />
+
+          {/* Grouped nav sections */}
+          {!collapsed &&
+            navGroups.map((group, idx) => (
+              <NavGroupSection
+                key={group.id}
+                group={group}
+                collapsed={false}
+                defaultOpen={idx === 0}
+              />
+            ))}
+          {collapsed &&
+            navGroups.map((group) => (
+              <NavGroupSection key={group.id} group={group} collapsed={true} />
+            ))}
+
+          {/* Admin */}
+          {adminItems.length > 0 && (
+            <>
+              <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.07)' }} />
+              <List dense disablePadding>
+                {adminItems.map((item) => (
+                  <NavItemRow key={item.to} item={item} collapsed={collapsed} />
+                ))}
+              </List>
+            </>
+          )}
+        </Box>
+
+        {/* ── Bottom: theme toggle + user profile ── */}
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.07)' }} />
+        <Box sx={{ p: collapsed ? 1 : 1.5 }}>
+          {/* Dark mode toggle */}
+          <Box sx={{ display: 'flex', justifyContent: collapsed ? 'center' : 'flex-end', mb: 1 }}>
+            <Tooltip
+              title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              placement="right"
+            >
+              <IconButton
+                size="small"
+                onClick={toggleMode}
+                sx={{
+                  color: 'rgba(255,255,255,0.5)',
+                  '&:hover': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.08)' },
+                }}
+                aria-label={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {mode === 'dark' ? (
+                  <LightModeRounded fontSize="small" />
+                ) : (
+                  <DarkModeRounded fontSize="small" />
+                )}
+              </IconButton>
+            </Tooltip>
+          </Box>
+
+          {/* User profile */}
+          <Tooltip
+            title={collapsed ? (user?.displayName ?? user?.email ?? 'Profile') : ''}
+            placement="right"
+          >
+            <ListItemButton
+              component={NavLink}
+              to="/profile"
               sx={{
-                width: 30,
-                height: 30,
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                bgcolor: '#2563EB',
-                flexShrink: 0,
-                mr: collapsed ? 0 : 1.25,
+                borderRadius: 8,
+                px: collapsed ? 1 : 1.25,
+                py: 0.75,
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                color: 'rgba(255,255,255,0.7)',
+                '&:hover': { backgroundColor: 'rgba(255,255,255,0.07)', color: '#fff' },
+                '&.active': { backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff' },
               }}
             >
-              {userInitials}
-            </Avatar>
-            {!collapsed && (
-              <Box sx={{ minWidth: 0 }}>
-                <Typography
-                  variant="body2"
-                  sx={{ color: '#fff', fontWeight: 600, fontSize: '0.8125rem', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                >
-                  {user?.displayName ?? 'User'}
-                </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.6875rem', lineHeight: 1 }}
-                >
-                  {user?.roleName ?? 'Member'}
-                </Typography>
-              </Box>
-            )}
-          </ListItemButton>
-        </Tooltip>
+              <Avatar
+                sx={{
+                  width: 30,
+                  height: 30,
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  bgcolor: '#2563EB',
+                  flexShrink: 0,
+                  mr: collapsed ? 0 : 1.25,
+                }}
+              >
+                {userInitials}
+              </Avatar>
+              {!collapsed && (
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: '#fff',
+                      fontWeight: 600,
+                      fontSize: '0.8125rem',
+                      lineHeight: 1.2,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {user?.displayName ?? 'User'}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.6875rem', lineHeight: 1 }}
+                  >
+                    {user?.roleName ?? 'Member'}
+                  </Typography>
+                </Box>
+              )}
+            </ListItemButton>
+          </Tooltip>
 
-        {/* Logout */}
-        <Tooltip title="Log out" placement="right">
-          <ListItemButton
-            onClick={handleLogout}
-            sx={{
-              mt: 0.5,
-              borderRadius: 8,
-              px: collapsed ? 1 : 1.25,
-              py: 0.75,
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              color: 'rgba(255,255,255,0.4)',
-              '&:hover': { backgroundColor: 'rgba(239,68,68,0.12)', color: '#f87171' },
-            }}
-            aria-label="Log out"
-          >
-            <ListItemIcon sx={{ color: 'inherit', minWidth: collapsed ? 0 : 36 }}>
-              <LogoutRounded fontSize="small" />
-            </ListItemIcon>
-            {!collapsed && (
-              <ListItemText primary="Log out" primaryTypographyProps={{ fontSize: '0.8125rem', fontWeight: 500 }} />
-            )}
-          </ListItemButton>
-        </Tooltip>
-      </Box>
-    </Drawer>
+          {/* Logout */}
+          <Tooltip title="Log out" placement="right">
+            <ListItemButton
+              onClick={handleLogout}
+              sx={{
+                mt: 0.5,
+                borderRadius: 8,
+                px: collapsed ? 1 : 1.25,
+                py: 0.75,
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                color: 'rgba(255,255,255,0.4)',
+                '&:hover': { backgroundColor: 'rgba(239,68,68,0.12)', color: '#f87171' },
+              }}
+              aria-label="Log out"
+            >
+              <ListItemIcon sx={{ color: 'inherit', minWidth: collapsed ? 0 : 36 }}>
+                <LogoutRounded fontSize="small" />
+              </ListItemIcon>
+              {!collapsed && (
+                <ListItemText
+                  primary="Log out"
+                  primaryTypographyProps={{ fontSize: '0.8125rem', fontWeight: 500 }}
+                />
+              )}
+            </ListItemButton>
+          </Tooltip>
+        </Box>
+      </Drawer>
 
-    <EventPickerModal
-      open={pickerOpen}
-      targetSubPath={pendingSub}
-      onClose={() => setPickerOpen(false)}
-    />
+      <EventPickerModal
+        open={pickerOpen}
+        targetSubPath={pendingSub}
+        onClose={() => setPickerOpen(false)}
+      />
     </>
   );
 }
-
