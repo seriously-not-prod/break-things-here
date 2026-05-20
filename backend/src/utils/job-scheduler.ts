@@ -11,10 +11,12 @@
  *   - Payment milestone reminders (every 4 hours) — #669
  *   - Waitlist promotion (every 10 min) — #667
  *   - GDPR data-retention purge (daily at midnight UTC) — #680
+ *   - Deleted events purge (daily at midnight UTC) — #778
  */
 import { getDatabase } from '../db/database.js';
 import { logger } from './logger.js';
 import { sendReportEmail } from '../services/reports/send-email.js';
+import { purgeDeletedEvents } from '../jobs/purge-deleted-events.js';
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 const FIVE_MINUTES = 5 * 60 * 1000;
@@ -164,7 +166,7 @@ export function startJobScheduler(): void {
   setInterval(guard('PaymentReminders', sendPaymentMilestoneReminders), FOUR_HOURS);
   setInterval(guard('WaitlistPromotion', promoteWaitlist), TEN_MINUTES);
 
-  // Daily GDPR purge at next midnight UTC
+  // Daily GDPR purge and deleted events purge at next midnight UTC
   const now = new Date();
   const midnight = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
@@ -174,7 +176,11 @@ export function startJobScheduler(): void {
     purgeExpiredPersonalData().catch((err) =>
       logger.error('[Scheduler] GDPR purge failed', { error: String(err) }),
     );
+    purgeDeletedEvents().catch((err) =>
+      logger.error('[Scheduler] Deleted events purge failed', { error: String(err) }),
+    );
     setInterval(guard('GdprPurge', purgeExpiredPersonalData), ONE_DAY);
+    setInterval(guard('DeletedEventsPurge', purgeDeletedEvents), ONE_DAY);
   }, msToMidnight);
 
   logger.info('[Scheduler] Job scheduler started', {
@@ -184,6 +190,7 @@ export function startJobScheduler(): void {
       'PaymentReminders',
       'WaitlistPromotion',
       'GdprPurge',
+      'DeletedEventsPurge',
     ],
   });
 }
