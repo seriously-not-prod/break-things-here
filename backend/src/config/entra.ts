@@ -55,11 +55,11 @@ export function isMfaRequired(): boolean {
 /**
  * Returns true when ENTRA_ALLOW_LOCAL_FALLBACK=true is set (#781).
  *
- * When Entra is enabled, the login UI hides email/password by default. This
- * flag opts an environment back in to local-credential fallback (revealed
- * behind a "Use a local account" disclosure). Defaults to false so production
- * deployments cannot silently bypass Entra unless an operator explicitly sets
- * the flag.
+ * Scope: this flag gates the *UI affordance* for local credential login. When
+ * false (the default) the login page does not expose the email/password form
+ * even via the "Use a local account" disclosure. Server-side enforcement of
+ * the Entra-only policy on POST /api/auth/login is out of #781's scope and is
+ * tracked separately under parent story #764.
  */
 export function isLocalFallbackAllowed(): boolean {
   return process.env.ENTRA_ALLOW_LOCAL_FALLBACK === 'true';
