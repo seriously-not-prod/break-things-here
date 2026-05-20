@@ -21,7 +21,7 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { initializeDatabase } from './db/database.js';
 import { sanitizeRequestBody } from './middleware/sanitize-input.js';
-import { apiLimiter, csrfLimiter, healthLimiter } from './middleware/rate-limit.js';
+import { apiLimiter, csrfLimiter, healthLimiter, metricsLimiter } from './middleware/rate-limit.js';
 import { verifyEmailWebhookSignature } from './middleware/verify-email-webhook.js';
 import * as announcementController from './controllers/announcement-controller.js';
 import apiRoutes from './routes/api-routes.js';
@@ -225,6 +225,25 @@ export function createApp(): express.Express {
       uptime: process.uptime(),
       checks,
     });
+  });
+
+  // #784 — Graph groups cache metrics endpoint
+  app.get('/metrics', metricsLimiter, async (_req, res) => {
+    const { getGraphGroupsMetrics } = await import('./services/graph-groups.js');
+    const m = getGraphGroupsMetrics();
+    const lines = [
+      `# HELP graph_groups_cache_hit_total Number of graph group cache hits`,
+      `# TYPE graph_groups_cache_hit_total counter`,
+      `graph_groups_cache_hit_total ${m.graph_groups_cache_hit_total}`,
+      `# HELP graph_groups_cache_miss_total Number of graph group cache misses`,
+      `# TYPE graph_groups_cache_miss_total counter`,
+      `graph_groups_cache_miss_total ${m.graph_groups_cache_miss_total}`,
+      `# HELP graph_groups_failure_total Number of graph group fetch failures`,
+      `# TYPE graph_groups_failure_total counter`,
+      `graph_groups_failure_total ${m.graph_groups_failure_total}`,
+    ];
+    res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+    res.send(lines.join('\n') + '\n');
   });
 
   // CSRF token endpoint — called by the frontend before any state-changing request.
