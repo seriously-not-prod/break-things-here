@@ -44,12 +44,12 @@ CREATE TABLE IF NOT EXISTS event_members (
   PRIMARY KEY (event_id, user_id)
 );
 CREATE TABLE IF NOT EXISTS rsvps (
-  id              SERIAL PRIMARY KEY,
-  event_id        INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  name            TEXT NOT NULL,
-  email           TEXT NOT NULL,
-  status          TEXT DEFAULT 'Going',
-  unsubscribed_at TIMESTAMP,
+  id                SERIAL PRIMARY KEY,
+  event_id          INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name              TEXT NOT NULL,
+  email             TEXT NOT NULL,
+  canonical_status  TEXT NOT NULL DEFAULT 'pending',
+  unsubscribed_at   TIMESTAMP,
   unsubscribe_token TEXT
 );
 CREATE TABLE IF NOT EXISTS audit_log (

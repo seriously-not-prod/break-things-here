@@ -48,19 +48,19 @@ CREATE TABLE IF NOT EXISTS event_members (
   UNIQUE(event_id, user_id)
 );
 CREATE TABLE IF NOT EXISTS rsvps (
-  id              SERIAL PRIMARY KEY,
-  event_id        INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  name            TEXT NOT NULL,
-  email           TEXT NOT NULL,
-  guests          INTEGER DEFAULT 1,
-  status          TEXT DEFAULT 'Pending',
-  notes           TEXT,
-  source          TEXT DEFAULT 'public',
-  checked_in      BOOLEAN DEFAULT FALSE,
-  checked_in_at   TIMESTAMP,
-  unsubscribed_at TIMESTAMP,
-  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  id                SERIAL PRIMARY KEY,
+  event_id          INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name              TEXT NOT NULL,
+  email             TEXT NOT NULL,
+  guests            INTEGER DEFAULT 1,
+  canonical_status  TEXT NOT NULL DEFAULT 'pending',
+  notes             TEXT,
+  source            TEXT DEFAULT 'public',
+  checked_in        BOOLEAN DEFAULT FALSE,
+  checked_in_at     TIMESTAMP,
+  unsubscribed_at   TIMESTAMP,
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(event_id, email)
 );
 `;

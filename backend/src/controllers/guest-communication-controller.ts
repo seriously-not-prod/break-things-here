@@ -23,7 +23,7 @@ interface RsvpRow {
   id: number;
   name: string;
   email: string;
-  status: string;
+  canonical_status: string;
   unsubscribed_at: string | null;
 }
 
@@ -51,8 +51,10 @@ export async function sendReminder(req: Request, res: Response): Promise<Respons
  *
  * Sends a post-event thank-you message to attendees. Unsubscribed guests are
  * automatically suppressed (same behaviour as invitation/reminder sends).
- * By default recipients are limited to `status = 'Going'` so only confirmed
- * attendees receive the thank-you; an explicit `rsvpIds` array overrides this.
+ * By default recipients are limited to confirmed attendees — both
+ * `canonical_status = 'confirmed'` and `'checked_in'`, since a guest who has
+ * arrived is implicitly confirmed and should still receive the thank-you.
+ * An explicit `rsvpIds` array overrides this.
  */
 export async function sendThankYou(req: Request, res: Response): Promise<Response> {
   return bulkSend(req, res, 'thank_you');
@@ -155,20 +157,22 @@ async function bulkSend(
   if (rsvpIds && rsvpIds.length > 0) {
     const placeholders = rsvpIds.map(() => '?').join(', ');
     recipients = await db.all<RsvpRow>(
-      `SELECT id, name, email, status, unsubscribed_at FROM rsvps WHERE event_id = ? AND id IN (${placeholders})`,
+      `SELECT id, name, email, canonical_status, unsubscribed_at FROM rsvps WHERE event_id = ? AND id IN (${placeholders})`,
       [eventId, ...rsvpIds],
     );
   } else if (type === 'thank_you') {
-    // Thank-you sends default to confirmed attendees only (#444).
+    // Thank-you sends default to confirmed attendees only (#444). A guest
+    // whose canonical_status has moved to 'checked_in' on arrival is still a
+    // confirmed attendee — matches the legacy `status='Going'` semantics.
     recipients = await db.all<RsvpRow>(
-      `SELECT id, name, email, status, unsubscribed_at FROM rsvps
-       WHERE event_id = ? AND status = 'Going'`,
+      `SELECT id, name, email, canonical_status, unsubscribed_at FROM rsvps
+       WHERE event_id = ? AND canonical_status IN ('confirmed', 'checked_in')`,
       [eventId],
     );
   } else {
     recipients = await db.all<RsvpRow>(
-      `SELECT id, name, email, status, unsubscribed_at FROM rsvps
-       WHERE event_id = $1 AND status IN ('Going', 'Pending')`,
+      `SELECT id, name, email, canonical_status, unsubscribed_at FROM rsvps
+       WHERE event_id = $1 AND canonical_status IN ('confirmed', 'pending')`,
       [eventId],
     );
   }
@@ -207,7 +211,7 @@ async function bulkSend(
       eventDate: event.date,
       eventLocation: event.location,
       unsubscribeUrl,
-      status: rsvp.status,
+      status: rsvp.canonical_status,
     });
 
     const personalised = personalize(effectiveBody, tokens);
