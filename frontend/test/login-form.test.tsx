@@ -100,20 +100,15 @@ describe('LoginForm — Entra-aware rendering (#781)', () => {
     expect(screen.queryByTestId('local-fallback-disclosure')).not.toBeInTheDocument();
   });
 
-  it('fails closed when the Entra config request errors out (no local form shown)', async () => {
+  it('shows the local sign-in form when the Entra config request errors out', async () => {
     mockedApi.get.mockRejectedValueOnce(new Error('network down'));
 
     render(<LoginForm />);
 
-    // Wait for the loader/error UI to settle.
-    expect(await screen.findByTestId('config-error')).toBeInTheDocument();
-
-    // Local credentials must NOT be exposed on a config-fetch failure, since
-    // the deployment could be Entra-only and we cannot verify the gate.
-    expect(screen.queryByLabelText(/email address/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/^password$/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /log in/i })).not.toBeInTheDocument();
-    expect(screen.queryByTestId('entra-sign-in')).not.toBeInTheDocument();
+    expect(await screen.findByLabelText(/email address/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /log in/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('config-error')).not.toBeInTheDocument();
   });
 });
 

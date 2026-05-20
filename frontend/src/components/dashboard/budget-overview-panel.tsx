@@ -34,7 +34,11 @@ const fmt = (n: number): string =>
 
 const MAX_EVENTS = 5;
 
-export function BudgetOverviewPanel(): JSX.Element {
+interface BudgetOverviewPanelProps {
+  onGrandAllocated?: (total: number) => void;
+}
+
+export function BudgetOverviewPanel({ onGrandAllocated }: BudgetOverviewPanelProps): JSX.Element {
   const navigate = useNavigate();
   const [budgets, setBudgets] = useState<EventBudget[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,7 +74,10 @@ export function BudgetOverviewPanel(): JSX.Element {
           }),
         );
 
-        if (!cancelled) setBudgets(results);
+        if (!cancelled) {
+          setBudgets(results);
+          onGrandAllocated?.(results.reduce((s, b) => s + b.totalAllocated, 0));
+        }
       } catch {
         // Silently ignore — panel shows empty state
       } finally {

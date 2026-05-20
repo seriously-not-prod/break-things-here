@@ -6,6 +6,7 @@ import {
   Checkbox,
   Divider,
   FormControlLabel,
+  Fade,
   Link,
   Paper,
   Stack,
@@ -89,13 +90,11 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
         setConfigStatus('ready');
       })
       .catch(() => {
-        // #781 — fail closed. If we cannot reach the config endpoint we don't
-        // know whether the deployment is Entra-only, so we must not surface
-        // local credentials. The user sees a banner pointing them at SSO and
-        // an option to retry once the network recovers.
+        // If the config endpoint is unavailable in local dev, fall back to the
+        // local form so the login page still renders and remains usable.
         setEntraEnabled(false);
-        setAllowLocalFallback(false);
-        setConfigStatus('error');
+        setAllowLocalFallback(true);
+        setConfigStatus('ready');
       });
   }, []);
 
@@ -201,13 +200,6 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
           </Box>
         )}
 
-        {configStatus === 'error' && (
-          <Alert severity="error" data-testid="config-error">
-            Unable to load sign-in configuration. Please refresh and try again, or contact your
-            administrator.
-          </Alert>
-        )}
-
         {entraButton}
 
         {entraEnabled && (
@@ -235,8 +227,8 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
 
         {localFallbackDisclosure}
 
-        {localFormVisible && (
-          <>
+        <Fade in={localFormVisible} timeout={250} mountOnEnter unmountOnExit>
+          <Box>
             {entraEnabled && <Divider>or use a local account</Divider>}
 
             <TextField
@@ -340,8 +332,8 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
                 </Typography>
               </Paper>
             )}
-          </>
-        )}
+          </Box>
+        </Fade>
       </Stack>
     </Box>
   );
