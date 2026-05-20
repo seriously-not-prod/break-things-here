@@ -136,6 +136,14 @@ export async function validateEntraIdToken(
     issuerTenant = tokenPayload.tid;
   }
 
+  // Log actual issuer from decoded token for debugging
+  const rawPayloadForLog = decoded.payload;
+  const actualIssuer =
+    typeof rawPayloadForLog === 'object' && rawPayloadForLog !== null
+      ? (rawPayloadForLog as Record<string, unknown>).iss
+      : undefined;
+  console.log('[Entra] Token issuer (iss):', actualIssuer);
+
   const validIssuers: [string, ...string[]] = [
     `https://login.microsoftonline.com/${issuerTenant}/v2.0`,
     `https://sts.windows.net/${issuerTenant}/`,
@@ -143,15 +151,45 @@ export async function validateEntraIdToken(
 
   // CIAM tenants use ciamlogin.com — include the authority-derived issuer
   // so the JWT verify step accepts tokens from custom CIAM domains.
+  // Include both with and without /v2.0 since CIAM issuers vary.
   if (authority && !isMicrosoftAuthority(authority)) {
-    validIssuers.push(`${authority.replace(/\/$/, '')}/v2.0`);
+    const base = authority.replace(/\/$/, '');
+    validIssuers.push(`${base}/v2.0`);
+    // Some CIAM tenants omit the /v2.0 suffix
+    validIssuers.push(base);
   }
 
+  // Some CIAM tokens use a tenant-hosted issuer format:
+  // https://{tenant-id}.ciamlogin.com/{tenant-id}/v2.0
+  if (tenantId.trim()) {
+    const ciamTenantHostBase = `https://${tenantId}.ciamlogin.com/${tenantId}`;
+    validIssuers.push(`${ciamTenantHostBase}/v2.0`);
+    validIssuers.push(ciamTenantHostBase);
+  }
+
+  console.log('[Entra] Valid issuers:', validIssuers);
+
+  // Verify signature + audience first, then perform normalized issuer checks
+  // because Entra/CIAM issuer strings can differ only by trailing slash.
   const verified = jwt.verify(idToken, pem, {
     algorithms: ['RS256'],
     audience: clientId,
-    issuer: validIssuers,
   });
+
+  const normalizeIssuer = (value: string): string => value.replace(/\/+$/, '');
+  const tokenIssuer =
+    typeof (verified as Record<string, unknown>).iss === 'string'
+      ? ((verified as Record<string, unknown>).iss as string)
+      : '';
+
+  const normalizedTokenIssuer = normalizeIssuer(tokenIssuer);
+  const normalizedExpectedIssuers = [...new Set(validIssuers.map(normalizeIssuer))];
+
+  if (!normalizedExpectedIssuers.includes(normalizedTokenIssuer)) {
+    throw new Error(
+      `jwt issuer invalid. expected: ${validIssuers.join(',')}; actual: ${tokenIssuer || '(missing iss)'}`,
+    );
+  }
 
   return verified as unknown as EntraTokenClaims;
 }

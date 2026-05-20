@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import { useAuth } from '../../contexts/auth-context';
 import { ApiError, api } from '../../lib/api-client';
+import { initiateSpaEntraLogin } from '../../utils/entra-spa-flow';
 
 interface EntraConfigResponse {
   enabled: boolean;
@@ -153,11 +154,21 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
     }
   }
 
+  async function handleEntraLogin(): Promise<void> {
+    try {
+      await initiateSpaEntraLogin();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Failed to initiate sign-in with Microsoft',
+      );
+    }
+  }
+
   const entraButton = entraEnabled ? (
     <Button
       variant="contained"
       fullWidth
-      href="/api/auth/entra/login"
+      onClick={handleEntraLogin}
       aria-label="Sign in with Microsoft"
       data-testid="entra-sign-in"
       sx={{ py: 1.5, fontWeight: 600, textTransform: 'none' }}

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, CircularProgress, Alert, Typography } from '@mui/material';
-import { api, setToken } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
+import { exchangeCodeAndCreateSession } from '../../utils/entra-spa-flow';
 
 export function EntraCallbackPage(): JSX.Element {
   const [searchParams] = useSearchParams();
@@ -27,21 +27,28 @@ export function EntraCallbackPage(): JSX.Element {
       return;
     }
 
-    if (!code) {
-      setError('No authorization code received from Azure.');
+    if (!code || !state) {
+      setError('No authorization code or state received from Azure.');
       return;
     }
 
     (async () => {
       try {
-        const data = await api.post<{ accessToken?: string; user?: unknown }>(
-          '/api/auth/entra/callback',
-          { code, state },
-        );
-        if (data?.accessToken) setToken(data.accessToken as string);
-        navigate('/dashboard', { replace: true });
+        // Exchange code for tokens using SPA flow (frontend handles token exchange)
+        const result = await exchangeCodeAndCreateSession({ code, state });
+
+        if (result.success) {
+          navigate('/dashboard', { replace: true });
+        } else {
+          // Display error with code if available
+          const errorMsg: string = result.code
+            ? `${result.error ?? 'Unknown error'} (${result.code})`
+            : (result.error ?? 'Entra authentication failed.');
+          setError(errorMsg);
+        }
       } catch (err) {
-        setError((err as Error).message ?? 'Entra authentication failed.');
+        const errorMsg = err instanceof Error ? err.message : 'Entra authentication failed.';
+        setError(errorMsg);
       }
     })();
   }, [searchParams, navigate, loadCurrentUser]);

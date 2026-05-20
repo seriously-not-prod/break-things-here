@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
+import { parse as parseCookies } from 'cookie';
 import {
   isEntraEnabled,
   getEntraConfig,
@@ -18,6 +19,22 @@ interface UserRow {
   email: string;
   role_id: number;
   entra_oid: string | null;
+}
+
+interface PendingEntraAuth {
+  codeVerifier: string;
+  createdAt: number;
+}
+
+const PENDING_ENTRA_TTL_MS = 10 * 60 * 1000;
+const pendingEntraAuth = new Map<string, PendingEntraAuth>();
+
+function prunePendingEntraAuth(now: number = Date.now()): void {
+  for (const [state, pending] of pendingEntraAuth.entries()) {
+    if (now - pending.createdAt > PENDING_ENTRA_TTL_MS) {
+      pendingEntraAuth.delete(state);
+    }
+  }
 }
 
 function tokenHasGroupOverage(claims: Record<string, unknown>): boolean {
@@ -79,6 +96,25 @@ export function getEntraStatus(_req: Request, res: Response): void {
   });
 }
 
+/**
+ * Provide SPA-specific Entra configuration for frontend token exchange.
+ * SPA clients must exchange the authorization code directly from the browser
+ * to avoid AADSTS9002327 ("tokens may only be redeemed via cross-origin requests").
+ */
+export function getSpaEntraConfig(_req: Request, res: Response): void {
+  if (!isEntraEnabled()) {
+    res.status(404).json({ error: 'Entra auth is not enabled.' });
+    return;
+  }
+
+  const config = getEntraConfig();
+  res.json({
+    clientId: config.clientId,
+    authority: config.authority,
+    redirectUri: config.redirectUri,
+  });
+}
+
 export function initiateEntraLogin(_req: Request, res: Response): void {
   if (!isEntraEnabled()) {
     res.status(404).json({ error: 'Entra auth is not enabled.' });
@@ -86,10 +122,13 @@ export function initiateEntraLogin(_req: Request, res: Response): void {
   }
 
   const config = getEntraConfig();
+  const redirectUri = config.redirectUri;
   const state = crypto.randomBytes(16).toString('hex');
   const nonce = crypto.randomBytes(16).toString('hex');
   const codeVerifier = crypto.randomBytes(32).toString('base64url');
   const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+  prunePendingEntraAuth();
+  pendingEntraAuth.set(state, { codeVerifier, createdAt: Date.now() });
 
   res.cookie('entra_state', state, {
     httpOnly: true,
@@ -108,7 +147,7 @@ export function initiateEntraLogin(_req: Request, res: Response): void {
   const params = new URLSearchParams({
     client_id: config.clientId,
     response_type: 'code',
-    redirect_uri: config.redirectUri,
+    redirect_uri: redirectUri,
     scope: 'openid profile email',
     state,
     nonce,
@@ -118,6 +157,52 @@ export function initiateEntraLogin(_req: Request, res: Response): void {
   });
 
   res.redirect(`${config.authority}/oauth2/v2.0/authorize?${params.toString()}`);
+}
+
+/**
+ * Endpoint for SPA clients: returns the initialization data needed for frontend-side token exchange.
+ * Returns the authorization URL, state, nonce, and code_verifier for storing in browser storage.
+ *
+ * SPA clients must initiate login via this endpoint to prepare PKCE parameters before
+ * generating the authorization URL.
+ */
+export function initiateSpaEntraLogin(_req: Request, res: Response): void {
+  if (!isEntraEnabled()) {
+    res.status(404).json({ error: 'Entra auth is not enabled.' });
+    return;
+  }
+
+  const config = getEntraConfig();
+  const redirectUri = config.redirectUri;
+  const state = crypto.randomBytes(16).toString('hex');
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const codeVerifier = crypto.randomBytes(32).toString('base64url');
+  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+
+  prunePendingEntraAuth();
+  pendingEntraAuth.set(state, { codeVerifier, createdAt: Date.now() });
+
+  const params = new URLSearchParams({
+    client_id: config.clientId,
+    response_type: 'code',
+    redirect_uri: redirectUri,
+    scope: 'openid profile email',
+    state,
+    nonce,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
+    response_mode: 'query',
+  });
+
+  const authUrl = `${config.authority}/oauth2/v2.0/authorize?${params.toString()}`;
+
+  // Return auth data for frontend to store and use
+  res.json({
+    authUrl,
+    state,
+    nonce,
+    codeVerifier,
+  });
 }
 
 export async function handleEntraCallback(req: Request, res: Response): Promise<void> {
@@ -142,16 +227,36 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
   }
 
   const config = getEntraConfig();
+  const redirectUri = config.redirectUri;
   let idToken: string;
   let accessTokenForGraph: string | null = null;
 
+  // SPA Flow: Frontend provides pre-exchanged id_token (recommended for SPA clients)
   if (directIdToken) {
     idToken = directIdToken;
+    const accessToken = (req.body as { access_token?: string }).access_token;
+    accessTokenForGraph = typeof accessToken === 'string' ? accessToken : null;
   } else {
-    const expectedState = (req.cookies?.entra_state as string | undefined) ?? '';
-    const codeVerifier = (req.cookies?.entra_pkce_verifier as string | undefined) ?? '';
+    // Legacy Backend Flow: Backend exchanges code for token
+    // This is less secure for SPAs but maintained for backward compatibility
+    const parsedCookies = parseCookies(req.headers?.cookie ?? '');
+    const expectedStateFromCookie =
+      (req.cookies?.entra_state as string | undefined) ??
+      (parsedCookies.entra_state as string | undefined) ??
+      '';
+    const codeVerifierFromCookie =
+      (req.cookies?.entra_pkce_verifier as string | undefined) ??
+      (parsedCookies.entra_pkce_verifier as string | undefined) ??
+      '';
+    prunePendingEntraAuth();
+    const pending = state ? pendingEntraAuth.get(state) : undefined;
+    const hasPendingState = Boolean(state && pending);
+    const stateMatchesCookie = Boolean(
+      state && expectedStateFromCookie && state === expectedStateFromCookie,
+    );
+    const codeVerifier = codeVerifierFromCookie || pending?.codeVerifier || '';
 
-    if (!state || !expectedState || state !== expectedState) {
+    if (!state || (!stateMatchesCookie && !hasPendingState)) {
       res.status(401).json({ error: 'Invalid or missing Entra state.' });
       return;
     }
@@ -163,14 +268,18 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
       return;
     }
 
+    pendingEntraAuth.delete(state);
+
     const body = new URLSearchParams({
       client_id: config.clientId,
-      client_secret: config.clientSecret,
       code: code!,
       code_verifier: codeVerifier,
-      redirect_uri: config.redirectUri,
+      redirect_uri: redirectUri,
       grant_type: 'authorization_code',
     });
+    if (!config.publicClient && config.clientSecret) {
+      body.set('client_secret', config.clientSecret);
+    }
 
     const tokenRes = await fetch(`${config.authority}/oauth2/v2.0/token`, {
       method: 'POST',
@@ -180,9 +289,21 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
 
     if (!tokenRes.ok) {
       const err = (await tokenRes.json().catch(() => ({}))) as Record<string, unknown>;
+      const errorCode = typeof err.error === 'string' ? err.error : 'token_exchange_failed';
+      const errorDescription =
+        typeof err.error_description === 'string' ? err.error_description : undefined;
+      console.warn('[Entra] Token exchange failed', {
+        status: tokenRes.status,
+        errorCode,
+        errorDescription,
+      });
       res.clearCookie('entra_state');
       res.clearCookie('entra_pkce_verifier');
-      res.status(401).json({ error: 'Failed to exchange code for token.', details: err });
+      res.status(401).json({
+        error: 'Failed to exchange code for token.',
+        code: errorCode,
+        details: process.env.NODE_ENV === 'development' ? err : undefined,
+      });
       return;
     }
 
@@ -201,13 +322,21 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
   res.clearCookie('entra_state');
   res.clearCookie('entra_pkce_verifier');
 
-  const claims = await validateEntraIdToken(
-    idToken,
-    config.jwksUri,
-    config.clientId,
-    config.tenantId,
-    config.authority,
-  );
+  let claims: Awaited<ReturnType<typeof validateEntraIdToken>>;
+  try {
+    claims = await validateEntraIdToken(
+      idToken,
+      config.jwksUri,
+      config.clientId,
+      config.tenantId,
+      config.authority,
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Token validation failed';
+    console.warn('[Entra] Token validation failed:', msg);
+    res.status(401).json({ error: msg });
+    return;
+  }
 
   // #568 — MFA enforcement: when ENTRA_MFA_REQUIRED=true the token's `amr`
   // claim MUST include 'mfa'. Azure AD sets this when MFA was completed.

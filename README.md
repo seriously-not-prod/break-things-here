@@ -74,6 +74,15 @@ This repository is designed to teach:
    - [Release Process](docs/processes/release-process.md) - Deployment process
    - [Contributing Guidelines](CONTRIBUTING.md) - How to contribute
 
+5. **Bootstrap local auth environment (recommended for all devs)**
+
+   ```bash
+   ./scripts/bootstrap-dev.sh
+   ```
+
+   This ensures local `.env` contains valid auth secrets (including
+   `REFRESH_TOKEN_ENC_KEY`) and consistent Entra defaults.
+
 ### Running the Application
 
 Run the active root application:
@@ -87,6 +96,12 @@ Optional: run backend API in another terminal when working on backend training t
 ```bash
 docker compose up -d db
 cd backend && npm run dev
+```
+
+To validate local auth setup after startup:
+
+```bash
+./scripts/smoke-auth.sh
 ```
 
 Optional: run the separate `frontend/` training app surface if you specifically need it:
