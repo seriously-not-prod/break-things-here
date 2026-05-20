@@ -43,13 +43,15 @@ const CSRF_SECRET: string = (() => {
   if (s) return s;
   const env = process.env.NODE_ENV ?? 'development';
   if (env === 'production' || env === 'staging') {
-    console.error('[SECURITY] FATAL: CSRF_SECRET is not set in production/staging environment. Refusing to start.');
+    console.error(
+      '[SECURITY] FATAL: CSRF_SECRET is not set in production/staging environment. Refusing to start.',
+    );
     process.exit(1);
   }
   const ephemeral = crypto.randomBytes(32).toString('hex');
   console.warn(
     '[SECURITY] CSRF_SECRET is not set. Using an ephemeral per-startup secret — ' +
-    'tokens will not survive restarts. Set CSRF_SECRET for stable sessions.',
+      'tokens will not survive restarts. Set CSRF_SECRET for stable sessions.',
   );
   return ephemeral;
 })();
@@ -75,7 +77,10 @@ function isRequestSecure(req: express.Request): boolean {
   if (req.secure) return true;
   const forwardedProto = req.header('x-forwarded-proto');
   if (!forwardedProto) return false;
-  return forwardedProto.split(',').map((part) => part.trim()).includes('https');
+  return forwardedProto
+    .split(',')
+    .map((part) => part.trim())
+    .includes('https');
 }
 
 export function createApp(): express.Express {
@@ -151,7 +156,11 @@ export function createApp(): express.Express {
     }
   }
 
-  const csrfProtection = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+  const csrfProtection = (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ): void => {
     // GET / HEAD / OPTIONS are safe methods — skip check
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       next();
@@ -199,7 +208,7 @@ export function createApp(): express.Express {
   }
 
   // Health check — validates DB connectivity; returns 503 if DB unreachable (#676)
-  app.get('/health', healthLimiter, async (_req, res) => {
+  const handleHealthCheck: express.RequestHandler = async (_req, res) => {
     const checks: Record<string, string> = {};
     let httpStatus = 200;
     try {
@@ -225,7 +234,14 @@ export function createApp(): express.Express {
       uptime: process.uptime(),
       checks,
     });
-  });
+  };
+
+  // Keep both canonical and legacy health paths, and explicitly support HEAD
+  // because wait-on in CI probes using HEAD by default.
+  app.get('/health', healthLimiter, handleHealthCheck);
+  app.head('/health', healthLimiter, handleHealthCheck);
+  app.get('/api/health', healthLimiter, handleHealthCheck);
+  app.head('/api/health', healthLimiter, handleHealthCheck);
 
   // CSRF token endpoint — called by the frontend before any state-changing request.
   // Returns an HMAC-signed token; no cookie required.
@@ -281,7 +297,12 @@ export function createApp(): express.Express {
         },
         security: [{ BearerAuth: [] }],
       },
-      apis: ['./src/routes/*.ts', './src/routes/*.js', './src/controllers/*.ts', './src/controllers/*.js'],
+      apis: [
+        './src/routes/*.ts',
+        './src/routes/*.js',
+        './src/controllers/*.ts',
+        './src/controllers/*.js',
+      ],
     });
     app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
     app.get('/api-docs.json', (_req, res) => res.json(swaggerSpec));
@@ -302,7 +323,8 @@ async function start(): Promise<void> {
   });
 }
 
-const isDirectExecution = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isDirectExecution =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isDirectExecution) {
   start().catch((err) => {
