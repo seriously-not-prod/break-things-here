@@ -1,5 +1,6 @@
 import type { FC } from 'react';
 import './eventora-sidebar.css';
+import { TeamPresenceList } from '../collaboration/team-presence-list';
 
 interface SidebarProps {
   activeNav?: string;
@@ -60,6 +61,12 @@ export const EventoraSidebar: FC<SidebarProps> = ({
           </a>
         ))}
       </div>
+
+      {/* Divider */}
+      <div className="sidebar-divider"></div>
+
+      {/* Team Presence — #811 */}
+      <TeamPresenceList />
 
       {/* Divider */}
       <div className="sidebar-divider"></div>

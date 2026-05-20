@@ -58,6 +58,7 @@ import * as taskMultiAssigneeController from '../controllers/task-multi-assignee
 import * as timelineTemplatesController from '../controllers/timeline-templates-controller.js';
 import * as collaborationController from '../controllers/collaboration-controller.js';
 import * as realtimeController from '../controllers/realtime-controller.js';
+import * as presenceController from '../controllers/presence-controller.js';
 import * as eventChatController from '../controllers/event-chat-controller.js';
 import * as entityVersionsController from '../controllers/entity-versions-controller.js';
 import * as guestExportController from '../controllers/guest-export-controller.js';
@@ -1512,6 +1513,11 @@ router.get(
   authenticateToken,
   realtimeController.streamRealtime,
 );
+
+// ── #811: User presence (online/offline/idle) ─────────────────────────────────────────────
+router.post('/user-presence/heartbeat', authenticateToken, presenceController.heartbeat);
+router.delete('/user-presence/leave', authenticateToken, presenceController.leave);
+router.get('/user-presence/online', authenticateToken, presenceController.online);
 
 // ── #628: Event team chat ─────────────────────────────────────────────────────────────────
 router.get('/events/:eventId/chat', authenticateToken, eventChatController.listChatMessages);
