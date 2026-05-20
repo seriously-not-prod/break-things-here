@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Track D — Quality & Testing)
+
+- **Task #820 — Frontend coverage ≥80% with CI enforcement**: Configured `@vitest/coverage-v8` in `frontend/vitest.config.ts` with threshold enforcement (lines 80%, branches 75%, functions 80%, statements 80%). Updated `.github/workflows/ci-unified.yml` to run `npm run test:coverage` in the frontend job — CI now fails when thresholds regress and archives the coverage report as a 14-day artifact. Added 38 net-new tests across three files targeting the lowest-covered components: `events-list-coverage.test.tsx` (events page rendering, permissions, views), `budget-coverage.test.tsx` (loading, errors, CRUD, comparison), `tasks-board-coverage.test.tsx` (kanban columns, priorities, assignees, task lifecycle) (#820).
+
 ### Added (Track B — Notifications)
 
 - **Task #786 — Notification preferences — backend model and endpoints**: Added normalised `notification_preferences` table with `(user_id, channel, category, enabled)` schema (migration `v22-notification-preferences-matrix.sql`), replacing the legacy per-type boolean columns. Migration seeds default-enabled rows for every existing user × channel × category combination. Added `GET /api/users/me/notification-preferences` returning the full channel × category matrix and `PATCH /api/users/me/notification-preferences` accepting bulk updates. Created `backend/src/services/notifications/dispatch-guard.ts` with `isChannelEnabled()` helper. Outbound dispatchers (`createBatchedNotification`, `createBudgetAlert`, `createRsvpNotification`, `createTaskDueAlert`) now consult the preference matrix before sending. Integration tests in `backend/__tests__/notification-preferences.test.ts` verify endpoints, validation, and dispatch suppression (#786).
