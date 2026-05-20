@@ -1,9 +1,7 @@
 import { getProfile, updateProfile, uploadProfilePhoto, deleteAccount } from '../api/users';
 import { UserProfile } from '../types/user';
 
-const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(
-  vi.fn() as unknown as typeof fetch,
-);
+const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(vi.fn() as unknown as typeof fetch);
 
 const mockProfile: UserProfile = {
   id: 'user-1',
@@ -97,7 +95,7 @@ describe('uploadProfilePhoto', () => {
     const result = await uploadProfilePhoto(file);
     expect(result.photoUrl).toBe('https://cdn.example.com/photo.jpg');
     expect(fetchSpy).toHaveBeenCalledWith(
-      expect.stringContaining('/users/me/photo'),
+      expect.stringContaining('/profile/photo'),
       expect.objectContaining({ method: 'POST' }),
     );
   });
@@ -119,7 +117,7 @@ describe('uploadProfilePhoto', () => {
 
   it('throws generic error on other failure', async () => {
     fetchSpy.mockResolvedValue(makeResponse(500, {}));
-    await expect(uploadProfilePhoto(file)).rejects.toThrow('Photo upload failed');
+    await expect(uploadProfilePhoto(file)).rejects.toThrow('Request failed');
   });
 });
 

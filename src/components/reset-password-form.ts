@@ -73,10 +73,7 @@ export function extractTokenFromQueryString(queryString: string): string | null 
  *
  * @returns An error message if they don't match, or null if they do
  */
-export function validatePasswordMatch(
-  newPassword: string,
-  confirmPassword: string
-): string | null {
+export function validatePasswordMatch(newPassword: string, confirmPassword: string): string | null {
   if (newPassword !== confirmPassword) {
     return 'Passwords do not match';
   }
@@ -124,10 +121,13 @@ export async function submitPasswordReset(
   token: string,
   newPassword: string,
   confirmPassword: string,
-  onReset: (token: string, newPassword: string) => Promise<void>
+  onReset: (token: string, newPassword: string) => Promise<void>,
 ): Promise<ResetPasswordFormResult> {
   if (!token || token.trim().length === 0) {
-    return { success: false, message: 'Reset token is missing or invalid. Please request a new password reset link.' };
+    return {
+      success: false,
+      message: 'Reset token is missing or invalid. Please request a new password reset link.',
+    };
   }
 
   const matchError = validatePasswordMatch(newPassword, confirmPassword);
@@ -144,7 +144,8 @@ export async function submitPasswordReset(
     await onReset(token.trim(), newPassword);
     return {
       success: true,
-      message: 'Your password has been reset successfully. You can now log in with your new password.',
+      message:
+        'Your password has been reset successfully. You can now log in with your new password.',
     };
   } catch (error) {
     const message =

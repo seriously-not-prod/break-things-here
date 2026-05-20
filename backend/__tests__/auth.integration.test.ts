@@ -5,9 +5,9 @@
  * LOGOUT + post-logout token rejection, and identical error messages for
  * known vs unknown email (enumeration resistance).
  *
- * These tests use isolated in-memory SQLite databases so they do not require
- * a running server. They call controller functions directly with mock
- * Express request/response objects.
+ * These tests use isolated PostgreSQL schemas so they do not require a
+ * running server. They call controller functions directly with mock Express
+ * request/response objects.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -30,17 +30,39 @@ function makeRes() {
     statusCode: 200,
     body: null,
     cookies: {},
-    status(code: number) { this.statusCode = code; return this; },
-    json(data: unknown) { this.body = data; return this; },
-    send(data?: unknown) { this.body = data ?? null; return this; },
-    cookie(name: string, value: string) { this.cookies[name] = value; return this; },
-    clearCookie(name: string) { delete this.cookies[name]; return this; },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data: unknown) {
+      this.body = data;
+      return this;
+    },
+    send(data?: unknown) {
+      this.body = data ?? null;
+      return this;
+    },
+    cookie(name: string, value: string) {
+      this.cookies[name] = value;
+      return this;
+    },
+    clearCookie(name: string) {
+      delete this.cookies[name];
+      return this;
+    },
   };
   return res;
 }
 
-function makeReq(body: Record<string, unknown> = {}, user?: { id: number; email: string; role_id: number }) {
-  return { body, user, headers: { authorization: user ? `Bearer access-tok` : undefined } } as unknown as import('express').Request;
+function makeReq(
+  body: Record<string, unknown> = {},
+  user?: { id: number; email: string; role_id: number },
+) {
+  return {
+    body,
+    user,
+    headers: { authorization: user ? `Bearer access-tok` : undefined },
+  } as unknown as import('express').Request;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,12 +77,11 @@ vi.mock('nodemailer', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// In-memory DB bootstrap (mirrors database.ts schema, stripped down)
+// PostgreSQL test DB bootstrap (mirrors database.ts schema, stripped down)
 // ---------------------------------------------------------------------------
-import sqlite3 from 'sqlite3';
-import { open, type Database } from 'sqlite';
+import { createPostgresTestDatabase, type TestDatabase } from './helpers/postgres-test-db.js';
 
-let testDb: Database;
+let testDb: TestDatabase;
 
 // Override getDatabase so controllers use the test DB
 vi.mock('../src/db/database.js', () => ({
@@ -84,7 +105,7 @@ async function seedUser(opts: {
     [
       opts.email,
       hash,
-      opts.emailVerified ?? true ? 1 : 0,
+      (opts.emailVerified ?? true) ? 1 : 0,
       opts.accountLocked ? 1 : 0,
       opts.loginAttempts ?? 0,
       opts.lockedUntil ?? null,
@@ -93,43 +114,42 @@ async function seedUser(opts: {
 }
 
 beforeEach(async () => {
-  testDb = await open({ filename: ':memory:', driver: sqlite3.Database });
-  await testDb.exec('PRAGMA foreign_keys = ON');
-  await testDb.exec(`
+  testDb = await createPostgresTestDatabase(`
     CREATE TABLE IF NOT EXISTS roles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT UNIQUE NOT NULL
     );
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       display_name TEXT,
-      email_verified BOOLEAN DEFAULT 0,
-      email_verified_at DATETIME,
+      email_verified INTEGER DEFAULT 0,
+      email_verified_at TIMESTAMP,
       email_verification_token TEXT,
-      account_locked BOOLEAN DEFAULT 0,
-      locked_until DATETIME,
+      account_locked INTEGER DEFAULT 0,
+      locked_until TIMESTAMPTZ,
       login_attempts INTEGER DEFAULT 0,
       role_id INTEGER NOT NULL DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      deleted_at DATETIME
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL,
       token TEXT UNIQUE NOT NULL,
       refresh_token TEXT,
-      expires_at DATETIME NOT NULL,
-      last_activity DATETIME DEFAULT CURRENT_TIMESTAMP
+      expires_at TIMESTAMP NOT NULL,
+      last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
-    INSERT INTO roles (name) VALUES ('Attendee'), ('Organizer'), ('Admin');
+    INSERT INTO roles (id, name) VALUES (1, 'Attendee'), (2, 'Organizer'), (3, 'Admin')
+    ON CONFLICT (id) DO NOTHING;
   `);
 });
 
 afterEach(async () => {
-  await testDb.close();
+  await testDb?.close();
 });
 
 // ---------------------------------------------------------------------------
@@ -169,11 +189,17 @@ describe('Auth Integration — Login', () => {
     // Get message for known email + wrong password
     await seedUser({ email: 'carol@example.com', password: 'Known1Pass!', emailVerified: true });
     const resKnown = makeRes();
-    await login(makeReq({ email: 'carol@example.com', password: 'Wrong1!' }), resKnown as unknown as import('express').Response);
+    await login(
+      makeReq({ email: 'carol@example.com', password: 'Wrong1!' }),
+      resKnown as unknown as import('express').Response,
+    );
 
     // Get message for unknown email
     const resUnknown = makeRes();
-    await login(makeReq({ email: 'does-not-exist@example.com', password: 'Any1Pass!' }), resUnknown as unknown as import('express').Response);
+    await login(
+      makeReq({ email: 'does-not-exist@example.com', password: 'Any1Pass!' }),
+      resUnknown as unknown as import('express').Response,
+    );
 
     expect(resKnown.statusCode).toBe(401);
     expect(resUnknown.statusCode).toBe(401);
@@ -217,12 +243,14 @@ describe('Auth Integration — Login', () => {
 describe('Auth Integration — Logout', () => {
   it('returns 200 and clears the refreshToken cookie on logout', async () => {
     await seedUser({ email: 'frank@example.com', password: 'Valid1Pass!', emailVerified: true });
-    const user = await testDb.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['frank@example.com']);
+    const user = await testDb.get<{ id: number }>('SELECT id FROM users WHERE email = ?', [
+      'frank@example.com',
+    ]);
 
     // Insert a session so logout has something to invalidate
     await testDb.run(
       `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
-       VALUES (?, ?, ?, datetime('now', '+1 hour'))`,
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP + INTERVAL '1 hour')`,
       [user!.id, hashToken('access-tok'), hashToken('refresh-tok')],
     );
 
@@ -236,11 +264,13 @@ describe('Auth Integration — Logout', () => {
 
   it('session is invalidated after logout — token no longer in sessions table', async () => {
     await seedUser({ email: 'grace@example.com', password: 'Valid1Pass!', emailVerified: true });
-    const user = await testDb.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['grace@example.com']);
+    const user = await testDb.get<{ id: number }>('SELECT id FROM users WHERE email = ?', [
+      'grace@example.com',
+    ]);
 
     await testDb.run(
       `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
-       VALUES (?, ?, ?, datetime('now', '+1 hour'))`,
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP + INTERVAL '1 hour')`,
       [user!.id, hashToken('my-access'), hashToken('my-refresh')],
     );
 

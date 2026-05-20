@@ -1,15 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  LinearProgress,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+import { Alert, Box, Button, LinearProgress, Stack, TextField, Typography } from '@mui/material';
+import { apiFetch } from '../../lib/api-client';
 
 const PASSWORD_REQUIREMENTS = [
   { label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
@@ -100,9 +91,8 @@ export function ResetPasswordForm({ onBackToLogin }: ResetPasswordFormProps): JS
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+      const response = await apiFetch('/api/auth/reset-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword }),
       });
 
@@ -135,8 +125,16 @@ export function ResetPasswordForm({ onBackToLogin }: ResetPasswordFormProps): JS
   return (
     <Box component="form" onSubmit={handleSubmit} noValidate>
       <Stack spacing={2}>
-        {errorMessage && <Alert severity="error" role="alert">{errorMessage}</Alert>}
-        {successMessage && <Alert severity="success" role="status">{successMessage}</Alert>}
+        {errorMessage && (
+          <Alert severity="error" role="alert">
+            {errorMessage}
+          </Alert>
+        )}
+        {successMessage && (
+          <Alert severity="success" role="status">
+            {successMessage}
+          </Alert>
+        )}
 
         {!successMessage && (
           <>
@@ -193,7 +191,9 @@ export function ResetPasswordForm({ onBackToLogin }: ResetPasswordFormProps): JS
               label="Confirm new password"
               value={confirmPassword}
               onChange={handleConfirmPasswordChange}
-              slotProps={{ htmlInput: { 'aria-label': 'Confirm new password', 'aria-required': 'true' } }}
+              slotProps={{
+                htmlInput: { 'aria-label': 'Confirm new password', 'aria-required': 'true' },
+              }}
               autoComplete="new-password"
               fullWidth
               error={!passwordsMatch}
@@ -218,12 +218,7 @@ export function ResetPasswordForm({ onBackToLogin }: ResetPasswordFormProps): JS
           </>
         )}
 
-        <Button
-          variant="text"
-          onClick={onBackToLogin}
-          aria-label="Back to login"
-          fullWidth
-        >
+        <Button variant="text" onClick={onBackToLogin} aria-label="Back to login" fullWidth>
           Back to login
         </Button>
       </Stack>
