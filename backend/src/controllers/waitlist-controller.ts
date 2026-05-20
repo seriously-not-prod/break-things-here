@@ -31,7 +31,7 @@ interface WaitlistedRow {
   name: string;
   email: string;
   guests: number;
-  status: string;
+  canonical_status: string;
   waitlist_position: number;
 }
 
@@ -41,10 +41,7 @@ export interface PromotionResult {
   waitlistSize: number;
 }
 
-async function getEventCapacity(
-  db: DatabaseAdapter,
-  eventId: number,
-): Promise<number | null> {
+async function getEventCapacity(db: DatabaseAdapter, eventId: number): Promise<number | null> {
   const ev = await db.get<{ capacity: number | null }>(
     'SELECT capacity FROM events WHERE id = $1 AND deleted_at IS NULL',
     [eventId],
@@ -52,13 +49,10 @@ async function getEventCapacity(
   return ev?.capacity ?? null;
 }
 
-async function getGoingTotal(
-  db: DatabaseAdapter,
-  eventId: number,
-): Promise<number> {
+async function getGoingTotal(db: DatabaseAdapter, eventId: number): Promise<number> {
   const row = await db.get<{ total: number }>(
     `SELECT COALESCE(SUM(guests), 0)::int AS total FROM rsvps
-     WHERE event_id = $1 AND status = 'Going' AND waitlist_position IS NULL`,
+     WHERE event_id = $1 AND canonical_status = 'confirmed' AND waitlist_position IS NULL`,
     [eventId],
   );
   return row?.total ?? 0;
@@ -112,13 +106,13 @@ export async function runPromotion(eventId: number): Promise<PromotionResult> {
     const capacity = capRes.rows[0]?.capacity ?? null;
     const goingRes = await client.query<{ total: number }>(
       `SELECT COALESCE(SUM(guests), 0)::int AS total FROM rsvps
-       WHERE event_id = $1 AND status = 'Going' AND waitlist_position IS NULL`,
+       WHERE event_id = $1 AND canonical_status = 'confirmed' AND waitlist_position IS NULL`,
       [eventId],
     );
     const going = goingRes.rows[0]?.total ?? 0;
 
     const waitlistRes = await client.query<WaitlistedRow>(
-      `SELECT id, event_id, name, email, guests, status, waitlist_position
+      `SELECT id, event_id, name, email, guests, canonical_status, waitlist_position
        FROM rsvps
        WHERE event_id = $1 AND waitlist_position IS NOT NULL
        ORDER BY waitlist_position ASC, id ASC
@@ -132,7 +126,7 @@ export async function runPromotion(eventId: number): Promise<PromotionResult> {
       consumed += row.guests;
       await client.query(
         `UPDATE rsvps SET waitlist_position = NULL, promoted_at = CURRENT_TIMESTAMP,
-                          status = 'Going', updated_at = CURRENT_TIMESTAMP
+                          canonical_status = 'confirmed', updated_at = CURRENT_TIMESTAMP
          WHERE id = $1`,
         [row.id],
       );

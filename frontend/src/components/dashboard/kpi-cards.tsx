@@ -40,12 +40,29 @@ function KpiCard({ label, value, sub, icon, color }: KpiCardProps): JSX.Element 
       }}
     >
       <CardContent sx={{ p: 2.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 1.5 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 2,
+            mb: 1.5,
+          }}
+        >
           <Box>
-            <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: '0.08em', fontSize: '0.6875rem' }}>
+            <Typography
+              variant="overline"
+              color="text.secondary"
+              sx={{ letterSpacing: '0.08em', fontSize: '0.6875rem' }}
+            >
               {label}
             </Typography>
-            <Typography variant="h4" fontWeight={800} aria-label={`${label}: ${value}`} sx={{ lineHeight: 1.1, mt: 0.25 }}>
+            <Typography
+              variant="h4"
+              fontWeight={800}
+              aria-label={`${label}: ${value}`}
+              sx={{ lineHeight: 1.1, mt: 0.25 }}
+            >
               {value}
             </Typography>
           </Box>
@@ -96,7 +113,7 @@ export function KpiCards({ data, loading }: KpiCardsProps): JSX.Element {
 
   const activeEvents = events.filter((e) => e.status === 'Active');
   const totalGuests = rsvps.reduce((sum, r) => sum + (r.guests ?? 1), 0);
-  const goingCount = rsvps.filter((r) => r.status === 'Going').length;
+  const goingCount = rsvps.filter((r) => r.canonical_status === 'confirmed').length;
   const completedTasks = tasks.filter((t) => t.status === 'Complete').length;
   const pendingTasks = tasks.length - completedTasks;
 

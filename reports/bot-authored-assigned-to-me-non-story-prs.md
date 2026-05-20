@@ -1,0 +1,52 @@
+# Bot-authored PRs assigned to @SmitRAmoliya (non-STORY)
+
+Total (before filter): 52
+Total (non-STORY): 47
+
+- [#97](https://github.com/seriously-not-prod/break-things-here/pull/97) | 2026-04-03T05:15:07Z | closed | feat: [TASK] Create forgot password request form UI component
+- [#101](https://github.com/seriously-not-prod/break-things-here/pull/101) | 2026-04-03T07:55:44Z | closed | feat(auth): implement user registration, authentication & password reset
+- [#103](https://github.com/seriously-not-prod/break-things-here/pull/103) | 2026-04-04T03:40:05Z | merged | fix: [BUG] TypeScript error: Property 'file' does not exist on type 'AuthRequest' in profile-controller.ts
+- [#318](https://github.com/seriously-not-prod/break-things-here/pull/318) | 2026-04-30T06:17:45Z | closed | feat: schedule_items, RSVP/task emails, notification center (#272, #238, #239, #240)
+- [#324](https://github.com/seriously-not-prod/break-things-here/pull/324) | 2026-04-30T06:44:56Z | closed | feat(db): Phase 1 Database Migrations - issues 273 and 274
+- [#327](https://github.com/seriously-not-prod/break-things-here/pull/327) | 2026-04-30T07:07:23Z | closed | feat(venues-vendors): Phase 2 — Venue & Vendor Management (#232, #233)
+- [#330](https://github.com/seriously-not-prod/break-things-here/pull/330) | 2026-04-30T07:30:07Z | closed | feat(budget-expenses): Phase 3 — Budget & Expense Management (#234, #235)
+- [#332](https://github.com/seriously-not-prod/break-things-here/pull/332) | 2026-04-30T10:12:10Z | merged | feat: [TASK] Wire admin-controller routes into api-routes.ts
+- [#333](https://github.com/seriously-not-prod/break-things-here/pull/333) | 2026-04-30T10:19:17Z | merged | feat(security): add helmet middleware for HTTP security headers #266
+- [#334](https://github.com/seriously-not-prod/break-things-here/pull/334) | 2026-04-30T10:22:30Z | closed | feat(analytics): Phase 4 — Reports & Analytics (#242, #243)
+- [#335](https://github.com/seriously-not-prod/break-things-here/pull/335) | 2026-04-30T10:42:08Z | merged | feat: [TASK] Move refresh token storage to HttpOnly cookie
+- [#340](https://github.com/seriously-not-prod/break-things-here/pull/340) | 2026-04-30T10:52:19Z | closed | docs(postgresql): Phase 5 — Documentation & Developer Experience (#336, #338, #339)
+- [#341](https://github.com/seriously-not-prod/break-things-here/pull/341) | 2026-04-30T11:02:44Z | merged | fix(rbac): seed default role permissions in migrations #265
+- [#349](https://github.com/seriously-not-prod/break-things-here/pull/349) | 2026-04-30T13:16:14Z | merged | fix(auth): resolve code-quality build failures #227
+- [#351](https://github.com/seriously-not-prod/break-things-here/pull/351) | 2026-04-30T13:44:19Z | merged | fix: [TASK] Seed role-permission assignments in DB migration
+- [#392](https://github.com/seriously-not-prod/break-things-here/pull/392) | 2026-05-04T10:15:39Z | merged | feat: feat(db): Migrate database from SQLite to PostgreSQL
+- [#394](https://github.com/seriously-not-prod/break-things-here/pull/394) | 2026-05-04T15:30:49Z | merged | feat(dashboard): implement full BRD feature suite - analytics, budget, guests, vendors, tasks, timeline, gallery, seating, notifications, checkin, shopping #372
+- [#395](https://github.com/seriously-not-prod/break-things-here/pull/395) | 2026-05-05T07:57:20Z | merged | feat(messaging,security,frontend): PostgreSQL messages API, event-access guards, and UI feature completions #381 #376 #374
+- [#398](https://github.com/seriously-not-prod/break-things-here/pull/398) | 2026-05-05T12:59:02Z | merged | fix: [BUG] Fix CSRF token reuse for proxied frontend mutations
+- [#480](https://github.com/seriously-not-prod/break-things-here/pull/480) | 2026-05-06T14:19:18Z | merged | feat(gallery): implement delete, caption edit, and full test suite #430
+- [#488](https://github.com/seriously-not-prod/break-things-here/pull/488) | 2026-05-07T05:46:13Z | merged | feat(budget): add expense summary PDF export
+- [#508](https://github.com/seriously-not-prod/break-things-here/pull/508) | 2026-05-07T11:30:00Z | merged | feat: [TASK] Add name tag PDF export
+- [#510](https://github.com/seriously-not-prod/break-things-here/pull/510) | 2026-05-07T12:09:25Z | merged | feat: [TASK] Add gallery albums, moderation queue, and slideshow #459
+- [#512](https://github.com/seriously-not-prod/break-things-here/pull/512) | 2026-05-07T12:58:28Z | merged | [TASK] Add planned-vs-actual timeline workflow #460
+- [#514](https://github.com/seriously-not-prod/break-things-here/pull/514) | 2026-05-07T13:42:04Z | merged | feat(keyboard-shortcuts): add keyboard shortcut handler and help overlay #456
+- [#516](https://github.com/seriously-not-prod/break-things-here/pull/516) | 2026-05-07T14:32:12Z | merged | fix(frontend): tighten advanced finance, media, and timeline ux #417
+- [#518](https://github.com/seriously-not-prod/break-things-here/pull/518) | 2026-05-07T17:05:54Z | merged | feat: [TASK] Build Material UI dashboard shell and responsive navigation
+- [#640](https://github.com/seriously-not-prod/break-things-here/pull/640) | 2026-05-12T08:53:10Z | merged | feat(budget): add tax/gratuity/contingency planning #526
+- [#647](https://github.com/seriously-not-prod/break-things-here/pull/647) | 2026-05-12T11:18:38Z | merged | feat: budget comparison across similar events
+- [#648](https://github.com/seriously-not-prod/break-things-here/pull/648) | 2026-05-12T12:20:33Z | merged | feat: expense approval and reimbursement workflow
+- [#649](https://github.com/seriously-not-prod/break-things-here/pull/649) | 2026-05-12T12:50:03Z | merged | feat: [TASK] BRD v2 OCR receipt extraction and reconciliation pipeline
+- [#651](https://github.com/seriously-not-prod/break-things-here/pull/651) | 2026-05-12T13:31:00Z | merged | feat: [TASK] BRD v2 budget planning controls (tax, gratuity, contingency)
+- [#652](https://github.com/seriously-not-prod/break-things-here/pull/652) | 2026-05-12T15:18:23Z | merged | feat: BRD v2 Story 531 vendor lifecycle parity
+- [#693](https://github.com/seriously-not-prod/break-things-here/pull/693) | 2026-05-18T07:17:48Z | merged | fix(test-db): bootstrap missing test database #664
+- [#694](https://github.com/seriously-not-prod/break-things-here/pull/694) | 2026-05-18T09:31:34Z | merged | feat(auth): enforce 30-min inactivity timeout on frontend #664
+- [#695](https://github.com/seriously-not-prod/break-things-here/pull/695) | 2026-05-18T10:00:02Z | merged | feat(rbac-ui): enforce route-level role guards and role-name checks #664
+- [#696](https://github.com/seriously-not-prod/break-things-here/pull/696) | 2026-05-18T10:20:02Z | merged | feat(rls): enable RLS policies by default #664
+- [#697](https://github.com/seriously-not-prod/break-things-here/pull/697) | 2026-05-18T10:28:41Z | merged | feat(rsvp): normalize canonical RSVP status aliases #664
+- [#699](https://github.com/seriously-not-prod/break-things-here/pull/699) | 2026-05-18T10:43:30Z | merged | feat: [TASK] Create config.yml to disable blank issues
+- [#704](https://github.com/seriously-not-prod/break-things-here/pull/704) | 2026-05-18T11:46:41Z | merged | feat: [THEME] Full Application Technical Audit — Production Readiness & Gap Closure
+- [#705](https://github.com/seriously-not-prod/break-things-here/pull/705) | 2026-05-18T12:02:35Z | merged | feat: [THEME] Full Application Technical Audit — Production Readiness & Gap Closure
+- [#706](https://github.com/seriously-not-prod/break-things-here/pull/706) | 2026-05-18T12:26:39Z | merged | feat(events): P1-Event Time Field — add required event_time end-to-end #664
+- [#710](https://github.com/seriously-not-prod/break-things-here/pull/710) | 2026-05-18T13:02:59Z | merged | fix(guests): P1-CSV Import Mapping Fix — wire field-mapping wizard to backend import logic #664
+- [#728](https://github.com/seriously-not-prod/break-things-here/pull/728) | 2026-05-19T05:30:17Z | merged | feat: [TASK] P1 Duplicate Guest Detection UX in add-guest flow
+- [#730](https://github.com/seriously-not-prod/break-things-here/pull/730) | 2026-05-19T05:35:34Z | merged | feat: [TASK] Admin user management UX + analytics event picker + remove legacy login page
+- [#732](https://github.com/seriously-not-prod/break-things-here/pull/732) | 2026-05-19T08:19:59Z | merged | feat: [THEME] Full Application Technical Audit — Production Readiness & Gap Closure
+- [#733](https://github.com/seriously-not-prod/break-things-here/pull/733) | 2026-05-19T08:59:45Z | merged | feat: [THEME] Full Application Technical Audit — Production Readiness & Gap Closure

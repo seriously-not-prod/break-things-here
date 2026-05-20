@@ -24,7 +24,10 @@ interface GuestGroup {
 // GET /api/events/:eventId/guest-groups
 export const listGuestGroups: RequestHandler = async (req, res: Response) => {
   const eventId = Number(req.params.eventId);
-  if (!eventId) { res.status(400).json({ error: 'Invalid eventId' }); return; }
+  if (!eventId) {
+    res.status(400).json({ error: 'Invalid eventId' });
+    return;
+  }
   const db = getDatabase();
   const groups = await db.all<GuestGroup>(
     `SELECT gg.*, COUNT(ggm.rsvp_id)::int AS member_count
@@ -41,9 +44,15 @@ export const listGuestGroups: RequestHandler = async (req, res: Response) => {
 // POST /api/events/:eventId/guest-groups
 export const createGuestGroup: RequestHandler = async (req: AuthRequest, res: Response) => {
   const eventId = Number(req.params.eventId);
-  if (!eventId) { res.status(400).json({ error: 'Invalid eventId' }); return; }
+  if (!eventId) {
+    res.status(400).json({ error: 'Invalid eventId' });
+    return;
+  }
   const { name, description } = req.body ?? {};
-  if (!name?.trim()) { res.status(400).json({ error: 'name is required' }); return; }
+  if (!name?.trim()) {
+    res.status(400).json({ error: 'name is required' });
+    return;
+  }
   const db = getDatabase();
   const row = await db.get<GuestGroup>(
     `INSERT INTO guest_groups (event_id, name, description, created_by)
@@ -66,9 +75,15 @@ export const createGuestGroup: RequestHandler = async (req: AuthRequest, res: Re
 export const updateGuestGroup: RequestHandler = async (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
   const eventId = Number(req.params.eventId);
-  if (!id || !eventId) { res.status(400).json({ error: 'Invalid id or eventId' }); return; }
+  if (!id || !eventId) {
+    res.status(400).json({ error: 'Invalid id or eventId' });
+    return;
+  }
   const { name, description } = req.body ?? {};
-  if (!name?.trim()) { res.status(400).json({ error: 'name is required' }); return; }
+  if (!name?.trim()) {
+    res.status(400).json({ error: 'name is required' });
+    return;
+  }
   const db = getDatabase();
   const row = await db.get<GuestGroup>(
     `UPDATE guest_groups
@@ -77,7 +92,10 @@ export const updateGuestGroup: RequestHandler = async (req: AuthRequest, res: Re
       RETURNING *`,
     [name.trim(), description ?? null, id, eventId],
   );
-  if (!row) { res.status(404).json({ error: 'Guest group not found' }); return; }
+  if (!row) {
+    res.status(404).json({ error: 'Guest group not found' });
+    return;
+  }
   await logAuditEvent({
     db,
     userId: req.user!.id,
@@ -93,12 +111,12 @@ export const updateGuestGroup: RequestHandler = async (req: AuthRequest, res: Re
 export const deleteGuestGroup: RequestHandler = async (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
   const eventId = Number(req.params.eventId);
-  if (!id || !eventId) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!id || !eventId) {
+    res.status(400).json({ error: 'Invalid id' });
+    return;
+  }
   const db = getDatabase();
-  await db.run(
-    `DELETE FROM guest_groups WHERE id = $1 AND event_id = $2`,
-    [id, eventId],
-  );
+  await db.run(`DELETE FROM guest_groups WHERE id = $1 AND event_id = $2`, [id, eventId]);
   await logAuditEvent({
     db,
     userId: req.user!.id,
@@ -113,7 +131,10 @@ export const deleteGuestGroup: RequestHandler = async (req: AuthRequest, res: Re
 // POST /api/events/:eventId/guest-groups/:id/members — assign RSVPs to a group
 export const addGroupMembers: RequestHandler = async (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
-  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!id) {
+    res.status(400).json({ error: 'Invalid id' });
+    return;
+  }
   const { rsvp_ids } = req.body ?? {};
   if (!Array.isArray(rsvp_ids) || rsvp_ids.length === 0) {
     res.status(400).json({ error: 'rsvp_ids array is required' });
@@ -147,7 +168,10 @@ export const addGroupMembers: RequestHandler = async (req: AuthRequest, res: Res
 // DELETE /api/events/:eventId/guest-groups/:id/members — remove RSVPs from group
 export const removeGroupMembers: RequestHandler = async (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
-  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!id) {
+    res.status(400).json({ error: 'Invalid id' });
+    return;
+  }
   const { rsvp_ids } = req.body ?? {};
   if (!Array.isArray(rsvp_ids) || rsvp_ids.length === 0) {
     res.status(400).json({ error: 'rsvp_ids array is required' });
@@ -155,10 +179,10 @@ export const removeGroupMembers: RequestHandler = async (req: AuthRequest, res: 
   }
   const db = getDatabase();
   for (const rsvpId of rsvp_ids) {
-    await db.run(
-      `DELETE FROM guest_group_members WHERE group_id = $1 AND rsvp_id = $2`,
-      [id, Number(rsvpId)],
-    );
+    await db.run(`DELETE FROM guest_group_members WHERE group_id = $1 AND rsvp_id = $2`, [
+      id,
+      Number(rsvpId),
+    ]);
   }
   res.json({ removed: rsvp_ids.length });
 };
@@ -167,7 +191,10 @@ export const removeGroupMembers: RequestHandler = async (req: AuthRequest, res: 
 // Bulk import guests from CSV: columns name,email,phone,dietary_requirements
 export const csvImportGuests: RequestHandler = async (req: AuthRequest, res: Response) => {
   const eventId = Number(req.params.eventId);
-  if (!eventId) { res.status(400).json({ error: 'Invalid eventId' }); return; }
+  if (!eventId) {
+    res.status(400).json({ error: 'Invalid eventId' });
+    return;
+  }
   const { csv, column_map } = req.body ?? {};
   if (!csv || typeof csv !== 'string') {
     res.status(400).json({ error: 'csv string is required' });
@@ -178,7 +205,7 @@ export const csvImportGuests: RequestHandler = async (req: AuthRequest, res: Res
     res.status(400).json({ error: 'CSV must have a header row and at least one data row' });
     return;
   }
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+  const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
   const map: Record<string, string> = column_map ?? {};
   const resolve = (field: string): number => {
     const override = map[field];
@@ -196,7 +223,7 @@ export const csvImportGuests: RequestHandler = async (req: AuthRequest, res: Res
   const results: Array<{ row: number; status: string; error?: string }> = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+    const cols = lines[i].split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
     const name = cols[nameIdx];
     const email = cols[emailIdx]?.toLowerCase();
     if (!name || !email || !email.includes('@')) {
@@ -205,8 +232,8 @@ export const csvImportGuests: RequestHandler = async (req: AuthRequest, res: Res
     }
     try {
       await db.run(
-        `INSERT INTO rsvps (event_id, name, email, status, created_at, updated_at)
-         VALUES ($1, $2, $3, 'invited', NOW(), NOW())
+        `INSERT INTO rsvps (event_id, name, email, canonical_status, created_at, updated_at)
+         VALUES ($1, $2, $3, 'pending', NOW(), NOW())
          ON CONFLICT (event_id, email) DO NOTHING`,
         [eventId, name, email],
       );
@@ -216,8 +243,8 @@ export const csvImportGuests: RequestHandler = async (req: AuthRequest, res: Res
     }
   }
 
-  const success = results.filter(r => r.status === 'ok').length;
-  const errors = results.filter(r => r.status === 'error');
+  const success = results.filter((r) => r.status === 'ok').length;
+  const errors = results.filter((r) => r.status === 'error');
   await logAuditEvent({
     db,
     userId: req.user!.id,
@@ -232,7 +259,10 @@ export const csvImportGuests: RequestHandler = async (req: AuthRequest, res: Res
 // POST /api/events/:eventId/guest-groups/bulk-checkin — mark multiple RSVPs as checked in
 export const bulkCheckIn: RequestHandler = async (req: AuthRequest, res: Response) => {
   const eventId = Number(req.params.eventId);
-  if (!eventId) { res.status(400).json({ error: 'Invalid eventId' }); return; }
+  if (!eventId) {
+    res.status(400).json({ error: 'Invalid eventId' });
+    return;
+  }
   const { rsvp_ids } = req.body ?? {};
   if (!Array.isArray(rsvp_ids) || rsvp_ids.length === 0) {
     res.status(400).json({ error: 'rsvp_ids array is required' });

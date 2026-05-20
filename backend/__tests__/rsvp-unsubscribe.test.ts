@@ -85,8 +85,14 @@ function makeRes() {
   } = {
     statusCode: 200,
     body: null,
-    status(code) { this.statusCode = code; return this; },
-    json(data) { this.body = data; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -94,7 +100,11 @@ function makeRes() {
 function makeReq(
   params: Record<string, string>,
   body: Record<string, unknown> = {},
-  user: { id: number; email: string; role_id: number } | null = { id: 1, email: 'owner@test.com', role_id: 2 },
+  user: { id: number; email: string; role_id: number } | null = {
+    id: 1,
+    email: 'owner@test.com',
+    role_id: 2,
+  },
 ) {
   return { params, body, user } as unknown as import('express').Request;
 }
@@ -117,8 +127,8 @@ async function seedEvent(db: TestDatabase, userId: number): Promise<number> {
 
 async function seedRsvp(db: TestDatabase, eventId: number, unsubscribed = false): Promise<number> {
   const result = await db.run(
-    `INSERT INTO rsvps (event_id, name, email, guests, status, unsubscribed_at)
-     VALUES (?, 'Jane Doe', 'jane@test.com', 1, 'Going', ${unsubscribed ? 'CURRENT_TIMESTAMP' : 'NULL'}) RETURNING id`,
+    `INSERT INTO rsvps (event_id, name, email, guests, canonical_status, unsubscribed_at)
+     VALUES (?, 'Jane Doe', 'jane@test.com', 1, 'confirmed', ${unsubscribed ? 'CURRENT_TIMESTAMP' : 'NULL'}) RETURNING id`,
     [eventId],
   );
   return result.lastID as number;

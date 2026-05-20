@@ -10,8 +10,7 @@ import { api, apiFetch } from '../lib/api-client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type RsvpStatus = 'Pending' | 'Going' | 'Maybe' | 'Not Going' | 'Declined';
-/** BRD v2 canonical taxonomy (#544, #584) — mirrors backend rsvp-taxonomy.ts. */
+/** Canonical RSVP taxonomy (#770) — single source of truth for RSVP status. */
 export type CanonicalRsvpStatus =
   | 'pending'
   | 'confirmed'
@@ -41,8 +40,7 @@ export interface RsvpGuest {
   email: string;
   phone: string | null;
   guests: number;
-  status: RsvpStatus;
-  canonical_status: CanonicalRsvpStatus | null;
+  canonical_status: CanonicalRsvpStatus;
   notes: string | null;
   source: string;
   checked_in: boolean;
@@ -81,7 +79,6 @@ export interface RsvpGuestInput {
   email: string;
   phone?: string;
   guests?: number;
-  status?: RsvpStatus;
   notes?: string;
   dietary_restriction?: DietaryRestriction;
   accessibility_needs?: string;
@@ -152,7 +149,7 @@ export interface Rsvp {
   name: string;
   email: string;
   guests: number;
-  status: string;
+  canonical_status: CanonicalRsvpStatus;
   notes: string | null;
   source: string;
   checked_in: boolean;
@@ -165,7 +162,7 @@ export interface AssignedRsvp {
   rsvp_id: number;
   name: string;
   email: string;
-  status: string;
+  canonical_status: CanonicalRsvpStatus;
 }
 
 export interface SeatingTable {
@@ -191,7 +188,7 @@ export interface GuestEmailLookupMatch {
   id: number;
   name: string;
   email: string;
-  status: RsvpStatus;
+  canonical_status: CanonicalRsvpStatus;
   guests: number;
   created_at: string;
   updated_at: string;

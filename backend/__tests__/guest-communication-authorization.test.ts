@@ -111,8 +111,14 @@ function makeRes(): MockResponse {
   const res: MockResponse = {
     statusCode: 200,
     body: null,
-    status(code) { this.statusCode = code; return this; },
-    json(data) { this.body = data; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -142,15 +148,15 @@ async function seedEvent(ownerId: number): Promise<number> {
 }
 
 async function addMember(eventId: number, userId: number): Promise<void> {
-  await testDb.run(
-    `INSERT INTO event_members (event_id, user_id) VALUES (?, ?)`,
-    [eventId, userId],
-  );
+  await testDb.run(`INSERT INTO event_members (event_id, user_id) VALUES (?, ?)`, [
+    eventId,
+    userId,
+  ]);
 }
 
 async function seedRsvp(eventId: number, email = 'guest@test.com'): Promise<number> {
   const result = await testDb.run(
-    `INSERT INTO rsvps (event_id, name, email, status) VALUES (?, ?, ?, 'Going') RETURNING id`,
+    `INSERT INTO rsvps (event_id, name, email, canonical_status) VALUES (?, ?, ?, 'confirmed') RETURNING id`,
     [eventId, 'Guest', email],
   );
   return result.lastID as number;
@@ -188,9 +194,15 @@ describe('GET /api/events/:eventId/communication — listCommunicationLog (#424)
     const ownerId = await seedUser('owner@test.com', 2);
     const eventId = await seedEvent(ownerId);
 
-    const req = makeReq({ eventId: String(eventId) }, {}, {
-      id: ownerId, email: 'owner@test.com', role_id: 2,
-    });
+    const req = makeReq(
+      { eventId: String(eventId) },
+      {},
+      {
+        id: ownerId,
+        email: 'owner@test.com',
+        role_id: 2,
+      },
+    );
     const res = makeRes();
 
     await listCommunicationLog(req, res as unknown as Response);
@@ -205,9 +217,15 @@ describe('GET /api/events/:eventId/communication — listCommunicationLog (#424)
     const eventId = await seedEvent(ownerId);
     await addMember(eventId, memberId);
 
-    const req = makeReq({ eventId: String(eventId) }, {}, {
-      id: memberId, email: 'member@test.com', role_id: 1,
-    });
+    const req = makeReq(
+      { eventId: String(eventId) },
+      {},
+      {
+        id: memberId,
+        email: 'member@test.com',
+        role_id: 1,
+      },
+    );
     const res = makeRes();
 
     await listCommunicationLog(req, res as unknown as Response);
@@ -220,9 +238,15 @@ describe('GET /api/events/:eventId/communication — listCommunicationLog (#424)
     const outsiderId = await seedUser('outsider@test.com', 1);
     const eventId = await seedEvent(ownerId);
 
-    const req = makeReq({ eventId: String(eventId) }, {}, {
-      id: outsiderId, email: 'outsider@test.com', role_id: 1,
-    });
+    const req = makeReq(
+      { eventId: String(eventId) },
+      {},
+      {
+        id: outsiderId,
+        email: 'outsider@test.com',
+        role_id: 1,
+      },
+    );
     const res = makeRes();
 
     await listCommunicationLog(req, res as unknown as Response);
@@ -234,9 +258,15 @@ describe('GET /api/events/:eventId/communication — listCommunicationLog (#424)
   it('returns 404 when the event does not exist', async () => {
     const ownerId = await seedUser('owner@test.com', 2);
 
-    const req = makeReq({ eventId: '999999' }, {}, {
-      id: ownerId, email: 'owner@test.com', role_id: 2,
-    });
+    const req = makeReq(
+      { eventId: '999999' },
+      {},
+      {
+        id: ownerId,
+        email: 'owner@test.com',
+        role_id: 2,
+      },
+    );
     const res = makeRes();
 
     await listCommunicationLog(req, res as unknown as Response);
@@ -267,7 +297,9 @@ describe('POST /api/events/:eventId/communication/{invite,reminder} — bulkSend
     await seedRsvp(eventId);
 
     const req = makeReq({ eventId: String(eventId) }, validBody, {
-      id: memberId, email: 'member@test.com', role_id: 1,
+      id: memberId,
+      email: 'member@test.com',
+      role_id: 1,
     });
     const res = makeRes();
 
@@ -284,7 +316,9 @@ describe('POST /api/events/:eventId/communication/{invite,reminder} — bulkSend
     await seedRsvp(eventId);
 
     const req = makeReq({ eventId: String(eventId) }, validBody, {
-      id: outsiderId, email: 'outsider@test.com', role_id: 1,
+      id: outsiderId,
+      email: 'outsider@test.com',
+      role_id: 1,
     });
     const res = makeRes();
 
@@ -301,7 +335,9 @@ describe('POST /api/events/:eventId/communication/{invite,reminder} — bulkSend
     await seedRsvp(eventId, 'two@test.com');
 
     const req = makeReq({ eventId: String(eventId) }, validBody, {
-      id: ownerId, email: 'owner@test.com', role_id: 2,
+      id: ownerId,
+      email: 'owner@test.com',
+      role_id: 2,
     });
     const res = makeRes();
 

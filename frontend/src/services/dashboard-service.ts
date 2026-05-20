@@ -33,7 +33,15 @@ export interface DashboardRsvp {
   name: string;
   email: string;
   guests: number;
-  status: 'Pending' | 'Going' | 'Maybe' | 'Not Going' | 'Declined';
+  canonical_status:
+    | 'pending'
+    | 'confirmed'
+    | 'declined'
+    | 'maybe'
+    | 'waitlist'
+    | 'cancelled'
+    | 'checked_in'
+    | 'no_show';
 }
 
 export interface DashboardData {

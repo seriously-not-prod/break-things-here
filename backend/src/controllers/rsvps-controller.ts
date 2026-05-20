@@ -22,7 +22,7 @@ import { captureEntityVersion } from './entity-versions-controller.js';
 interface RsvpRow {
   id: number;
   event_id: number;
-  status: string;
+  canonical_status: string;
   guests: number;
 }
 
@@ -61,7 +61,6 @@ interface RsvpFull extends RsvpRow, GuestProfileFields {
   email?: string | null;
   checked_in?: boolean;
   checked_in_at?: string | null;
-  canonical_status?: string | null;
   late_arrival?: boolean | null;
   arrival_delay_minutes?: number | null;
   waitlist_position?: number | null;
@@ -93,17 +92,9 @@ async function recomputeCanonicalStatus(
     await db.run(`UPDATE rsvps SET canonical_status = $1 WHERE id = $2`, [override, rsvpId]);
     return;
   }
-  const row = await db.get<{
-    status: string;
-    waitlist_position: number | null;
-    checked_in: boolean;
-  }>(`SELECT status, waitlist_position, checked_in FROM rsvps WHERE id = $1`, [rsvpId]);
-  if (!row) return;
-  const canonical = toCanonicalStatus(row.status, {
-    waitlisted: row.waitlist_position !== null,
-    checkedIn: row.checked_in,
-  });
-  await db.run(`UPDATE rsvps SET canonical_status = $1 WHERE id = $2`, [canonical, rsvpId]);
+  // Note: With the status column dropped (#770), canonical_status is now the single source of truth.
+  // If override is not provided, the current canonical_status is kept as-is.
+  // Most state transitions (waitlist, check-in) explicitly set canonical_status.
 }
 
 /**
@@ -156,7 +147,7 @@ function parseGuests(value: unknown): number {
 }
 
 function isGoing(status?: string): boolean {
-  return status === 'Going';
+  return status === 'confirmed';
 }
 
 async function getEventCapacity(
@@ -286,8 +277,10 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   const waitlist = body.waitlist as boolean | undefined;
 
   const normalizedStatus =
-    status === undefined ? 'Pending' : normalizeLegacyRsvpStatusInput(status);
-  if (status !== undefined && !normalizedStatus) {
+    status === undefined
+      ? 'pending'
+      : toCanonicalStatus(normalizeLegacyRsvpStatusInput(status) || 'Pending');
+  if (status !== undefined && !normalizeLegacyRsvpStatusInput(status)) {
     return res.status(400).json({
       error: 'Invalid RSVP status.',
       allowed: RSVP_STATUS_INPUT_ALIAS_LIST,
@@ -360,7 +353,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   // the queue with status preserved so promotion is a one-step move.
   const capacity = await getEventCapacity(db, eventId);
   let queueOnCreate = false;
-  if (capacity !== null && isGoing(normalizedStatus || 'Pending')) {
+  if (capacity !== null && normalizedStatus === 'confirmed') {
     const currentGoing = await getGoingGuestsTotal(db, eventId);
     if (currentGoing + guestCount > capacity) {
       if (waitlist === true) {
@@ -419,7 +412,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
     'name',
     'email',
     'guests',
-    'status',
+    'canonical_status',
     'notes',
     'source',
     ...PROFILE_FIELDS,
@@ -430,7 +423,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
     name.trim(),
     email.trim().toLowerCase(),
     guestCount,
-    normalizedStatus || 'Pending',
+    normalizedStatus || 'pending',
     notes?.trim() || null,
     source,
     ...PROFILE_FIELDS.map((f) => profileValues[f]),
@@ -461,7 +454,7 @@ export async function createRsvp(req: Request, res: Response): Promise<Response>
   }
 
   // Fire notification to event owner when a new RSVP is confirmed
-  if ((normalizedStatus || 'Pending') === 'Going' && !queueOnCreate) {
+  if ((normalizedStatus || 'pending') === 'confirmed' && !queueOnCreate) {
     const ev = await db.get<{ created_by: number }>('SELECT created_by FROM events WHERE id = $1', [
       eventId,
     ]);
@@ -504,7 +497,7 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
   const params: (string | number | boolean | null)[] = [];
 
   let nextGuests = Number(rsvp.guests ?? 1);
-  let nextStatus = rsvp.status;
+  let nextStatus = rsvp.canonical_status;
   if (body.guests !== undefined) {
     const parsed = parseGuests(body.guests);
     nextGuests = parsed;
@@ -519,9 +512,10 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
         allowed: RSVP_STATUS_INPUT_ALIAS_LIST,
       });
     }
-    nextStatus = normalized;
-    fields.push('status = ?');
-    params.push(normalized);
+    const canonical = toCanonicalStatus(normalized);
+    nextStatus = canonical;
+    fields.push('canonical_status = ?');
+    params.push(canonical);
   }
 
   if (isGoing(nextStatus)) {
@@ -610,7 +604,7 @@ export async function updateRsvp(req: Request, res: Response): Promise<Response>
     );
   }
 
-  if (nextStatus === 'Going') {
+  if (nextStatus === 'confirmed') {
     await logActivity(
       rsvp.event_id,
       authReq.user?.id ?? null,

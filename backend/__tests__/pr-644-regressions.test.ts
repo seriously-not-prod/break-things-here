@@ -7,10 +7,7 @@
  * controllers run unchanged against the test schema.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-  createPostgresTestDatabase,
-  type TestDatabase,
-} from './helpers/postgres-test-db.js';
+import { createPostgresTestDatabase, type TestDatabase } from './helpers/postgres-test-db.js';
 
 // ── Schema covering every table touched by the controllers under test ─────
 const SCHEMA_SQL = `
@@ -166,32 +163,14 @@ vi.mock('../src/db/database.js', () => ({
 }));
 
 // Importing the controllers after the mock is registered.
-import {
-  scanQr,
-  undoCheckin,
-  markNoShow,
-} from '../src/controllers/qr-checkin-controller.js';
+import { scanQr, undoCheckin, markNoShow } from '../src/controllers/qr-checkin-controller.js';
 import { resubscribe } from '../src/controllers/unsubscribe-controller.js';
-import {
-  bulkSendInvitation,
-} from '../src/controllers/guest-communication-controller.js';
-import {
-  setGroupMembers,
-  seatGroupAtTable,
-} from '../src/controllers/seating-groups-controller.js';
-import {
-  deleteTemplate,
-} from '../src/controllers/communication-templates-controller.js';
-import {
-  deleteMealOption,
-} from '../src/controllers/meal-options-controller.js';
-import {
-  createRsvp,
-  updateRsvp,
-} from '../src/controllers/rsvps-controller.js';
-import {
-  computeAttendanceStats,
-} from '../src/controllers/attendance-board-controller.js';
+import { bulkSendInvitation } from '../src/controllers/guest-communication-controller.js';
+import { setGroupMembers, seatGroupAtTable } from '../src/controllers/seating-groups-controller.js';
+import { deleteTemplate } from '../src/controllers/communication-templates-controller.js';
+import { deleteMealOption } from '../src/controllers/meal-options-controller.js';
+import { createRsvp, updateRsvp } from '../src/controllers/rsvps-controller.js';
+import { computeAttendanceStats } from '../src/controllers/attendance-board-controller.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 type FakeReq = {
@@ -214,11 +193,24 @@ function makeRes() {
   } = {
     statusCode: 200,
     body: null,
-    status(code) { this.statusCode = code; return this; },
-    json(data) { this.body = data; return this; },
-    send(data) { this.body = data; return this; },
-    type() { return this; },
-    setHeader() { return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
+    send(data) {
+      this.body = data;
+      return this;
+    },
+    type() {
+      return this;
+    },
+    setHeader() {
+      return this;
+    },
   };
   return res;
 }
@@ -228,7 +220,13 @@ function makeReq(
   body: Record<string, unknown> = {},
   user: FakeReq['user'] = { id: 1, email: 'owner@test.com', role_id: 2 },
 ): import('express').Request {
-  return { params, body, user, ip: '127.0.0.1', headers: {} } as unknown as import('express').Request;
+  return {
+    params,
+    body,
+    user,
+    ip: '127.0.0.1',
+    headers: {},
+  } as unknown as import('express').Request;
 }
 
 async function seedUser(role = 2): Promise<number> {
@@ -239,7 +237,10 @@ async function seedUser(role = 2): Promise<number> {
   return r.lastID as number;
 }
 
-async function seedEvent(ownerId: number, opts: { deadline?: string | null } = {}): Promise<number> {
+async function seedEvent(
+  ownerId: number,
+  opts: { deadline?: string | null } = {},
+): Promise<number> {
   const r = await testDb.run(
     `INSERT INTO events (title, date, location, capacity, created_by, rsvp_deadline)
      VALUES ('E', '2030-01-01T12:00:00Z', 'Hall', 100, $1, $2) RETURNING id`,
@@ -248,19 +249,25 @@ async function seedEvent(ownerId: number, opts: { deadline?: string | null } = {
   return r.lastID as number;
 }
 
-async function seedRsvp(eventId: number, overrides: Partial<{
-  email: string; status: string; checked_in: boolean; canonical_status: string;
-  unsubscribed_at: string | null; unsubscribe_token: string | null; guests: number;
-}> = {}): Promise<number> {
+async function seedRsvp(
+  eventId: number,
+  overrides: Partial<{
+    email: string;
+    checked_in: boolean;
+    canonical_status: string;
+    unsubscribed_at: string | null;
+    unsubscribe_token: string | null;
+    guests: number;
+  }> = {},
+): Promise<number> {
   const r = await testDb.run(
-    `INSERT INTO rsvps (event_id, name, email, guests, status, checked_in, canonical_status,
+    `INSERT INTO rsvps (event_id, name, email, guests, checked_in, canonical_status,
                         unsubscribed_at, unsubscribe_token)
-     VALUES ($1, 'Guest', $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+     VALUES ($1, 'Guest', $2, $3, $4, $5, $6, $7) RETURNING id`,
     [
       eventId,
       overrides.email ?? `g-${Math.random().toString(36).slice(2)}@test.com`,
       overrides.guests ?? 1,
-      overrides.status ?? 'Going',
       overrides.checked_in ?? false,
       overrides.canonical_status ?? 'confirmed',
       overrides.unsubscribed_at ?? null,
@@ -272,10 +279,10 @@ async function seedRsvp(eventId: number, overrides: Partial<{
 
 async function seedToken(rsvpId: number): Promise<string> {
   const token = `tok-${rsvpId}-${Date.now()}`;
-  await testDb.run(
-    `INSERT INTO rsvp_access_tokens (token, rsvp_id) VALUES ($1, $2)`,
-    [token, rsvpId],
-  );
+  await testDb.run(`INSERT INTO rsvp_access_tokens (token, rsvp_id) VALUES ($1, $2)`, [
+    token,
+    rsvpId,
+  ]);
   return token;
 }
 
@@ -412,18 +419,22 @@ describe('PR #644 regression coverage', () => {
       expect(row?.payment_status).toBe('pending');
 
       // Post-migration insert with lowercase value must succeed.
-      await expect(testDb.run(
-        `INSERT INTO expenses (event_id, title, amount, payment_status)
+      await expect(
+        testDb.run(
+          `INSERT INTO expenses (event_id, title, amount, payment_status)
          VALUES ($1, 'Venue', 500.00, 'paid')`,
-        [eventId],
-      )).resolves.toBeTruthy();
+          [eventId],
+        ),
+      ).resolves.toBeTruthy();
 
       // Post-migration insert with PascalCase value must now fail.
-      await expect(testDb.run(
-        `INSERT INTO expenses (event_id, title, amount, payment_status)
+      await expect(
+        testDb.run(
+          `INSERT INTO expenses (event_id, title, amount, payment_status)
          VALUES ($1, 'Bad', 1.00, 'Paid')`,
-        [eventId],
-      )).rejects.toThrow();
+          [eventId],
+        ),
+      ).rejects.toThrow();
     });
   });
 
@@ -442,8 +453,11 @@ describe('PR #644 regression coverage', () => {
 
       const res = makeRes();
       await undoCheckin(
-        makeReq({ eventId: String(eventId), rsvpId: String(rsvpId) }, {},
-                { id: owner, email: 'o@t', role_id: 2 }),
+        makeReq(
+          { eventId: String(eventId), rsvpId: String(rsvpId) },
+          {},
+          { id: owner, email: 'o@t', role_id: 2 },
+        ),
         res as unknown as import('express').Response,
       );
       expect(res.statusCode).toBe(200);
@@ -466,8 +480,11 @@ describe('PR #644 regression coverage', () => {
       );
       const res = makeRes();
       await undoCheckin(
-        makeReq({ eventId: String(eventId), rsvpId: String(rsvpId) }, {},
-                { id: owner, email: 'o@t', role_id: 2 }),
+        makeReq(
+          { eventId: String(eventId), rsvpId: String(rsvpId) },
+          {},
+          { id: owner, email: 'o@t', role_id: 2 },
+        ),
         res as unknown as import('express').Response,
       );
       const row = await testDb.get<{ canonical_status: string }>(
@@ -509,8 +526,10 @@ describe('PR #644 regression coverage', () => {
       const owner = await seedUser();
       const member = await seedUser(1);
       const eventId = await seedEvent(owner);
-      await testDb.run(`INSERT INTO event_members (event_id, user_id) VALUES ($1, $2)`,
-        [eventId, member]);
+      await testDb.run(`INSERT INTO event_members (event_id, user_id) VALUES ($1, $2)`, [
+        eventId,
+        member,
+      ]);
       const rsvpId = await seedRsvp(eventId, {
         unsubscribed_at: new Date().toISOString(),
         unsubscribe_token: 'u1',
@@ -567,9 +586,11 @@ describe('PR #644 regression coverage', () => {
       const eventId = await seedEvent(owner);
       const res = makeRes();
       await markNoShow(
-        makeReq({ eventId: String(eventId) },
-                { rsvpIds: [1, '2', -3, 0] },
-                { id: owner, email: 'o@t', role_id: 2 }),
+        makeReq(
+          { eventId: String(eventId) },
+          { rsvpIds: [1, '2', -3, 0] },
+          { id: owner, email: 'o@t', role_id: 2 },
+        ),
         res as unknown as import('express').Response,
       );
       expect(res.statusCode).toBe(400);
@@ -593,9 +614,11 @@ describe('PR #644 regression coverage', () => {
       );
       const res = makeRes();
       await setGroupMembers(
-        makeReq({ eventId: String(eventId), id: String(grp.lastID) },
-                { rsvpIds: ['bad', null] },
-                { id: owner, email: 'o@t', role_id: 2 }),
+        makeReq(
+          { eventId: String(eventId), id: String(grp.lastID) },
+          { rsvpIds: ['bad', null] },
+          { id: owner, email: 'o@t', role_id: 2 },
+        ),
         res as unknown as import('express').Response,
       );
       expect(res.statusCode).toBe(400);
@@ -609,8 +632,11 @@ describe('PR #644 regression coverage', () => {
       const eventId = await seedEvent(owner);
       const res = makeRes();
       await deleteTemplate(
-        makeReq({ eventId: String(eventId), id: '9999' }, {},
-                { id: owner, email: 'o@t', role_id: 2 }),
+        makeReq(
+          { eventId: String(eventId), id: '9999' },
+          {},
+          { id: owner, email: 'o@t', role_id: 2 },
+        ),
         res as unknown as import('express').Response,
       );
       expect(res.statusCode).toBe(404);
@@ -621,8 +647,11 @@ describe('PR #644 regression coverage', () => {
       const eventId = await seedEvent(owner);
       const res = makeRes();
       await deleteMealOption(
-        makeReq({ eventId: String(eventId), id: '9999' }, {},
-                { id: owner, email: 'o@t', role_id: 2 }),
+        makeReq(
+          { eventId: String(eventId), id: '9999' },
+          {},
+          { id: owner, email: 'o@t', role_id: 2 },
+        ),
         res as unknown as import('express').Response,
       );
       expect(res.statusCode).toBe(404);
@@ -659,14 +688,12 @@ describe('PR #644 regression coverage', () => {
     it('rejects unknown meal choices on create', async () => {
       const owner = await seedUser();
       const eventId = await seedEvent(owner);
-      await testDb.run(
-        `INSERT INTO event_meal_options (event_id, name) VALUES ($1, 'Veg')`,
-        [eventId],
-      );
+      await testDb.run(`INSERT INTO event_meal_options (event_id, name) VALUES ($1, 'Veg')`, [
+        eventId,
+      ]);
       const res = makeRes();
       await createRsvp(
-        makeReq({ eventId: String(eventId) },
-                { name: 'X', email: 'x@y.z', meal_choice: 'Pasta' }),
+        makeReq({ eventId: String(eventId) }, { name: 'X', email: 'x@y.z', meal_choice: 'Pasta' }),
         res as unknown as import('express').Response,
       );
       expect(res.statusCode).toBe(400);
@@ -676,14 +703,12 @@ describe('PR #644 regression coverage', () => {
     it('accepts a valid meal choice', async () => {
       const owner = await seedUser();
       const eventId = await seedEvent(owner);
-      await testDb.run(
-        `INSERT INTO event_meal_options (event_id, name) VALUES ($1, 'Veg')`,
-        [eventId],
-      );
+      await testDb.run(`INSERT INTO event_meal_options (event_id, name) VALUES ($1, 'Veg')`, [
+        eventId,
+      ]);
       const res = makeRes();
       await createRsvp(
-        makeReq({ eventId: String(eventId) },
-                { name: 'X', email: 'ok@y.z', meal_choice: 'Veg' }),
+        makeReq({ eventId: String(eventId) }, { name: 'X', email: 'ok@y.z', meal_choice: 'Veg' }),
         res as unknown as import('express').Response,
       );
       expect(res.statusCode).toBe(201);
@@ -697,8 +722,10 @@ describe('PR #644 regression coverage', () => {
       const eventId = await seedEvent(owner);
       const res = makeRes();
       await createRsvp(
-        makeReq({ eventId: String(eventId) },
-                { name: 'A', email: 'a@b.c', rsvp_deadline: '2030-01-01T00:00:00' }),
+        makeReq(
+          { eventId: String(eventId) },
+          { name: 'A', email: 'a@b.c', rsvp_deadline: '2030-01-01T00:00:00' },
+        ),
         res as unknown as import('express').Response,
       );
       expect(res.statusCode).toBe(400);
@@ -709,8 +736,10 @@ describe('PR #644 regression coverage', () => {
       const eventId = await seedEvent(owner);
       const res = makeRes();
       await createRsvp(
-        makeReq({ eventId: String(eventId) },
-                { name: 'A', email: 'b@c.d', rsvp_deadline: '2030-01-01T00:00:00Z' }),
+        makeReq(
+          { eventId: String(eventId) },
+          { name: 'A', email: 'b@c.d', rsvp_deadline: '2030-01-01T00:00:00Z' },
+        ),
         res as unknown as import('express').Response,
       );
       expect(res.statusCode).toBe(201);
@@ -721,8 +750,7 @@ describe('PR #644 regression coverage', () => {
       const eventId = await seedEvent(owner, {
         deadline: '2000-01-01T00:00:00Z',
       });
-      const req = makeReq({ eventId: String(eventId) },
-                          { name: 'Late', email: 'late@x.y' });
+      const req = makeReq({ eventId: String(eventId) }, { name: 'Late', email: 'late@x.y' });
       (req as unknown as { user?: unknown }).user = undefined;
       const res = makeRes();
       await createRsvp(req, res as unknown as import('express').Response);
@@ -736,9 +764,11 @@ describe('PR #644 regression coverage', () => {
       });
       const res = makeRes();
       await createRsvp(
-        makeReq({ eventId: String(eventId) },
-                { name: 'Phone', email: 'phone@x.y' },
-                { id: owner, email: 'o@t', role_id: 3 }),
+        makeReq(
+          { eventId: String(eventId) },
+          { name: 'Phone', email: 'phone@x.y' },
+          { id: owner, email: 'o@t', role_id: 3 },
+        ),
         res as unknown as import('express').Response,
       );
       expect(res.statusCode).toBe(201);
@@ -774,13 +804,18 @@ describe('PR #644 regression coverage', () => {
       );
       const r1 = await seedRsvp(eventId, { guests: 2 });
       const r2 = await seedRsvp(eventId, { guests: 2 });
-      await testDb.run(`UPDATE rsvps SET seating_group_id = $1 WHERE id IN ($2, $3)`,
-        [grp.lastID, r1, r2]);
+      await testDb.run(`UPDATE rsvps SET seating_group_id = $1 WHERE id IN ($2, $3)`, [
+        grp.lastID,
+        r1,
+        r2,
+      ]);
       const res = makeRes();
       await seatGroupAtTable(
-        makeReq({ eventId: String(eventId), id: String(grp.lastID) },
-                { tableId: tbl.lastID },
-                { id: owner, email: 'o@t', role_id: 2 }),
+        makeReq(
+          { eventId: String(eventId), id: String(grp.lastID) },
+          { tableId: tbl.lastID },
+          { id: owner, email: 'o@t', role_id: 2 },
+        ),
         res as unknown as import('express').Response,
       );
       expect(res.statusCode).toBe(409);
