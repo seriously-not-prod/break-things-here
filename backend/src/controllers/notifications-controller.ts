@@ -18,7 +18,7 @@
 
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
-import { isChannelEnabled } from '../services/notifications/dispatch-guard.js';
+import { isChannelEnabled, isSupportedCategory } from '../services/notifications/dispatch-guard.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -177,6 +177,8 @@ export async function createRsvpNotification(
 ): Promise<void> {
   try {
     // Consult preference matrix before dispatching (#786)
+    // Note: notification stored with type='rsvp' but preference category is 'rsvp_submitted'
+    // to align with the broader category naming convention in the preference matrix.
     if (!(await isChannelEnabled(userId, 'in_app', 'rsvp_submitted'))) return;
 
     const db   = getDatabase();
@@ -295,8 +297,11 @@ export async function createBatchedNotification(
     const db = getDatabase();
 
     // Check user preference via new channel×category matrix — skip if in-app disabled (#786)
-    const inAppEnabled = await isChannelEnabled(userId, 'in_app', notificationType as any);
-    if (!inAppEnabled) return false;
+    // Only consult the matrix for recognised categories; unknown types pass through.
+    if (isSupportedCategory(notificationType)) {
+      const inAppEnabled = await isChannelEnabled(userId, 'in_app', notificationType);
+      if (!inAppEnabled) return false;
+    }
 
     // Apply batch window / anti-spam
     const rule = await db.get<{ batch_window_mins: number; max_per_window: number }>(

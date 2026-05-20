@@ -63,7 +63,7 @@ export async function isChannelEnabled(
 export async function getPreferenceMatrix(
   userId: number,
 ): Promise<
-  Record<string, Record<NotificationChannel, boolean>>
+  Record<NotificationCategory, Record<NotificationChannel, boolean>>
 > {
   const db = getDatabase();
   const rows = await db.all<{
@@ -79,7 +79,7 @@ export async function getPreferenceMatrix(
   );
 
   // Build a complete matrix with defaults for any missing entries
-  const matrix: Record<string, Record<NotificationChannel, boolean>> = {};
+  const matrix = {} as Record<NotificationCategory, Record<NotificationChannel, boolean>>;
   for (const cat of SUPPORTED_CATEGORIES) {
     matrix[cat] = { email: true, in_app: true };
   }
@@ -96,6 +96,17 @@ export async function getPreferenceMatrix(
 /**
  * Bulk-update preference entries for a user. Creates missing rows.
  */
+/**
+ * Type guard — returns `true` when `value` is a recognised NotificationCategory.
+ */
+export function isSupportedCategory(value: string): value is NotificationCategory {
+  return (SUPPORTED_CATEGORIES as readonly string[]).includes(value);
+}
+
+/**
+ * Bulk-update preference entries for a user. Creates missing rows.
+ * Wrapped in a transaction so the update is all-or-nothing.
+ */
 export async function updatePreferences(
   userId: number,
   updates: Array<{
@@ -106,14 +117,22 @@ export async function updatePreferences(
 ): Promise<void> {
   const db = getDatabase();
 
-  for (const { channel, category, enabled } of updates) {
-    await db.run(
-      `INSERT INTO notification_preferences (user_id, channel, category, enabled, updated_at)
-       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-       ON CONFLICT (user_id, channel, category) DO UPDATE SET
-         enabled    = EXCLUDED.enabled,
-         updated_at = CURRENT_TIMESTAMP`,
-      [userId, channel, category, enabled],
-    );
+  const applyUpdates = async (runner: { run: typeof db.run }): Promise<void> => {
+    for (const { channel, category, enabled } of updates) {
+      await runner.run(
+        `INSERT INTO notification_preferences (user_id, channel, category, enabled, updated_at)
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+         ON CONFLICT (user_id, channel, category) DO UPDATE SET
+           enabled    = EXCLUDED.enabled,
+           updated_at = CURRENT_TIMESTAMP`,
+        [userId, channel, category, enabled],
+      );
+    }
+  };
+
+  if (db.transaction) {
+    await db.transaction(async (tx) => applyUpdates(tx));
+  } else {
+    await applyUpdates(db);
   }
 }

@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
   UNIQUE (user_id, channel, category)
 );
 
-CREATE INDEX idx_notif_pref_user ON notification_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_notif_pref_user ON notification_preferences(user_id);
 
 -- ── Step 3: Migrate data from legacy table ───────────────────────────────────
 -- Flatten the old boolean columns into individual channel rows.
