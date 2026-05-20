@@ -1,24 +1,28 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import App from './App';
 
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#0f6b8f'
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes — spec: API responses cached 5 min
+      gcTime: 10 * 60 * 1000,
+      retry: 2,
+      refetchOnWindowFocus: false,
     },
-    background: {
-      default: '#f5f9fc'
-    }
-  }
+    mutations: {
+      retry: 0,
+    },
+  },
 });
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <QueryClientProvider client={queryClient}>
       <App />
-    </ThemeProvider>
-  </React.StrictMode>
+    </QueryClientProvider>
+  </React.StrictMode>,
 );
+
+export { queryClient };
