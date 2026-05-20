@@ -7,9 +7,6 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./test/setup.ts'],
-    // Allow missing snapshots to be created in CI (CI=true overrides default to 'none').
-    // 'new' = create missing snapshots but still fail on mismatches.
-    snapshotOptions: { update: 'new' },
     include: ['test/**/*.test.ts?(x)', 'src/__tests__/**/*.test.ts?(x)'],
     exclude: [
       // Pre-existing broken tests — tracked separately for remediation.
