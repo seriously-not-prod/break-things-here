@@ -88,6 +88,13 @@ For emergency session revocation, use `scripts/revoke-all-sessions.sql` against 
 psql "$DATABASE_URL" -f scripts/revoke-all-sessions.sql
 ```
 
+## Incident Response & Disaster Recovery
+
+For the end-to-end DR procedure covering detection, escalation, RTO/RPO targets, database restore steps, communications templates, and post-incident review:
+
+- **[docs/operations/dr-runbook.md](docs/operations/dr-runbook.md)** — Disaster Recovery runbook
+- **[docs/operations/pitr.md](docs/operations/pitr.md)** — Point-in-Time Recovery configuration and restore drills (14-day WAL retention)
+
 ## Disclosure Policy
 
 We follow responsible disclosure practices. Please allow us time to address the vulnerability before publicly disclosing it.
