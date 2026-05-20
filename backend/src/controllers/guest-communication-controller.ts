@@ -51,9 +51,10 @@ export async function sendReminder(req: Request, res: Response): Promise<Respons
  *
  * Sends a post-event thank-you message to attendees. Unsubscribed guests are
  * automatically suppressed (same behaviour as invitation/reminder sends).
- * By default recipients are limited to `canonical_status = 'confirmed'` so
- * only confirmed attendees receive the thank-you; an explicit `rsvpIds`
- * array overrides this.
+ * By default recipients are limited to confirmed attendees — both
+ * `canonical_status = 'confirmed'` and `'checked_in'`, since a guest who has
+ * arrived is implicitly confirmed and should still receive the thank-you.
+ * An explicit `rsvpIds` array overrides this.
  */
 export async function sendThankYou(req: Request, res: Response): Promise<Response> {
   return bulkSend(req, res, 'thank_you');
@@ -160,10 +161,12 @@ async function bulkSend(
       [eventId, ...rsvpIds],
     );
   } else if (type === 'thank_you') {
-    // Thank-you sends default to confirmed attendees only (#444).
+    // Thank-you sends default to confirmed attendees only (#444). A guest
+    // whose canonical_status has moved to 'checked_in' on arrival is still a
+    // confirmed attendee — matches the legacy `status='Going'` semantics.
     recipients = await db.all<RsvpRow>(
       `SELECT id, name, email, canonical_status, unsubscribed_at FROM rsvps
-       WHERE event_id = ? AND canonical_status = 'confirmed'`,
+       WHERE event_id = ? AND canonical_status IN ('confirmed', 'checked_in')`,
       [eventId],
     );
   } else {
