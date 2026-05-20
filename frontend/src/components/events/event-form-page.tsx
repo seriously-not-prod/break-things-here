@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  CircularProgress,
   FormControlLabel,
   MenuItem,
   Paper,
@@ -10,10 +11,12 @@ import {
   Switch,
   TextField,
 } from '@mui/material';
+import MyLocationRounded from '@mui/icons-material/MyLocationRounded';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api-client';
 import EventLocationMap from './event-location-map';
 import { PageLayout } from '../layout/page-layout';
+import { geocodeAddress } from '../../services/events-service';
 
 interface CreatedEventResponse {
   id?: number;
@@ -43,6 +46,8 @@ export default function EventFormPage(): JSX.Element {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeStatus, setGeocodeStatus] = useState<string | null>(null);
 
   function handleField<K extends keyof typeof form>(key: K) {
     return (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -50,6 +55,35 @@ export default function EventFormPage(): JSX.Element {
         e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
       setForm((prev) => ({ ...prev, [key]: value }));
     };
+  }
+
+  /** #806 — Resolve coordinates for the typed address via the configured provider. */
+  async function handleGeocode(): Promise<void> {
+    const address = form.location.trim();
+    if (!address) {
+      setGeocodeStatus('Enter a location first.');
+      return;
+    }
+    setGeocoding(true);
+    setGeocodeStatus(null);
+    try {
+      const result = await geocodeAddress(address);
+      setForm((prev) => ({
+        ...prev,
+        latitude: String(result.latitude),
+        longitude: String(result.longitude),
+      }));
+      setGeocodeStatus(`Matched via ${result.provider}: ${result.display_name}`);
+    } catch (err) {
+      // Fallback: leave coords blank so the placeholder map renders.
+      setGeocodeStatus(
+        err instanceof ApiError && err.status === 422
+          ? 'No match for that address. You can still save the event; the map will show a placeholder.'
+          : 'Geocoding failed. You can still save the event; the map will show a placeholder.',
+      );
+    } finally {
+      setGeocoding(false);
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -147,7 +181,9 @@ export default function EventFormPage(): JSX.Element {
                 fullWidth
               >
                 {EVENT_TYPES.map((t) => (
-                  <MenuItem key={t} value={t}>{t}</MenuItem>
+                  <MenuItem key={t} value={t}>
+                    {t}
+                  </MenuItem>
                 ))}
               </TextField>
 
@@ -159,7 +195,9 @@ export default function EventFormPage(): JSX.Element {
                 fullWidth
               >
                 {STATUS_OPTIONS.map((s) => (
-                  <MenuItem key={s} value={s}>{s}</MenuItem>
+                  <MenuItem key={s} value={s}>
+                    {s}
+                  </MenuItem>
                 ))}
               </TextField>
             </Stack>
@@ -204,7 +242,7 @@ export default function EventFormPage(): JSX.Element {
               placeholder="e.g. City Park Amphitheater, Downtown"
             />
 
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start">
               <TextField
                 label="Latitude"
                 type="number"
@@ -223,7 +261,27 @@ export default function EventFormPage(): JSX.Element {
                 fullWidth
                 helperText="-180 to 180"
               />
+              <Button
+                variant="outlined"
+                onClick={() => void handleGeocode()}
+                disabled={geocoding || !form.location.trim()}
+                startIcon={
+                  geocoding ? <CircularProgress size={14} color="inherit" /> : <MyLocationRounded />
+                }
+                sx={{ mt: { xs: 0, sm: 1 }, minWidth: 160 }}
+                data-testid="event-geocode-button"
+              >
+                {geocoding ? 'Locating…' : 'Geocode address'}
+              </Button>
             </Stack>
+            {geocodeStatus && (
+              <Alert
+                severity={geocodeStatus.startsWith('Matched') ? 'success' : 'info'}
+                sx={{ py: 0.5 }}
+              >
+                {geocodeStatus}
+              </Alert>
+            )}
 
             <EventLocationMap
               latitude={form.latitude === '' ? null : Number(form.latitude)}

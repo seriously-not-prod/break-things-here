@@ -24,6 +24,7 @@ import {
 import AddRounded from '@mui/icons-material/AddRounded';
 import DeleteRounded from '@mui/icons-material/DeleteRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
+import HistoryRounded from '@mui/icons-material/HistoryRounded';
 import PictureAsPdfRounded from '@mui/icons-material/PictureAsPdfRounded';
 import { useParams } from 'react-router-dom';
 import { PageLayout } from '../layout/page-layout';
@@ -56,10 +57,15 @@ import {
 } from '../../services/budget-service';
 import { BudgetSummaryCards } from './budget-summary-cards';
 import { BudgetChart } from './budget-chart';
+import BudgetVsActualChart from './budget-vs-actual-chart';
+import BudgetBurndownChart from './budget-burndown-chart';
+import OverspendBanner from './overspend-banner';
+import VersionHistoryDrawer from '../collab/version-history-drawer';
 import { AddCategoryDialog } from './add-category-dialog';
 import { AddExpenseDialog } from './add-expense-dialog';
 import { BudgetForecastCard } from './budget-forecast-card';
 import { generateExpenseSummaryPdf } from '../../utils/expense-pdf-export';
+import { getOverspendThreshold } from '../../services/budget-service';
 
 const fmt = (n: number): string =>
   new Intl.NumberFormat('en-US', {
@@ -108,6 +114,9 @@ export default function BudgetPage(): JSX.Element {
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
   const [workflowSummary, setWorkflowSummary] = useState<ExpenseWorkflowSummary | null>(null);
+  const [overspendThreshold, setOverspendThresholdValue] = useState<number>(80);
+  // #807 — Version history drawer (scoped to event entity for budget surface).
+  const [versionDrawerOpen, setVersionDrawerOpen] = useState(false);
   const [ocrBusyExpenseId, setOcrBusyExpenseId] = useState<number | null>(null);
   const [uploadBusyExpenseId, setUploadBusyExpenseId] = useState<number | null>(null);
   const [receiptUploadExpenseId, setReceiptUploadExpenseId] = useState<number | null>(null);
@@ -124,15 +133,17 @@ export default function BudgetPage(): JSX.Element {
     setLoading(true);
     setError(null);
     try {
-      const [cats, exps, summaryData] = await Promise.all([
+      const [cats, exps, summaryData, threshold] = await Promise.all([
         listCategories(eventId),
         listExpenses(eventId),
         getExpenseWorkflowSummary(eventId),
+        getOverspendThreshold(eventId).catch(() => 80),
       ]);
       setCategories(cats);
       setExpenses(exps);
       setWorkflowSummary(summaryData);
       setSummary(computeSummary(cats));
+      setOverspendThresholdValue(threshold);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load budget data.');
     } finally {
@@ -153,7 +164,9 @@ export default function BudgetPage(): JSX.Element {
       setComparisonData(data);
     } catch (err) {
       setComparisonData(null);
-      setComparisonError(err instanceof ApiError ? err.message : 'Failed to load similar event comparisons.');
+      setComparisonError(
+        err instanceof ApiError ? err.message : 'Failed to load similar event comparisons.',
+      );
     } finally {
       setComparisonLoading(false);
     }
@@ -235,7 +248,10 @@ export default function BudgetPage(): JSX.Element {
     void loadComparison();
   }
 
-  async function handleApproveExpense(expense: Expense, decision: 'approved' | 'rejected'): Promise<void> {
+  async function handleApproveExpense(
+    expense: Expense,
+    decision: 'approved' | 'rejected',
+  ): Promise<void> {
     if (!eventId) return;
     try {
       const updated = await reviewExpenseApproval(eventId, expense.id, decision);
@@ -257,7 +273,10 @@ export default function BudgetPage(): JSX.Element {
     }
   }
 
-  async function handleResolveReimbursement(expense: Expense, decision: 'reimbursed' | 'rejected'): Promise<void> {
+  async function handleResolveReimbursement(
+    expense: Expense,
+    decision: 'reimbursed' | 'rejected',
+  ): Promise<void> {
     if (!eventId) return;
     try {
       const updated = await resolveExpenseReimbursement(eventId, expense.id, decision);
@@ -286,7 +305,11 @@ export default function BudgetPage(): JSX.Element {
     setOcrBusyExpenseId(expense.id);
     setError(null);
     try {
-      const extractedResponse = await extractExpenseReceiptOcr(eventId, expense.id, receiptText.trim());
+      const extractedResponse = await extractExpenseReceiptOcr(
+        eventId,
+        expense.id,
+        receiptText.trim(),
+      );
       const { extracted, ocr, can_apply } = extractedResponse;
       const extractedSummary = [
         `Title: ${extracted.title ?? 'N/A'}`,
@@ -297,11 +320,15 @@ export default function BudgetPage(): JSX.Element {
       ].join('\n');
 
       if (!can_apply) {
-        window.alert(`OCR extracted fields:\n\n${extractedSummary}\n\nYou do not have permission to apply these values.`);
+        window.alert(
+          `OCR extracted fields:\n\n${extractedSummary}\n\nYou do not have permission to apply these values.`,
+        );
         return;
       }
 
-      const shouldApply = window.confirm(`Apply OCR values to expense "${expense.title}"?\n\n${extractedSummary}`);
+      const shouldApply = window.confirm(
+        `Apply OCR values to expense "${expense.title}"?\n\n${extractedSummary}`,
+      );
       if (!shouldApply) return;
 
       const applied = await applyExpenseReceiptOcr(eventId, expense.id, ocr.id, {
@@ -323,7 +350,9 @@ export default function BudgetPage(): JSX.Element {
     }
   }
 
-  async function handleReceiptFileChange(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+  async function handleReceiptFileChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ): Promise<void> {
     if (!eventId || !receiptUploadExpenseId) return;
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -407,6 +436,15 @@ export default function BudgetPage(): JSX.Element {
       actions={
         <Stack direction="row" gap={1}>
           <Button
+            variant="text"
+            startIcon={<HistoryRounded />}
+            onClick={() => setVersionDrawerOpen(true)}
+            aria-label="Open version history"
+            data-testid="budget-version-history-open"
+          >
+            History
+          </Button>
+          <Button
             variant="outlined"
             startIcon={<PictureAsPdfRounded />}
             onClick={() => void handleExportPdf()}
@@ -435,7 +473,6 @@ export default function BudgetPage(): JSX.Element {
         </Stack>
       }
     >
-
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
@@ -446,6 +483,47 @@ export default function BudgetPage(): JSX.Element {
       <Box sx={{ mb: 3 }}>
         <BudgetSummaryCards summary={summary} />
       </Box>
+
+      {/* #802 — Overspend alert banner (clears automatically when no category is over threshold). */}
+      {eventId && (
+        <OverspendBanner
+          eventId={eventId}
+          categories={categories}
+          thresholdPercent={overspendThreshold}
+          onThresholdChange={(v) => setOverspendThresholdValue(v)}
+        />
+      )}
+
+      {/* #801 — Planned vs actual + burn-down charts. */}
+      {categories.length > 0 && (
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12} md={7}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
+                  Planned vs Actual
+                </Typography>
+                <BudgetVsActualChart categories={categories} currency="USD" loading={loading} />
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={5}>
+            <Card variant="outlined" sx={{ height: '100%' }}>
+              <CardContent>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
+                  Burn-down
+                </Typography>
+                <BudgetBurndownChart
+                  expenses={expenses}
+                  totalAllocated={summary.totalAllocated}
+                  currency="USD"
+                  loading={loading}
+                />
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
 
       <Card variant="outlined" sx={{ mb: 3 }}>
         <CardContent>
@@ -461,10 +539,16 @@ export default function BudgetPage(): JSX.Element {
                 Similar Event Budget Comparison
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Benchmark this event against similar accessible events using type, location, scale, tags, and timing.
+                Benchmark this event against similar accessible events using type, location, scale,
+                tags, and timing.
               </Typography>
             </Box>
-            <Button variant="outlined" size="small" onClick={() => void loadComparison()} disabled={comparisonLoading}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => void loadComparison()}
+              disabled={comparisonLoading}
+            >
               Refresh Comparison
             </Button>
           </Stack>
@@ -485,9 +569,21 @@ export default function BudgetPage(): JSX.Element {
             <Stack spacing={2}>
               <Stack direction="row" flexWrap="wrap" gap={1}>
                 <Chip label={`Current planned ${fmt(summary.totalPlanned)}`} size="small" />
-                <Chip label={`Peer avg planned ${fmt(comparisonData.overview.averagePlanned)}`} size="small" variant="outlined" />
-                <Chip label={`Peer avg spent ${fmt(comparisonData.overview.averageSpent)}`} size="small" variant="outlined" />
-                <Chip label={`Peer avg planned used ${comparisonData.overview.averagePlannedPercentUsed}%`} size="small" variant="outlined" />
+                <Chip
+                  label={`Peer avg planned ${fmt(comparisonData.overview.averagePlanned)}`}
+                  size="small"
+                  variant="outlined"
+                />
+                <Chip
+                  label={`Peer avg spent ${fmt(comparisonData.overview.averageSpent)}`}
+                  size="small"
+                  variant="outlined"
+                />
+                <Chip
+                  label={`Peer avg planned used ${comparisonData.overview.averagePlannedPercentUsed}%`}
+                  size="small"
+                  variant="outlined"
+                />
               </Stack>
 
               <TableContainer component={Paper} variant="outlined">
@@ -514,14 +610,20 @@ export default function BudgetPage(): JSX.Element {
                             {new Date(item.date).toLocaleDateString()} | {item.location}
                           </Typography>
                           <Typography variant="caption" color="text.secondary" display="block">
-                            {item.eventType ?? 'Other'}{item.capacity ? ` | Capacity ${item.capacity}` : ''}
+                            {item.eventType ?? 'Other'}
+                            {item.capacity ? ` | Capacity ${item.capacity}` : ''}
                           </Typography>
                         </TableCell>
                         <TableCell>
                           <Stack direction="row" flexWrap="wrap" gap={0.5}>
                             <Chip label={`Score ${item.matchScore}`} size="small" color="primary" />
                             {item.matchReasons.map((reason) => (
-                              <Chip key={`${item.id}-${reason}`} label={reason} size="small" variant="outlined" />
+                              <Chip
+                                key={`${item.id}-${reason}`}
+                                label={reason}
+                                size="small"
+                                variant="outlined"
+                              />
                             ))}
                           </Stack>
                         </TableCell>
@@ -545,10 +647,7 @@ export default function BudgetPage(): JSX.Element {
       </Card>
 
       {categories.length === 0 ? (
-        <Paper
-          variant="outlined"
-          sx={{ p: 6, textAlign: 'center', borderStyle: 'dashed' }}
-        >
+        <Paper variant="outlined" sx={{ p: 6, textAlign: 'center', borderStyle: 'dashed' }}>
           <Typography variant="h6" color="text.secondary" gutterBottom>
             No budget categories yet
           </Typography>
@@ -592,13 +691,15 @@ export default function BudgetPage(): JSX.Element {
                             <Typography variant="body2" fontWeight={600}>
                               {cat.name}
                             </Typography>
-                            {overBudget && (
-                              <Chip label="Over budget" color="error" size="small" />
-                            )}
+                            {overBudget && <Chip label="Over budget" color="error" size="small" />}
                           </Stack>
                           <Stack direction="row" alignItems="center" gap={1}>
                             <Tooltip title="Edit category">
-                              <IconButton size="small" onClick={() => openEditCategory(cat)} aria-label={`Edit ${cat.name}`}>
+                              <IconButton
+                                size="small"
+                                onClick={() => openEditCategory(cat)}
+                                aria-label={`Edit ${cat.name}`}
+                              >
                                 <EditRounded fontSize="small" />
                               </IconButton>
                             </Tooltip>
@@ -624,12 +725,16 @@ export default function BudgetPage(): JSX.Element {
                               borderRadius: 4,
                               bgcolor: 'action.hover',
                               '& .MuiLinearProgress-bar': {
-                                bgcolor: overBudget ? 'error.main' : cat.color ?? 'primary.main',
+                                bgcolor: overBudget ? 'error.main' : (cat.color ?? 'primary.main'),
                               },
                             }}
                             aria-label={`${cat.name} budget usage`}
                           />
-                          <Typography variant="caption" color="text.secondary" sx={{ minWidth: 40, textAlign: 'right' }}>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ minWidth: 40, textAlign: 'right' }}
+                          >
                             {pct}%
                           </Typography>
                         </Stack>
@@ -637,10 +742,12 @@ export default function BudgetPage(): JSX.Element {
                           {fmt(cat.spent)} of {fmt(cat.allocated_amount)}
                         </Typography>
                         <Typography variant="caption" color="text.secondary" display="block">
-                          Planned: {fmt(cat.plannedTotal)} (Tax {fmt(cat.taxAmount)}, Gratuity {fmt(cat.gratuityAmount)}, Contingency {fmt(cat.contingencyAmount)})
+                          Planned: {fmt(cat.plannedTotal)} (Tax {fmt(cat.taxAmount)}, Gratuity{' '}
+                          {fmt(cat.gratuityAmount)}, Contingency {fmt(cat.contingencyAmount)})
                         </Typography>
                         <Typography variant="caption" color="text.secondary" display="block">
-                          Rates: Tax {cat.tax_rate}% | Gratuity {cat.gratuity_rate}% | Contingency {cat.contingency_rate}%
+                          Rates: Tax {cat.tax_rate}% | Gratuity {cat.gratuity_rate}% | Contingency{' '}
+                          {cat.contingency_rate}%
                         </Typography>
                       </Box>
                     );
@@ -673,7 +780,12 @@ export default function BudgetPage(): JSX.Element {
           <Grid item xs={12}>
             <Card variant="outlined">
               <CardContent>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  sx={{ mb: 2 }}
+                >
                   <Typography variant="subtitle1" fontWeight={700}>
                     Expenses ({expenses.length})
                   </Typography>
@@ -687,152 +799,180 @@ export default function BudgetPage(): JSX.Element {
                   </Button>
                 </Stack>
                 {expenses.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ py: 2, textAlign: 'center' }}
+                  >
                     No expenses recorded yet.
                   </Typography>
                 ) : (
                   <Stack spacing={1.5}>
                     {workflowSummary && (
                       <Stack direction="row" flexWrap="wrap" gap={1}>
-                        <Chip label={`Approval pending ${workflowSummary.approval.pending}`} size="small" color="warning" />
-                        <Chip label={`Reimbursement requested ${workflowSummary.reimbursement.requested}`} size="small" color="warning" variant="outlined" />
-                        <Chip label={`Reimbursed ${workflowSummary.reimbursement.reimbursed}`} size="small" color="success" variant="outlined" />
-                        <Chip label={`Requested total ${fmt(workflowSummary.reimbursementRequestedAmount)}`} size="small" variant="outlined" />
+                        <Chip
+                          label={`Approval pending ${workflowSummary.approval.pending}`}
+                          size="small"
+                          color="warning"
+                        />
+                        <Chip
+                          label={`Reimbursement requested ${workflowSummary.reimbursement.requested}`}
+                          size="small"
+                          color="warning"
+                          variant="outlined"
+                        />
+                        <Chip
+                          label={`Reimbursed ${workflowSummary.reimbursement.reimbursed}`}
+                          size="small"
+                          color="success"
+                          variant="outlined"
+                        />
+                        <Chip
+                          label={`Requested total ${fmt(workflowSummary.reimbursementRequestedAmount)}`}
+                          size="small"
+                          variant="outlined"
+                        />
                       </Stack>
                     )}
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small" aria-label="Expenses table">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Title</TableCell>
-                          <TableCell>Category</TableCell>
-                          <TableCell align="right">Amount</TableCell>
-                          <TableCell>Status</TableCell>
-                          <TableCell>Approval</TableCell>
-                          <TableCell>Reimbursement</TableCell>
-                          <TableCell>Vendor</TableCell>
-                          <TableCell>Date</TableCell>
-                          <TableCell align="right">Actions</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {expenses.map((exp) => (
-                          <TableRow key={exp.id} hover>
-                            <TableCell>{exp.title}</TableCell>
-                            <TableCell>{exp.category_name ?? '—'}</TableCell>
-                            <TableCell align="right">{fmt(exp.amount)}</TableCell>
-                            <TableCell>
-                              <Chip
-                                label={exp.payment_status}
-                                color={PAYMENT_COLORS[exp.payment_status] ?? 'default'}
-                                size="small"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                label={exp.approval_status}
-                                color={APPROVAL_COLORS[exp.approval_status] ?? 'default'}
-                                size="small"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                label={exp.reimbursement_status}
-                                color={REIMBURSEMENT_COLORS[exp.reimbursement_status] ?? 'default'}
-                                size="small"
-                              />
-                            </TableCell>
-                            <TableCell>{exp.vendor_name ?? '—'}</TableCell>
-                            <TableCell>
-                              {exp.created_at
-                                ? new Date(exp.created_at).toLocaleDateString()
-                                : '—'}
-                            </TableCell>
-                            <TableCell align="right">
-                              <Tooltip title="Edit expense">
-                                <IconButton
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small" aria-label="Expenses table">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Title</TableCell>
+                            <TableCell>Category</TableCell>
+                            <TableCell align="right">Amount</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Approval</TableCell>
+                            <TableCell>Reimbursement</TableCell>
+                            <TableCell>Vendor</TableCell>
+                            <TableCell>Date</TableCell>
+                            <TableCell align="right">Actions</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {expenses.map((exp) => (
+                            <TableRow key={exp.id} hover>
+                              <TableCell>{exp.title}</TableCell>
+                              <TableCell>{exp.category_name ?? '—'}</TableCell>
+                              <TableCell align="right">{fmt(exp.amount)}</TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={exp.payment_status}
+                                  color={PAYMENT_COLORS[exp.payment_status] ?? 'default'}
                                   size="small"
-                                  onClick={() => openEditExpense(exp)}
-                                  aria-label={`Edit expense ${exp.title}`}
-                                >
-                                  <EditRounded fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              {exp.can_approve && (
-                                <>
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={exp.approval_status}
+                                  color={APPROVAL_COLORS[exp.approval_status] ?? 'default'}
+                                  size="small"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={exp.reimbursement_status}
+                                  color={
+                                    REIMBURSEMENT_COLORS[exp.reimbursement_status] ?? 'default'
+                                  }
+                                  size="small"
+                                />
+                              </TableCell>
+                              <TableCell>{exp.vendor_name ?? '—'}</TableCell>
+                              <TableCell>
+                                {exp.created_at
+                                  ? new Date(exp.created_at).toLocaleDateString()
+                                  : '—'}
+                              </TableCell>
+                              <TableCell align="right">
+                                <Tooltip title="Edit expense">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => openEditExpense(exp)}
+                                    aria-label={`Edit expense ${exp.title}`}
+                                  >
+                                    <EditRounded fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                {exp.can_approve && (
+                                  <>
+                                    <Button
+                                      size="small"
+                                      color="success"
+                                      onClick={() => void handleApproveExpense(exp, 'approved')}
+                                    >
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      size="small"
+                                      color="error"
+                                      onClick={() => void handleApproveExpense(exp, 'rejected')}
+                                    >
+                                      Reject
+                                    </Button>
+                                  </>
+                                )}
+                                {exp.can_request_reimbursement && (
                                   <Button
                                     size="small"
-                                    color="success"
-                                    onClick={() => void handleApproveExpense(exp, 'approved')}
+                                    color="warning"
+                                    onClick={() => void handleRequestReimbursement(exp)}
                                   >
-                                    Approve
+                                    Request Reimbursement
                                   </Button>
-                                  <Button
-                                    size="small"
-                                    color="error"
-                                    onClick={() => void handleApproveExpense(exp, 'rejected')}
-                                  >
-                                    Reject
-                                  </Button>
-                                </>
-                              )}
-                              {exp.can_request_reimbursement && (
+                                )}
+                                {exp.can_resolve_reimbursement && (
+                                  <>
+                                    <Button
+                                      size="small"
+                                      color="success"
+                                      onClick={() =>
+                                        void handleResolveReimbursement(exp, 'reimbursed')
+                                      }
+                                    >
+                                      Mark Reimbursed
+                                    </Button>
+                                    <Button
+                                      size="small"
+                                      color="error"
+                                      onClick={() =>
+                                        void handleResolveReimbursement(exp, 'rejected')
+                                      }
+                                    >
+                                      Reject Request
+                                    </Button>
+                                  </>
+                                )}
                                 <Button
                                   size="small"
-                                  color="warning"
-                                  onClick={() => void handleRequestReimbursement(exp)}
+                                  onClick={() => handleUploadReceiptClick(exp.id)}
+                                  disabled={uploadBusyExpenseId === exp.id}
                                 >
-                                  Request Reimbursement
+                                  {uploadBusyExpenseId === exp.id ? 'Uploading…' : 'Upload Receipt'}
                                 </Button>
-                              )}
-                              {exp.can_resolve_reimbursement && (
-                                <>
-                                  <Button
-                                    size="small"
-                                    color="success"
-                                    onClick={() => void handleResolveReimbursement(exp, 'reimbursed')}
-                                  >
-                                    Mark Reimbursed
-                                  </Button>
-                                  <Button
+                                <Button
+                                  size="small"
+                                  onClick={() => void handleExtractAndApplyOcr(exp)}
+                                  disabled={ocrBusyExpenseId === exp.id}
+                                >
+                                  {ocrBusyExpenseId === exp.id ? 'OCR…' : 'OCR Extract'}
+                                </Button>
+                                <Tooltip title="Delete expense">
+                                  <IconButton
                                     size="small"
                                     color="error"
-                                    onClick={() => void handleResolveReimbursement(exp, 'rejected')}
+                                    onClick={() => void handleDeleteExpense(exp)}
+                                    aria-label={`Delete expense ${exp.title}`}
                                   >
-                                    Reject Request
-                                  </Button>
-                                </>
-                              )}
-                              <Button
-                                size="small"
-                                onClick={() => handleUploadReceiptClick(exp.id)}
-                                disabled={uploadBusyExpenseId === exp.id}
-                              >
-                                {uploadBusyExpenseId === exp.id ? 'Uploading…' : 'Upload Receipt'}
-                              </Button>
-                              <Button
-                                size="small"
-                                onClick={() => void handleExtractAndApplyOcr(exp)}
-                                disabled={ocrBusyExpenseId === exp.id}
-                              >
-                                {ocrBusyExpenseId === exp.id ? 'OCR…' : 'OCR Extract'}
-                              </Button>
-                              <Tooltip title="Delete expense">
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={() => void handleDeleteExpense(exp)}
-                                  aria-label={`Delete expense ${exp.title}`}
-                                >
-                                  <DeleteRounded fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+                                    <DeleteRounded fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
                   </Stack>
                 )}
               </CardContent>
@@ -869,6 +1009,19 @@ export default function BudgetPage(): JSX.Element {
         categories={categories}
         initialValues={editingExpense}
       />
+
+      {/* #807 — Version history drawer scoped to the event entity. */}
+      {eventId && (
+        <VersionHistoryDrawer
+          open={versionDrawerOpen}
+          eventId={eventId}
+          entityType="event"
+          entityId={Number(eventId)}
+          title="Budget"
+          onClose={() => setVersionDrawerOpen(false)}
+          onRolledBack={() => void load()}
+        />
+      )}
     </PageLayout>
   );
 }

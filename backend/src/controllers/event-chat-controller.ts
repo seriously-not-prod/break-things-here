@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
+import { publishRealtimeEvent } from '../utils/realtime-bus.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -54,7 +55,8 @@ export async function postChatMessage(req: Request, res: Response): Promise<Resp
   const { body, reply_to_id } = req.body as { body?: string; reply_to_id?: number };
 
   if (!body?.trim()) return res.status(400).json({ error: 'Message body is required.' });
-  if (body.trim().length > 4000) return res.status(400).json({ error: 'Message too long (max 4000 chars).' });
+  if (body.trim().length > 4000)
+    return res.status(400).json({ error: 'Message too long (max 4000 chars).' });
 
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
@@ -83,6 +85,18 @@ export async function postChatMessage(req: Request, res: Response): Promise<Resp
     [result.lastID],
   );
 
+  // #808 — Broadcast over SSE so connected event-detail tabs render the new
+  // message without polling.
+  publishRealtimeEvent({
+    type: 'chat.message',
+    occurredAt: new Date().toISOString(),
+    eventId: Number(eventId),
+    entityType: 'event_chat_message',
+    entityId: result.lastID as number | null,
+    actorId: authReq.user!.id,
+    payload: { message },
+  });
+
   return res.status(201).json({ message });
 }
 
@@ -93,7 +107,8 @@ export async function editChatMessage(req: Request, res: Response): Promise<Resp
   const { body } = req.body as { body?: string };
 
   if (!body?.trim()) return res.status(400).json({ error: 'Message body is required.' });
-  if (body.trim().length > 4000) return res.status(400).json({ error: 'Message too long (max 4000 chars).' });
+  if (body.trim().length > 4000)
+    return res.status(400).json({ error: 'Message too long (max 4000 chars).' });
 
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
@@ -139,9 +154,6 @@ export async function deleteChatMessage(req: Request, res: Response): Promise<Re
     return res.status(403).json({ error: 'You can only delete your own messages.' });
   }
 
-  await db.run(
-    'UPDATE event_chat_messages SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1',
-    [id],
-  );
+  await db.run('UPDATE event_chat_messages SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
   return res.json({ message: 'Message deleted.' });
 }

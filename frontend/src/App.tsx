@@ -29,6 +29,9 @@ import { SeatingPage } from './components/seating/seating-page';
 import GuestsPage from './components/guests/guests-page';
 import BudgetPage from './components/budget/budget-page';
 import TasksKanbanPage from './components/tasks/tasks-kanban-page';
+import TaskGanttPage from './components/tasks/task-gantt-page';
+import TaskWorkloadPage from './components/tasks/task-workload-page';
+import ShoppingMobilePage from './components/shopping/shopping-mobile-page';
 import { GalleryPage } from './components/gallery/gallery-page';
 import { EventRouteGuard } from './components/layout/event-route-guard';
 import { MessagesInbox } from './components/messages/messages-inbox';
@@ -130,7 +133,13 @@ function AuthShell(): JSX.Element {
             EF
           </Box>
           <Box>
-            <Typography component="h1" variant="h6" fontWeight={800} color="text.primary" sx={{ lineHeight: 1.1 }}>
+            <Typography
+              component="h1"
+              variant="h6"
+              fontWeight={800}
+              color="text.primary"
+              sx={{ lineHeight: 1.1 }}
+            >
               eQuip Fest
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1 }}>
@@ -164,9 +173,7 @@ function AuthShell(): JSX.Element {
         {view === 'forgot-password' && (
           <ForgotPasswordForm onBackToLogin={() => setView('login')} />
         )}
-        {view === 'reset-password' && (
-          <ResetPasswordForm onBackToLogin={() => setView('login')} />
-        )}
+        {view === 'reset-password' && <ResetPasswordForm onBackToLogin={() => setView('login')} />}
       </Paper>
     </Box>
   );
@@ -274,7 +281,9 @@ function AppShell(): JSX.Element {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <Box
+        sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}
+      >
         <CircularProgress />
       </Box>
     );
@@ -366,52 +375,167 @@ function AppShell(): JSX.Element {
         }}
       >
         <ErrorBoundary>
-        <Routes>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/events" element={<EventsPage />} />
-          <Route
-            path="/events/new"
-            element={
-              <RoleGuard
-                canAccess={(u) => canEditEvent(u?.roleName)}
-                title="Insufficient permissions"
-                message="Only organizer, collaborator, or admin roles can create events."
-              >
-                <EventFormPage />
-              </RoleGuard>
-            }
-          />
-          <Route path="/events/calendar" element={<CalendarPage />} />
-          <Route path="/events/my" element={<EventsPage ownerOnly />} />
-          <Route path="/events/:id" element={<EventRouteGuard><EventDetailPage /></EventRouteGuard>} />
-          <Route path="/events/:id/analytics" element={<EventRouteGuard><AnalyticsPage /></EventRouteGuard>} />
-          <Route path="/events/:id/vendors" element={<EventRouteGuard><VendorsPage /></EventRouteGuard>} />
-          <Route path="/events/:id/shopping" element={<EventRouteGuard><ShoppingPage /></EventRouteGuard>} />
-          <Route path="/events/:id/timeline" element={<EventRouteGuard><TimelinePage /></EventRouteGuard>} />
-          <Route path="/events/:id/checkin" element={<EventRouteGuard><CheckInPage /></EventRouteGuard>} />
-          <Route path="/events/:id/checkin/scan" element={<EventRouteGuard><QrScannerPage /></EventRouteGuard>} />
-          <Route path="/events/:id/attendance" element={<EventRouteGuard><AttendanceBoardPage /></EventRouteGuard>} />
-          <Route path="/events/:id/seating" element={<EventRouteGuard><SeatingPage /></EventRouteGuard>} />
-          <Route path="/events/:id/guests" element={<EventRouteGuard><GuestsPage /></EventRouteGuard>} />
-          <Route path="/events/:id/budget" element={<EventRouteGuard><BudgetPage /></EventRouteGuard>} />
-          <Route path="/events/:id/tasks" element={<EventRouteGuard><TasksKanbanPage /></EventRouteGuard>} />
-          <Route path="/events/:id/gallery" element={<EventRouteGuard><GalleryPage /></EventRouteGuard>} />
-          <Route path="/messages" element={<MessagesInbox />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route
-            path="/admin"
-            element={
-              <RoleGuard
-                canAccess={(u) => isAdmin(u?.roleName)}
-                title="Administrator access required"
-                message="Only admin users can access the user management console."
-              >
-                <AdminPage />
-              </RoleGuard>
-            }
-          />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+          <Routes>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/events" element={<EventsPage />} />
+            <Route
+              path="/events/new"
+              element={
+                <RoleGuard
+                  canAccess={(u) => canEditEvent(u?.roleName)}
+                  title="Insufficient permissions"
+                  message="Only organizer, collaborator, or admin roles can create events."
+                >
+                  <EventFormPage />
+                </RoleGuard>
+              }
+            />
+            <Route path="/events/calendar" element={<CalendarPage />} />
+            <Route path="/events/my" element={<EventsPage ownerOnly />} />
+            <Route
+              path="/events/:id"
+              element={
+                <EventRouteGuard>
+                  <EventDetailPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/analytics"
+              element={
+                <EventRouteGuard>
+                  <AnalyticsPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/vendors"
+              element={
+                <EventRouteGuard>
+                  <VendorsPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/shopping"
+              element={
+                <EventRouteGuard>
+                  <ShoppingPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/shopping/mobile"
+              element={
+                <EventRouteGuard>
+                  <ShoppingMobilePage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/timeline"
+              element={
+                <EventRouteGuard>
+                  <TimelinePage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/checkin"
+              element={
+                <EventRouteGuard>
+                  <CheckInPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/checkin/scan"
+              element={
+                <EventRouteGuard>
+                  <QrScannerPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/attendance"
+              element={
+                <EventRouteGuard>
+                  <AttendanceBoardPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/seating"
+              element={
+                <EventRouteGuard>
+                  <SeatingPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/guests"
+              element={
+                <EventRouteGuard>
+                  <GuestsPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/budget"
+              element={
+                <EventRouteGuard>
+                  <BudgetPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/tasks"
+              element={
+                <EventRouteGuard>
+                  <TasksKanbanPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/tasks/gantt"
+              element={
+                <EventRouteGuard>
+                  <TaskGanttPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/tasks/workload"
+              element={
+                <EventRouteGuard>
+                  <TaskWorkloadPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route
+              path="/events/:id/gallery"
+              element={
+                <EventRouteGuard>
+                  <GalleryPage />
+                </EventRouteGuard>
+              }
+            />
+            <Route path="/messages" element={<MessagesInbox />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route
+              path="/admin"
+              element={
+                <RoleGuard
+                  canAccess={(u) => isAdmin(u?.roleName)}
+                  title="Administrator access required"
+                  message="Only admin users can access the user management console."
+                >
+                  <AdminPage />
+                </RoleGuard>
+              }
+            />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
         </ErrorBoundary>
       </Box>
       <AiAssistant />
@@ -420,11 +544,7 @@ function AppShell(): JSX.Element {
         onOpenHelp={handleOpenHelp}
         onCloseHelp={handleCloseHelp}
       />
-      <KeyboardShortcutsOverlay
-        open={helpOpen}
-        onClose={handleCloseHelp}
-        shortcuts={shortcuts}
-      />
+      <KeyboardShortcutsOverlay open={helpOpen} onClose={handleCloseHelp} shortcuts={shortcuts} />
       {/* Global Ctrl+K command palette — accessible from any page (NFR §5.3) */}
       <GlobalCommandPalette />
     </Box>
@@ -436,7 +556,9 @@ function RootRouter(): JSX.Element {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <Box
+        sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}
+      >
         <CircularProgress />
       </Box>
     );
@@ -445,7 +567,10 @@ function RootRouter(): JSX.Element {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <AuthShell />} />
-      <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <AuthShell />} />
+      <Route
+        path="/register"
+        element={user ? <Navigate to="/dashboard" replace /> : <AuthShell />}
+      />
       <Route path="/forgot-password" element={<AuthShell />} />
       <Route path="/reset-password" element={<AuthShell />} />
       <Route path="/rsvp/:eventId" element={<PublicRsvpPage />} />
@@ -469,4 +594,3 @@ function App(): JSX.Element {
 }
 
 export default App;
-

@@ -1,5 +1,6 @@
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import HistoryRounded from '@mui/icons-material/HistoryRounded';
 import {
   Avatar,
   Box,
@@ -51,6 +52,8 @@ interface TaskDetailDrawerProps {
   onClose: () => void;
   onTaskUpdated: (task: Task) => void;
   onTaskDeleted: (taskId: number) => void;
+  /** #807 — Lets the parent open the version-history rollback drawer. */
+  onOpenHistory?: (task: Task) => void;
 }
 
 export function TaskDetailDrawer({
@@ -60,6 +63,7 @@ export function TaskDetailDrawer({
   onClose,
   onTaskUpdated,
   onTaskDeleted,
+  onOpenHistory,
 }: TaskDetailDrawerProps): JSX.Element {
   const [editing, setEditing] = useState<Partial<Task>>({});
   const [dirty, setDirty] = useState(false);
@@ -183,13 +187,33 @@ export function TaskDetailDrawer({
             <Chip
               label={task.status}
               size="small"
-              color={task.status === 'Complete' ? 'success' : task.status === 'Blocked' ? 'error' : 'default'}
+              color={
+                task.status === 'Complete'
+                  ? 'success'
+                  : task.status === 'Blocked'
+                    ? 'error'
+                    : 'default'
+              }
             />
-            <Tooltip title="Delete task">
-              <IconButton size="small" color="error" onClick={() => void handleDelete()}>
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
+              {onOpenHistory && (
+                <Tooltip title="Version history">
+                  <IconButton
+                    size="small"
+                    onClick={() => task && onOpenHistory(task)}
+                    aria-label="Open version history"
+                    data-testid="task-version-history-open"
+                  >
+                    <HistoryRounded fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Tooltip title="Delete task">
+                <IconButton size="small" color="error" onClick={() => void handleDelete()}>
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
           </Box>
 
           {/* Title */}
@@ -233,11 +257,18 @@ export function TaskDetailDrawer({
               <Select
                 label="Priority"
                 value={editing.priority ?? task.priority}
-                onChange={(e: SelectChangeEvent) => patch('priority', e.target.value as TaskPriority)}
+                onChange={(e: SelectChangeEvent) =>
+                  patch('priority', e.target.value as TaskPriority)
+                }
               >
                 {PRIORITIES.map((p) => (
                   <MenuItem key={p} value={p}>
-                    <Chip label={p} size="small" color={PRIORITY_COLORS[p as TaskPriority]} sx={{ mr: 1 }} />
+                    <Chip
+                      label={p}
+                      size="small"
+                      color={PRIORITY_COLORS[p as TaskPriority]}
+                      sx={{ mr: 1 }}
+                    />
                     {p}
                   </MenuItem>
                 ))}
@@ -264,7 +295,12 @@ export function TaskDetailDrawer({
               inputProps={{ min: 0, step: 0.5 }}
               value={editing.estimated_hours ?? ''}
               onChange={(e) =>
-                patch('estimated_hours', e.target.value ? (Number(e.target.value) as unknown as Task['estimated_hours']) : null)
+                patch(
+                  'estimated_hours',
+                  e.target.value
+                    ? (Number(e.target.value) as unknown as Task['estimated_hours'])
+                    : null,
+                )
               }
             />
           </Box>
@@ -281,7 +317,9 @@ export function TaskDetailDrawer({
               size="small"
               fullWidth
               value={editing.assignee_name ?? ''}
-              onChange={(e) => patch('assignee_name', e.target.value as unknown as Task['assignee_name'])}
+              onChange={(e) =>
+                patch('assignee_name', e.target.value as unknown as Task['assignee_name'])
+              }
             />
           </Box>
 
@@ -341,7 +379,11 @@ export function TaskDetailDrawer({
                 >
                   {s.title}
                 </Typography>
-                <IconButton size="small" onClick={() => void handleDeleteSubtask(s.id)} aria-label="Delete subtask">
+                <IconButton
+                  size="small"
+                  onClick={() => void handleDeleteSubtask(s.id)}
+                  aria-label="Delete subtask"
+                >
                   <DeleteIcon fontSize="small" />
                 </IconButton>
               </Box>
@@ -382,7 +424,9 @@ export function TaskDetailDrawer({
               comments.map((c) => (
                 <Box key={c.id} sx={{ mb: 1.5 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    <Avatar sx={{ width: 22, height: 22, fontSize: '0.6rem', bgcolor: 'secondary.main' }}>
+                    <Avatar
+                      sx={{ width: 22, height: 22, fontSize: '0.6rem', bgcolor: 'secondary.main' }}
+                    >
                       {c.author_name?.[0]?.toUpperCase() ?? '?'}
                     </Avatar>
                     <Typography variant="caption" fontWeight={600}>
