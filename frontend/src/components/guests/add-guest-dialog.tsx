@@ -19,11 +19,11 @@ import {
   Typography,
 } from '@mui/material';
 import type {
+  CanonicalRsvpStatus,
   DietaryRestriction,
   GuestEmailLookupResult,
   GuestGroup,
   RsvpGuestInput,
-  RsvpStatus,
 } from '../../services/guest-service';
 import { lookupRsvpsByEmail } from '../../services/guest-service';
 
@@ -48,7 +48,13 @@ const DIETARY_OPTIONS: DietaryRestriction[] = [
 
 const GROUP_OPTIONS: GuestGroup[] = ['Family', 'Friends', 'Colleagues', 'VIPs', 'Custom'];
 
-const STATUS_OPTIONS: RsvpStatus[] = ['Pending', 'Going', 'Maybe', 'Not Going', 'Declined'];
+const STATUS_OPTIONS: CanonicalRsvpStatus[] = [
+  'pending',
+  'confirmed',
+  'maybe',
+  'declined',
+  'cancelled',
+];
 
 function hasLikelyEmail(value: string): boolean {
   const trimmed = value.trim();
@@ -70,7 +76,7 @@ export function AddGuestDialog({
   const [plusOne, setPlusOne] = useState(false);
   const [plusOneName, setPlusOneName] = useState('');
   const [guestGroup, setGuestGroup] = useState<GuestGroup | ''>('');
-  const [status, setStatus] = useState<RsvpStatus>('Pending');
+  const [status, setStatus] = useState<CanonicalRsvpStatus>('pending');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +114,9 @@ export function AddGuestDialog({
         })
         .catch((err) => {
           if (latestLookupRequest.current !== requestId) return;
-          setLookupError(err instanceof Error ? err.message : 'Unable to check for duplicates right now.');
+          setLookupError(
+            err instanceof Error ? err.message : 'Unable to check for duplicates right now.',
+          );
           setLookupResult(null);
         })
         .finally(() => {
@@ -131,7 +139,7 @@ export function AddGuestDialog({
     setPlusOne(false);
     setPlusOneName('');
     setGuestGroup('');
-    setStatus('Pending');
+    setStatus('pending');
     setNotes('');
     setError(null);
     setLookupLoading(false);
@@ -146,8 +154,14 @@ export function AddGuestDialog({
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
-    if (!name.trim()) { setError('Name is required.'); return; }
-    if (!email.trim()) { setError('Email is required.'); return; }
+    if (!name.trim()) {
+      setError('Name is required.');
+      return;
+    }
+    if (!email.trim()) {
+      setError('Email is required.');
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -156,7 +170,6 @@ export function AddGuestDialog({
         name: name.trim(),
         email: email.trim().toLowerCase(),
         ...(phone.trim() && { phone: phone.trim() }),
-        status,
         dietary_restriction: dietary,
         ...(accessibilityNeeds.trim() && { accessibility_needs: accessibilityNeeds.trim() }),
         plus_one: plusOne,
@@ -180,7 +193,8 @@ export function AddGuestDialog({
   const suggestedPrimary =
     mergeSuggestion === null
       ? null
-      : duplicateMatches.find((match) => match.id === mergeSuggestion.recommendedPrimaryId) ?? null;
+      : (duplicateMatches.find((match) => match.id === mergeSuggestion.recommendedPrimaryId) ??
+        null);
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -213,11 +227,14 @@ export function AddGuestDialog({
                 }
               >
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Duplicate email detected for {duplicateMatches.length} guest{duplicateMatches.length === 1 ? '' : 's'}.
+                  Duplicate email detected for {duplicateMatches.length} guest
+                  {duplicateMatches.length === 1 ? '' : 's'}.
                 </Typography>
                 {mergeSuggestion && mergeSuggestion.sourceRsvpIds.length > 0 && suggestedPrimary ? (
                   <Typography variant="body2">
-                    Merge suggestion: keep {suggestedPrimary.name} as primary and merge {mergeSuggestion.sourceRsvpIds.length} duplicate record{mergeSuggestion.sourceRsvpIds.length === 1 ? '' : 's'}.
+                    Merge suggestion: keep {suggestedPrimary.name} as primary and merge{' '}
+                    {mergeSuggestion.sourceRsvpIds.length} duplicate record
+                    {mergeSuggestion.sourceRsvpIds.length === 1 ? '' : 's'}.
                   </Typography>
                 ) : (
                   <Typography variant="body2">
@@ -269,7 +286,9 @@ export function AddGuestDialog({
                 }
               >
                 {DIETARY_OPTIONS.map((opt) => (
-                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                  <MenuItem key={opt} value={opt}>
+                    {opt}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -313,9 +332,13 @@ export function AddGuestDialog({
                   setGuestGroup(e.target.value as GuestGroup | '')
                 }
               >
-                <MenuItem value=""><em>None</em></MenuItem>
+                <MenuItem value="">
+                  <em>None</em>
+                </MenuItem>
                 {GROUP_OPTIONS.map((opt) => (
-                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                  <MenuItem key={opt} value={opt}>
+                    {opt}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -326,12 +349,14 @@ export function AddGuestDialog({
                 labelId="status-label"
                 value={status}
                 label="RSVP Status"
-                onChange={(e: SelectChangeEvent<RsvpStatus>) =>
-                  setStatus(e.target.value as RsvpStatus)
+                onChange={(e: SelectChangeEvent<CanonicalRsvpStatus>) =>
+                  setStatus(e.target.value as CanonicalRsvpStatus)
                 }
               >
                 {STATUS_OPTIONS.map((opt) => (
-                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                  <MenuItem key={opt} value={opt}>
+                    {opt}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
