@@ -212,9 +212,9 @@ describe('sendReportEmail', () => {
       event_id: eventId,
     });
 
-    // Email still sent (with error content)
-    expect(mockSendMail).toHaveBeenCalledTimes(3); // retries on the error content
-    // Actually sendMail succeeds — only the payload failed. Let's check the delivery status.
+    // Email still sent (with error content) — succeeds on first try so only 1 call
+    expect(mockSendMail).toHaveBeenCalledTimes(1);
+    // Delivery status should reflect the payload failure
     const db = getDatabase();
     const delivery = await db.get<{ status: string; error_message: string | null }>(
       `SELECT status, error_message FROM scheduled_report_deliveries WHERE report_id = $1`,
