@@ -3495,6 +3495,18 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       WHERE applied_template_id IS NOT NULL
   `);
 
+  // #805: reconcile the timeline_templates schema between the v3 migration
+  // (is_global) and the v10 runtime (is_public). Both flags now coexist as
+  // additive columns so the controller (SELECT … is_global) and the seed
+  // function below can both succeed regardless of which schema was created
+  // first. Existing rows keep their original flag value.
+  await db.exec(
+    `ALTER TABLE timeline_templates ADD COLUMN IF NOT EXISTS is_global BOOLEAN NOT NULL DEFAULT FALSE`,
+  );
+  await db.exec(
+    `ALTER TABLE timeline_templates ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT FALSE`,
+  );
+
   // #805: seed the four canonical templates if missing.
   await seedTimelineTemplates(db);
 }
@@ -3573,9 +3585,11 @@ async function seedTimelineTemplates(db: DatabaseAdapter): Promise<void> {
     );
     let templateId = existing?.id;
     if (!templateId) {
+      // Insert with both flags TRUE so SELECT queries gated on either column
+      // (controller uses is_global; v10 runtime uses is_public) can find the row.
       const inserted = await db.run(
-        `INSERT INTO timeline_templates (name, description, event_type, is_global)
-         VALUES ($1, $2, $3, TRUE) RETURNING id`,
+        `INSERT INTO timeline_templates (name, description, event_type, is_global, is_public)
+         VALUES ($1, $2, $3, TRUE, TRUE) RETURNING id`,
         [seed.name, seed.description, seed.event_type],
       );
       templateId = inserted.lastID as number | undefined;
