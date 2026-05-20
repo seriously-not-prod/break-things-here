@@ -325,29 +325,7 @@ ALTER TABLE rsvps
   ADD COLUMN IF NOT EXISTS guest_id INTEGER REFERENCES guests(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_rsvps_guest_id ON rsvps(guest_id) WHERE guest_id IS NOT NULL;
 
-ALTER TABLE guests ENABLE ROW LEVEL SECURITY;
-ALTER TABLE guests FORCE ROW LEVEL SECURITY;
-
-DO $$ BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public'
-      AND tablename  = 'guests'
-      AND policyname = 'rls_guests_event_member'
-  ) THEN
-    CREATE POLICY rls_guests_event_member ON guests
-      USING (
-        event_id IN (
-          SELECT e.id FROM events e
-          WHERE e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
-          UNION
-          SELECT em.event_id FROM event_members em
-          WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
-        )
-        OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
-      );
-  END IF;
-END $$;
+-- RLS for guests is applied later (after event_members table is created).
 
 -- ============================================================
 -- Guest Communication Log
@@ -591,6 +569,34 @@ CREATE TABLE IF NOT EXISTS event_members (
 );
 
 CREATE INDEX IF NOT EXISTS idx_event_members_event_id ON event_members(event_id);
+
+-- ============================================================
+-- Guests RLS policy — applied here because event_members must exist first
+-- (TRD §4.2, task #771)
+-- ============================================================
+ALTER TABLE guests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE guests FORCE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename  = 'guests'
+      AND policyname = 'rls_guests_event_member'
+  ) THEN
+    CREATE POLICY rls_guests_event_member ON guests
+      USING (
+        event_id IN (
+          SELECT e.id FROM events e
+          WHERE e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+          UNION
+          SELECT em.event_id FROM event_members em
+          WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+        )
+        OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+      );
+  END IF;
+END $$;
 
 -- ============================================================
 -- Vendors (BRD 3.6)
