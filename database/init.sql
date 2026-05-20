@@ -1611,21 +1611,21 @@ ON CONFLICT (id) DO NOTHING;
 SELECT setval('budget_categories_id_seq', GREATEST((SELECT MAX(id) FROM budget_categories), 19));
 
 INSERT INTO expenses (event_id, category_id, title, amount, payment_status, vendor_name, notes, currency_code, created_by, created_at, updated_at) VALUES
-  (10, 10, 'Headliner Band Fee',          45000.00, 'Paid',    'Cosmic Sounds Agency',  'Headliner deposit paid.',        'USD', 11, NOW(), NOW()),
-  (10, 10, 'Supporting Act 1',            12000.00, 'Pending', 'Local Talent Booking',  'Contract pending signature.',    'USD', 11, NOW(), NOW()),
-  (10, 10, 'DJ Set',                       5000.00, 'Paid',    'DJ Events Inc.',         NULL,                             'USD', 11, NOW(), NOW()),
-  (10, 11, 'Stage Rental',               18000.00, 'Paid',    'Austin Stage Co.',       'Main and two side stages.',      'USD', 11, NOW(), NOW()),
-  (10, 11, 'Sound System',                8000.00, 'Paid',    'ProAudio Rentals',       NULL,                             'USD', 11, NOW(), NOW()),
-  (10, 12, 'Social Media Ads',            3500.00, 'Paid',    'Digital Marketing Co.',  'Facebook & Instagram campaign.', 'USD', 11, NOW(), NOW()),
-  (10, 12, 'Print Flyers',                 800.00, 'Paid',    'FastPrint Austin',       '5000 flyers distributed.',       'USD', 11, NOW(), NOW()),
-  (10, 13, 'Security Staff',             10000.00, 'Pending', 'SecureEvents LLC',       '50 guards for 3 days.',          'USD', 11, NOW(), NOW()),
-  (10, 14, 'City Permit',                 2500.00, 'Paid',    'City of Austin',         'Parks use permit.',              'USD', 11, NOW(), NOW()),
-  (11, 15, 'Convention Center Rental',   15000.00, 'Paid',    'Austin Convention Ctr',  'Full day both days.',            'USD', 11, NOW(), NOW()),
-  (11, 16, 'Catering - Day 1',            3500.00, 'Pending', 'Taste of Texas Catering',NULL,                             'USD', 11, NOW(), NOW()),
-  (11, 16, 'Catering - Day 2',            3500.00, 'Pending', 'Taste of Texas Catering',NULL,                             'USD', 11, NOW(), NOW()),
-  (11, 17, 'Projectors & Screens',        2500.00, 'Paid',    'TechRent Austin',        NULL,                             'USD', 11, NOW(), NOW()),
-  (12, 18, 'Plaza Permit',                 500.00, 'Paid',    'Nashville City',         NULL,                             'USD', 12, NOW(), NOW()),
-  (12, 19, 'Local Band Fee',              1200.00, 'Pending', 'Nashville Musicians Grp',NULL,                             'USD', 12, NOW(), NOW())
+  (10, 10, 'Headliner Band Fee',          45000.00, 'paid',    'Cosmic Sounds Agency',  'Headliner deposit paid.',        'USD', 11, NOW(), NOW()),
+  (10, 10, 'Supporting Act 1',            12000.00, 'pending', 'Local Talent Booking',  'Contract pending signature.',    'USD', 11, NOW(), NOW()),
+  (10, 10, 'DJ Set',                       5000.00, 'paid',    'DJ Events Inc.',         NULL,                             'USD', 11, NOW(), NOW()),
+  (10, 11, 'Stage Rental',               18000.00, 'paid',    'Austin Stage Co.',       'Main and two side stages.',      'USD', 11, NOW(), NOW()),
+  (10, 11, 'Sound System',                8000.00, 'paid',    'ProAudio Rentals',       NULL,                             'USD', 11, NOW(), NOW()),
+  (10, 12, 'Social Media Ads',            3500.00, 'paid',    'Digital Marketing Co.',  'Facebook & Instagram campaign.', 'USD', 11, NOW(), NOW()),
+  (10, 12, 'Print Flyers',                 800.00, 'paid',    'FastPrint Austin',       '5000 flyers distributed.',       'USD', 11, NOW(), NOW()),
+  (10, 13, 'Security Staff',             10000.00, 'pending', 'SecureEvents LLC',       '50 guards for 3 days.',          'USD', 11, NOW(), NOW()),
+  (10, 14, 'City Permit',                 2500.00, 'paid',    'City of Austin',         'Parks use permit.',              'USD', 11, NOW(), NOW()),
+  (11, 15, 'Convention Center Rental',   15000.00, 'paid',    'Austin Convention Ctr',  'Full day both days.',            'USD', 11, NOW(), NOW()),
+  (11, 16, 'Catering - Day 1',            3500.00, 'pending', 'Taste of Texas Catering',NULL,                             'USD', 11, NOW(), NOW()),
+  (11, 16, 'Catering - Day 2',            3500.00, 'pending', 'Taste of Texas Catering',NULL,                             'USD', 11, NOW(), NOW()),
+  (11, 17, 'Projectors & Screens',        2500.00, 'paid',    'TechRent Austin',        NULL,                             'USD', 11, NOW(), NOW()),
+  (12, 18, 'Plaza Permit',                 500.00, 'paid',    'Nashville City',         NULL,                             'USD', 12, NOW(), NOW()),
+  (12, 19, 'Local Band Fee',              1200.00, 'pending', 'Nashville Musicians Grp',NULL,                             'USD', 12, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
 -- ----------------------------------------------------------
