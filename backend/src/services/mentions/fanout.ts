@@ -111,10 +111,10 @@ async function storeMention(
   const db = getDatabase();
   const result = await db.run(
     `INSERT INTO message_mentions
-       (source_type, source_id, mentioned_user_id, mentioned_by_user_id, raw_token)
-     VALUES ($1, $2, $3, $4, $5)
+       (source_type, source_id, mentioned_user_id, mentioned_by_user_id, raw_token, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (source_type, source_id, mentioned_user_id) DO NOTHING`,
-    [sourceType, sourceId, mentionedUserId, authorId, rawToken],
+    [sourceType, sourceId, mentionedUserId, authorId, rawToken, authorId],
   );
   // changes === 0 means the row already existed (conflict was suppressed).
   return (result.changes ?? 0) > 0;
@@ -133,7 +133,7 @@ async function notifyUser(userId: number, authorId: number, ctx: MentionContext)
   // Honour opt-out preference when a row exists.
   const pref = await db.get<{ in_app_enabled: boolean }>(
     `SELECT in_app_enabled
-       FROM notification_preferences
+       FROM notification_type_preferences
       WHERE user_id = $1 AND notification_type = 'mention'`,
     [userId],
   );

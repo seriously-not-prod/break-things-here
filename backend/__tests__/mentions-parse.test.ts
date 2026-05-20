@@ -152,7 +152,7 @@ describe('parseMentions() — pure parser', () => {
 
 // Mock the database and its helpers before importing the fanout.
 // - mockAll  → used by resolveHandle (db.all with LIMIT 2)
-// - mockGet  → used by notifyUser (notification_preferences lookup)
+// - mockGet  → used by notifyUser (notification_type_preferences lookup)
 // - mockRun  → used by storeMention + notifyUser INSERT
 //              Default changes:1 simulates "row newly inserted".
 const mockRun = vi.fn().mockResolvedValue({ lastID: undefined, changes: 1 });

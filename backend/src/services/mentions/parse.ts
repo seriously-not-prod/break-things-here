@@ -54,7 +54,7 @@ export interface ParsedMention {
  *   - Multi-char   → interior may contain word chars, dots, hyphens; final char
  *                    must be a word char (prevents trailing `.` / `-`).
  */
-const MENTION_RE = /(?<![\w\\])@(?:"([^"\n]+)"|(\w(?:[\w.\-]*\w)?))/g;
+const MENTION_RE = /(?<![\w.\-+\\])@(?:"([^"\n]+)"|(\w(?:[\w.\-]*\w)?))/g;
 
 // ---------------------------------------------------------------------------
 // Public API
