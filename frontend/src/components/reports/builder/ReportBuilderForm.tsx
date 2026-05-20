@@ -8,6 +8,7 @@
  *   POST /api/events/:eventId/reports/builder/save — save / schedule
  */
 import React, { useCallback, useEffect, useState } from 'react';
+import type { Resolver } from 'react-hook-form';
 import { FormProvider, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { reportBuilderSchema, REPORT_DOMAINS, OUTPUT_FORMATS, FREQUENCIES } from './schema';
@@ -39,7 +40,7 @@ export function ReportBuilderForm({ eventId }: ReportBuilderFormProps): React.JS
   const [isSaving, setIsSaving] = useState(false);
 
   const methods = useForm<ReportBuilderValues>({
-    resolver: zodResolver(reportBuilderSchema),
+    resolver: zodResolver(reportBuilderSchema) as Resolver<ReportBuilderValues>,
     defaultValues: {
       name: '',
       domain: 'guests',
