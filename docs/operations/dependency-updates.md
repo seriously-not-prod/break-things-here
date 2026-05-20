@@ -13,14 +13,15 @@ for outdated packages across all ecosystems.
 
 ## Ecosystems Covered
 
-| Ecosystem       | Directory  | Schedule |
-|-----------------|------------|----------|
-| npm (root)      | `/`        | Weekly   |
-| npm (backend)   | `/backend` | Weekly   |
-| npm (frontend)  | `/frontend`| Weekly   |
-| GitHub Actions  | `/`        | Weekly   |
-| Docker (root)   | `/`        | Weekly   |
-| Docker (backend)| `/backend` | Weekly   |
+| Ecosystem         | Directory   | Schedule |
+| ----------------- | ----------- | -------- |
+| npm (root)        | `/`         | Weekly   |
+| npm (backend)     | `/backend`  | Weekly   |
+| npm (frontend)    | `/frontend` | Weekly   |
+| GitHub Actions    | `/`         | Weekly   |
+| Docker (root)     | `/`         | Weekly   |
+| Docker (backend)  | `/backend`  | Weekly   |
+| Docker (frontend) | `/frontend` | Weekly   |
 
 ---
 
@@ -56,15 +57,15 @@ Security update PRs are handled by the workflow at
 
 ## Labels Applied
 
-| Label            | Applied when                                    |
-|------------------|-------------------------------------------------|
-| `dependencies`   | All Dependabot PRs                              |
-| `npm`            | npm ecosystem updates                           |
-| `backend`        | PRs targeting `/backend`                        |
-| `frontend`       | PRs targeting `/frontend`                       |
-| `github-actions` | GitHub Actions workflow updates                 |
-| `docker`         | Docker base-image updates                       |
-| `security-issue` | Security vulnerability fixes (auto-labelled)    |
+| Label            | Applied when                                 |
+| ---------------- | -------------------------------------------- |
+| `dependencies`   | All Dependabot PRs                           |
+| `npm`            | npm ecosystem updates                        |
+| `backend`        | PRs targeting `/backend`                     |
+| `frontend`       | PRs targeting `/frontend`                    |
+| `github-actions` | GitHub Actions workflow updates              |
+| `docker`         | Docker base-image updates                    |
+| `security-issue` | Security vulnerability fixes (auto-labelled) |
 
 ---
 
@@ -72,16 +73,18 @@ Security update PRs are handled by the workflow at
 
 Dependabot commits follow [Conventional Commits](https://www.conventionalcommits.org/):
 
-| Ecosystem           | Prefix                     |
-|---------------------|----------------------------|
-| npm (root)          | `chore(deps):`             |
-| npm dev (root)      | `chore(dev-deps):`         |
-| npm (backend)       | `chore(deps/backend):`     |
-| npm dev (backend)   | `chore(dev-deps/backend):` |
-| npm (frontend)      | `chore(deps/frontend):`    |
-| npm dev (frontend)  | `chore(dev-deps/frontend):`|
-| GitHub Actions      | `chore(ci):`               |
-| Docker              | `chore(docker):`           |
+| Ecosystem          | Prefix                      |
+| ------------------ | --------------------------- |
+| npm (root)         | `chore(deps):`              |
+| npm dev (root)     | `chore(dev-deps):`          |
+| npm (backend)      | `chore(deps/backend):`      |
+| npm dev (backend)  | `chore(dev-deps/backend):`  |
+| npm (frontend)     | `chore(deps/frontend):`     |
+| npm dev (frontend) | `chore(dev-deps/frontend):` |
+| GitHub Actions     | `chore(ci):`                |
+| Docker (root)      | `chore(docker):`            |
+| Docker (backend)   | `chore(docker/backend):`    |
+| Docker (frontend)  | `chore(docker/frontend):`   |
 
 ---
 
@@ -102,15 +105,15 @@ to `.github/dependabot.yml`:
 
 ```yaml
 ignore:
-  - dependency-name: "*"
-    update-types: ["version-update:semver-patch"]
+  - dependency-name: '*'
+    update-types: ['version-update:semver-patch']
 ```
 
 For a permanent exclusion, add the package name:
 
 ```yaml
 ignore:
-  - dependency-name: "some-package"
+  - dependency-name: 'some-package'
 ```
 
 ---
