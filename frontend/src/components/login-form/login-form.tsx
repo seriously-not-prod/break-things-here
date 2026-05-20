@@ -106,6 +106,14 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
   const localFormVisible =
     configStatus === 'ready' && (!entraEnabled || (allowLocalFallback && showLocalForm));
 
+  // #782 — the demo-credentials banner is a developer affordance only. It
+  // must never render when Entra is the active identity path, nor in any
+  // production build, even if the operator has opted into local fallback.
+  // We read NODE_ENV (replaced at build time by Vite) so the check works both
+  // in production bundles and in vitest's dev-mode runtime.
+  const showDemoCredentials =
+    localFormVisible && !entraEnabled && process.env.NODE_ENV !== 'production';
+
   function handleEmailChange(event: ChangeEvent<HTMLInputElement>) {
     setEmail(event.target.value);
   }
@@ -286,29 +294,32 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
               </Typography>
             )}
 
-            <Paper
-              variant="outlined"
-              sx={{
-                p: 2,
-                bgcolor: '#f0f4ff',
-                borderColor: '#c7d2fe',
-                borderRadius: 2,
-              }}
-            >
-              <Typography
-                variant="caption"
-                fontWeight={700}
-                sx={{ letterSpacing: 1, display: 'block', mb: 1, color: '#3730a3' }}
+            {showDemoCredentials && (
+              <Paper
+                variant="outlined"
+                data-testid="demo-credentials-banner"
+                sx={{
+                  p: 2,
+                  bgcolor: '#f0f4ff',
+                  borderColor: '#c7d2fe',
+                  borderRadius: 2,
+                }}
               >
-                DEMO CREDENTIALS
-              </Typography>
-              <Typography variant="body2" sx={{ mb: 0.5 }}>
-                <strong>Admin:</strong>&nbsp; admin@festival.local / festivalAdmin2025
-              </Typography>
-              <Typography variant="body2">
-                <strong>User:</strong>&nbsp;&nbsp;&nbsp;&nbsp; user@festival.local / userPass2025
-              </Typography>
-            </Paper>
+                <Typography
+                  variant="caption"
+                  fontWeight={700}
+                  sx={{ letterSpacing: 1, display: 'block', mb: 1, color: '#3730a3' }}
+                >
+                  DEMO CREDENTIALS
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 0.5 }}>
+                  <strong>Admin:</strong>&nbsp; admin@festival.local / festivalAdmin2025
+                </Typography>
+                <Typography variant="body2">
+                  <strong>User:</strong>&nbsp;&nbsp;&nbsp;&nbsp; user@festival.local / userPass2025
+                </Typography>
+              </Paper>
+            )}
           </>
         )}
       </Stack>
