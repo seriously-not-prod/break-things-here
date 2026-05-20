@@ -20,6 +20,15 @@ export type CanonicalRsvpStatus =
   | 'cancelled'
   | 'checked_in'
   | 'no_show';
+
+// Backward-compatible alias used across older UI components.
+export type RsvpStatus =
+  | CanonicalRsvpStatus
+  | 'Pending'
+  | 'Going'
+  | 'Maybe'
+  | 'Not Going'
+  | 'Declined';
 export type DietaryRestriction =
   | 'None'
   | 'Vegetarian'
@@ -40,6 +49,7 @@ export interface RsvpGuest {
   email: string;
   phone: string | null;
   guests: number;
+  status: RsvpStatus;
   canonical_status: CanonicalRsvpStatus;
   notes: string | null;
   source: string;
@@ -79,6 +89,8 @@ export interface RsvpGuestInput {
   email: string;
   phone?: string;
   guests?: number;
+  status?: RsvpStatus;
+  canonical_status?: CanonicalRsvpStatus;
   notes?: string;
   dietary_restriction?: DietaryRestriction;
   accessibility_needs?: string;
@@ -149,6 +161,7 @@ export interface Rsvp {
   name: string;
   email: string;
   guests: number;
+  status: RsvpStatus;
   canonical_status: CanonicalRsvpStatus;
   notes: string | null;
   source: string;
@@ -162,6 +175,7 @@ export interface AssignedRsvp {
   rsvp_id: number;
   name: string;
   email: string;
+  status: RsvpStatus;
   canonical_status: CanonicalRsvpStatus;
 }
 

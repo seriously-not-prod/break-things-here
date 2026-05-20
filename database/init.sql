@@ -300,8 +300,55 @@ ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_rsvps_event_id ON rsvps(event_id);
 
-CREATE OR REPLACE VIEW guests AS
-SELECT * FROM rsvps;
+-- ============================================================
+-- Guests (TRD §4.2 — first-class table, task #771)
+-- Stores guest identity and profile independently of RSVP responses.
+-- rsvps.guest_id FK links an RSVP response back to its guest record.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS guests (
+  id                   SERIAL PRIMARY KEY,
+  event_id             INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name                 TEXT NOT NULL,
+  email                TEXT NOT NULL,
+  phone                TEXT,
+  dietary_restriction  TEXT DEFAULT 'None',
+  accessibility_needs  TEXT,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_by           INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_guests_event_id ON guests(event_id);
+CREATE INDEX IF NOT EXISTS idx_guests_email    ON guests(email);
+
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS guest_id INTEGER REFERENCES guests(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_rsvps_guest_id ON rsvps(guest_id) WHERE guest_id IS NOT NULL;
+
+-- RLS: event owner or event member may access; fail-open for jobs/tests.
+ALTER TABLE guests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE guests FORCE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename  = 'guests'
+      AND policyname = 'rls_guests_event_member'
+  ) THEN
+    CREATE POLICY rls_guests_event_member ON guests
+      USING (
+        event_id IN (
+          SELECT e.id FROM events e
+          WHERE  e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+          UNION
+          SELECT em.event_id FROM event_members em
+          WHERE  em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+        )
+        OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+      );
+  END IF;
+END $$;
 
 -- ============================================================
 -- Guest Communication Log

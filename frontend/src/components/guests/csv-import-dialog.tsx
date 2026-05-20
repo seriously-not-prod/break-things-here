@@ -134,7 +134,7 @@ export function CsvImportDialog({
             return;
           }
           const allRows: string[][] = [];
-          worksheet.eachRow({ includeEmpty: false }, (row) => {
+          worksheet.eachRow({ includeEmpty: false }, (row: any) => {
             const values = (row.values as (string | number | boolean | null | undefined)[]).slice(
               1,
             );
