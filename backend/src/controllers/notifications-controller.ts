@@ -18,6 +18,7 @@
 
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
+import { isChannelEnabled, isSupportedCategory } from '../services/notifications/dispatch-guard.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -142,6 +143,9 @@ export async function createBudgetAlert(
   pct: number,
 ): Promise<void> {
   try {
+    // Consult preference matrix before dispatching (#786)
+    if (!(await isChannelEnabled(userId, 'in_app', 'budget_alert'))) return;
+
     const db   = getDatabase();
     const link = `/events/${eventId}/budget`;
     await db.run(
@@ -172,6 +176,11 @@ export async function createRsvpNotification(
   guestName: string,
 ): Promise<void> {
   try {
+    // Consult preference matrix before dispatching (#786)
+    // Note: notification stored with type='rsvp' but preference category is 'rsvp_submitted'
+    // to align with the broader category naming convention in the preference matrix.
+    if (!(await isChannelEnabled(userId, 'in_app', 'rsvp_submitted'))) return;
+
     const db   = getDatabase();
     const link = `/events/${eventId}/guests`;
     await db.run(
@@ -198,6 +207,9 @@ export async function createTaskDueAlert(
   eventTitle: string,
 ): Promise<void> {
   try {
+    // Consult preference matrix before dispatching (#786)
+    if (!(await isChannelEnabled(userId, 'in_app', 'task_due'))) return;
+
     const db = getDatabase();
     await db.run(
       `INSERT INTO notifications (user_id, type, title, body)
@@ -221,7 +233,7 @@ export async function listNotificationPreferences(req: AuthRequest, res: Respons
   if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
   const db = getDatabase();
   const rows = await db.all(
-    'SELECT * FROM notification_preferences WHERE user_id = $1 ORDER BY notification_type ASC',
+    'SELECT * FROM notification_type_preferences WHERE user_id = $1 ORDER BY notification_type ASC',
     [req.user.id],
   );
   res.json({ preferences: rows });
@@ -243,7 +255,7 @@ export async function upsertNotificationPreference(req: AuthRequest, res: Respon
 
   const db = getDatabase();
   await db.run(
-    `INSERT INTO notification_preferences (user_id, notification_type, email_enabled, in_app_enabled, push_enabled)
+    `INSERT INTO notification_type_preferences (user_id, notification_type, email_enabled, in_app_enabled, push_enabled)
      VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (user_id, notification_type) DO UPDATE SET
        email_enabled  = EXCLUDED.email_enabled,
@@ -253,7 +265,7 @@ export async function upsertNotificationPreference(req: AuthRequest, res: Respon
     [req.user.id, type, email_enabled ?? true, in_app_enabled ?? true, push_enabled ?? false],
   );
   const pref = await db.get(
-    'SELECT * FROM notification_preferences WHERE user_id = $1 AND notification_type = $2',
+    'SELECT * FROM notification_type_preferences WHERE user_id = $1 AND notification_type = $2',
     [req.user.id, type],
   );
   res.json({ preference: pref });
@@ -284,12 +296,12 @@ export async function createBatchedNotification(
   try {
     const db = getDatabase();
 
-    // Check user preference — skip if in-app disabled
-    const pref = await db.get<{ in_app_enabled: boolean }>(
-      'SELECT in_app_enabled FROM notification_preferences WHERE user_id = $1 AND notification_type = $2',
-      [userId, notificationType],
-    );
-    if (pref && !pref.in_app_enabled) return false;
+    // Check user preference via new channel×category matrix — skip if in-app disabled (#786)
+    // Only consult the matrix for recognised categories; unknown types pass through.
+    if (isSupportedCategory(notificationType)) {
+      const inAppEnabled = await isChannelEnabled(userId, 'in_app', notificationType);
+      if (!inAppEnabled) return false;
+    }
 
     // Apply batch window / anti-spam
     const rule = await db.get<{ batch_window_mins: number; max_per_window: number }>(

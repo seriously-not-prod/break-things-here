@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Track B — Notifications)
+
+- **Task #786 — Notification preferences — backend model and endpoints**: Added normalised `notification_preferences` table with `(user_id, channel, category, enabled)` schema (migration `v22-notification-preferences-matrix.sql`), replacing the legacy per-type boolean columns. Migration seeds default-enabled rows for every existing user × channel × category combination. Added `GET /api/users/me/notification-preferences` returning the full channel × category matrix and `PATCH /api/users/me/notification-preferences` accepting bulk updates. Created `backend/src/services/notifications/dispatch-guard.ts` with `isChannelEnabled()` helper. Outbound dispatchers (`createBatchedNotification`, `createBudgetAlert`, `createRsvpNotification`, `createTaskDueAlert`) now consult the preference matrix before sending. Integration tests in `backend/__tests__/notification-preferences.test.ts` verify endpoints, validation, and dispatch suppression (#786).
+
 ### Added (Track C — Auth & Identity)
 
 - **Task #790 — Entra-first login copy refresh for the four personas**: Added MFA help text below the "Sign in with Microsoft" CTA to set expectations for multi-factor authentication prompts. Forgot-password and create-account links are gated to local-fallback mode only. Added snapshot tests for Entra-on (entra-only), Entra-on (with fallback), and Entra-off (local-only) variants in `frontend/test/login-form.test.tsx`. Appended persona review note to `docs/entra-auth-rollout.md` mapping Sarah/Marcus/Emily/David FRD personas to the login copy changes (#790).
