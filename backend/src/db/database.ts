@@ -3438,12 +3438,17 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`
     CREATE TABLE IF NOT EXISTS message_mentions (
       id                   SERIAL PRIMARY KEY,
-      source_type          TEXT    NOT NULL,
-      source_id            INTEGER NOT NULL,
-      mentioned_user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      mentioned_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      raw_token            TEXT    NOT NULL,
-      created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      source_type          TEXT        NOT NULL,
+      source_id            INTEGER     NOT NULL,
+      mentioned_user_id    INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      mentioned_by_user_id INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      raw_token            TEXT        NOT NULL,
+      created_at           TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      created_by           INTEGER     REFERENCES users(id) ON DELETE SET NULL,
+      updated_at           TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_by           INTEGER     REFERENCES users(id) ON DELETE SET NULL,
+      CONSTRAINT uq_message_mentions_source_user
+        UNIQUE (source_type, source_id, mentioned_user_id)
     );
     CREATE INDEX IF NOT EXISTS idx_message_mentions_mentioned_user
       ON message_mentions(mentioned_user_id);

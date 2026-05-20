@@ -51,22 +51,27 @@ interface UserRow {
 /**
  * Look up a user whose `display_name` or email-prefix matches `handle`.
  * The comparison is case-insensitive.
+ *
+ * Returns `undefined` when no user matches **or** when multiple users match
+ * (ambiguous mention — skip to avoid notifying the wrong person).
  */
 async function resolveHandle(handle: string, isQuoted: boolean): Promise<UserRow | undefined> {
   const db = getDatabase();
   if (isQuoted) {
-    // Quoted form — match display_name only.
-    return db.get<UserRow>(
+    // Quoted form — match display_name only; require exactly one match.
+    const rows = await db.all<UserRow>(
       `SELECT id, display_name, email
          FROM users
         WHERE LOWER(display_name) = LOWER($1)
           AND deleted_at IS NULL
-        LIMIT 1`,
+        LIMIT 2`,
       [handle],
     );
+    return rows.length === 1 ? rows[0] : undefined;
   }
-  // Simple form — match display_name or the local part of the email address.
-  return db.get<UserRow>(
+  // Simple form — match display_name or the local part of the email address;
+  // require exactly one match to avoid misdirected notifications.
+  const rows = await db.all<UserRow>(
     `SELECT id, display_name, email
        FROM users
       WHERE (
@@ -74,14 +79,19 @@ async function resolveHandle(handle: string, isQuoted: boolean): Promise<UserRow
          OR LOWER(SPLIT_PART(email, '@', 1)) = LOWER($1)
       )
         AND deleted_at IS NULL
-      LIMIT 1`,
+      LIMIT 2`,
     [handle],
   );
+  return rows.length === 1 ? rows[0] : undefined;
 }
 
 /**
- * Insert a `message_mentions` row.  Idempotent on (source_type, source_id,
- * mentioned_user_id) — duplicate rows are silently skipped.
+ * Insert a `message_mentions` row.  Idempotent on the unique constraint
+ * `(source_type, source_id, mentioned_user_id)` — duplicate rows on replay
+ * or retry are silently skipped.
+ *
+ * Returns `true` when a new row was inserted (notification should fire),
+ * `false` when the row already existed (duplicate — skip notification).
  */
 async function storeMention(
   sourceType: MentionSourceType,
@@ -89,15 +99,17 @@ async function storeMention(
   mentionedUserId: number,
   authorId: number,
   rawToken: string,
-): Promise<void> {
+): Promise<boolean> {
   const db = getDatabase();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO message_mentions
        (source_type, source_id, mentioned_user_id, mentioned_by_user_id, raw_token)
      VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT DO NOTHING`,
+     ON CONFLICT (source_type, source_id, mentioned_user_id) DO NOTHING`,
     [sourceType, sourceId, mentionedUserId, authorId, rawToken],
   );
+  // changes === 0 means the row already existed (conflict was suppressed).
+  return (result.changes ?? 0) > 0;
 }
 
 /**
@@ -158,8 +170,12 @@ export async function processMentions(ctx: MentionContext): Promise<void> {
           const user = await resolveHandle(token.handle, token.isQuoted);
           if (!user) return; // No matching user — token is decorative.
 
-          await storeMention(ctx.sourceType, ctx.sourceId, user.id, ctx.authorId, token.raw);
-          await notifyUser(user.id, ctx.authorId, ctx);
+          const inserted = await storeMention(ctx.sourceType, ctx.sourceId, user.id, ctx.authorId, token.raw);
+          // Only notify when the mention row is newly inserted — avoids
+          // duplicate notifications on retries/replays.
+          if (inserted) {
+            await notifyUser(user.id, ctx.authorId, ctx);
+          }
         } catch (innerErr) {
           logger.warn(
             `[mentions] Failed to process token "${token.raw}"`,

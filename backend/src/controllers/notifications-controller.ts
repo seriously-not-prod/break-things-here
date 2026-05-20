@@ -256,6 +256,7 @@ const VALID_NOTIFICATION_TYPES = new Set([
   'event_update',
   'chat_message',
   'event_reminder',
+  'mention',
 ]);
 
 /** GET /api/notifications/preferences */

@@ -151,11 +151,16 @@ describe('parseMentions() — pure parser', () => {
 // ---------------------------------------------------------------------------
 
 // Mock the database and its helpers before importing the fanout.
-const mockRun = vi.fn().mockResolvedValue({ lastID: undefined, changes: 0 });
+// - mockAll  → used by resolveHandle (db.all with LIMIT 2)
+// - mockGet  → used by notifyUser (notification_preferences lookup)
+// - mockRun  → used by storeMention + notifyUser INSERT
+//              Default changes:1 simulates "row newly inserted".
+const mockRun = vi.fn().mockResolvedValue({ lastID: undefined, changes: 1 });
 const mockGet = vi.fn();
+const mockAll = vi.fn();
 
 vi.mock('../src/db/database.js', () => ({
-  getDatabase: () => ({ run: mockRun, get: mockGet, all: vi.fn() }),
+  getDatabase: () => ({ run: mockRun, get: mockGet, all: mockAll }),
   initializeDatabase: vi.fn(),
 }));
 
@@ -174,18 +179,21 @@ describe('processMentions() — integration', () => {
   beforeEach(() => {
     mockRun.mockClear();
     mockGet.mockClear();
+    mockAll.mockClear();
+    // Default: storeMention inserts a new row (changes: 1 = newly inserted).
+    mockRun.mockResolvedValue({ lastID: undefined, changes: 1 });
   });
 
   it('does nothing when there are no mention tokens', async () => {
     await processMentions({ ...BASE_CTX, body: 'No mentions here.' });
-    expect(mockGet).not.toHaveBeenCalled();
+    expect(mockAll).not.toHaveBeenCalled();
     expect(mockRun).not.toHaveBeenCalled();
   });
 
   it('stores a mention row and creates a notification for a resolved user', async () => {
-    // resolveHandle → found user
-    mockGet.mockResolvedValueOnce({ id: 99, display_name: 'Alice', email: 'alice@ex.com' });
-    // notifyUser preference check → no row (default allow)
+    // resolveHandle → exactly one match (newly inserted)
+    mockAll.mockResolvedValueOnce([{ id: 99, display_name: 'Alice', email: 'alice@ex.com' }]);
+    // notifyUser: no preference row → default allow
     mockGet.mockResolvedValueOnce(undefined);
 
     await processMentions({ ...BASE_CTX, body: 'Hello @alice!', authorId: 1 });
@@ -195,7 +203,7 @@ describe('processMentions() — integration', () => {
       expect.stringContaining('INSERT INTO message_mentions'),
       expect.arrayContaining(['chat_message', 42, 99, 1, '@alice']),
     );
-    // createNotification INSERT
+    // notification INSERT
     expect(mockRun).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO notifications'),
       expect.arrayContaining([99, 'mention']),
@@ -203,7 +211,7 @@ describe('processMentions() — integration', () => {
   });
 
   it('skips the notification when the mentioned user has opted out', async () => {
-    mockGet.mockResolvedValueOnce({ id: 99, display_name: 'Alice', email: 'alice@ex.com' });
+    mockAll.mockResolvedValueOnce([{ id: 99, display_name: 'Alice', email: 'alice@ex.com' }]);
     // Preference says opt-out
     mockGet.mockResolvedValueOnce({ in_app_enabled: false });
 
@@ -222,7 +230,7 @@ describe('processMentions() — integration', () => {
   });
 
   it('does not notify the author when they mention themselves', async () => {
-    mockGet.mockResolvedValueOnce({ id: 1, display_name: 'Author', email: 'a@ex.com' });
+    mockAll.mockResolvedValueOnce([{ id: 1, display_name: 'Author', email: 'a@ex.com' }]);
 
     await processMentions({ ...BASE_CTX, body: '@Author look at this', authorId: 1 });
 
@@ -233,19 +241,47 @@ describe('processMentions() — integration', () => {
   });
 
   it('skips gracefully when the handle resolves to no user', async () => {
-    mockGet.mockResolvedValueOnce(undefined); // no user found
+    mockAll.mockResolvedValueOnce([]); // no user found
 
     await processMentions({ ...BASE_CTX, body: '@unknown_handle' });
 
     expect(mockRun).not.toHaveBeenCalled();
   });
 
+  it('skips gracefully when handle is ambiguous (multiple matches)', async () => {
+    // Two users match — ambiguous, should not notify either
+    mockAll.mockResolvedValueOnce([
+      { id: 10, display_name: 'Alex', email: 'alex@a.com' },
+      { id: 11, display_name: 'Alex', email: 'alex@b.com' },
+    ]);
+
+    await processMentions({ ...BASE_CTX, body: '@alex please check' });
+
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it('does not send a duplicate notification when mention row already exists', async () => {
+    mockAll.mockResolvedValueOnce([{ id: 99, display_name: 'Alice', email: 'alice@ex.com' }]);
+    // storeMention returns changes: 0 — row already existed
+    mockRun.mockResolvedValueOnce({ lastID: undefined, changes: 0 });
+
+    await processMentions({ ...BASE_CTX, body: '@alice replay', authorId: 2 });
+
+    // storeMention ran but changes=0 → notification should be skipped
+    const notifCall = mockRun.mock.calls.find(
+      ([sql]: [string]) => typeof sql === 'string' && sql.includes('INSERT INTO notifications'),
+    );
+    expect(notifCall).toBeUndefined();
+  });
+
   it('handles multiple mentions in one message', async () => {
-    // First mention resolves; second does not.
-    mockGet
-      .mockResolvedValueOnce({ id: 10, display_name: 'Bob', email: 'b@ex.com' })
-      .mockResolvedValueOnce(undefined)  // pref check for Bob
-      .mockResolvedValueOnce(undefined); // resolve for @ghost → no user
+    // bob resolves; ghost does not
+    mockAll
+      .mockResolvedValueOnce([{ id: 10, display_name: 'Bob', email: 'b@ex.com' }])
+      .mockResolvedValueOnce([]); // @ghost → no user
+
+    // notification_preferences for bob
+    mockGet.mockResolvedValueOnce(undefined);
 
     await processMentions({
       ...BASE_CTX,
@@ -260,7 +296,7 @@ describe('processMentions() — integration', () => {
   });
 
   it('does not throw even when DB operations fail', async () => {
-    mockGet.mockRejectedValueOnce(new Error('DB down'));
+    mockAll.mockRejectedValueOnce(new Error('DB down'));
 
     await expect(
       processMentions({ ...BASE_CTX, body: '@alice boom' }),
