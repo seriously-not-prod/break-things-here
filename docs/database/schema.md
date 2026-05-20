@@ -15,15 +15,15 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                                     |
-| ------------- | ----------------------------- | ----------- | ------------------------------------------- |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('activity_feed_id_seq'::regclass)` |
-| `event_id`    | `integer`                     | `NULLABLE`  | `-`                                         |
-| `user_id`     | `integer`                     | `NULLABLE`  | `-`                                         |
-| `action_type` | `text`                        | `NOT NULL`  | `-`                                         |
-| `description` | `text`                        | `NOT NULL`  | `-`                                         |
-| `link`        | `text`                        | `NULLABLE`  | `-`                                         |
-| `created_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                         |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('activity_feed_id_seq'::regclass)` |
+| `event_id` | `integer` | `NULLABLE` | `-` |
+| `user_id` | `integer` | `NULLABLE` | `-` |
+| `action_type` | `text` | `NOT NULL` | `-` |
+| `description` | `text` | `NOT NULL` | `-` |
+| `link` | `text` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -37,16 +37,16 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                                         |
-| ------------- | ----------------------------- | ----------- | ----------------------------------------------- |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('attendance_events_id_seq'::regclass)` |
-| `event_id`    | `integer`                     | `NOT NULL`  | `-`                                             |
-| `rsvp_id`     | `integer`                     | `NOT NULL`  | `-`                                             |
-| `action`      | `text`                        | `NOT NULL`  | `-`                                             |
-| `source`      | `text`                        | `NOT NULL`  | `'manual'::text`                                |
-| `occurred_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                             |
-| `actor_id`    | `integer`                     | `NULLABLE`  | `-`                                             |
-| `metadata`    | `jsonb`                       | `NULLABLE`  | `-`                                             |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('attendance_events_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `rsvp_id` | `integer` | `NOT NULL` | `-` |
+| `action` | `text` | `NOT NULL` | `-` |
+| `source` | `text` | `NOT NULL` | `'manual'::text` |
+| `occurred_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `actor_id` | `integer` | `NULLABLE` | `-` |
+| `metadata` | `jsonb` | `NULLABLE` | `-` |
 
 ### Indexes
 
@@ -61,20 +61,20 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                                 |
-| ------------- | ----------------------------- | ----------- | --------------------------------------- |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('audit_log_id_seq'::regclass)` |
-| `user_id`     | `integer`                     | `NULLABLE`  | `-`                                     |
-| `email`       | `text`                        | `NULLABLE`  | `-`                                     |
-| `action`      | `text`                        | `NOT NULL`  | `-`                                     |
-| `description` | `text`                        | `NULLABLE`  | `-`                                     |
-| `ip_address`  | `text`                        | `NULLABLE`  | `-`                                     |
-| `created_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                     |
-| `actor_id`    | `integer`                     | `NULLABLE`  | `-`                                     |
-| `target_type` | `text`                        | `NULLABLE`  | `-`                                     |
-| `target_id`   | `text`                        | `NULLABLE`  | `-`                                     |
-| `context`     | `jsonb`                       | `NULLABLE`  | `-`                                     |
-| `severity`    | `text`                        | `NULLABLE`  | `'INFO'::text`                          |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('audit_log_id_seq'::regclass)` |
+| `user_id` | `integer` | `NULLABLE` | `-` |
+| `email` | `text` | `NULLABLE` | `-` |
+| `action` | `text` | `NOT NULL` | `-` |
+| `description` | `text` | `NULLABLE` | `-` |
+| `ip_address` | `text` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `actor_id` | `integer` | `NULLABLE` | `-` |
+| `target_type` | `text` | `NULLABLE` | `-` |
+| `target_id` | `text` | `NULLABLE` | `-` |
+| `context` | `jsonb` | `NULLABLE` | `-` |
+| `severity` | `text` | `NULLABLE` | `'INFO'::text` |
 
 ### Indexes
 
@@ -91,17 +91,17 @@
 
 ### Columns
 
-| Column             | Type                          | Nullability | Default                                         |
-| ------------------ | ----------------------------- | ----------- | ----------------------------------------------- |
-| `id`               | `integer`                     | `NOT NULL`  | `nextval('budget_categories_id_seq'::regclass)` |
-| `event_id`         | `integer`                     | `NOT NULL`  | `-`                                             |
-| `name`             | `text`                        | `NOT NULL`  | `-`                                             |
-| `allocated_amount` | `numeric`                     | `NULLABLE`  | `0`                                             |
-| `tax_rate`         | `numeric`                     | `NULLABLE`  | `0`                                             |
-| `gratuity_rate`    | `numeric`                     | `NULLABLE`  | `0`                                             |
-| `contingency_rate` | `numeric`                     | `NULLABLE`  | `0`                                             |
-| `color`            | `text`                        | `NULLABLE`  | `'#6366f1'::text`                               |
-| `created_at`       | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                             |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('budget_categories_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `allocated_amount` | `numeric` | `NULLABLE` | `0` |
+| `tax_rate` | `numeric` | `NULLABLE` | `0` |
+| `gratuity_rate` | `numeric` | `NULLABLE` | `0` |
+| `contingency_rate` | `numeric` | `NULLABLE` | `0` |
+| `color` | `text` | `NULLABLE` | `'#6366f1'::text` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -115,14 +115,14 @@
 
 ### Columns
 
-| Column             | Type                          | Nullability | Default                                             |
-| ------------------ | ----------------------------- | ----------- | --------------------------------------------------- |
-| `id`               | `integer`                     | `NOT NULL`  | `nextval('budget_template_items_id_seq'::regclass)` |
-| `template_id`      | `integer`                     | `NOT NULL`  | `-`                                                 |
-| `name`             | `text`                        | `NOT NULL`  | `-`                                                 |
-| `allocated_amount` | `numeric`                     | `NULLABLE`  | `0`                                                 |
-| `color`            | `text`                        | `NULLABLE`  | `'#6366f1'::text`                                   |
-| `created_at`       | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                 |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('budget_template_items_id_seq'::regclass)` |
+| `template_id` | `integer` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `allocated_amount` | `numeric` | `NULLABLE` | `0` |
+| `color` | `text` | `NULLABLE` | `'#6366f1'::text` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -137,13 +137,13 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                                        |
-| ------------- | ----------------------------- | ----------- | ---------------------------------------------- |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('budget_templates_id_seq'::regclass)` |
-| `name`        | `text`                        | `NOT NULL`  | `-`                                            |
-| `description` | `text`                        | `NULLABLE`  | `-`                                            |
-| `created_by`  | `integer`                     | `NULLABLE`  | `-`                                            |
-| `created_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                            |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('budget_templates_id_seq'::regclass)` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `description` | `text` | `NULLABLE` | `-` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -157,12 +157,12 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                                  |
-| ------------- | ----------------------------- | ----------- | ---------------------------------------- |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('categories_id_seq'::regclass)` |
-| `name`        | `text`                        | `NOT NULL`  | `-`                                      |
-| `description` | `text`                        | `NULLABLE`  | `-`                                      |
-| `created_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                      |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('categories_id_seq'::regclass)` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `description` | `text` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -177,17 +177,17 @@
 
 ### Columns
 
-| Column               | Type                          | Nullability | Default                                         |
-| -------------------- | ----------------------------- | ----------- | ----------------------------------------------- |
-| `id`                 | `integer`                     | `NOT NULL`  | `nextval('communication_log_id_seq'::regclass)` |
-| `event_id`           | `integer`                     | `NOT NULL`  | `-`                                             |
-| `guest_email`        | `text`                        | `NULLABLE`  | `-`                                             |
-| `communication_type` | `text`                        | `NOT NULL`  | `-`                                             |
-| `subject`            | `text`                        | `NULLABLE`  | `-`                                             |
-| `content`            | `text`                        | `NULLABLE`  | `-`                                             |
-| `status`             | `text`                        | `NULLABLE`  | `'sent'::text`                                  |
-| `sent_by`            | `integer`                     | `NULLABLE`  | `-`                                             |
-| `sent_at`            | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                             |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('communication_log_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `guest_email` | `text` | `NULLABLE` | `-` |
+| `communication_type` | `text` | `NOT NULL` | `-` |
+| `subject` | `text` | `NULLABLE` | `-` |
+| `content` | `text` | `NULLABLE` | `-` |
+| `status` | `text` | `NULLABLE` | `'sent'::text` |
+| `sent_by` | `integer` | `NULLABLE` | `-` |
+| `sent_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -202,18 +202,18 @@
 
 ### Columns
 
-| Column       | Type                          | Nullability | Default                                               |
-| ------------ | ----------------------------- | ----------- | ----------------------------------------------------- |
-| `id`         | `integer`                     | `NOT NULL`  | `nextval('communication_templates_id_seq'::regclass)` |
-| `event_id`   | `integer`                     | `NULLABLE`  | `-`                                                   |
-| `slug`       | `text`                        | `NOT NULL`  | `-`                                                   |
-| `name`       | `text`                        | `NOT NULL`  | `-`                                                   |
-| `subject`    | `text`                        | `NOT NULL`  | `-`                                                   |
-| `body`       | `text`                        | `NOT NULL`  | `-`                                                   |
-| `is_default` | `boolean`                     | `NULLABLE`  | `false`                                               |
-| `created_by` | `integer`                     | `NULLABLE`  | `-`                                                   |
-| `created_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                   |
-| `updated_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                   |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('communication_templates_id_seq'::regclass)` |
+| `event_id` | `integer` | `NULLABLE` | `-` |
+| `slug` | `text` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `subject` | `text` | `NOT NULL` | `-` |
+| `body` | `text` | `NOT NULL` | `-` |
+| `is_default` | `boolean` | `NULLABLE` | `false` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -229,15 +229,15 @@
 
 ### Columns
 
-| Column                 | Type                          | Nullability | Default                                                     |
-| ---------------------- | ----------------------------- | ----------- | ----------------------------------------------------------- |
-| `id`                   | `integer`                     | `NOT NULL`  | `nextval('communication_tracking_events_id_seq'::regclass)` |
-| `communication_log_id` | `integer`                     | `NOT NULL`  | `-`                                                         |
-| `event_type`           | `text`                        | `NOT NULL`  | `-`                                                         |
-| `target_url`           | `text`                        | `NULLABLE`  | `-`                                                         |
-| `ip_address`           | `text`                        | `NULLABLE`  | `-`                                                         |
-| `user_agent`           | `text`                        | `NULLABLE`  | `-`                                                         |
-| `occurred_at`          | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                         |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('communication_tracking_events_id_seq'::regclass)` |
+| `communication_log_id` | `integer` | `NOT NULL` | `-` |
+| `event_type` | `text` | `NOT NULL` | `-` |
+| `target_url` | `text` | `NULLABLE` | `-` |
+| `ip_address` | `text` | `NULLABLE` | `-` |
+| `user_agent` | `text` | `NULLABLE` | `-` |
+| `occurred_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -253,10 +253,10 @@
 
 ### Columns
 
-| Column        | Type      | Nullability | Default |
-| ------------- | --------- | ----------- | ------- |
-| `event_id`    | `integer` | `NOT NULL`  | `-`     |
-| `category_id` | `integer` | `NOT NULL`  | `-`     |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `category_id` | `integer` | `NOT NULL` | `-` |
 
 ### Indexes
 
@@ -271,21 +271,21 @@
 
 ### Columns
 
-| Column       | Type                          | Nullability | Default                                           |
-| ------------ | ----------------------------- | ----------- | ------------------------------------------------- |
-| `id`         | `integer`                     | `NOT NULL`  | `nextval('event_custom_fields_id_seq'::regclass)` |
-| `event_id`   | `integer`                     | `NOT NULL`  | `-`                                               |
-| `field_key`  | `text`                        | `NOT NULL`  | `-`                                               |
-| `label`      | `text`                        | `NOT NULL`  | `-`                                               |
-| `field_type` | `text`                        | `NOT NULL`  | `-`                                               |
-| `options`    | `jsonb`                       | `NULLABLE`  | `-`                                               |
-| `value`      | `text`                        | `NULLABLE`  | `-`                                               |
-| `required`   | `boolean`                     | `NOT NULL`  | `false`                                           |
-| `sort_order` | `integer`                     | `NOT NULL`  | `0`                                               |
-| `created_by` | `integer`                     | `NULLABLE`  | `-`                                               |
-| `updated_by` | `integer`                     | `NULLABLE`  | `-`                                               |
-| `created_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                               |
-| `updated_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                               |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('event_custom_fields_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `field_key` | `text` | `NOT NULL` | `-` |
+| `label` | `text` | `NOT NULL` | `-` |
+| `field_type` | `text` | `NOT NULL` | `-` |
+| `options` | `jsonb` | `NULLABLE` | `-` |
+| `value` | `text` | `NULLABLE` | `-` |
+| `required` | `boolean` | `NOT NULL` | `false` |
+| `sort_order` | `integer` | `NOT NULL` | `0` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `updated_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -301,30 +301,30 @@
 
 ### Columns
 
-| Column                | Type                          | Nullability | Default                                       |
-| --------------------- | ----------------------------- | ----------- | --------------------------------------------- |
-| `id`                  | `integer`                     | `NOT NULL`  | `nextval('event_documents_id_seq'::regclass)` |
-| `event_id`            | `integer`                     | `NOT NULL`  | `-`                                           |
-| `original_name`       | `text`                        | `NOT NULL`  | `-`                                           |
-| `file_name`           | `text`                        | `NOT NULL`  | `-`                                           |
-| `mime_type`           | `text`                        | `NOT NULL`  | `-`                                           |
-| `file_size`           | `integer`                     | `NOT NULL`  | `-`                                           |
-| `created_by`          | `integer`                     | `NULLABLE`  | `-`                                           |
-| `created_at`          | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                           |
-| `updated_at`          | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                           |
-| `caption`             | `text`                        | `NULLABLE`  | `-`                                           |
-| `album_id`            | `integer`                     | `NULLABLE`  | `-`                                           |
-| `moderation_status`   | `text`                        | `NOT NULL`  | `'approved'::text`                            |
-| `submitted_by`        | `integer`                     | `NULLABLE`  | `-`                                           |
-| `visibility`          | `text`                        | `NOT NULL`  | `'event'::text`                               |
-| `allow_download`      | `boolean`                     | `NOT NULL`  | `true`                                        |
-| `allow_comments`      | `boolean`                     | `NOT NULL`  | `true`                                        |
-| `conversion_status`   | `text`                        | `NOT NULL`  | `'none'::text`                                |
-| `original_format`     | `text`                        | `NULLABLE`  | `-`                                           |
-| `converted_file_name` | `text`                        | `NULLABLE`  | `-`                                           |
-| `thumbnail_url`       | `text`                        | `NULLABLE`  | `-`                                           |
-| `medium_url`          | `text`                        | `NULLABLE`  | `-`                                           |
-| `updated_by`          | `integer`                     | `NULLABLE`  | `-`                                           |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('event_documents_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `original_name` | `text` | `NOT NULL` | `-` |
+| `file_name` | `text` | `NOT NULL` | `-` |
+| `mime_type` | `text` | `NOT NULL` | `-` |
+| `file_size` | `integer` | `NOT NULL` | `-` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `caption` | `text` | `NULLABLE` | `-` |
+| `album_id` | `integer` | `NULLABLE` | `-` |
+| `moderation_status` | `text` | `NOT NULL` | `'approved'::text` |
+| `submitted_by` | `integer` | `NULLABLE` | `-` |
+| `visibility` | `text` | `NOT NULL` | `'event'::text` |
+| `allow_download` | `boolean` | `NOT NULL` | `true` |
+| `allow_comments` | `boolean` | `NOT NULL` | `true` |
+| `conversion_status` | `text` | `NOT NULL` | `'none'::text` |
+| `original_format` | `text` | `NULLABLE` | `-` |
+| `converted_file_name` | `text` | `NULLABLE` | `-` |
+| `thumbnail_url` | `text` | `NULLABLE` | `-` |
+| `medium_url` | `text` | `NULLABLE` | `-` |
+| `updated_by` | `integer` | `NULLABLE` | `-` |
 
 ### Indexes
 
@@ -343,14 +343,14 @@
 
 ### Columns
 
-| Column       | Type                          | Nullability | Default                                            |
-| ------------ | ----------------------------- | ----------- | -------------------------------------------------- |
-| `id`         | `integer`                     | `NOT NULL`  | `nextval('event_filter_presets_id_seq'::regclass)` |
-| `name`       | `text`                        | `NOT NULL`  | `-`                                                |
-| `filters`    | `text`                        | `NOT NULL`  | `-`                                                |
-| `user_id`    | `integer`                     | `NOT NULL`  | `-`                                                |
-| `created_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                |
-| `updated_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('event_filter_presets_id_seq'::regclass)` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `filters` | `text` | `NOT NULL` | `-` |
+| `user_id` | `integer` | `NOT NULL` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -366,16 +366,16 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                                          |
-| ------------- | ----------------------------- | ----------- | ------------------------------------------------ |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('event_meal_options_id_seq'::regclass)` |
-| `event_id`    | `integer`                     | `NOT NULL`  | `-`                                              |
-| `name`        | `text`                        | `NOT NULL`  | `-`                                              |
-| `description` | `text`                        | `NULLABLE`  | `-`                                              |
-| `is_active`   | `boolean`                     | `NULLABLE`  | `true`                                           |
-| `sort_order`  | `integer`                     | `NULLABLE`  | `0`                                              |
-| `created_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                              |
-| `updated_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                              |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('event_meal_options_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `description` | `text` | `NULLABLE` | `-` |
+| `is_active` | `boolean` | `NULLABLE` | `true` |
+| `sort_order` | `integer` | `NULLABLE` | `0` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -391,12 +391,12 @@
 
 ### Columns
 
-| Column      | Type                          | Nullability | Default             |
-| ----------- | ----------------------------- | ----------- | ------------------- |
-| `event_id`  | `integer`                     | `NOT NULL`  | `-`                 |
-| `user_id`   | `integer`                     | `NOT NULL`  | `-`                 |
-| `role`      | `text`                        | `NULLABLE`  | `'Member'::text`    |
-| `joined_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP` |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `user_id` | `integer` | `NOT NULL` | `-` |
+| `role` | `text` | `NULLABLE` | `'Member'::text` |
+| `joined_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -410,15 +410,15 @@
 
 ### Columns
 
-| Column       | Type                          | Nullability | Default                                      |
-| ------------ | ----------------------------- | ----------- | -------------------------------------------- |
-| `id`         | `integer`                     | `NOT NULL`  | `nextval('event_messages_id_seq'::regclass)` |
-| `event_id`   | `integer`                     | `NOT NULL`  | `-`                                          |
-| `sender_id`  | `integer`                     | `NOT NULL`  | `-`                                          |
-| `body`       | `text`                        | `NOT NULL`  | `-`                                          |
-| `created_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                          |
-| `updated_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                          |
-| `deleted_at` | `timestamp without time zone` | `NULLABLE`  | `-`                                          |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('event_messages_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `sender_id` | `integer` | `NOT NULL` | `-` |
+| `body` | `text` | `NOT NULL` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `deleted_at` | `timestamp without time zone` | `NULLABLE` | `-` |
 
 ### Indexes
 
@@ -434,15 +434,15 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                                               |
-| ------------- | ----------------------------- | ----------- | ----------------------------------------------------- |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('event_template_sections_id_seq'::regclass)` |
-| `template_id` | `integer`                     | `NOT NULL`  | `-`                                                   |
-| `section_key` | `text`                        | `NOT NULL`  | `-`                                                   |
-| `payload`     | `jsonb`                       | `NOT NULL`  | `'{}'::jsonb`                                         |
-| `sort_order`  | `integer`                     | `NOT NULL`  | `0`                                                   |
-| `created_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                   |
-| `updated_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                   |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('event_template_sections_id_seq'::regclass)` |
+| `template_id` | `integer` | `NOT NULL` | `-` |
+| `section_key` | `text` | `NOT NULL` | `-` |
+| `payload` | `jsonb` | `NOT NULL` | `'{}'::jsonb` |
+| `sort_order` | `integer` | `NOT NULL` | `0` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -458,23 +458,23 @@
 
 ### Columns
 
-| Column                     | Type                          | Nullability | Default                                       |
-| -------------------------- | ----------------------------- | ----------- | --------------------------------------------- |
-| `id`                       | `integer`                     | `NOT NULL`  | `nextval('event_templates_id_seq'::regclass)` |
-| `name`                     | `text`                        | `NOT NULL`  | `-`                                           |
-| `description`              | `text`                        | `NULLABLE`  | `-`                                           |
-| `default_title`            | `text`                        | `NULLABLE`  | `-`                                           |
-| `default_location`         | `text`                        | `NULLABLE`  | `-`                                           |
-| `default_capacity`         | `integer`                     | `NULLABLE`  | `-`                                           |
-| `default_event_type`       | `text`                        | `NULLABLE`  | `-`                                           |
-| `default_status`           | `text`                        | `NULLABLE`  | `'Draft'::text`                               |
-| `default_tags`             | `text`                        | `NULLABLE`  | `-`                                           |
-| `default_is_public`        | `boolean`                     | `NULLABLE`  | `false`                                       |
-| `default_waitlist_enabled` | `boolean`                     | `NULLABLE`  | `false`                                       |
-| `created_by`               | `integer`                     | `NOT NULL`  | `-`                                           |
-| `created_at`               | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                           |
-| `updated_at`               | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                           |
-| `deleted_at`               | `timestamp without time zone` | `NULLABLE`  | `-`                                           |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('event_templates_id_seq'::regclass)` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `description` | `text` | `NULLABLE` | `-` |
+| `default_title` | `text` | `NULLABLE` | `-` |
+| `default_location` | `text` | `NULLABLE` | `-` |
+| `default_capacity` | `integer` | `NULLABLE` | `-` |
+| `default_event_type` | `text` | `NULLABLE` | `-` |
+| `default_status` | `text` | `NULLABLE` | `'Draft'::text` |
+| `default_tags` | `text` | `NULLABLE` | `-` |
+| `default_is_public` | `boolean` | `NULLABLE` | `false` |
+| `default_waitlist_enabled` | `boolean` | `NULLABLE` | `false` |
+| `created_by` | `integer` | `NOT NULL` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `deleted_at` | `timestamp without time zone` | `NULLABLE` | `-` |
 
 ### Indexes
 
@@ -489,36 +489,36 @@
 
 ### Columns
 
-| Column                     | Type                          | Nullability | Default                              |
-| -------------------------- | ----------------------------- | ----------- | ------------------------------------ |
-| `id`                       | `integer`                     | `NOT NULL`  | `nextval('events_id_seq'::regclass)` |
-| `title`                    | `text`                        | `NOT NULL`  | `-`                                  |
-| `date`                     | `text`                        | `NOT NULL`  | `-`                                  |
-| `location`                 | `text`                        | `NOT NULL`  | `-`                                  |
-| `description`              | `text`                        | `NULLABLE`  | `-`                                  |
-| `capacity`                 | `integer`                     | `NULLABLE`  | `-`                                  |
-| `status`                   | `text`                        | `NULLABLE`  | `'Draft'::text`                      |
-| `created_by`               | `integer`                     | `NOT NULL`  | `-`                                  |
-| `created_at`               | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                  |
-| `updated_at`               | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                  |
-| `deleted_at`               | `timestamp without time zone` | `NULLABLE`  | `-`                                  |
-| `cover_image_url`          | `text`                        | `NULLABLE`  | `-`                                  |
-| `event_type`               | `text`                        | `NULLABLE`  | `'Other'::text`                      |
-| `is_public`                | `boolean`                     | `NULLABLE`  | `false`                              |
-| `rsvp_deadline`            | `timestamp without time zone` | `NULLABLE`  | `-`                                  |
-| `tags`                     | `text`                        | `NULLABLE`  | `-`                                  |
-| `end_date`                 | `text`                        | `NULLABLE`  | `-`                                  |
-| `currency_code`            | `text`                        | `NOT NULL`  | `'USD'::text`                        |
-| `archived_at`              | `timestamp without time zone` | `NULLABLE`  | `-`                                  |
-| `archived_by`              | `integer`                     | `NULLABLE`  | `-`                                  |
-| `archive_reason`           | `text`                        | `NULLABLE`  | `-`                                  |
-| `updated_by`               | `integer`                     | `NULLABLE`  | `-`                                  |
-| `gallery_comments_enabled` | `boolean`                     | `NOT NULL`  | `true`                               |
-| `gallery_guest_uploads`    | `boolean`                     | `NOT NULL`  | `false`                              |
-| `gallery_public`           | `boolean`                     | `NOT NULL`  | `false`                              |
-| `storage_quota_bytes`      | `bigint`                      | `NOT NULL`  | `524288000`                          |
-| `storage_used_bytes`       | `bigint`                      | `NOT NULL`  | `0`                                  |
-| `cover_image_sizes`        | `jsonb`                       | `NULLABLE`  | `-`                                  |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('events_id_seq'::regclass)` |
+| `title` | `text` | `NOT NULL` | `-` |
+| `date` | `text` | `NOT NULL` | `-` |
+| `location` | `text` | `NOT NULL` | `-` |
+| `description` | `text` | `NULLABLE` | `-` |
+| `capacity` | `integer` | `NULLABLE` | `-` |
+| `status` | `text` | `NULLABLE` | `'Draft'::text` |
+| `created_by` | `integer` | `NOT NULL` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `deleted_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `cover_image_url` | `text` | `NULLABLE` | `-` |
+| `event_type` | `text` | `NULLABLE` | `'Other'::text` |
+| `is_public` | `boolean` | `NULLABLE` | `false` |
+| `rsvp_deadline` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `tags` | `text` | `NULLABLE` | `-` |
+| `end_date` | `text` | `NULLABLE` | `-` |
+| `currency_code` | `text` | `NOT NULL` | `'USD'::text` |
+| `archived_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `archived_by` | `integer` | `NULLABLE` | `-` |
+| `archive_reason` | `text` | `NULLABLE` | `-` |
+| `updated_by` | `integer` | `NULLABLE` | `-` |
+| `gallery_comments_enabled` | `boolean` | `NOT NULL` | `true` |
+| `gallery_guest_uploads` | `boolean` | `NOT NULL` | `false` |
+| `gallery_public` | `boolean` | `NOT NULL` | `false` |
+| `storage_quota_bytes` | `bigint` | `NOT NULL` | `524288000` |
+| `storage_used_bytes` | `bigint` | `NOT NULL` | `0` |
+| `cover_image_sizes` | `jsonb` | `NULLABLE` | `-` |
 
 ### Indexes
 
@@ -533,13 +533,13 @@
 
 ### Columns
 
-| Column           | Type                          | Nullability | Default             |
-| ---------------- | ----------------------------- | ----------- | ------------------- |
-| `base_currency`  | `text`                        | `NOT NULL`  | `-`                 |
-| `quote_currency` | `text`                        | `NOT NULL`  | `-`                 |
-| `rate`           | `numeric`                     | `NOT NULL`  | `-`                 |
-| `source`         | `text`                        | `NOT NULL`  | `'manual'::text`    |
-| `fetched_at`     | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP` |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `base_currency` | `text` | `NOT NULL` | `-` |
+| `quote_currency` | `text` | `NOT NULL` | `-` |
+| `rate` | `numeric` | `NOT NULL` | `-` |
+| `source` | `text` | `NOT NULL` | `'manual'::text` |
+| `fetched_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -553,25 +553,25 @@
 
 ### Columns
 
-| Column                  | Type                          | Nullability | Default                                           |
-| ----------------------- | ----------------------------- | ----------- | ------------------------------------------------- |
-| `id`                    | `integer`                     | `NOT NULL`  | `nextval('expense_receipt_ocr_id_seq'::regclass)` |
-| `event_id`              | `integer`                     | `NOT NULL`  | `-`                                               |
-| `expense_id`            | `integer`                     | `NOT NULL`  | `-`                                               |
-| `receipt_text`          | `text`                        | `NOT NULL`  | `-`                                               |
-| `extracted_title`       | `text`                        | `NULLABLE`  | `-`                                               |
-| `extracted_amount`      | `numeric`                     | `NULLABLE`  | `-`                                               |
-| `extracted_vendor_name` | `text`                        | `NULLABLE`  | `-`                                               |
-| `extracted_date`        | `text`                        | `NULLABLE`  | `-`                                               |
-| `confidence`            | `numeric`                     | `NOT NULL`  | `0`                                               |
-| `status`                | `text`                        | `NOT NULL`  | `'extracted'::text`                               |
-| `error_code`            | `text`                        | `NULLABLE`  | `-`                                               |
-| `error_message`         | `text`                        | `NULLABLE`  | `-`                                               |
-| `created_by`            | `integer`                     | `NOT NULL`  | `-`                                               |
-| `applied_by`            | `integer`                     | `NULLABLE`  | `-`                                               |
-| `applied_at`            | `timestamp without time zone` | `NULLABLE`  | `-`                                               |
-| `created_at`            | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                               |
-| `updated_at`            | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                               |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('expense_receipt_ocr_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `expense_id` | `integer` | `NOT NULL` | `-` |
+| `receipt_text` | `text` | `NOT NULL` | `-` |
+| `extracted_title` | `text` | `NULLABLE` | `-` |
+| `extracted_amount` | `numeric` | `NULLABLE` | `-` |
+| `extracted_vendor_name` | `text` | `NULLABLE` | `-` |
+| `extracted_date` | `text` | `NULLABLE` | `-` |
+| `confidence` | `numeric` | `NOT NULL` | `0` |
+| `status` | `text` | `NOT NULL` | `'extracted'::text` |
+| `error_code` | `text` | `NULLABLE` | `-` |
+| `error_message` | `text` | `NULLABLE` | `-` |
+| `created_by` | `integer` | `NOT NULL` | `-` |
+| `applied_by` | `integer` | `NULLABLE` | `-` |
+| `applied_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -587,21 +587,21 @@
 
 ### Columns
 
-| Column            | Type                          | Nullability | Default                                                   |
-| ----------------- | ----------------------------- | ----------- | --------------------------------------------------------- |
-| `id`              | `integer`                     | `NOT NULL`  | `nextval('expense_reconciliation_logs_id_seq'::regclass)` |
-| `event_id`        | `integer`                     | `NOT NULL`  | `-`                                                       |
-| `expense_id`      | `integer`                     | `NOT NULL`  | `-`                                                       |
-| `ocr_id`          | `integer`                     | `NOT NULL`  | `-`                                                       |
-| `before_data`     | `jsonb`                       | `NOT NULL`  | `-`                                                       |
-| `extracted_data`  | `jsonb`                       | `NOT NULL`  | `-`                                                       |
-| `applied_data`    | `jsonb`                       | `NOT NULL`  | `-`                                                       |
-| `overrides_count` | `integer`                     | `NOT NULL`  | `0`                                                       |
-| `override_reason` | `text`                        | `NULLABLE`  | `-`                                                       |
-| `created_by`      | `integer`                     | `NOT NULL`  | `-`                                                       |
-| `updated_by`      | `integer`                     | `NOT NULL`  | `-`                                                       |
-| `created_at`      | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                       |
-| `updated_at`      | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                       |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('expense_reconciliation_logs_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `expense_id` | `integer` | `NOT NULL` | `-` |
+| `ocr_id` | `integer` | `NOT NULL` | `-` |
+| `before_data` | `jsonb` | `NOT NULL` | `-` |
+| `extracted_data` | `jsonb` | `NOT NULL` | `-` |
+| `applied_data` | `jsonb` | `NOT NULL` | `-` |
+| `overrides_count` | `integer` | `NOT NULL` | `0` |
+| `override_reason` | `text` | `NULLABLE` | `-` |
+| `created_by` | `integer` | `NOT NULL` | `-` |
+| `updated_by` | `integer` | `NOT NULL` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -617,17 +617,17 @@
 
 ### Columns
 
-| Column          | Type                          | Nullability | Default                                               |
-| --------------- | ----------------------------- | ----------- | ----------------------------------------------------- |
-| `id`            | `integer`                     | `NOT NULL`  | `nextval('expense_workflow_events_id_seq'::regclass)` |
-| `event_id`      | `integer`                     | `NOT NULL`  | `-`                                                   |
-| `expense_id`    | `integer`                     | `NOT NULL`  | `-`                                                   |
-| `action`        | `text`                        | `NOT NULL`  | `-`                                                   |
-| `actor_user_id` | `integer`                     | `NOT NULL`  | `-`                                                   |
-| `from_state`    | `text`                        | `NULLABLE`  | `-`                                                   |
-| `to_state`      | `text`                        | `NULLABLE`  | `-`                                                   |
-| `note`          | `text`                        | `NULLABLE`  | `-`                                                   |
-| `created_at`    | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                   |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('expense_workflow_events_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `expense_id` | `integer` | `NOT NULL` | `-` |
+| `action` | `text` | `NOT NULL` | `-` |
+| `actor_user_id` | `integer` | `NOT NULL` | `-` |
+| `from_state` | `text` | `NULLABLE` | `-` |
+| `to_state` | `text` | `NULLABLE` | `-` |
+| `note` | `text` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -643,38 +643,38 @@
 
 ### Columns
 
-| Column                       | Type                          | Nullability | Default                                |
-| ---------------------------- | ----------------------------- | ----------- | -------------------------------------- |
-| `id`                         | `integer`                     | `NOT NULL`  | `nextval('expenses_id_seq'::regclass)` |
-| `event_id`                   | `integer`                     | `NOT NULL`  | `-`                                    |
-| `category_id`                | `integer`                     | `NULLABLE`  | `-`                                    |
-| `title`                      | `text`                        | `NOT NULL`  | `-`                                    |
-| `amount`                     | `numeric`                     | `NOT NULL`  | `-`                                    |
-| `payment_status`             | `text`                        | `NULLABLE`  | `'pending'::text`                      |
-| `vendor_name`                | `text`                        | `NULLABLE`  | `-`                                    |
-| `notes`                      | `text`                        | `NULLABLE`  | `-`                                    |
-| `created_by`                 | `integer`                     | `NULLABLE`  | `-`                                    |
-| `created_at`                 | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                    |
-| `updated_at`                 | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                    |
-| `is_recurring`               | `boolean`                     | `NULLABLE`  | `false`                                |
-| `recurrence_pattern`         | `text`                        | `NULLABLE`  | `-`                                    |
-| `recurrence_end_date`        | `date`                        | `NULLABLE`  | `-`                                    |
-| `is_installment`             | `boolean`                     | `NULLABLE`  | `false`                                |
-| `installment_total`          | `integer`                     | `NULLABLE`  | `-`                                    |
-| `installment_number`         | `integer`                     | `NULLABLE`  | `-`                                    |
-| `currency_code`              | `text`                        | `NULLABLE`  | `-`                                    |
-| `amount_base`                | `numeric`                     | `NULLABLE`  | `-`                                    |
-| `exchange_rate`              | `numeric`                     | `NULLABLE`  | `-`                                    |
-| `updated_by`                 | `integer`                     | `NULLABLE`  | `-`                                    |
-| `approval_status`            | `text`                        | `NOT NULL`  | `'pending'::text`                      |
-| `approval_note`              | `text`                        | `NULLABLE`  | `-`                                    |
-| `approved_by`                | `integer`                     | `NULLABLE`  | `-`                                    |
-| `approved_at`                | `timestamp without time zone` | `NULLABLE`  | `-`                                    |
-| `reimbursement_status`       | `text`                        | `NOT NULL`  | `'not_requested'::text`                |
-| `reimbursement_requested_by` | `integer`                     | `NULLABLE`  | `-`                                    |
-| `reimbursement_requested_at` | `timestamp without time zone` | `NULLABLE`  | `-`                                    |
-| `reimbursed_by`              | `integer`                     | `NULLABLE`  | `-`                                    |
-| `reimbursed_at`              | `timestamp without time zone` | `NULLABLE`  | `-`                                    |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('expenses_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `category_id` | `integer` | `NULLABLE` | `-` |
+| `title` | `text` | `NOT NULL` | `-` |
+| `amount` | `numeric` | `NOT NULL` | `-` |
+| `payment_status` | `text` | `NULLABLE` | `'pending'::text` |
+| `vendor_name` | `text` | `NULLABLE` | `-` |
+| `notes` | `text` | `NULLABLE` | `-` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `is_recurring` | `boolean` | `NULLABLE` | `false` |
+| `recurrence_pattern` | `text` | `NULLABLE` | `-` |
+| `recurrence_end_date` | `date` | `NULLABLE` | `-` |
+| `is_installment` | `boolean` | `NULLABLE` | `false` |
+| `installment_total` | `integer` | `NULLABLE` | `-` |
+| `installment_number` | `integer` | `NULLABLE` | `-` |
+| `currency_code` | `text` | `NULLABLE` | `-` |
+| `amount_base` | `numeric` | `NULLABLE` | `-` |
+| `exchange_rate` | `numeric` | `NULLABLE` | `-` |
+| `updated_by` | `integer` | `NULLABLE` | `-` |
+| `approval_status` | `text` | `NOT NULL` | `'pending'::text` |
+| `approval_note` | `text` | `NULLABLE` | `-` |
+| `approved_by` | `integer` | `NULLABLE` | `-` |
+| `approved_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `reimbursement_status` | `text` | `NOT NULL` | `'not_requested'::text` |
+| `reimbursement_requested_by` | `integer` | `NULLABLE` | `-` |
+| `reimbursement_requested_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `reimbursed_by` | `integer` | `NULLABLE` | `-` |
+| `reimbursed_at` | `timestamp without time zone` | `NULLABLE` | `-` |
 
 ### Indexes
 
@@ -688,15 +688,15 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                                      |
-| ------------- | ----------------------------- | ----------- | -------------------------------------------- |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('gallery_albums_id_seq'::regclass)` |
-| `event_id`    | `integer`                     | `NOT NULL`  | `-`                                          |
-| `name`        | `text`                        | `NOT NULL`  | `-`                                          |
-| `description` | `text`                        | `NULLABLE`  | `-`                                          |
-| `created_by`  | `integer`                     | `NULLABLE`  | `-`                                          |
-| `created_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                          |
-| `updated_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                          |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('gallery_albums_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `description` | `text` | `NULLABLE` | `-` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -711,20 +711,20 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                                        |
-| ------------- | ----------------------------- | ----------- | ---------------------------------------------- |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('gallery_comments_id_seq'::regclass)` |
-| `event_id`    | `integer`                     | `NOT NULL`  | `-`                                            |
-| `document_id` | `integer`                     | `NOT NULL`  | `-`                                            |
-| `parent_id`   | `integer`                     | `NULLABLE`  | `-`                                            |
-| `user_id`     | `integer`                     | `NULLABLE`  | `-`                                            |
-| `body`        | `text`                        | `NOT NULL`  | `-`                                            |
-| `is_hidden`   | `boolean`                     | `NOT NULL`  | `false`                                        |
-| `hidden_by`   | `integer`                     | `NULLABLE`  | `-`                                            |
-| `hidden_at`   | `timestamp without time zone` | `NULLABLE`  | `-`                                            |
-| `created_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                            |
-| `updated_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                            |
-| `updated_by`  | `integer`                     | `NULLABLE`  | `-`                                            |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('gallery_comments_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `document_id` | `integer` | `NOT NULL` | `-` |
+| `parent_id` | `integer` | `NULLABLE` | `-` |
+| `user_id` | `integer` | `NULLABLE` | `-` |
+| `body` | `text` | `NOT NULL` | `-` |
+| `is_hidden` | `boolean` | `NOT NULL` | `false` |
+| `hidden_by` | `integer` | `NULLABLE` | `-` |
+| `hidden_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_by` | `integer` | `NULLABLE` | `-` |
 
 ### Indexes
 
@@ -741,21 +741,21 @@
 
 ### Columns
 
-| Column           | Type                          | Nullability | Default                                           |
-| ---------------- | ----------------------------- | ----------- | ------------------------------------------------- |
-| `id`             | `integer`                     | `NOT NULL`  | `nextval('gallery_share_links_id_seq'::regclass)` |
-| `event_id`       | `integer`                     | `NOT NULL`  | `-`                                               |
-| `album_id`       | `integer`                     | `NULLABLE`  | `-`                                               |
-| `token`          | `text`                        | `NOT NULL`  | `-`                                               |
-| `password_hash`  | `text`                        | `NULLABLE`  | `-`                                               |
-| `allow_download` | `boolean`                     | `NOT NULL`  | `true`                                            |
-| `expires_at`     | `timestamp without time zone` | `NULLABLE`  | `-`                                               |
-| `view_count`     | `integer`                     | `NOT NULL`  | `0`                                               |
-| `last_viewed_at` | `timestamp without time zone` | `NULLABLE`  | `-`                                               |
-| `revoked_at`     | `timestamp without time zone` | `NULLABLE`  | `-`                                               |
-| `created_by`     | `integer`                     | `NULLABLE`  | `-`                                               |
-| `created_at`     | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                               |
-| `updated_at`     | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                               |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('gallery_share_links_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `album_id` | `integer` | `NULLABLE` | `-` |
+| `token` | `text` | `NOT NULL` | `-` |
+| `password_hash` | `text` | `NULLABLE` | `-` |
+| `allow_download` | `boolean` | `NOT NULL` | `true` |
+| `expires_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `view_count` | `integer` | `NOT NULL` | `0` |
+| `last_viewed_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `revoked_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -773,14 +773,14 @@
 
 ### Columns
 
-| Column       | Type                          | Nullability | Default                                          |
-| ------------ | ----------------------------- | ----------- | ------------------------------------------------ |
-| `id`         | `integer`                     | `NOT NULL`  | `nextval('gallery_slideshows_id_seq'::regclass)` |
-| `event_id`   | `integer`                     | `NOT NULL`  | `-`                                              |
-| `name`       | `text`                        | `NOT NULL`  | `-`                                              |
-| `created_by` | `integer`                     | `NULLABLE`  | `-`                                              |
-| `created_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                              |
-| `updated_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                              |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('gallery_slideshows_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -795,18 +795,18 @@
 
 ### Columns
 
-| Column              | Type                          | Nullability | Default                                         |
-| ------------------- | ----------------------------- | ----------- | ----------------------------------------------- |
-| `id`                | `integer`                     | `NOT NULL`  | `nextval('guest_merge_audit_id_seq'::regclass)` |
-| `event_id`          | `integer`                     | `NOT NULL`  | `-`                                             |
-| `surviving_rsvp_id` | `integer`                     | `NULLABLE`  | `-`                                             |
-| `merged_rsvp_id`    | `integer`                     | `NOT NULL`  | `-`                                             |
-| `merged_email`      | `text`                        | `NOT NULL`  | `-`                                             |
-| `merged_name`       | `text`                        | `NOT NULL`  | `-`                                             |
-| `merged_snapshot`   | `jsonb`                       | `NOT NULL`  | `-`                                             |
-| `merged_by`         | `integer`                     | `NULLABLE`  | `-`                                             |
-| `merged_at`         | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                             |
-| `notes`             | `text`                        | `NULLABLE`  | `-`                                             |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('guest_merge_audit_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `surviving_rsvp_id` | `integer` | `NULLABLE` | `-` |
+| `merged_rsvp_id` | `integer` | `NOT NULL` | `-` |
+| `merged_email` | `text` | `NOT NULL` | `-` |
+| `merged_name` | `text` | `NOT NULL` | `-` |
+| `merged_snapshot` | `jsonb` | `NOT NULL` | `-` |
+| `merged_by` | `integer` | `NULLABLE` | `-` |
+| `merged_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `notes` | `text` | `NULLABLE` | `-` |
 
 ### Indexes
 
@@ -822,16 +822,16 @@
 
 ### Columns
 
-| Column       | Type                          | Nullability | Default                                     |
-| ------------ | ----------------------------- | ----------- | ------------------------------------------- |
-| `id`         | `integer`                     | `NOT NULL`  | `nextval('notifications_id_seq'::regclass)` |
-| `user_id`    | `integer`                     | `NOT NULL`  | `-`                                         |
-| `type`       | `text`                        | `NOT NULL`  | `-`                                         |
-| `title`      | `text`                        | `NOT NULL`  | `-`                                         |
-| `body`       | `text`                        | `NULLABLE`  | `-`                                         |
-| `link`       | `text`                        | `NULLABLE`  | `-`                                         |
-| `is_read`    | `boolean`                     | `NULLABLE`  | `false`                                     |
-| `created_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                         |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('notifications_id_seq'::regclass)` |
+| `user_id` | `integer` | `NOT NULL` | `-` |
+| `type` | `text` | `NOT NULL` | `-` |
+| `title` | `text` | `NOT NULL` | `-` |
+| `body` | `text` | `NULLABLE` | `-` |
+| `link` | `text` | `NULLABLE` | `-` |
+| `is_read` | `boolean` | `NULLABLE` | `false` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -845,12 +845,12 @@
 
 ### Columns
 
-| Column          | Type                          | Nullability | Default                                                 |
-| --------------- | ----------------------------- | ----------- | ------------------------------------------------------- |
-| `id`            | `integer`                     | `NOT NULL`  | `nextval('password_reset_rate_limit_id_seq'::regclass)` |
-| `email`         | `text`                        | `NOT NULL`  | `-`                                                     |
-| `request_count` | `integer`                     | `NULLABLE`  | `1`                                                     |
-| `window_start`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                     |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('password_reset_rate_limit_id_seq'::regclass)` |
+| `email` | `text` | `NOT NULL` | `-` |
+| `request_count` | `integer` | `NULLABLE` | `1` |
+| `window_start` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -865,17 +865,17 @@
 
 ### Columns
 
-| Column           | Type                          | Nullability | Default                                             |
-| ---------------- | ----------------------------- | ----------- | --------------------------------------------------- |
-| `id`             | `integer`                     | `NOT NULL`  | `nextval('password_reset_tokens_id_seq'::regclass)` |
-| `user_id`        | `integer`                     | `NULLABLE`  | `-`                                                 |
-| `email`          | `text`                        | `NOT NULL`  | `-`                                                 |
-| `token_selector` | `text`                        | `NOT NULL`  | `''::text`                                          |
-| `token`          | `text`                        | `NOT NULL`  | `-`                                                 |
-| `expires_at`     | `timestamp without time zone` | `NOT NULL`  | `-`                                                 |
-| `used`           | `integer`                     | `NULLABLE`  | `0`                                                 |
-| `used_at`        | `timestamp without time zone` | `NULLABLE`  | `-`                                                 |
-| `created_at`     | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                 |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('password_reset_tokens_id_seq'::regclass)` |
+| `user_id` | `integer` | `NULLABLE` | `-` |
+| `email` | `text` | `NOT NULL` | `-` |
+| `token_selector` | `text` | `NOT NULL` | `''::text` |
+| `token` | `text` | `NOT NULL` | `-` |
+| `expires_at` | `timestamp without time zone` | `NOT NULL` | `-` |
+| `used` | `integer` | `NULLABLE` | `0` |
+| `used_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -890,12 +890,12 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                                   |
-| ------------- | ----------------------------- | ----------- | ----------------------------------------- |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('permissions_id_seq'::regclass)` |
-| `name`        | `text`                        | `NOT NULL`  | `-`                                       |
-| `description` | `text`                        | `NULLABLE`  | `-`                                       |
-| `created_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                       |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('permissions_id_seq'::regclass)` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `description` | `text` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -910,10 +910,10 @@
 
 ### Columns
 
-| Column          | Type      | Nullability | Default |
-| --------------- | --------- | ----------- | ------- |
-| `role_id`       | `integer` | `NOT NULL`  | `-`     |
-| `permission_id` | `integer` | `NOT NULL`  | `-`     |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `role_id` | `integer` | `NOT NULL` | `-` |
+| `permission_id` | `integer` | `NOT NULL` | `-` |
 
 ### Indexes
 
@@ -927,12 +927,12 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                             |
-| ------------- | ----------------------------- | ----------- | ----------------------------------- |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('roles_id_seq'::regclass)` |
-| `name`        | `text`                        | `NOT NULL`  | `-`                                 |
-| `description` | `text`                        | `NULLABLE`  | `-`                                 |
-| `created_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                 |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('roles_id_seq'::regclass)` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `description` | `text` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -947,12 +947,12 @@
 
 ### Columns
 
-| Column       | Type                          | Nullability | Default             |
-| ------------ | ----------------------------- | ----------- | ------------------- |
-| `rsvp_id`    | `integer`                     | `NOT NULL`  | `-`                 |
-| `token`      | `text`                        | `NOT NULL`  | `-`                 |
-| `created_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP` |
-| `revoked_at` | `timestamp without time zone` | `NULLABLE`  | `-`                 |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `rsvp_id` | `integer` | `NOT NULL` | `-` |
+| `token` | `text` | `NOT NULL` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `revoked_at` | `timestamp without time zone` | `NULLABLE` | `-` |
 
 ### Indexes
 
@@ -968,14 +968,14 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                                               |
-| ------------- | ----------------------------- | ----------- | ----------------------------------------------------- |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('rsvp_question_responses_id_seq'::regclass)` |
-| `rsvp_id`     | `integer`                     | `NOT NULL`  | `-`                                                   |
-| `question_id` | `integer`                     | `NOT NULL`  | `-`                                                   |
-| `response`    | `text`                        | `NULLABLE`  | `-`                                                   |
-| `created_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                   |
-| `updated_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                   |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('rsvp_question_responses_id_seq'::regclass)` |
+| `rsvp_id` | `integer` | `NOT NULL` | `-` |
+| `question_id` | `integer` | `NOT NULL` | `-` |
+| `response` | `text` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -991,17 +991,17 @@
 
 ### Columns
 
-| Column          | Type                          | Nullability | Default                                      |
-| --------------- | ----------------------------- | ----------- | -------------------------------------------- |
-| `id`            | `integer`                     | `NOT NULL`  | `nextval('rsvp_questions_id_seq'::regclass)` |
-| `event_id`      | `integer`                     | `NOT NULL`  | `-`                                          |
-| `prompt`        | `text`                        | `NOT NULL`  | `-`                                          |
-| `question_type` | `text`                        | `NOT NULL`  | `-`                                          |
-| `options`       | `jsonb`                       | `NULLABLE`  | `-`                                          |
-| `required`      | `boolean`                     | `NULLABLE`  | `false`                                      |
-| `sort_order`    | `integer`                     | `NULLABLE`  | `0`                                          |
-| `created_at`    | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                          |
-| `updated_at`    | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                          |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('rsvp_questions_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `prompt` | `text` | `NOT NULL` | `-` |
+| `question_type` | `text` | `NOT NULL` | `-` |
+| `options` | `jsonb` | `NULLABLE` | `-` |
+| `required` | `boolean` | `NULLABLE` | `false` |
+| `sort_order` | `integer` | `NULLABLE` | `0` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1016,51 +1016,51 @@
 
 ### Columns
 
-| Column                    | Type                          | Nullability | Default                             |
-| ------------------------- | ----------------------------- | ----------- | ----------------------------------- |
-| `id`                      | `integer`                     | `NOT NULL`  | `nextval('rsvps_id_seq'::regclass)` |
-| `event_id`                | `integer`                     | `NOT NULL`  | `-`                                 |
-| `name`                    | `text`                        | `NOT NULL`  | `-`                                 |
-| `email`                   | `text`                        | `NOT NULL`  | `-`                                 |
-| `guests`                  | `integer`                     | `NULLABLE`  | `1`                                 |
-| `status`                  | `text`                        | `NULLABLE`  | `'Pending'::text`                   |
-| `notes`                   | `text`                        | `NULLABLE`  | `-`                                 |
-| `source`                  | `text`                        | `NULLABLE`  | `'public'::text`                    |
-| `created_at`              | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                 |
-| `updated_at`              | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                 |
-| `checked_in`              | `boolean`                     | `NULLABLE`  | `false`                             |
-| `checked_in_at`           | `timestamp without time zone` | `NULLABLE`  | `-`                                 |
-| `phone`                   | `text`                        | `NULLABLE`  | `-`                                 |
-| `dietary_restriction`     | `text`                        | `NULLABLE`  | `'None'::text`                      |
-| `accessibility_needs`     | `text`                        | `NULLABLE`  | `-`                                 |
-| `plus_one`                | `boolean`                     | `NULLABLE`  | `false`                             |
-| `plus_one_name`           | `text`                        | `NULLABLE`  | `-`                                 |
-| `guest_group`             | `text`                        | `NULLABLE`  | `-`                                 |
-| `rsvp_deadline`           | `timestamp without time zone` | `NULLABLE`  | `-`                                 |
-| `waitlist_position`       | `integer`                     | `NULLABLE`  | `-`                                 |
-| `waitlisted_at`           | `timestamp without time zone` | `NULLABLE`  | `-`                                 |
-| `promoted_at`             | `timestamp without time zone` | `NULLABLE`  | `-`                                 |
-| `address_line1`           | `text`                        | `NULLABLE`  | `-`                                 |
-| `address_line2`           | `text`                        | `NULLABLE`  | `-`                                 |
-| `city`                    | `text`                        | `NULLABLE`  | `-`                                 |
-| `state_region`            | `text`                        | `NULLABLE`  | `-`                                 |
-| `postal_code`             | `text`                        | `NULLABLE`  | `-`                                 |
-| `country`                 | `text`                        | `NULLABLE`  | `-`                                 |
-| `company`                 | `text`                        | `NULLABLE`  | `-`                                 |
-| `title`                   | `text`                        | `NULLABLE`  | `-`                                 |
-| `relation_type`           | `text`                        | `NULLABLE`  | `-`                                 |
-| `age_group`               | `text`                        | `NULLABLE`  | `-`                                 |
-| `emergency_contact_name`  | `text`                        | `NULLABLE`  | `-`                                 |
-| `emergency_contact_phone` | `text`                        | `NULLABLE`  | `-`                                 |
-| `profile_completeness`    | `integer`                     | `NULLABLE`  | `0`                                 |
-| `canonical_status`        | `text`                        | `NULLABLE`  | `-`                                 |
-| `meal_choice`             | `text`                        | `NULLABLE`  | `-`                                 |
-| `meal_options_locked`     | `boolean`                     | `NULLABLE`  | `false`                             |
-| `late_arrival`            | `boolean`                     | `NULLABLE`  | `false`                             |
-| `arrival_delay_minutes`   | `integer`                     | `NULLABLE`  | `-`                                 |
-| `unsubscribed_at`         | `timestamp without time zone` | `NULLABLE`  | `-`                                 |
-| `unsubscribe_token`       | `text`                        | `NULLABLE`  | `-`                                 |
-| `seating_group_id`        | `integer`                     | `NULLABLE`  | `-`                                 |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('rsvps_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `email` | `text` | `NOT NULL` | `-` |
+| `guests` | `integer` | `NULLABLE` | `1` |
+| `status` | `text` | `NULLABLE` | `'Pending'::text` |
+| `notes` | `text` | `NULLABLE` | `-` |
+| `source` | `text` | `NULLABLE` | `'public'::text` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `checked_in` | `boolean` | `NULLABLE` | `false` |
+| `checked_in_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `phone` | `text` | `NULLABLE` | `-` |
+| `dietary_restriction` | `text` | `NULLABLE` | `'None'::text` |
+| `accessibility_needs` | `text` | `NULLABLE` | `-` |
+| `plus_one` | `boolean` | `NULLABLE` | `false` |
+| `plus_one_name` | `text` | `NULLABLE` | `-` |
+| `guest_group` | `text` | `NULLABLE` | `-` |
+| `rsvp_deadline` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `waitlist_position` | `integer` | `NULLABLE` | `-` |
+| `waitlisted_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `promoted_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `address_line1` | `text` | `NULLABLE` | `-` |
+| `address_line2` | `text` | `NULLABLE` | `-` |
+| `city` | `text` | `NULLABLE` | `-` |
+| `state_region` | `text` | `NULLABLE` | `-` |
+| `postal_code` | `text` | `NULLABLE` | `-` |
+| `country` | `text` | `NULLABLE` | `-` |
+| `company` | `text` | `NULLABLE` | `-` |
+| `title` | `text` | `NULLABLE` | `-` |
+| `relation_type` | `text` | `NULLABLE` | `-` |
+| `age_group` | `text` | `NULLABLE` | `-` |
+| `emergency_contact_name` | `text` | `NULLABLE` | `-` |
+| `emergency_contact_phone` | `text` | `NULLABLE` | `-` |
+| `profile_completeness` | `integer` | `NULLABLE` | `0` |
+| `canonical_status` | `text` | `NULLABLE` | `-` |
+| `meal_choice` | `text` | `NULLABLE` | `-` |
+| `meal_options_locked` | `boolean` | `NULLABLE` | `false` |
+| `late_arrival` | `boolean` | `NULLABLE` | `false` |
+| `arrival_delay_minutes` | `integer` | `NULLABLE` | `-` |
+| `unsubscribed_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `unsubscribe_token` | `text` | `NULLABLE` | `-` |
+| `seating_group_id` | `integer` | `NULLABLE` | `-` |
 
 ### Indexes
 
@@ -1079,15 +1079,15 @@
 
 ### Columns
 
-| Column          | Type                          | Nullability | Default                                                   |
-| --------------- | ----------------------------- | ----------- | --------------------------------------------------------- |
-| `id`            | `integer`                     | `NOT NULL`  | `nextval('scheduled_report_deliveries_id_seq'::regclass)` |
-| `report_id`     | `integer`                     | `NOT NULL`  | `-`                                                       |
-| `delivered_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                       |
-| `recipients`    | `jsonb`                       | `NOT NULL`  | `'[]'::jsonb`                                             |
-| `status`        | `text`                        | `NOT NULL`  | `-`                                                       |
-| `error_message` | `text`                        | `NULLABLE`  | `-`                                                       |
-| `payload_kind`  | `text`                        | `NOT NULL`  | `'json'::text`                                            |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('scheduled_report_deliveries_id_seq'::regclass)` |
+| `report_id` | `integer` | `NOT NULL` | `-` |
+| `delivered_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `recipients` | `jsonb` | `NOT NULL` | `'[]'::jsonb` |
+| `status` | `text` | `NOT NULL` | `-` |
+| `error_message` | `text` | `NULLABLE` | `-` |
+| `payload_kind` | `text` | `NOT NULL` | `'json'::text` |
 
 ### Indexes
 
@@ -1102,21 +1102,21 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                                         |
-| ------------- | ----------------------------- | ----------- | ----------------------------------------------- |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('scheduled_reports_id_seq'::regclass)` |
-| `event_id`    | `integer`                     | `NULLABLE`  | `-`                                             |
-| `report_type` | `text`                        | `NOT NULL`  | `-`                                             |
-| `frequency`   | `text`                        | `NOT NULL`  | `-`                                             |
-| `recipients`  | `jsonb`                       | `NOT NULL`  | `'[]'::jsonb`                                   |
-| `filters`     | `jsonb`                       | `NULLABLE`  | `-`                                             |
-| `next_run_at` | `timestamp without time zone` | `NULLABLE`  | `-`                                             |
-| `last_run_at` | `timestamp without time zone` | `NULLABLE`  | `-`                                             |
-| `is_active`   | `boolean`                     | `NOT NULL`  | `true`                                          |
-| `created_by`  | `integer`                     | `NULLABLE`  | `-`                                             |
-| `updated_by`  | `integer`                     | `NULLABLE`  | `-`                                             |
-| `created_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                             |
-| `updated_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                             |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('scheduled_reports_id_seq'::regclass)` |
+| `event_id` | `integer` | `NULLABLE` | `-` |
+| `report_type` | `text` | `NOT NULL` | `-` |
+| `frequency` | `text` | `NOT NULL` | `-` |
+| `recipients` | `jsonb` | `NOT NULL` | `'[]'::jsonb` |
+| `filters` | `jsonb` | `NULLABLE` | `-` |
+| `next_run_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `last_run_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `is_active` | `boolean` | `NOT NULL` | `true` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `updated_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1132,10 +1132,10 @@
 
 ### Columns
 
-| Column     | Type      | Nullability | Default |
-| ---------- | --------- | ----------- | ------- |
-| `table_id` | `integer` | `NOT NULL`  | `-`     |
-| `rsvp_id`  | `integer` | `NOT NULL`  | `-`     |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `table_id` | `integer` | `NOT NULL` | `-` |
+| `rsvp_id` | `integer` | `NOT NULL` | `-` |
 
 ### Indexes
 
@@ -1149,16 +1149,16 @@
 
 ### Columns
 
-| Column               | Type                          | Nullability | Default                                      |
-| -------------------- | ----------------------------- | ----------- | -------------------------------------------- |
-| `id`                 | `integer`                     | `NOT NULL`  | `nextval('seating_groups_id_seq'::regclass)` |
-| `event_id`           | `integer`                     | `NOT NULL`  | `-`                                          |
-| `name`               | `text`                        | `NOT NULL`  | `-`                                          |
-| `seat_together`      | `boolean`                     | `NULLABLE`  | `true`                                       |
-| `preferred_table_id` | `integer`                     | `NULLABLE`  | `-`                                          |
-| `notes`              | `text`                        | `NULLABLE`  | `-`                                          |
-| `created_at`         | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                          |
-| `updated_at`         | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                          |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('seating_groups_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `seat_together` | `boolean` | `NULLABLE` | `true` |
+| `preferred_table_id` | `integer` | `NULLABLE` | `-` |
+| `notes` | `text` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1173,15 +1173,15 @@
 
 ### Columns
 
-| Column       | Type                          | Nullability | Default                                      |
-| ------------ | ----------------------------- | ----------- | -------------------------------------------- |
-| `id`         | `integer`                     | `NOT NULL`  | `nextval('seating_tables_id_seq'::regclass)` |
-| `event_id`   | `integer`                     | `NOT NULL`  | `-`                                          |
-| `name`       | `text`                        | `NOT NULL`  | `-`                                          |
-| `capacity`   | `integer`                     | `NULLABLE`  | `8`                                          |
-| `layout_x`   | `integer`                     | `NULLABLE`  | `-`                                          |
-| `layout_y`   | `integer`                     | `NULLABLE`  | `-`                                          |
-| `created_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                          |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('seating_tables_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `capacity` | `integer` | `NULLABLE` | `8` |
+| `layout_x` | `integer` | `NULLABLE` | `-` |
+| `layout_y` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1195,15 +1195,15 @@
 
 ### Columns
 
-| Column          | Type                          | Nullability | Default                                |
-| --------------- | ----------------------------- | ----------- | -------------------------------------- |
-| `id`            | `integer`                     | `NOT NULL`  | `nextval('sessions_id_seq'::regclass)` |
-| `user_id`       | `integer`                     | `NOT NULL`  | `-`                                    |
-| `token`         | `text`                        | `NOT NULL`  | `-`                                    |
-| `refresh_token` | `text`                        | `NOT NULL`  | `-`                                    |
-| `expires_at`    | `timestamp without time zone` | `NOT NULL`  | `-`                                    |
-| `last_activity` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                    |
-| `created_at`    | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                    |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('sessions_id_seq'::regclass)` |
+| `user_id` | `integer` | `NOT NULL` | `-` |
+| `token` | `text` | `NOT NULL` | `-` |
+| `refresh_token` | `text` | `NOT NULL` | `-` |
+| `expires_at` | `timestamp without time zone` | `NOT NULL` | `-` |
+| `last_activity` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1219,19 +1219,19 @@
 
 ### Columns
 
-| Column           | Type                          | Nullability | Default                                      |
-| ---------------- | ----------------------------- | ----------- | -------------------------------------------- |
-| `id`             | `integer`                     | `NOT NULL`  | `nextval('shopping_items_id_seq'::regclass)` |
-| `list_id`        | `integer`                     | `NOT NULL`  | `-`                                          |
-| `name`           | `text`                        | `NOT NULL`  | `-`                                          |
-| `quantity`       | `integer`                     | `NULLABLE`  | `1`                                          |
-| `unit`           | `text`                        | `NULLABLE`  | `-`                                          |
-| `estimated_cost` | `numeric`                     | `NULLABLE`  | `-`                                          |
-| `actual_cost`    | `numeric`                     | `NULLABLE`  | `-`                                          |
-| `status`         | `text`                        | `NULLABLE`  | `'Needed'::text`                             |
-| `assigned_to`    | `integer`                     | `NULLABLE`  | `-`                                          |
-| `notes`          | `text`                        | `NULLABLE`  | `-`                                          |
-| `created_at`     | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                          |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('shopping_items_id_seq'::regclass)` |
+| `list_id` | `integer` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `quantity` | `integer` | `NULLABLE` | `1` |
+| `unit` | `text` | `NULLABLE` | `-` |
+| `estimated_cost` | `numeric` | `NULLABLE` | `-` |
+| `actual_cost` | `numeric` | `NULLABLE` | `-` |
+| `status` | `text` | `NULLABLE` | `'Needed'::text` |
+| `assigned_to` | `integer` | `NULLABLE` | `-` |
+| `notes` | `text` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1245,13 +1245,13 @@
 
 ### Columns
 
-| Column       | Type                          | Nullability | Default                                      |
-| ------------ | ----------------------------- | ----------- | -------------------------------------------- |
-| `id`         | `integer`                     | `NOT NULL`  | `nextval('shopping_lists_id_seq'::regclass)` |
-| `event_id`   | `integer`                     | `NOT NULL`  | `-`                                          |
-| `name`       | `text`                        | `NOT NULL`  | `-`                                          |
-| `created_by` | `integer`                     | `NULLABLE`  | `-`                                          |
-| `created_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                          |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('shopping_lists_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1265,12 +1265,12 @@
 
 ### Columns
 
-| Column         | Type      | Nullability | Default                                       |
-| -------------- | --------- | ----------- | --------------------------------------------- |
-| `id`           | `integer` | `NOT NULL`  | `nextval('slideshow_items_id_seq'::regclass)` |
-| `slideshow_id` | `integer` | `NOT NULL`  | `-`                                           |
-| `document_id`  | `integer` | `NOT NULL`  | `-`                                           |
-| `sort_order`   | `integer` | `NOT NULL`  | `0`                                           |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('slideshow_items_id_seq'::regclass)` |
+| `slideshow_id` | `integer` | `NOT NULL` | `-` |
+| `document_id` | `integer` | `NOT NULL` | `-` |
+| `sort_order` | `integer` | `NOT NULL` | `0` |
 
 ### Indexes
 
@@ -1286,18 +1286,18 @@
 
 ### Columns
 
-| Column         | Type                          | Nullability | Default                                         |
-| -------------- | ----------------------------- | ----------- | ----------------------------------------------- |
-| `id`           | `integer`                     | `NOT NULL`  | `nextval('store_suggestions_id_seq'::regclass)` |
-| `event_id`     | `integer`                     | `NOT NULL`  | `-`                                             |
-| `name`         | `text`                        | `NOT NULL`  | `-`                                             |
-| `website`      | `text`                        | `NULLABLE`  | `-`                                             |
-| `notes`        | `text`                        | `NULLABLE`  | `-`                                             |
-| `category`     | `text`                        | `NULLABLE`  | `-`                                             |
-| `suggested_by` | `integer`                     | `NULLABLE`  | `-`                                             |
-| `status`       | `text`                        | `NULLABLE`  | `'pending'::text`                               |
-| `created_at`   | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                             |
-| `updated_at`   | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                             |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('store_suggestions_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `website` | `text` | `NULLABLE` | `-` |
+| `notes` | `text` | `NULLABLE` | `-` |
+| `category` | `text` | `NULLABLE` | `-` |
+| `suggested_by` | `integer` | `NULLABLE` | `-` |
+| `status` | `text` | `NULLABLE` | `'pending'::text` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1313,13 +1313,13 @@
 
 ### Columns
 
-| Column       | Type                          | Nullability | Default                                     |
-| ------------ | ----------------------------- | ----------- | ------------------------------------------- |
-| `id`         | `integer`                     | `NOT NULL`  | `nextval('task_comments_id_seq'::regclass)` |
-| `task_id`    | `integer`                     | `NOT NULL`  | `-`                                         |
-| `user_id`    | `integer`                     | `NOT NULL`  | `-`                                         |
-| `body`       | `text`                        | `NOT NULL`  | `-`                                         |
-| `created_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                         |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('task_comments_id_seq'::regclass)` |
+| `task_id` | `integer` | `NOT NULL` | `-` |
+| `user_id` | `integer` | `NOT NULL` | `-` |
+| `body` | `text` | `NOT NULL` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1334,13 +1334,13 @@
 
 ### Columns
 
-| Column          | Type                          | Nullability | Default                                         |
-| --------------- | ----------------------------- | ----------- | ----------------------------------------------- |
-| `id`            | `integer`                     | `NOT NULL`  | `nextval('task_dependencies_id_seq'::regclass)` |
-| `task_id`       | `integer`                     | `NOT NULL`  | `-`                                             |
-| `depends_on_id` | `integer`                     | `NOT NULL`  | `-`                                             |
-| `created_by`    | `integer`                     | `NULLABLE`  | `-`                                             |
-| `created_at`    | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                             |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('task_dependencies_id_seq'::regclass)` |
+| `task_id` | `integer` | `NOT NULL` | `-` |
+| `depends_on_id` | `integer` | `NOT NULL` | `-` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1357,13 +1357,13 @@
 
 ### Columns
 
-| Column       | Type                          | Nullability | Default                                     |
-| ------------ | ----------------------------- | ----------- | ------------------------------------------- |
-| `id`         | `integer`                     | `NOT NULL`  | `nextval('task_subtasks_id_seq'::regclass)` |
-| `task_id`    | `integer`                     | `NOT NULL`  | `-`                                         |
-| `title`      | `text`                        | `NOT NULL`  | `-`                                         |
-| `completed`  | `boolean`                     | `NULLABLE`  | `false`                                     |
-| `created_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                         |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('task_subtasks_id_seq'::regclass)` |
+| `task_id` | `integer` | `NOT NULL` | `-` |
+| `title` | `text` | `NOT NULL` | `-` |
+| `completed` | `boolean` | `NULLABLE` | `false` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1378,16 +1378,16 @@
 
 ### Columns
 
-| Column            | Type                          | Nullability | Default                                      |
-| ----------------- | ----------------------------- | ----------- | -------------------------------------------- |
-| `id`              | `integer`                     | `NOT NULL`  | `nextval('task_templates_id_seq'::regclass)` |
-| `event_id`        | `integer`                     | `NOT NULL`  | `-`                                          |
-| `name`            | `text`                        | `NOT NULL`  | `-`                                          |
-| `description`     | `text`                        | `NULLABLE`  | `-`                                          |
-| `priority`        | `text`                        | `NULLABLE`  | `'Medium'::text`                             |
-| `estimated_hours` | `numeric`                     | `NULLABLE`  | `-`                                          |
-| `created_by`      | `integer`                     | `NULLABLE`  | `-`                                          |
-| `created_at`      | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                          |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('task_templates_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `description` | `text` | `NULLABLE` | `-` |
+| `priority` | `text` | `NULLABLE` | `'Medium'::text` |
+| `estimated_hours` | `numeric` | `NULLABLE` | `-` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1402,15 +1402,15 @@
 
 ### Columns
 
-| Column        | Type                          | Nullability | Default                                         |
-| ------------- | ----------------------------- | ----------- | ----------------------------------------------- |
-| `id`          | `integer`                     | `NOT NULL`  | `nextval('task_time_entries_id_seq'::regclass)` |
-| `task_id`     | `integer`                     | `NOT NULL`  | `-`                                             |
-| `user_id`     | `integer`                     | `NOT NULL`  | `-`                                             |
-| `hours_spent` | `numeric`                     | `NOT NULL`  | `-`                                             |
-| `notes`       | `text`                        | `NULLABLE`  | `-`                                             |
-| `logged_at`   | `date`                        | `NOT NULL`  | `CURRENT_DATE`                                  |
-| `created_at`  | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                             |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('task_time_entries_id_seq'::regclass)` |
+| `task_id` | `integer` | `NOT NULL` | `-` |
+| `user_id` | `integer` | `NOT NULL` | `-` |
+| `hours_spent` | `numeric` | `NOT NULL` | `-` |
+| `notes` | `text` | `NULLABLE` | `-` |
+| `logged_at` | `date` | `NOT NULL` | `CURRENT_DATE` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1425,26 +1425,26 @@
 
 ### Columns
 
-| Column                | Type                          | Nullability | Default                             |
-| --------------------- | ----------------------------- | ----------- | ----------------------------------- |
-| `id`                  | `integer`                     | `NOT NULL`  | `nextval('tasks_id_seq'::regclass)` |
-| `event_id`            | `integer`                     | `NOT NULL`  | `-`                                 |
-| `title`               | `text`                        | `NOT NULL`  | `-`                                 |
-| `notes`               | `text`                        | `NULLABLE`  | `-`                                 |
-| `assignee_name`       | `text`                        | `NULLABLE`  | `-`                                 |
-| `assigned_user_id`    | `integer`                     | `NULLABLE`  | `-`                                 |
-| `due_date`            | `text`                        | `NULLABLE`  | `-`                                 |
-| `status`              | `text`                        | `NULLABLE`  | `'Pending'::text`                   |
-| `priority`            | `text`                        | `NULLABLE`  | `'Medium'::text`                    |
-| `created_by`          | `integer`                     | `NULLABLE`  | `-`                                 |
-| `created_at`          | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                 |
-| `updated_at`          | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                 |
-| `description`         | `text`                        | `NULLABLE`  | `-`                                 |
-| `estimated_hours`     | `numeric`                     | `NULLABLE`  | `-`                                 |
-| `is_recurring`        | `boolean`                     | `NULLABLE`  | `false`                             |
-| `recurrence_pattern`  | `text`                        | `NULLABLE`  | `-`                                 |
-| `recurrence_end_date` | `text`                        | `NULLABLE`  | `-`                                 |
-| `template_id`         | `integer`                     | `NULLABLE`  | `-`                                 |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('tasks_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `title` | `text` | `NOT NULL` | `-` |
+| `notes` | `text` | `NULLABLE` | `-` |
+| `assignee_name` | `text` | `NULLABLE` | `-` |
+| `assigned_user_id` | `integer` | `NULLABLE` | `-` |
+| `due_date` | `text` | `NULLABLE` | `-` |
+| `status` | `text` | `NULLABLE` | `'Pending'::text` |
+| `priority` | `text` | `NULLABLE` | `'Medium'::text` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `description` | `text` | `NULLABLE` | `-` |
+| `estimated_hours` | `numeric` | `NULLABLE` | `-` |
+| `is_recurring` | `boolean` | `NULLABLE` | `false` |
+| `recurrence_pattern` | `text` | `NULLABLE` | `-` |
+| `recurrence_end_date` | `text` | `NULLABLE` | `-` |
+| `template_id` | `integer` | `NULLABLE` | `-` |
 
 ### Indexes
 
@@ -1458,25 +1458,25 @@
 
 ### Columns
 
-| Column               | Type                          | Nullability | Default                                           |
-| -------------------- | ----------------------------- | ----------- | ------------------------------------------------- |
-| `id`                 | `integer`                     | `NOT NULL`  | `nextval('timeline_activities_id_seq'::regclass)` |
-| `event_id`           | `integer`                     | `NOT NULL`  | `-`                                               |
-| `title`              | `text`                        | `NOT NULL`  | `-`                                               |
-| `description`        | `text`                        | `NULLABLE`  | `-`                                               |
-| `start_time`         | `timestamp without time zone` | `NULLABLE`  | `-`                                               |
-| `end_time`           | `timestamp without time zone` | `NULLABLE`  | `-`                                               |
-| `location`           | `text`                        | `NULLABLE`  | `-`                                               |
-| `vendor_id`          | `integer`                     | `NULLABLE`  | `-`                                               |
-| `sort_order`         | `integer`                     | `NULLABLE`  | `0`                                               |
-| `created_by`         | `integer`                     | `NULLABLE`  | `-`                                               |
-| `created_at`         | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                               |
-| `updated_at`         | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                               |
-| `planned_start_time` | `timestamp without time zone` | `NULLABLE`  | `-`                                               |
-| `planned_end_time`   | `timestamp without time zone` | `NULLABLE`  | `-`                                               |
-| `actual_start_time`  | `timestamp without time zone` | `NULLABLE`  | `-`                                               |
-| `actual_end_time`    | `timestamp without time zone` | `NULLABLE`  | `-`                                               |
-| `status`             | `text`                        | `NULLABLE`  | `'planned'::text`                                 |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('timeline_activities_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `title` | `text` | `NOT NULL` | `-` |
+| `description` | `text` | `NULLABLE` | `-` |
+| `start_time` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `end_time` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `location` | `text` | `NULLABLE` | `-` |
+| `vendor_id` | `integer` | `NULLABLE` | `-` |
+| `sort_order` | `integer` | `NULLABLE` | `0` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `planned_start_time` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `planned_end_time` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `actual_start_time` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `actual_end_time` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `status` | `text` | `NULLABLE` | `'planned'::text` |
 
 ### Indexes
 
@@ -1490,20 +1490,20 @@
 
 ### Columns
 
-| Column              | Type                          | Nullability | Default                                     |
-| ------------------- | ----------------------------- | ----------- | ------------------------------------------- |
-| `id`                | `integer`                     | `NOT NULL`  | `nextval('user_profiles_id_seq'::regclass)` |
-| `user_id`           | `integer`                     | `NOT NULL`  | `-`                                         |
-| `bio`               | `text`                        | `NULLABLE`  | `-`                                         |
-| `phone_number`      | `text`                        | `NULLABLE`  | `-`                                         |
-| `profile_photo_url` | `text`                        | `NULLABLE`  | `-`                                         |
-| `address`           | `text`                        | `NULLABLE`  | `-`                                         |
-| `city`              | `text`                        | `NULLABLE`  | `-`                                         |
-| `state`             | `text`                        | `NULLABLE`  | `-`                                         |
-| `zip_code`          | `text`                        | `NULLABLE`  | `-`                                         |
-| `country`           | `text`                        | `NULLABLE`  | `-`                                         |
-| `created_at`        | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                         |
-| `updated_at`        | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                         |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('user_profiles_id_seq'::regclass)` |
+| `user_id` | `integer` | `NOT NULL` | `-` |
+| `bio` | `text` | `NULLABLE` | `-` |
+| `phone_number` | `text` | `NULLABLE` | `-` |
+| `profile_photo_url` | `text` | `NULLABLE` | `-` |
+| `address` | `text` | `NULLABLE` | `-` |
+| `city` | `text` | `NULLABLE` | `-` |
+| `state` | `text` | `NULLABLE` | `-` |
+| `zip_code` | `text` | `NULLABLE` | `-` |
+| `country` | `text` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1518,27 +1518,27 @@
 
 ### Columns
 
-| Column                       | Type                          | Nullability | Default                             |
-| ---------------------------- | ----------------------------- | ----------- | ----------------------------------- |
-| `id`                         | `integer`                     | `NOT NULL`  | `nextval('users_id_seq'::regclass)` |
-| `email`                      | `text`                        | `NOT NULL`  | `-`                                 |
-| `password_hash`              | `text`                        | `NOT NULL`  | `-`                                 |
-| `display_name`               | `text`                        | `NOT NULL`  | `-`                                 |
-| `email_verified`             | `integer`                     | `NULLABLE`  | `0`                                 |
-| `email_verified_at`          | `timestamp without time zone` | `NULLABLE`  | `-`                                 |
-| `email_verification_token`   | `text`                        | `NULLABLE`  | `-`                                 |
-| `pending_email`              | `text`                        | `NULLABLE`  | `-`                                 |
-| `pending_email_token`        | `text`                        | `NULLABLE`  | `-`                                 |
-| `pending_email_token_expiry` | `timestamp without time zone` | `NULLABLE`  | `-`                                 |
-| `role_id`                    | `integer`                     | `NULLABLE`  | `1`                                 |
-| `account_locked`             | `integer`                     | `NULLABLE`  | `0`                                 |
-| `locked_until`               | `timestamp without time zone` | `NULLABLE`  | `-`                                 |
-| `login_attempts`             | `integer`                     | `NULLABLE`  | `0`                                 |
-| `created_at`                 | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                 |
-| `updated_at`                 | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                 |
-| `deleted_at`                 | `timestamp without time zone` | `NULLABLE`  | `-`                                 |
-| `entra_oid`                  | `text`                        | `NULLABLE`  | `-`                                 |
-| `auth_provider`              | `text`                        | `NULLABLE`  | `'local'::text`                     |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('users_id_seq'::regclass)` |
+| `email` | `text` | `NOT NULL` | `-` |
+| `password_hash` | `text` | `NOT NULL` | `-` |
+| `display_name` | `text` | `NOT NULL` | `-` |
+| `email_verified` | `integer` | `NULLABLE` | `0` |
+| `email_verified_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `email_verification_token` | `text` | `NULLABLE` | `-` |
+| `pending_email` | `text` | `NULLABLE` | `-` |
+| `pending_email_token` | `text` | `NULLABLE` | `-` |
+| `pending_email_token_expiry` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `role_id` | `integer` | `NULLABLE` | `1` |
+| `account_locked` | `integer` | `NULLABLE` | `0` |
+| `locked_until` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `login_attempts` | `integer` | `NULLABLE` | `0` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `deleted_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `entra_oid` | `text` | `NULLABLE` | `-` |
+| `auth_provider` | `text` | `NULLABLE` | `'local'::text` |
 
 ### Indexes
 
@@ -1554,22 +1554,22 @@
 
 ### Columns
 
-| Column               | Type                          | Nullability | Default                                       |
-| -------------------- | ----------------------------- | ----------- | --------------------------------------------- |
-| `id`                 | `integer`                     | `NOT NULL`  | `nextval('vendor_bookings_id_seq'::regclass)` |
-| `event_id`           | `integer`                     | `NOT NULL`  | `-`                                           |
-| `vendor_id`          | `integer`                     | `NOT NULL`  | `-`                                           |
-| `status`             | `text`                        | `NOT NULL`  | `'requested'::text`                           |
-| `contract_signed_at` | `timestamp without time zone` | `NULLABLE`  | `-`                                           |
-| `service_start_at`   | `timestamp without time zone` | `NULLABLE`  | `-`                                           |
-| `service_end_at`     | `timestamp without time zone` | `NULLABLE`  | `-`                                           |
-| `total_amount`       | `numeric`                     | `NULLABLE`  | `-`                                           |
-| `currency_code`      | `text`                        | `NULLABLE`  | `'USD'::text`                                 |
-| `notes`              | `text`                        | `NULLABLE`  | `-`                                           |
-| `created_by`         | `integer`                     | `NULLABLE`  | `-`                                           |
-| `updated_by`         | `integer`                     | `NULLABLE`  | `-`                                           |
-| `created_at`         | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                           |
-| `updated_at`         | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                           |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('vendor_bookings_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `vendor_id` | `integer` | `NOT NULL` | `-` |
+| `status` | `text` | `NOT NULL` | `'requested'::text` |
+| `contract_signed_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `service_start_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `service_end_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `total_amount` | `numeric` | `NULLABLE` | `-` |
+| `currency_code` | `text` | `NULLABLE` | `'USD'::text` |
+| `notes` | `text` | `NULLABLE` | `-` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `updated_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1586,16 +1586,16 @@
 
 ### Columns
 
-| Column       | Type                          | Nullability | Default                                                |
-| ------------ | ----------------------------- | ----------- | ------------------------------------------------------ |
-| `id`         | `integer`                     | `NOT NULL`  | `nextval('vendor_communication_log_id_seq'::regclass)` |
-| `event_id`   | `integer`                     | `NOT NULL`  | `-`                                                    |
-| `vendor_id`  | `integer`                     | `NOT NULL`  | `-`                                                    |
-| `type`       | `text`                        | `NOT NULL`  | `-`                                                    |
-| `subject`    | `text`                        | `NOT NULL`  | `-`                                                    |
-| `body`       | `text`                        | `NULLABLE`  | `-`                                                    |
-| `sent_by`    | `integer`                     | `NULLABLE`  | `-`                                                    |
-| `created_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                    |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('vendor_communication_log_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `vendor_id` | `integer` | `NOT NULL` | `-` |
+| `type` | `text` | `NOT NULL` | `-` |
+| `subject` | `text` | `NOT NULL` | `-` |
+| `body` | `text` | `NULLABLE` | `-` |
+| `sent_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1611,13 +1611,13 @@
 
 ### Columns
 
-| Column       | Type                          | Nullability | Default                                        |
-| ------------ | ----------------------------- | ----------- | ---------------------------------------------- |
-| `id`         | `integer`                     | `NOT NULL`  | `nextval('vendor_favorites_id_seq'::regclass)` |
-| `event_id`   | `integer`                     | `NOT NULL`  | `-`                                            |
-| `vendor_id`  | `integer`                     | `NOT NULL`  | `-`                                            |
-| `user_id`    | `integer`                     | `NOT NULL`  | `-`                                            |
-| `created_at` | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                            |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('vendor_favorites_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `vendor_id` | `integer` | `NOT NULL` | `-` |
+| `user_id` | `integer` | `NOT NULL` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1635,21 +1635,21 @@
 
 ### Columns
 
-| Column              | Type                          | Nullability | Default                                                |
-| ------------------- | ----------------------------- | ----------- | ------------------------------------------------------ |
-| `id`                | `integer`                     | `NOT NULL`  | `nextval('vendor_payment_schedules_id_seq'::regclass)` |
-| `event_id`          | `integer`                     | `NOT NULL`  | `-`                                                    |
-| `vendor_id`         | `integer`                     | `NOT NULL`  | `-`                                                    |
-| `vendor_booking_id` | `integer`                     | `NULLABLE`  | `-`                                                    |
-| `due_date`          | `date`                        | `NOT NULL`  | `-`                                                    |
-| `amount`            | `numeric`                     | `NOT NULL`  | `-`                                                    |
-| `status`            | `text`                        | `NOT NULL`  | `'pending'::text`                                      |
-| `paid_at`           | `timestamp without time zone` | `NULLABLE`  | `-`                                                    |
-| `note`              | `text`                        | `NULLABLE`  | `-`                                                    |
-| `created_by`        | `integer`                     | `NULLABLE`  | `-`                                                    |
-| `updated_by`        | `integer`                     | `NULLABLE`  | `-`                                                    |
-| `created_at`        | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                    |
-| `updated_at`        | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                                    |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('vendor_payment_schedules_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `vendor_id` | `integer` | `NOT NULL` | `-` |
+| `vendor_booking_id` | `integer` | `NULLABLE` | `-` |
+| `due_date` | `date` | `NOT NULL` | `-` |
+| `amount` | `numeric` | `NOT NULL` | `-` |
+| `status` | `text` | `NOT NULL` | `'pending'::text` |
+| `paid_at` | `timestamp without time zone` | `NULLABLE` | `-` |
+| `note` | `text` | `NULLABLE` | `-` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `updated_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
@@ -1665,24 +1665,25 @@
 
 ### Columns
 
-| Column          | Type                          | Nullability | Default                               |
-| --------------- | ----------------------------- | ----------- | ------------------------------------- |
-| `id`            | `integer`                     | `NOT NULL`  | `nextval('vendors_id_seq'::regclass)` |
-| `event_id`      | `integer`                     | `NOT NULL`  | `-`                                   |
-| `name`          | `text`                        | `NOT NULL`  | `-`                                   |
-| `category`      | `text`                        | `NOT NULL`  | `-`                                   |
-| `email`         | `text`                        | `NULLABLE`  | `-`                                   |
-| `phone`         | `text`                        | `NULLABLE`  | `-`                                   |
-| `website`       | `text`                        | `NULLABLE`  | `-`                                   |
-| `status`        | `text`                        | `NULLABLE`  | `'Contacted'::text`                   |
-| `quoted_amount` | `numeric`                     | `NULLABLE`  | `-`                                   |
-| `contract_file` | `text`                        | `NULLABLE`  | `-`                                   |
-| `notes`         | `text`                        | `NULLABLE`  | `-`                                   |
-| `rating`        | `integer`                     | `NULLABLE`  | `-`                                   |
-| `created_by`    | `integer`                     | `NULLABLE`  | `-`                                   |
-| `created_at`    | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                   |
-| `updated_at`    | `timestamp without time zone` | `NULLABLE`  | `CURRENT_TIMESTAMP`                   |
+| Column | Type | Nullability | Default |
+| --- | --- | --- | --- |
+| `id` | `integer` | `NOT NULL` | `nextval('vendors_id_seq'::regclass)` |
+| `event_id` | `integer` | `NOT NULL` | `-` |
+| `name` | `text` | `NOT NULL` | `-` |
+| `category` | `text` | `NOT NULL` | `-` |
+| `email` | `text` | `NULLABLE` | `-` |
+| `phone` | `text` | `NULLABLE` | `-` |
+| `website` | `text` | `NULLABLE` | `-` |
+| `status` | `text` | `NULLABLE` | `'Contacted'::text` |
+| `quoted_amount` | `numeric` | `NULLABLE` | `-` |
+| `contract_file` | `text` | `NULLABLE` | `-` |
+| `notes` | `text` | `NULLABLE` | `-` |
+| `rating` | `integer` | `NULLABLE` | `-` |
+| `created_by` | `integer` | `NULLABLE` | `-` |
+| `created_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp without time zone` | `NULLABLE` | `CURRENT_TIMESTAMP` |
 
 ### Indexes
 
 - `vendors_pkey`: `CREATE UNIQUE INDEX vendors_pkey ON public.vendors USING btree (id)`
+
