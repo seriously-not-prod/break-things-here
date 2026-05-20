@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Track D — Quality & Testing)
+
+- **Task #820 — Frontend coverage ≥80% with CI enforcement**: Configured `@vitest/coverage-v8` in `frontend/vitest.config.ts` with threshold enforcement (lines 80%, branches 75%, functions 80%, statements 80%). Updated `.github/workflows/ci-unified.yml` to run `npm run test:coverage` in the frontend job — CI now fails when thresholds regress and archives the coverage report as a 14-day artifact. Added 38 net-new tests across three files targeting the lowest-covered components: `events-list-coverage.test.tsx` (events page rendering, permissions, views), `budget-coverage.test.tsx` (loading, errors, CRUD, comparison), `tasks-board-coverage.test.tsx` (kanban columns, priorities, assignees, task lifecycle) (#820).
+
 ### Added (Track C — Auth & Identity)
 
 - **Task #785 — End-to-end Entra login flow Playwright test (mocked OIDC)**: Added `e2e/entra-auth.spec.ts` with five tests that drive the full Microsoft sign-in → Azure redirect → callback → dashboard flow using Playwright route interception as a mocked OIDC issuer. Added `e2e/fixtures/oidc-mock.ts` providing reusable `setupOidcMock()` helper with pre-configured test users and well-known group IDs for role-mapping assertions (Admin, Organizer, Viewer, no-groups default). Added `.github/workflows/e2e.yml` CI workflow that builds the frontend, starts a preview server, installs Playwright Chromium, and runs the e2e suite. No live Azure tenant required (#785).
