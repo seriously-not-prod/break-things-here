@@ -1973,13 +1973,10 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'rsvps' AND policyname = 'rls_rsvps_access') THEN
     CREATE POLICY rls_rsvps_access ON rsvps
       USING (
-        user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
-        OR event_id IN (
-          SELECT e.id FROM events e
-          WHERE e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
-          UNION
-          SELECT em.event_id FROM event_members em
-          WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+        event_id IN (
+          SELECT event_id FROM event_members
+          WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+            AND LOWER(role) IN ('organizer', 'admin', 'collaborator', 'owner', 'co-organizer', 'helper')
         )
         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
       );
