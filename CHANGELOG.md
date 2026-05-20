@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Track B — Notifications)
+
+- **Task #786 — Notification preferences — backend model and endpoints**: Added normalised `notification_preferences` table with `(user_id, channel, category, enabled)` schema (migration `v22-notification-preferences-matrix.sql`), replacing the legacy per-type boolean columns. Migration seeds default-enabled rows for every existing user × channel × category combination. Added `GET /api/users/me/notification-preferences` returning the full channel × category matrix and `PATCH /api/users/me/notification-preferences` accepting bulk updates. Created `backend/src/services/notifications/dispatch-guard.ts` with `isChannelEnabled()` helper. Outbound dispatchers (`createBatchedNotification`, `createBudgetAlert`, `createRsvpNotification`, `createTaskDueAlert`) now consult the preference matrix before sending. Integration tests in `backend/__tests__/notification-preferences.test.ts` verify endpoints, validation, and dispatch suppression (#786).
+
 ### Added (Track C — Auth & Identity)
 
 - **Task #787 — Notification preferences profile UI tab**: Added `frontend/src/components/profile/notification-preferences-tab.tsx` — a new Material-UI tab on the profile page that renders a category × channel matrix for notification preferences (In-App, Email, Push). Uses React Hook Form + Zod for form state, optimistic toggle saves via PUT endpoint with rollback on failure, and full keyboard/aria-label accessibility. Converted the profile page from a flat form to a tabbed layout (General Info + Notifications). Added 9 component tests in `frontend/test/notification-preferences-tab.test.tsx` covering initial load, toggle save, error rollback, accessibility, and table rendering (#787).

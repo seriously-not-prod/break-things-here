@@ -18,6 +18,7 @@ import * as guestGroupsController from '../controllers/guest-groups-controller.j
 import * as eventDocumentsController from '../controllers/event-documents-controller.js';
 import * as analyticsController from '../controllers/analytics-controller.js';
 import * as notificationsController from '../controllers/notifications-controller.js';
+import * as notificationPreferencesController from '../controllers/notification-preferences-controller.js';
 import * as activityFeedController from '../controllers/activity-feed-controller.js';
 import * as vendorsController from '../controllers/vendors-controller.js';
 import * as shoppingController from '../controllers/shopping-controller.js';
@@ -274,6 +275,18 @@ router.delete('/profile/account', authenticateToken, profileController.deleteAcc
 // ============ USER (self-service) ROUTES — issues #36, #39 ============
 router.get('/users/me', authenticateToken, usersController.getMe);
 router.patch('/users/me', authenticateToken, usersController.updateMe);
+
+// ── #786: Notification preferences (channel × category matrix) ──────────────
+router.get(
+  '/users/me/notification-preferences',
+  authenticateToken,
+  notificationPreferencesController.listPreferences,
+);
+router.patch(
+  '/users/me/notification-preferences',
+  authenticateToken,
+  notificationPreferencesController.patchPreferences,
+);
 router.get('/rsvps', authenticateToken, legacyRsvpController.getAllRsvps);
 router.get('/rsvps/:id', authenticateToken, legacyRsvpController.getRsvpById);
 router.post('/rsvps', legacyRsvpController.submitRsvp);
