@@ -173,6 +173,7 @@ const BASE_CTX = {
   body: '',
   contextLabel: 'event chat',
   link: '/events/1/chat',
+  eventId: 1,
 };
 
 describe('processMentions() — integration', () => {

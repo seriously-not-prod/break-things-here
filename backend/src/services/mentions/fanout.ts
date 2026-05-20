@@ -36,6 +36,8 @@ export interface MentionContext {
   contextLabel: string;
   /** Deep-link for the notification */
   link: string;
+  /** Event the message belongs to — used to scope handle resolution to event members */
+  eventId: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,32 +57,38 @@ interface UserRow {
  * Returns `undefined` when no user matches **or** when multiple users match
  * (ambiguous mention — skip to avoid notifying the wrong person).
  */
-async function resolveHandle(handle: string, isQuoted: boolean): Promise<UserRow | undefined> {
+async function resolveHandle(
+  handle: string,
+  isQuoted: boolean,
+  eventId: number,
+): Promise<UserRow | undefined> {
   const db = getDatabase();
   if (isQuoted) {
     // Quoted form — match display_name only; require exactly one match.
     const rows = await db.all<UserRow>(
-      `SELECT id, display_name, email
-         FROM users
-        WHERE LOWER(display_name) = LOWER($1)
-          AND deleted_at IS NULL
+      `SELECT u.id, u.display_name, u.email
+         FROM users u
+         JOIN event_members em ON em.user_id = u.id AND em.event_id = $2
+        WHERE LOWER(u.display_name) = LOWER($1)
+          AND u.deleted_at IS NULL
         LIMIT 2`,
-      [handle],
+      [handle, eventId],
     );
     return rows.length === 1 ? rows[0] : undefined;
   }
   // Simple form — match display_name or the local part of the email address;
   // require exactly one match to avoid misdirected notifications.
   const rows = await db.all<UserRow>(
-    `SELECT id, display_name, email
-       FROM users
+    `SELECT u.id, u.display_name, u.email
+       FROM users u
+       JOIN event_members em ON em.user_id = u.id AND em.event_id = $2
       WHERE (
-            LOWER(display_name) = LOWER($1)
-         OR LOWER(SPLIT_PART(email, '@', 1)) = LOWER($1)
+            LOWER(u.display_name) = LOWER($1)
+         OR LOWER(SPLIT_PART(u.email, '@', 1)) = LOWER($1)
       )
-        AND deleted_at IS NULL
+        AND u.deleted_at IS NULL
       LIMIT 2`,
-    [handle],
+    [handle, eventId],
   );
   return rows.length === 1 ? rows[0] : undefined;
 }
@@ -116,11 +124,7 @@ async function storeMention(
  * Deliver an in-app notification to `userId`, respecting their preference for
  * the `mention` notification type.  Silently no-ops when preferences opt out.
  */
-async function notifyUser(
-  userId: number,
-  authorId: number,
-  ctx: MentionContext,
-): Promise<void> {
+async function notifyUser(userId: number, authorId: number, ctx: MentionContext): Promise<void> {
   // A user mentioning themselves does not warrant a notification.
   if (userId === authorId) return;
 
@@ -167,20 +171,25 @@ export async function processMentions(ctx: MentionContext): Promise<void> {
     await Promise.all(
       tokens.map(async (token) => {
         try {
-          const user = await resolveHandle(token.handle, token.isQuoted);
+          const user = await resolveHandle(token.handle, token.isQuoted, ctx.eventId);
           if (!user) return; // No matching user — token is decorative.
 
-          const inserted = await storeMention(ctx.sourceType, ctx.sourceId, user.id, ctx.authorId, token.raw);
+          const inserted = await storeMention(
+            ctx.sourceType,
+            ctx.sourceId,
+            user.id,
+            ctx.authorId,
+            token.raw,
+          );
           // Only notify when the mention row is newly inserted — avoids
           // duplicate notifications on retries/replays.
           if (inserted) {
             await notifyUser(user.id, ctx.authorId, ctx);
           }
         } catch (innerErr) {
-          logger.warn(
-            `[mentions] Failed to process token "${token.raw}"`,
-            { err: String(innerErr) },
-          );
+          logger.warn(`[mentions] Failed to process token "${token.raw}"`, {
+            err: String(innerErr),
+          });
         }
       }),
     );
