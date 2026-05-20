@@ -23,8 +23,10 @@ function AuthFallbackHarness(): JSX.Element {
 
   return (
     <div>
-      <button onClick={() => void login('admin@festival.local', 'festivalAdmin2025')}>Demo login</button>
-      <span>{loading ? 'loading' : user?.email ?? 'signed-out'}</span>
+      <button onClick={() => void login('admin@festival.local', 'festivalAdmin2025')}>
+        Demo login
+      </button>
+      <span>{loading ? 'loading' : (user?.email ?? 'signed-out')}</span>
       <span>{authSource ?? 'none'}</span>
     </div>
   );

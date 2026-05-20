@@ -44,7 +44,8 @@ export const seededPlannerState: SeededPlannerState = {
       title: 'Riverfront Music Weekend',
       date: '2026-05-18',
       location: 'Austin, TX',
-      description: 'A two-day outdoor festival with live music, food trucks, and sponsor activations.',
+      description:
+        'A two-day outdoor festival with live music, food trucks, and sponsor activations.',
       status: 'Active',
       createdAt: '2026-03-01T09:00:00.000Z',
       updatedAt: '2026-04-11T14:10:00.000Z',
@@ -64,7 +65,8 @@ export const seededPlannerState: SeededPlannerState = {
       title: 'Community Food Fair',
       date: '2026-06-06',
       location: 'Denver, CO',
-      description: 'A neighborhood event featuring local chefs, nonprofit booths, and family activities.',
+      description:
+        'A neighborhood event featuring local chefs, nonprofit booths, and family activities.',
       status: 'Draft',
       createdAt: '2026-03-20T11:00:00.000Z',
       updatedAt: '2026-04-09T09:15:00.000Z',
@@ -74,7 +76,8 @@ export const seededPlannerState: SeededPlannerState = {
       title: 'Winter Lights Gala',
       date: '2026-02-14',
       location: 'Chicago, IL',
-      description: 'A completed donor gala with VIP seating, live auction, and post-event reception.',
+      description:
+        'A completed donor gala with VIP seating, live auction, and post-event reception.',
       status: 'Completed',
       createdAt: '2025-12-15T18:00:00.000Z',
       updatedAt: '2026-02-15T07:00:00.000Z',

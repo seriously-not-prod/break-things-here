@@ -186,7 +186,8 @@ export async function getAllEvents(req: Request, res: Response): Promise<void> {
     // events they created or are explicitly a member of.
     const isAdmin = authReq.user && authReq.user.role_id >= 3;
     if (!isAdmin && authReq.user?.id) {
-      query += ' AND (e.created_by = ? OR EXISTS (SELECT 1 FROM event_members em WHERE em.event_id = e.id AND em.user_id = ?))';
+      query +=
+        ' AND (e.created_by = ? OR EXISTS (SELECT 1 FROM event_members em WHERE em.event_id = e.id AND em.user_id = ?))';
       params.push(authReq.user.id, authReq.user.id);
     }
 

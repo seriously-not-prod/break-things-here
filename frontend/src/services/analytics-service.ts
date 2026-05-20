@@ -101,14 +101,21 @@ export async function getEventAnalytics(eventId: string | number): Promise<Event
       acceptanceRate: totalRsvps > 0 ? Math.round((confirmedRsvps / totalRsvps) * 100) : 0,
       totalBudgetAllocated,
       totalBudgetSpent,
-      budgetUtilizationPct: totalBudgetAllocated > 0 ? Math.round((totalBudgetSpent / totalBudgetAllocated) * 100) : 0,
+      budgetUtilizationPct:
+        totalBudgetAllocated > 0 ? Math.round((totalBudgetSpent / totalBudgetAllocated) * 100) : 0,
       tasksByStatus: {
         Pending: eventTasks.filter((task) => task.status === 'Pending').length,
-        InProgress: Math.max(0, eventTasks.length - completedTasks - eventTasks.filter((task) => task.status === 'Pending').length),
+        InProgress: Math.max(
+          0,
+          eventTasks.length -
+            completedTasks -
+            eventTasks.filter((task) => task.status === 'Pending').length,
+        ),
         Blocked: 0,
         Complete: completedTasks,
       },
-      taskCompletionRate: eventTasks.length > 0 ? Math.round((completedTasks / eventTasks.length) * 100) : 0,
+      taskCompletionRate:
+        eventTasks.length > 0 ? Math.round((completedTasks / eventTasks.length) * 100) : 0,
       vendorsByStatus: {
         Contacted: 2,
         QuoteReceived: 1,
@@ -116,9 +123,7 @@ export async function getEventAnalytics(eventId: string | number): Promise<Event
         Confirmed: 1,
         Cancelled: 0,
       },
-      rsvpByDietaryRestriction: [
-        { dietary: 'None', count: totalGuests },
-      ],
+      rsvpByDietaryRestriction: [{ dietary: 'None', count: totalGuests }],
       topExpenseCategories: [
         { category: 'Venue', spent: 2500 },
         { category: 'Catering', spent: 2100 },
@@ -136,15 +141,20 @@ export async function getGlobalAnalytics(): Promise<GlobalAnalytics> {
     return await api.get<GlobalAnalytics>('/api/analytics');
   } catch {
     const totalGuestsManaged = seededPlannerState.rsvps.reduce((sum, rsvp) => sum + rsvp.guests, 0);
-    const confirmedRsvps = seededPlannerState.rsvps.filter((rsvp) => rsvp.status === 'Confirmed').length;
-    const averageRsvpRate = seededPlannerState.rsvps.length > 0
-      ? Math.round((confirmedRsvps / seededPlannerState.rsvps.length) * 100)
-      : 0;
+    const confirmedRsvps = seededPlannerState.rsvps.filter(
+      (rsvp) => rsvp.status === 'Confirmed',
+    ).length;
+    const averageRsvpRate =
+      seededPlannerState.rsvps.length > 0
+        ? Math.round((confirmedRsvps / seededPlannerState.rsvps.length) * 100)
+        : 0;
 
     return {
       totalEvents: seededPlannerState.events.length,
-      upcomingEvents: seededPlannerState.events.filter((event) => event.status !== 'Completed').length,
-      completedEvents: seededPlannerState.events.filter((event) => event.status === 'Completed').length,
+      upcomingEvents: seededPlannerState.events.filter((event) => event.status !== 'Completed')
+        .length,
+      completedEvents: seededPlannerState.events.filter((event) => event.status === 'Completed')
+        .length,
       totalGuestsManaged,
       totalBudgetManaged: 0,
       averageRsvpRate,

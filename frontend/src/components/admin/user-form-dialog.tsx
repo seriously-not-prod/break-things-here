@@ -110,7 +110,9 @@ export function UserFormDialog({
     api
       .get<EventOption[] | { events: EventOption[] }>('/api/events')
       .then((data) => {
-        const list = Array.isArray(data) ? data : ((data as { events: EventOption[] }).events ?? []);
+        const list = Array.isArray(data)
+          ? data
+          : ((data as { events: EventOption[] }).events ?? []);
         setAllEvents(list);
       })
       .catch(() => setAllEvents([]));
@@ -135,7 +137,9 @@ export function UserFormDialog({
             assignedEventIds: (data.events ?? []).map((e) => e.id),
           }));
         })
-        .catch(() => {/* silently fall back to empty */});
+        .catch(() => {
+          /* silently fall back to empty */
+        });
     } else {
       setForm(emptyForm(roles));
     }
@@ -396,10 +400,7 @@ export function UserFormDialog({
           {allEvents.map((ev) => (
             <MenuItem key={ev.id} value={ev.id}>
               <Checkbox checked={form.assignedEventIds.includes(ev.id)} />
-              <ListItemText
-                primary={ev.title}
-                secondary={ev.status}
-              />
+              <ListItemText primary={ev.title} secondary={ev.status} />
             </MenuItem>
           ))}
         </MuiSelect>
