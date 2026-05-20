@@ -34,10 +34,10 @@ export interface GraphGroupsMetrics {
 /** Thrown when the cache entry has exceeded the hard stale ceiling. */
 export class GraphGroupsStaleError extends Error {
   public readonly statusCode = 503;
-  constructor(oid: string, ageMs: number) {
+  constructor(oid: string, ageMs: number, ceilingMs: number) {
     super(
       `Graph groups for ${oid} are ${Math.round(ageMs / 60_000)} min stale ` +
-        `(exceeds 24 h ceiling). Refusing auth.`,
+        `(exceeds ${Math.round(ceilingMs / 3_600_000)} h ceiling). Refusing auth.`,
     );
     this.name = 'GraphGroupsStaleError';
   }
@@ -48,6 +48,7 @@ export class GraphGroupsStaleError extends Error {
 // ---------------------------------------------------------------------------
 
 const _cache = new Map<string, CacheEntry>();
+const MAX_CACHE_SIZE = 10_000;
 
 let _hitCount = 0;
 let _missCount = 0;
@@ -58,9 +59,14 @@ let _failureCount = 0;
 // ---------------------------------------------------------------------------
 
 export function getGraphGroupsCacheConfig(): GraphGroupsCacheConfig {
-  const ttlMs = parseInt(process.env.GRAPH_GROUPS_CACHE_TTL_MS ?? '600000', 10);
-  const maxStaleMs = parseInt(process.env.GRAPH_GROUPS_MAX_STALE_MS ?? '86400000', 10);
-  return { ttlMs, maxStaleMs };
+  const DEFAULT_TTL_MS = 600_000;
+  const DEFAULT_MAX_STALE_MS = 86_400_000;
+  const rawTtl = parseInt(process.env.GRAPH_GROUPS_CACHE_TTL_MS ?? '', 10);
+  const rawMaxStale = parseInt(process.env.GRAPH_GROUPS_MAX_STALE_MS ?? '', 10);
+  return {
+    ttlMs: Number.isFinite(rawTtl) && rawTtl >= 0 ? rawTtl : DEFAULT_TTL_MS,
+    maxStaleMs: Number.isFinite(rawMaxStale) && rawMaxStale >= 0 ? rawMaxStale : DEFAULT_MAX_STALE_MS,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -89,7 +95,7 @@ export async function fetchGroupsWithCache(
   // Cache HIT — entry exists and is within TTL
   if (entry && now - entry.fetchedAt < ttlMs) {
     _hitCount++;
-    return entry.groupIds;
+    return entry.groupIds.slice();
   }
 
   // Cache MISS — attempt a fresh fetch
@@ -97,7 +103,8 @@ export async function fetchGroupsWithCache(
 
   try {
     const groupIds = await fetcher();
-    _cache.set(userOid, { groupIds, fetchedAt: now });
+    _cache.set(userOid, { groupIds: groupIds.slice(), fetchedAt: now });
+    _evictExpiredEntries(maxStaleMs, now);
     return groupIds;
   } catch (error) {
     _failureCount++;
@@ -111,10 +118,10 @@ export async function fetchGroupsWithCache(
             `(${Math.round(age / 60_000)} min old).`,
           error,
         );
-        return entry.groupIds;
+        return entry.groupIds.slice();
       }
       // Past the hard ceiling — refuse auth
-      throw new GraphGroupsStaleError(userOid, age);
+      throw new GraphGroupsStaleError(userOid, age, maxStaleMs);
     }
 
     // No cached data at all — cannot fall back
@@ -132,6 +139,28 @@ export function getGraphGroupsMetrics(): GraphGroupsMetrics {
     graph_groups_cache_miss_total: _missCount,
     graph_groups_failure_total: _failureCount,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Eviction
+// ---------------------------------------------------------------------------
+
+/** Remove entries older than maxStaleMs and enforce size cap. */
+function _evictExpiredEntries(maxStaleMs: number, now: number): void {
+  if (_cache.size <= MAX_CACHE_SIZE) return;
+  for (const [key, entry] of _cache) {
+    if (now - entry.fetchedAt > maxStaleMs) {
+      _cache.delete(key);
+    }
+  }
+  // If still over cap after purging expired, drop oldest entries
+  if (_cache.size > MAX_CACHE_SIZE) {
+    const entries = [..._cache.entries()].sort((a, b) => a[1].fetchedAt - b[1].fetchedAt);
+    const toRemove = entries.slice(0, _cache.size - MAX_CACHE_SIZE);
+    for (const [key] of toRemove) {
+      _cache.delete(key);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

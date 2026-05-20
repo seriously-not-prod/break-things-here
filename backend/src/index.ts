@@ -21,7 +21,7 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { initializeDatabase } from './db/database.js';
 import { sanitizeRequestBody } from './middleware/sanitize-input.js';
-import { apiLimiter, csrfLimiter, healthLimiter } from './middleware/rate-limit.js';
+import { apiLimiter, csrfLimiter, healthLimiter, metricsLimiter } from './middleware/rate-limit.js';
 import { verifyEmailWebhookSignature } from './middleware/verify-email-webhook.js';
 import * as announcementController from './controllers/announcement-controller.js';
 import apiRoutes from './routes/api-routes.js';
@@ -228,7 +228,7 @@ export function createApp(): express.Express {
   });
 
   // #784 — Graph groups cache metrics endpoint
-  app.get('/metrics', healthLimiter, async (_req, res) => {
+  app.get('/metrics', metricsLimiter, async (_req, res) => {
     const { getGraphGroupsMetrics } = await import('./services/graph-groups.js');
     const m = getGraphGroupsMetrics();
     const lines = [

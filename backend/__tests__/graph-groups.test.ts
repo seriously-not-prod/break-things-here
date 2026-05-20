@@ -12,9 +12,11 @@ describe('graph-groups cache service', () => {
   beforeEach(() => {
     _resetGraphGroupsCacheForTest();
     vi.unstubAllEnvs();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     _resetGraphGroupsCacheForTest();
     vi.unstubAllEnvs();
   });
@@ -77,7 +79,7 @@ describe('graph-groups cache service', () => {
   // --------------------------------------------------------------------------
 
   it('serves stale cache when Graph fails within 24 h ceiling', async () => {
-    vi.stubEnv('GRAPH_GROUPS_CACHE_TTL_MS', '1'); // 1 ms TTL so entry expires fast
+    vi.stubEnv('GRAPH_GROUPS_CACHE_TTL_MS', '60000'); // 1 min TTL
 
     const groups = ['group-a'];
     const fetcher = vi.fn()
@@ -87,8 +89,8 @@ describe('graph-groups cache service', () => {
     // First call succeeds — populates cache
     await fetchGroupsWithCache('oid-1', fetcher);
 
-    // Wait for TTL to expire
-    await new Promise((r) => setTimeout(r, 5));
+    // Advance past TTL
+    vi.advanceTimersByTime(60_001);
 
     // Second call fails — should serve stale data
     const result = await fetchGroupsWithCache('oid-1', fetcher);
@@ -105,9 +107,8 @@ describe('graph-groups cache service', () => {
   // --------------------------------------------------------------------------
 
   it('throws GraphGroupsStaleError when stale data exceeds 24 h ceiling', async () => {
-    // Set both TTL and max stale to 1 ms so both expire instantly
-    vi.stubEnv('GRAPH_GROUPS_CACHE_TTL_MS', '1');
-    vi.stubEnv('GRAPH_GROUPS_MAX_STALE_MS', '1');
+    vi.stubEnv('GRAPH_GROUPS_CACHE_TTL_MS', '60000');    // 1 min
+    vi.stubEnv('GRAPH_GROUPS_MAX_STALE_MS', '120000');   // 2 min ceiling
 
     const fetcher = vi.fn()
       .mockResolvedValueOnce(['group-a'])
@@ -115,8 +116,8 @@ describe('graph-groups cache service', () => {
 
     await fetchGroupsWithCache('oid-1', fetcher);
 
-    // Wait for both TTL and stale ceiling to expire
-    await new Promise((r) => setTimeout(r, 10));
+    // Advance past both TTL and stale ceiling
+    vi.advanceTimersByTime(120_001);
 
     await expect(fetchGroupsWithCache('oid-1', fetcher)).rejects.toThrow(GraphGroupsStaleError);
 
@@ -125,7 +126,7 @@ describe('graph-groups cache service', () => {
   });
 
   it('GraphGroupsStaleError has statusCode 503', () => {
-    const err = new GraphGroupsStaleError('oid-1', 100_000_000);
+    const err = new GraphGroupsStaleError('oid-1', 100_000_000, 86_400_000);
     expect(err.statusCode).toBe(503);
     expect(err.name).toBe('GraphGroupsStaleError');
   });
@@ -149,14 +150,14 @@ describe('graph-groups cache service', () => {
   // --------------------------------------------------------------------------
 
   it('re-fetches after TTL expires and updates cache', async () => {
-    vi.stubEnv('GRAPH_GROUPS_CACHE_TTL_MS', '1');
+    vi.stubEnv('GRAPH_GROUPS_CACHE_TTL_MS', '60000'); // 1 min
 
     const fetcher = vi.fn()
       .mockResolvedValueOnce(['group-old'])
       .mockResolvedValueOnce(['group-new']);
 
     await fetchGroupsWithCache('oid-1', fetcher);
-    await new Promise((r) => setTimeout(r, 5));
+    vi.advanceTimersByTime(60_001);
     const result = await fetchGroupsWithCache('oid-1', fetcher);
 
     expect(result).toEqual(['group-new']);
