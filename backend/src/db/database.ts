@@ -3531,24 +3531,34 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   `);
 
   // Backfill: one guests row per existing RSVP that has no guest_id yet.
+  // Guard: only run the backfill on first migration (when the guests table
+  // is still empty). On subsequent startups the table already has rows so
+  // we skip the loop entirely.  This prevents duplicate guest creation for
+  // RSVPs whose guest record was later deleted (ON DELETE SET NULL) and
+  // avoids recreating guests for new RSVPs intentionally created without
+  // a guest link via the legacy RSVP form.
   await db.exec(`
     DO $$
     DECLARE
       r RECORD;
       new_guest_id INTEGER;
+      needs_backfill BOOLEAN;
     BEGIN
-      FOR r IN
-        SELECT id, event_id, name, email, phone, dietary_restriction, accessibility_needs
-        FROM   rsvps
-        WHERE  guest_id IS NULL
-      LOOP
-        INSERT INTO guests (event_id, name, email, phone, dietary_restriction, accessibility_needs)
-        VALUES (r.event_id, r.name, r.email, r.phone,
-                COALESCE(r.dietary_restriction, 'None'), r.accessibility_needs)
-        RETURNING id INTO new_guest_id;
+      SELECT NOT EXISTS (SELECT 1 FROM guests LIMIT 1) INTO needs_backfill;
+      IF needs_backfill THEN
+        FOR r IN
+          SELECT id, event_id, name, email, phone, dietary_restriction, accessibility_needs
+          FROM   rsvps
+          WHERE  guest_id IS NULL
+        LOOP
+          INSERT INTO guests (event_id, name, email, phone, dietary_restriction, accessibility_needs)
+          VALUES (r.event_id, r.name, r.email, r.phone,
+                  COALESCE(r.dietary_restriction, 'None'), r.accessibility_needs)
+          RETURNING id INTO new_guest_id;
 
-        UPDATE rsvps SET guest_id = new_guest_id WHERE id = r.id;
-      END LOOP;
+          UPDATE rsvps SET guest_id = new_guest_id WHERE id = r.id;
+        END LOOP;
+      END IF;
     END $$;
   `);
 

@@ -110,6 +110,11 @@ afterAll(async (): Promise<void> => {
   await db.run(`DELETE FROM events WHERE id IN (?, ?)`, [eventId, otherEventId]);
   await db.run(`DELETE FROM users WHERE id = ?`, [ownerId]);
   await closeDatabase();
+  if (originalDatabaseUrl === undefined) {
+    delete process.env.DATABASE_URL;
+  } else {
+    process.env.DATABASE_URL = originalDatabaseUrl;
+  }
 });
 
 // ── Schema: guests table and rsvps.guest_id FK must exist after migration ──────

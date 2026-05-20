@@ -77,7 +77,7 @@ correctly satisfies the specification.
    - `GET  /api/events/:eventId/guest-records` — list all guests for an event.
    - `GET  /api/events/:eventId/guest-records/:id` — get a single guest.
    - `POST /api/events/:eventId/guest-records` — create a guest (optionally
-     auto-creates a linked RSVP row).
+     — create a guest record (guest identity only; does not create an RSVP).
    - `PUT  /api/events/:eventId/guest-records/:id` — update guest profile.
    - `DELETE /api/events/:eventId/guest-records/:id` — delete guest (cascades
      guest_id FK in `rsvps` to NULL; does not delete the RSVP itself, so no
