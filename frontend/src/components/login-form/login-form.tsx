@@ -262,7 +262,6 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
               type="submit"
               variant="contained"
               disabled={isSubmitting || isLocked || !email || !password}
-              aria-label="Log in"
               sx={{ py: 1.5, fontWeight: 600 }}
               fullWidth
             >

@@ -15,24 +15,28 @@ BEGIN;
 
 -- Step 1: Backfill any NULL canonical_status values from legacy status or context
 -- Guard against databases where the legacy status column has already been dropped.
+-- Uses EXECUTE for dynamic SQL so the reference to the legacy `status` column is
+-- only resolved at runtime (inside the IF branch), not at compile time.
 DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_name = 'rsvps' AND column_name = 'status'
   ) THEN
-    UPDATE rsvps SET canonical_status = CASE
-      WHEN canonical_status IS NOT NULL AND canonical_status <> '' THEN canonical_status
-      WHEN waitlist_position IS NOT NULL THEN 'waitlist'
-      WHEN checked_in = TRUE THEN 'checked_in'
-      WHEN LOWER(status) IN ('going','yes','confirmed','accepted') THEN 'confirmed'
-      WHEN LOWER(status) IN ('not going','declined','no','rejected') THEN 'declined'
-      WHEN LOWER(status) IN ('maybe','tentative') THEN 'maybe'
-      WHEN LOWER(status) IN ('cancelled','canceled') THEN 'cancelled'
-      WHEN LOWER(status) IN ('pending','invited','sent') THEN 'pending'
-      ELSE 'pending'
-    END
-    WHERE canonical_status IS NULL OR canonical_status = '';
+    EXECUTE $sql$
+      UPDATE rsvps SET canonical_status = CASE
+        WHEN canonical_status IS NOT NULL AND canonical_status <> '' THEN canonical_status
+        WHEN waitlist_position IS NOT NULL THEN 'waitlist'
+        WHEN checked_in = TRUE THEN 'checked_in'
+        WHEN LOWER(status) IN ('going','yes','confirmed','accepted') THEN 'confirmed'
+        WHEN LOWER(status) IN ('not going','declined','no','rejected') THEN 'declined'
+        WHEN LOWER(status) IN ('maybe','tentative') THEN 'maybe'
+        WHEN LOWER(status) IN ('cancelled','canceled') THEN 'cancelled'
+        WHEN LOWER(status) IN ('pending','invited','sent') THEN 'pending'
+        ELSE 'pending'
+      END
+      WHERE canonical_status IS NULL OR canonical_status = ''
+    $sql$;
   ELSE
     -- No legacy status column; just ensure any NULLs are defaulted
     UPDATE rsvps SET canonical_status = 'pending'
@@ -54,7 +58,9 @@ BEGIN
 
   -- Add CHECK constraint if not already present
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'check_canonical_status_values'
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'check_canonical_status_values'
+      AND conrelid = 'rsvps'::regclass
   ) THEN
     ALTER TABLE rsvps ADD CONSTRAINT check_canonical_status_values CHECK (canonical_status IN (
       'pending', 'confirmed', 'declined', 'maybe',

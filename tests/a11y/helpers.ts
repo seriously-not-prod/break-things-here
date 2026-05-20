@@ -62,7 +62,7 @@ export interface AuditResult {
  * but logged as warnings for visibility.
  */
 export async function runAxeAudit(page: Page, pageUrl: string): Promise<AuditResult> {
-  await page.goto(pageUrl, { waitUntil: 'networkidle' });
+  await page.goto(pageUrl, { waitUntil: 'load' });
 
   const results = await new AxeBuilder({ page })
     .withTags(WCAG_TAGS)
