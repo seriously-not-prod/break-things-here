@@ -252,6 +252,7 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
               label="Password"
               value={password}
               onChange={handlePasswordChange}
+              inputProps={{ 'aria-label': 'Password' }}
               autoComplete="current-password"
               fullWidth
               placeholder="Enter your password"
@@ -272,6 +273,7 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
               type="submit"
               variant="contained"
               disabled={isSubmitting || isLocked || !email || !password}
+              aria-label="Log in"
               sx={{ py: 1.5, fontWeight: 600 }}
               fullWidth
             >
