@@ -95,7 +95,7 @@ export async function globalSearch(req: Request, res: Response): Promise<Respons
 
   if (types.includes('rsvps')) {
     const sql = `
-      SELECT r.id, r.event_id, r.name, r.email, r.status, e.title AS event_title,
+      SELECT r.id, r.event_id, r.name, r.email, r.canonical_status AS status, e.title AS event_title,
              'rsvp' AS kind
         FROM rsvps r
         JOIN events e ON e.id = r.event_id

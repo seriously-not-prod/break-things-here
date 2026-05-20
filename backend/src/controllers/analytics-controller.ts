@@ -183,7 +183,7 @@ export async function getGlobalAnalytics(req: AuthRequest, res: Response): Promi
          COUNT(DISTINCT e.id)                                          AS total_events,
          COUNT(DISTINCT e.id) FILTER (WHERE e.date >= $1)               AS upcoming_events,
          COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'Completed')    AS completed_events,
-         COALESCE(SUM(r.guests) FILTER (WHERE r.status = 'Going'), 0)  AS total_guests
+         COALESCE(SUM(r.guests) FILTER (WHERE r.canonical_status = 'confirmed'), 0)  AS total_guests
        FROM events e
        LEFT JOIN rsvps r ON r.event_id = e.id
        WHERE e.deleted_at IS NULL
@@ -210,7 +210,7 @@ export async function getGlobalAnalytics(req: AuthRequest, res: Response): Promi
        FROM (
          SELECT
            CASE WHEN COUNT(*) > 0
-                THEN COUNT(*) FILTER (WHERE r.status = 'Going') * 100.0 / COUNT(*)
+                THEN COUNT(*) FILTER (WHERE r.canonical_status = 'confirmed') * 100.0 / COUNT(*)
                 ELSE 0
            END AS rate
          FROM rsvps r
@@ -281,7 +281,7 @@ export async function exportEventReport(req: AuthRequest, res: Response): Promis
       checked_in_at: string | null;
       created_at:    string;
     }>(
-      `SELECT id, name, email, guests, status, notes, source,
+      `SELECT id, name, email, guests, canonical_status AS status, notes, source,
               checked_in, checked_in_at, created_at
        FROM rsvps
        WHERE event_id = $1

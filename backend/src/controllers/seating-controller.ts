@@ -52,7 +52,7 @@ export async function listTables(req: Request, res: Response): Promise<Response>
   const result: SeatingTableWithGuests[] = await Promise.all(
     tables.map(async (table) => {
       const guests = await db.all<AssignedRsvp>(
-        `SELECT sa.rsvp_id, r.name, r.email, r.status
+        `SELECT sa.rsvp_id, r.name, r.email, r.canonical_status AS status
          FROM seating_assignments sa
          JOIN rsvps r ON r.id = sa.rsvp_id
          WHERE sa.table_id = $1`,

@@ -82,7 +82,7 @@ const DOMAIN_FIELDS: Record<ReportDomain, DomainFields> = {
     id: { expr: 'r.id', label: 'ID', filterable: true },
     guest_name: { expr: 'r.guest_name', label: 'Guest Name', filterable: true },
     email: { expr: 'r.email', label: 'Email', filterable: true },
-    status: { expr: 'r.status', label: 'RSVP Status', filterable: true },
+    status: { expr: 'r.canonical_status', label: 'RSVP Status', filterable: true },
     checked_in: { expr: 'r.checked_in', label: 'Checked In', filterable: true },
     dietary_requirements: { expr: 'r.dietary_requirements', label: 'Dietary', filterable: true },
     created_at: { expr: 'r.created_at', label: 'Submitted At', filterable: true },

@@ -1026,7 +1026,7 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
 
     try {
       const result = await db.run(
-        `INSERT INTO rsvps (event_id, name, email, guests, status, notes, source,
+        `INSERT INTO rsvps (event_id, name, email, guests, canonical_status, notes, source,
                             phone, dietary_restriction, accessibility_needs,
                             plus_one, plus_one_name, guest_group,
                             company, title, relation_type, age_group,
@@ -1042,7 +1042,7 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
           name,
           email,
           parseGuests(row['guests']),
-          row['status'] || 'Pending',
+          row['canonical_status'] || row['status'] || 'pending',
           row['notes'] || null,
           row['phone'] || null,
           row['dietary_restriction'] || 'None',

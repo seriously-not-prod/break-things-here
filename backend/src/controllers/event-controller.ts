@@ -57,12 +57,12 @@ const EVENT_SELECT_COLUMNS = `
   (
     SELECT COALESCE(SUM(COALESCE(r.guests, 1)), 0)::int
       FROM rsvps r
-     WHERE r.event_id = e.id AND r.status = 'Going'
+     WHERE r.event_id = e.id AND r.canonical_status = 'confirmed'
   ) AS going_count,
   (
     SELECT COALESCE(SUM(COALESCE(r.guests, 1)), 0)::int
       FROM rsvps r
-     WHERE r.event_id = e.id AND r.status = 'Pending'
+     WHERE r.event_id = e.id AND r.canonical_status = 'pending'
   ) AS pending_count
 `;
 
