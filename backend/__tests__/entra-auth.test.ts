@@ -139,10 +139,14 @@ afterEach(async () => {
 describe('GET /api/auth/entra/config', () => {
   it('returns enabled: false when flag is off', async () => {
     delete process.env.ENTRA_AUTH_ENABLED;
+    delete process.env.ENTRA_ALLOW_LOCAL_FALLBACK;
     const { getEntraStatus } = await import('../src/controllers/entra-auth-controller.js');
     const res = makeRes();
     getEntraStatus({} as import('express').Request, res as unknown as import('express').Response);
-    expect((res.body as { enabled: boolean }).enabled).toBe(false);
+    const body = res.body as { enabled: boolean; allowLocalFallback: boolean };
+    expect(body.enabled).toBe(false);
+    // #781 — when Entra is off, local auth is implicitly the only option.
+    expect(body.allowLocalFallback).toBe(true);
   });
 
   it('returns enabled: true when flag is on', async () => {
@@ -158,6 +162,39 @@ describe('GET /api/auth/entra/config', () => {
     delete process.env.AZURE_TENANT_ID;
     delete process.env.AZURE_CLIENT_ID;
     delete process.env.AZURE_CLIENT_SECRET;
+  });
+
+  // #781 — local fallback must default to false in entra-enabled environments
+  // so production cannot silently bypass SSO without an explicit opt-in.
+  it('defaults allowLocalFallback to false when Entra is enabled and the env var is unset', async () => {
+    process.env.ENTRA_AUTH_ENABLED = 'true';
+    delete process.env.ENTRA_ALLOW_LOCAL_FALLBACK;
+    const { getEntraStatus } = await import('../src/controllers/entra-auth-controller.js');
+    const res = makeRes();
+    getEntraStatus({} as import('express').Request, res as unknown as import('express').Response);
+    expect((res.body as { enabled: boolean; allowLocalFallback: boolean }).allowLocalFallback).toBe(false);
+    delete process.env.ENTRA_AUTH_ENABLED;
+  });
+
+  it('surfaces allowLocalFallback=true when ENTRA_ALLOW_LOCAL_FALLBACK=true', async () => {
+    process.env.ENTRA_AUTH_ENABLED = 'true';
+    process.env.ENTRA_ALLOW_LOCAL_FALLBACK = 'true';
+    const { getEntraStatus } = await import('../src/controllers/entra-auth-controller.js');
+    const res = makeRes();
+    getEntraStatus({} as import('express').Request, res as unknown as import('express').Response);
+    expect((res.body as { enabled: boolean; allowLocalFallback: boolean }).allowLocalFallback).toBe(true);
+    delete process.env.ENTRA_AUTH_ENABLED;
+    delete process.env.ENTRA_ALLOW_LOCAL_FALLBACK;
+  });
+
+  it('ignores ENTRA_ALLOW_LOCAL_FALLBACK when Entra is disabled', async () => {
+    delete process.env.ENTRA_AUTH_ENABLED;
+    process.env.ENTRA_ALLOW_LOCAL_FALLBACK = 'false';
+    const { getEntraStatus } = await import('../src/controllers/entra-auth-controller.js');
+    const res = makeRes();
+    getEntraStatus({} as import('express').Request, res as unknown as import('express').Response);
+    expect((res.body as { enabled: boolean; allowLocalFallback: boolean }).allowLocalFallback).toBe(true);
+    delete process.env.ENTRA_ALLOW_LOCAL_FALLBACK;
   });
 });
 
