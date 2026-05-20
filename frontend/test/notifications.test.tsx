@@ -17,6 +17,7 @@ vi.mock('../src/services/notifications-service', () => ({
   listNotifications: vi.fn(),
   markRead: vi.fn(),
   markAllRead: vi.fn(),
+  dismissNotification: vi.fn(),
   getDueTaskAlerts: vi.fn(),
 }));
 
@@ -105,9 +106,7 @@ describe('NotificationsPanel', () => {
   it('renders notification bodies', () => {
     renderPanel();
     expect(screen.getByText('Alice confirmed attendance.')).toBeInTheDocument();
-    expect(
-      screen.getByText(/Category "Catering" is at 92%/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Category "Catering" is at 92%/i)).toBeInTheDocument();
   });
 
   it('shows loading skeletons when loading is true', () => {
@@ -147,9 +146,7 @@ describe('NotificationsPanel', () => {
 
     await user.click(screen.getByText('New RSVP'));
     await waitFor(() => {
-      expect(onMarkRead).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 1 }),
-      );
+      expect(onMarkRead).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
     });
   });
 
@@ -180,9 +177,7 @@ describe('NotificationsPanel', () => {
   it('"Mark all read" button is disabled when all are read', () => {
     const allRead = MOCK_NOTIFICATIONS.map((n) => ({ ...n, is_read: true }));
     renderPanel(allRead);
-    expect(
-      screen.getByRole('button', { name: /mark all read/i }),
-    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: /mark all read/i })).toBeDisabled();
   });
 
   it('has aria-live region for unread count (accessible updates)', () => {
@@ -194,7 +189,10 @@ describe('NotificationsPanel', () => {
 
 describe('NotificationBell', () => {
   beforeEach(() => {
-    mockedService.listNotifications.mockResolvedValue(MOCK_NOTIFICATIONS);
+    mockedService.listNotifications.mockResolvedValue({
+      notifications: MOCK_NOTIFICATIONS,
+      total: MOCK_NOTIFICATIONS.length,
+    });
     mockedService.markAllRead.mockResolvedValue(undefined);
     mockedService.markRead.mockResolvedValue(undefined);
   });
@@ -215,9 +213,7 @@ describe('NotificationBell', () => {
   it('renders the bell icon button', async () => {
     renderBell();
     await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: /notifications/i }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /notifications/i })).toBeInTheDocument();
     });
   });
 
@@ -243,7 +239,10 @@ describe('NotificationBell', () => {
 
   it('polls listNotifications every 60 seconds', async () => {
     vi.useFakeTimers();
-    mockedService.listNotifications.mockResolvedValue(MOCK_NOTIFICATIONS);
+    mockedService.listNotifications.mockResolvedValue({
+      notifications: MOCK_NOTIFICATIONS,
+      total: MOCK_NOTIFICATIONS.length,
+    });
 
     renderBell();
 

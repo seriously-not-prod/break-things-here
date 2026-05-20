@@ -26,7 +26,7 @@ export function NotificationBell(): JSX.Element {
     try {
       setError(null);
       const result = await listNotifications();
-      setNotifications(result);
+      setNotifications(result.notifications ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load notifications.');
     } finally {
@@ -62,9 +62,7 @@ export function NotificationBell(): JSX.Element {
     if (!notification.is_read) {
       await markRead(notification.id);
       setNotifications((current) =>
-        current.map((item) =>
-          item.id === notification.id ? { ...item, is_read: true } : item,
-        ),
+        current.map((item) => (item.id === notification.id ? { ...item, is_read: true } : item)),
       );
     }
   }

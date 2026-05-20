@@ -65,6 +65,16 @@ Additionally, `DATABASE_URL` must use PostgreSQL with strict SSL verification:
 This ensures the 3.1.3 Data Security controls are enforced as hard startup
 requirements, not optional runtime behavior.
 
+## TLS & HTTPS
+
+TLS is terminated at the reverse-proxy / ingress layer with TLS 1.3 enforced.
+HSTS is applied by the backend via Helmet (`max-age=31536000; includeSubDomains; preload`).
+
+For full details on TLS termination, cipher suites, certificate management,
+renewal procedures, and on-call ownership, see:
+
+- **[docs/security/tls.md](docs/security/tls.md)** — TLS termination ownership and HTTPS enforcement
+
 ## Secret Management
 
 The backend uses three server-side secrets for token security. See the dedicated guide for generation, rotation, and emergency revocation procedures:
