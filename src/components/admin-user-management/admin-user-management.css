@@ -69,6 +69,10 @@
   color: #ed6c02;
 }
 
+.admin-user-management__status--deleted {
+  color: #c62828;
+}
+
 .admin-user-management__pagination {
   display: flex;
   justify-content: center;
