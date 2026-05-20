@@ -1,7 +1,8 @@
 export interface EntraConfig {
   tenantId: string;
   clientId: string;
-  clientSecret: string;
+  clientSecret?: string;
+  publicClient: boolean;
   redirectUri: string;
   authority: string;
   jwksUri: string;
@@ -23,11 +24,12 @@ export function getEntraConfig(): EntraConfig {
   const tenantId = process.env.AZURE_TENANT_ID;
   const clientId = process.env.AZURE_CLIENT_ID;
   const clientSecret = process.env.AZURE_CLIENT_SECRET;
+  const publicClient = process.env.AZURE_PUBLIC_CLIENT === 'true';
 
-  if (!tenantId || !clientId || !clientSecret) {
+  if (!tenantId || !clientId || (!publicClient && !clientSecret)) {
     throw new Error(
       'Entra auth is enabled but missing required environment variables: ' +
-        'AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET must all be set.',
+        'AZURE_TENANT_ID and AZURE_CLIENT_ID must be set, and AZURE_CLIENT_SECRET is required unless AZURE_PUBLIC_CLIENT=true.',
     );
   }
 
@@ -40,7 +42,7 @@ export function getEntraConfig(): EntraConfig {
     `https://login.microsoftonline.com/${tenantId}`;
   const jwksUri = `${authority}/discovery/v2.0/keys`;
 
-  return { tenantId, clientId, clientSecret, redirectUri, authority, jwksUri };
+  return { tenantId, clientId, clientSecret, publicClient, redirectUri, authority, jwksUri };
 }
 
 /**

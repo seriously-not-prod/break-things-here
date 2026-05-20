@@ -92,10 +92,12 @@ services:
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT:-8081},http://localhost}
       - ENTRA_AUTH_ENABLED=${ENTRA_AUTH_ENABLED:-true}
       - ENTRA_MFA_REQUIRED=${ENTRA_MFA_REQUIRED:-true}
+      - ENTRA_ALLOW_LOCAL_FALLBACK=${ENTRA_ALLOW_LOCAL_FALLBACK:-false}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
       - AZURE_AUTHORITY=${AZURE_AUTHORITY:-}
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET:-}
+      - AZURE_PUBLIC_CLIENT=${AZURE_PUBLIC_CLIENT:-false}
       - AZURE_REDIRECT_URI=${AZURE_REDIRECT_URI:-http://localhost:8081/auth/callback}
       - ENTRA_GROUP_ADMINS=${ENTRA_GROUP_ADMINS:-}
       - ENTRA_GROUP_ORGANIZERS=${ENTRA_GROUP_ORGANIZERS:-}
@@ -166,7 +168,7 @@ services:
       - wal-archive:/var/lib/postgresql/wal_archive
     entrypoint: >
       sh -c "
-        apk add --no-cache dcron find &&
+        apk add --no-cache dcron &&
         echo '0 * * * * find /var/lib/postgresql/wal_archive -type f -mtime +14 -delete' > /etc/crontabs/root &&
         crond -f
       "

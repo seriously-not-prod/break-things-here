@@ -217,6 +217,8 @@ router.post('/auth/login', createAuthLimiter(), authController.login);
 // ── Entra ID auth routes (#468, #469, #470) ────────────────────────────────
 // Feature-flagged: only functional when ENTRA_AUTH_ENABLED=true
 router.get('/auth/entra/config', entraAuthController.getEntraStatus);
+router.get('/auth/entra/spa-config', entraAuthController.getSpaEntraConfig);
+router.get('/auth/entra/init-spa', entraAuthController.initiateSpaEntraLogin);
 router.get('/auth/entra/login', entraAuthController.initiateEntraLogin);
 router.post('/auth/entra/callback', createAuthLimiter(), entraAuthController.handleEntraCallback);
 router.post('/auth/logout', authenticateToken, authController.logout);
