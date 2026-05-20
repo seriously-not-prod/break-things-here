@@ -79,4 +79,4 @@ k6 run --env BASE_URL=http://staging:4000 tests/load/k6/full-run.js
 - Baseline numbers will be populated after the first successful nightly run
 - The smoke variant is intentionally lightweight to avoid slowing down PR pipelines
 - Guest import and RSVP tests use unique emails per VU/iteration to avoid constraint violations
-- All tests authenticate once in `setup()` and share the token across VUs
+- The login scenario authenticates per-VU iteration; other scenarios authenticate once in `setup()` and share the token

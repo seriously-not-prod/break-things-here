@@ -37,8 +37,13 @@ export function authenticate() {
     return null;
   }
 
-  const body = JSON.parse(res.body);
-  return body.token || body.accessToken || null;
+  try {
+    const body = JSON.parse(res.body);
+    return body.token || body.accessToken || null;
+  } catch (e) {
+    console.warn(`[auth] Failed to parse response: ${e.message}`);
+    return null;
+  }
 }
 
 /**
@@ -62,7 +67,7 @@ export function authHeaders(token) {
  */
 export function trackRequest(res, scenario) {
   const ok = res.status >= 200 && res.status < 400;
-  const fast = res.timings.duration < 500;
+  const fast = ok && res.timings.duration < 500;
   if (!ok) apiErrors.add(1, { scenario });
   slaPassed.add(fast, { scenario });
   responseTime.add(res.timings.duration, { scenario });

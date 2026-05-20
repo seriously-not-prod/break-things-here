@@ -60,9 +60,10 @@ jobs:
 
       - name: Initialize database
         run: |
-          PGPASSWORD=postgres psql -h localhost -U postgres -d festival_test -f database/init.sql || true
+          PGPASSWORD=postgres psql -h localhost -U postgres -d festival_test -f database/init.sql
           for f in database/migrations/*.sql; do
-            PGPASSWORD=postgres psql -h localhost -U postgres -d festival_test -f "$f" || true
+            echo "Applying $f..."
+            PGPASSWORD=postgres psql -h localhost -U postgres -d festival_test -f "$f" || echo "::warning::Migration $f had errors (may be idempotent)"
           done
 
       - name: Start backend

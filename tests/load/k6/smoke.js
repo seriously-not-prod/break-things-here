@@ -79,7 +79,11 @@ export default function (data) {
   trackRequest(loginRes, 'smoke_login');
   sleep(0.3);
 
-  if (!token) return;
+  // Use token from setup; login above validates the endpoint is responsive
+  if (!token) {
+    console.warn('[smoke] No token from setup — skipping authenticated endpoints');
+    return;
+  }
 
   const headers = authHeaders(token);
 

@@ -48,7 +48,7 @@ export const options = {
 export function setup() {
   const token = authenticate();
   if (!token) {
-    console.error('[setup] Authentication failed');
+    console.error('[setup] Authentication failed — unauthenticated scenarios will still run');
     return { token: null, eventId: 1 };
   }
 

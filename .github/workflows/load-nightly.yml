@@ -72,9 +72,10 @@ jobs:
 
       - name: Initialize database
         run: |
-          PGPASSWORD=postgres psql -h localhost -U postgres -d festival_test -f database/init.sql || true
+          PGPASSWORD=postgres psql -h localhost -U postgres -d festival_test -f database/init.sql
           for f in database/migrations/*.sql; do
-            PGPASSWORD=postgres psql -h localhost -U postgres -d festival_test -f "$f" || true
+            echo "Applying $f..."
+            PGPASSWORD=postgres psql -h localhost -U postgres -d festival_test -f "$f" || echo "::warning::Migration $f had errors (may be idempotent)"
           done
 
       - name: Start backend
@@ -83,6 +84,9 @@ jobs:
           npx wait-on http://localhost:4000/health --timeout 60000
 
       - name: Run k6 full load test
+        env:
+          K6_VUS: ${{ inputs.vus || '100' }}
+          K6_DURATION: ${{ inputs.duration || '5m' }}
         run: |
           k6 run tests/load/k6/full-run.js \
             --env BASE_URL=http://localhost:4000 \
