@@ -69,6 +69,7 @@ import * as unsubscribeController from '../controllers/unsubscribe-controller.js
 import * as qrCheckinController from '../controllers/qr-checkin-controller.js';
 import * as attendanceBoardController from '../controllers/attendance-board-controller.js';
 import * as seatingGroupsController from '../controllers/seating-groups-controller.js';
+import * as guestsController from '../controllers/guests-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import {
   apiLimiter,
@@ -1390,8 +1391,16 @@ router.get(
 
 // ── #812: Custom report builder ───────────────────────────────────────────────────────────
 router.get('/reports/builder/domains', authenticateToken, reportBuilderController.getDomains);
-router.post('/events/:eventId/reports/builder/run', authenticateToken, reportBuilderController.runReport);
-router.post('/events/:eventId/reports/builder/save', authenticateToken, reportBuilderController.saveReport);
+router.post(
+  '/events/:eventId/reports/builder/run',
+  authenticateToken,
+  reportBuilderController.runReport,
+);
+router.post(
+  '/events/:eventId/reports/builder/save',
+  authenticateToken,
+  reportBuilderController.saveReport,
+);
 
 // ============ POWER-USER GLOBAL SEARCH — #581 ============
 router.get('/search', authenticateToken, globalSearchController.globalSearch);
@@ -1514,11 +1523,7 @@ router.get(
 // ── #809: Unified multiplexed SSE stream ─────────────────────────────────────────────────
 // SSE — EventSource cannot set Authorization headers; auth flows through the
 // HttpOnly `accessToken` cookie already supported by `authenticateToken`.
-router.get(
-  '/realtime/stream',
-  authenticateToken,
-  realtimeController.streamRealtime,
-);
+router.get('/realtime/stream', authenticateToken, realtimeController.streamRealtime);
 
 // ── #811: User presence (online/offline/idle) ─────────────────────────────────────────────
 router.post('/user-presence/heartbeat', authenticateToken, presenceController.heartbeat);
@@ -1622,6 +1627,17 @@ router.post(
   '/events/:eventId/guest-groups/bulk-checkin',
   authenticateToken,
   guestGroupsController.bulkCheckIn,
+);
+
+// ============ GUEST RECORDS (first-class guests table) — #771 ============
+router.get('/events/:eventId/guest-records', authenticateToken, guestsController.listGuests);
+router.get('/events/:eventId/guest-records/:id', authenticateToken, guestsController.getGuest);
+router.post('/events/:eventId/guest-records', authenticateToken, guestsController.createGuest);
+router.put('/events/:eventId/guest-records/:id', authenticateToken, guestsController.updateGuest);
+router.delete(
+  '/events/:eventId/guest-records/:id',
+  authenticateToken,
+  guestsController.deleteGuest,
 );
 
 // ============ GDPR — #680 ============

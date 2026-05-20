@@ -3421,4 +3421,84 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     ALTER TABLE scheduled_reports
       ADD COLUMN IF NOT EXISTS builder_config JSONB;
   `);
+
+  // v22 — Task #771: guests first-class table.
+  // Satisfies TRD §4.2 which lists `guests` as a core table.
+  // Drops the old VIEW shim, creates the real table, adds guest_id FK to rsvps,
+  // backfills one guests row per existing RSVP, and verifies no orphans remain.
+  await db.exec(`
+    DROP VIEW IF EXISTS guests;
+
+    CREATE TABLE IF NOT EXISTS guests (
+      id                   SERIAL PRIMARY KEY,
+      event_id             INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      name                 TEXT NOT NULL,
+      email                TEXT NOT NULL,
+      phone                TEXT,
+      dietary_restriction  TEXT DEFAULT 'None',
+      accessibility_needs  TEXT,
+      created_at           TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_by           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_at           TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_by           INTEGER REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_guests_event_id ON guests(event_id);
+    CREATE INDEX IF NOT EXISTS idx_guests_email    ON guests(email);
+
+    ALTER TABLE rsvps
+      ADD COLUMN IF NOT EXISTS guest_id INTEGER REFERENCES guests(id) ON DELETE SET NULL;
+
+    CREATE INDEX IF NOT EXISTS idx_rsvps_guest_id ON rsvps(guest_id)
+      WHERE guest_id IS NOT NULL;
+
+    ALTER TABLE guests ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE guests FORCE ROW LEVEL SECURITY;
+  `);
+
+  // RLS policy (separate exec so the DO block does not break the above DDL batch).
+  await db.exec(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'public'
+          AND tablename  = 'guests'
+          AND policyname = 'rls_guests_event_member'
+      ) THEN
+        CREATE POLICY rls_guests_event_member ON guests
+          USING (
+            event_id IN (
+              SELECT e.id FROM events e
+              WHERE  e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+              UNION
+              SELECT em.event_id FROM event_members em
+              WHERE  em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+            )
+            OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+          );
+      END IF;
+    END $$;
+  `);
+
+  // Backfill: one guests row per existing RSVP that has no guest_id yet.
+  await db.exec(`
+    DO $$
+    DECLARE
+      r RECORD;
+      new_guest_id INTEGER;
+    BEGIN
+      FOR r IN
+        SELECT id, event_id, name, email, phone, dietary_restriction, accessibility_needs
+        FROM   rsvps
+        WHERE  guest_id IS NULL
+      LOOP
+        INSERT INTO guests (event_id, name, email, phone, dietary_restriction, accessibility_needs)
+        VALUES (r.event_id, r.name, r.email, r.phone,
+                COALESCE(r.dietary_restriction, 'None'), r.accessibility_needs)
+        RETURNING id INTO new_guest_id;
+
+        UPDATE rsvps SET guest_id = new_guest_id WHERE id = r.id;
+      END LOOP;
+    END $$;
+  `);
 }
