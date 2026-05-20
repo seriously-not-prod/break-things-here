@@ -585,7 +585,7 @@ function RootRouter(): JSX.Element {
 
 function App(): JSX.Element {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <ThemeModeProvider>
         <AuthProvider>
           <RootRouter />

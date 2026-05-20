@@ -5,6 +5,7 @@
  */
 
 import { api } from '../lib/api-client';
+import { seededPlannerState } from '../data/event-planner-seed';
 
 export interface DashboardEvent {
   id: number;
@@ -55,15 +56,52 @@ export interface DashboardData {
  * Uses /api/events, /api/tasks, and /api/rsvps in parallel.
  */
 export async function fetchDashboardData(): Promise<DashboardData> {
-  const [events, tasks, rsvps] = await Promise.all([
-    api.get<DashboardEvent[]>('/api/events'),
-    api.get<DashboardTask[]>('/api/tasks'),
-    api.get<DashboardRsvp[]>('/api/rsvps'),
-  ]);
+  try {
+    const [events, tasks, rsvps] = await Promise.all([
+      api.get<DashboardEvent[]>('/api/events'),
+      api.get<DashboardTask[]>('/api/tasks'),
+      api.get<DashboardRsvp[]>('/api/rsvps'),
+    ]);
 
-  return {
-    events: events ?? [],
-    tasks: tasks ?? [],
-    rsvps: rsvps ?? [],
-  };
+    return {
+      events: events ?? [],
+      tasks: tasks ?? [],
+      rsvps: rsvps ?? [],
+    };
+  } catch {
+    return {
+      events: seededPlannerState.events.map((event) => ({
+        id: Number.parseInt(event.id.replace('event-', ''), 10),
+        title: event.title,
+        location: event.location,
+        date: event.date,
+        capacity: null,
+        status: event.status,
+        created_by_name: 'Demo data',
+      })),
+      tasks: seededPlannerState.tasks.map((task) => ({
+        id: Number.parseInt(task.id.replace('task-', ''), 10),
+        event_id: Number.parseInt(task.eventId.replace('event-', ''), 10),
+        title: task.title,
+        notes: task.description,
+        assignee_name: task.assignee,
+        due_date: task.dueDate ?? null,
+        status: task.status === 'Complete' ? 'Complete' : 'Pending',
+        priority: 'Medium',
+      })),
+      rsvps: seededPlannerState.rsvps.map((rsvp) => ({
+        id: Number.parseInt(rsvp.id.replace('rsvp-', ''), 10),
+        event_id: Number.parseInt(rsvp.eventId.replace('event-', ''), 10),
+        name: rsvp.name,
+        email: rsvp.email,
+        guests: rsvp.guests,
+        canonical_status:
+          rsvp.status === 'Confirmed'
+            ? 'confirmed'
+            : rsvp.status === 'Declined'
+              ? 'declined'
+              : 'pending',
+      })),
+    };
+  }
 }
