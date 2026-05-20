@@ -227,6 +227,25 @@ export function createApp(): express.Express {
     });
   });
 
+  // #784 — Graph groups cache metrics endpoint
+  app.get('/metrics', healthLimiter, async (_req, res) => {
+    const { getGraphGroupsMetrics } = await import('./services/graph-groups.js');
+    const m = getGraphGroupsMetrics();
+    const lines = [
+      `# HELP graph_groups_cache_hit_total Number of graph group cache hits`,
+      `# TYPE graph_groups_cache_hit_total counter`,
+      `graph_groups_cache_hit_total ${m.graph_groups_cache_hit_total}`,
+      `# HELP graph_groups_cache_miss_total Number of graph group cache misses`,
+      `# TYPE graph_groups_cache_miss_total counter`,
+      `graph_groups_cache_miss_total ${m.graph_groups_cache_miss_total}`,
+      `# HELP graph_groups_failure_total Number of graph group fetch failures`,
+      `# TYPE graph_groups_failure_total counter`,
+      `graph_groups_failure_total ${m.graph_groups_failure_total}`,
+    ];
+    res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+    res.send(lines.join('\n') + '\n');
+  });
+
   // CSRF token endpoint — called by the frontend before any state-changing request.
   // Returns an HMAC-signed token; no cookie required.
   // Uses a separate, higher limiter because the frontend may request a token

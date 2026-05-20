@@ -11,6 +11,7 @@ import { validateEntraIdToken } from '../utils/entra-token.js';
 import { getDatabase } from '../db/database.js';
 import { generateTokens } from '../middleware/auth.js';
 import { hashToken, encryptToken, hashPassword } from '../utils/auth-helpers.js';
+import { fetchGroupsWithCache, GraphGroupsStaleError } from '../services/graph-groups.js';
 
 interface UserRow {
   id: number;
@@ -224,11 +225,20 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
 
   // FR-AUTH-003: When Entra token has group overage indicators, fetch groups via Graph.
   // This handles large group memberships where `groups` claim is omitted.
+  // #784 — uses cached graph-groups service with stale-data fallback.
   if (resolvedGroupIds.length === 0 && tokenHasGroupOverage(claims as unknown as Record<string, unknown>)) {
     if (accessTokenForGraph) {
+      const graphToken = accessTokenForGraph;
       try {
-        resolvedGroupIds = await fetchGroupIdsFromGraph(accessTokenForGraph);
+        resolvedGroupIds = await fetchGroupsWithCache(
+          entraOid,
+          () => fetchGroupIdsFromGraph(graphToken),
+        );
       } catch (error) {
+        if (error instanceof GraphGroupsStaleError) {
+          res.status(503).json({ error: 'Microsoft Graph is unavailable and cached data has expired. Please try again later.' });
+          return;
+        }
         console.warn('[Entra] Failed to resolve group overage via Graph; proceeding without group-derived role.', error);
       }
     } else {
