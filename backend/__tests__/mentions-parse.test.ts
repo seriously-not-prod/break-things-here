@@ -298,8 +298,6 @@ describe('processMentions() — integration', () => {
   it('does not throw even when DB operations fail', async () => {
     mockAll.mockRejectedValueOnce(new Error('DB down'));
 
-    await expect(
-      processMentions({ ...BASE_CTX, body: '@alice boom' }),
-    ).resolves.not.toThrow();
+    await expect(processMentions({ ...BASE_CTX, body: '@alice boom' })).resolves.not.toThrow();
   });
 });
