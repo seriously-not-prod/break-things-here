@@ -273,6 +273,7 @@ See [Branching Strategy](docs/processes/branching-strategy.md) for complete comm
 - [Schema Reference](docs/database/schema.md) - Generated table/column/index/RLS reference for `public` schema
 - [ER Diagram (SVG)](docs/database/erd.svg) - Generated entity relationship diagram from live schema
 - [PITR Operations Runbook](docs/operations/pitr.md) - Point-in-time recovery configuration, procedures, and monitoring (14-day retention)
+- [Disaster Recovery Runbook](docs/operations/dr-runbook.md) - DR procedure: detection, escalation, RTO/RPO targets, restore steps, communications and post-incident review templates
 - Regenerate schema artifacts with: `./scripts/generate-erd.sh`
 
 ### Configuration
