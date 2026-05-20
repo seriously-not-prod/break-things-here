@@ -17,6 +17,7 @@ import PublicRsvpPage from './components/events/public-rsvp-page';
 import ProfilePage from './components/profile/profile-page';
 import AdminPage from './components/admin/admin-page';
 import { AiAssistant } from './components/ai/ai-assistant';
+import { NotificationToast } from './components/nav/notification-toast';
 import { AnalyticsPage } from './components/analytics/analytics-page';
 import EventFormPage from './components/events/event-form-page';
 import VendorsPage from './components/vendors/vendors-page';
@@ -539,6 +540,7 @@ function AppShell(): JSX.Element {
         </ErrorBoundary>
       </Box>
       <AiAssistant />
+      <NotificationToast />
       <GlobalShortcuts
         onToggleHelp={handleToggleHelp}
         onOpenHelp={handleOpenHelp}
