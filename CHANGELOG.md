@@ -11,11 +11,241 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Track C — Auth & Identity)
+
+- **Task #785 — End-to-end Entra login flow Playwright test (mocked OIDC)**: Added `e2e/entra-auth.spec.ts` with five tests that drive the full Microsoft sign-in → Azure redirect → callback → dashboard flow using Playwright route interception as a mocked OIDC issuer. Added `e2e/fixtures/oidc-mock.ts` providing reusable `setupOidcMock()` helper with pre-configured test users and well-known group IDs for role-mapping assertions (Admin, Organizer, Viewer, no-groups default). Added `.github/workflows/e2e.yml` CI workflow that builds the frontend, starts a preview server, installs Playwright Chromium, and runs the e2e suite. No live Azure tenant required (#785).
+
+### Documentation
+
+- **Task #794 — Document TLS termination ownership**: Added `docs/security/tls.md` documenting where TLS terminates (reverse proxy / ingress), required cipher suites (TLS 1.3 only), certificate source and renewal procedure, HSTS policy values (`max-age=31536000; includeSubDomains; preload`), database TLS requirements, and on-call ownership matrix. Linked from `SECURITY.md` and `README.md`. HSTS header values verified to match Helmet configuration in `backend/src/index.ts` (#794).
+
+- **Task #791 — Document Entra rollout matrix and local-fallback policy**: Added environment rollout matrix table to `docs/entra-auth-rollout.md` documenting Entra on/off, local-fallback on/off, and signing keys source for production, staging, development, and test tiers. Created operations runbook `docs/operations/entra-outage.md` with step-by-step procedure for temporarily enabling local-credential fallback during an Azure Entra ID outage, including verification, communication, and restoration steps. Added Security & Identity documentation section to README linking to the rollout matrix and outage runbook (#791).
+
+### Added (Track B — Notifications)
+
+- **Task #793 — Task reminder + escalation background job**: Added `backend/src/jobs/task-reminders.ts` with `sendTaskReminders()` and `escalateOverdueTasks()` functions. Reminders are sent at configurable offsets before due date (env `TASK_REMINDER_OFFSETS_HOURS`, defaults `24,2`) to all task assignees (multi-assignee via `task_assignees` with legacy `assigned_user_id` fallback). Overdue tasks (>24 h past due date, configurable via `TASK_ESCALATION_THRESHOLD_HOURS`) escalate to the event organizer or a custom target from `task_escalation_rules`. Both paths respect per-user notification preferences via `isChannelEnabled()` (`task_due` / `task_overdue` categories) and use the batched in-app notification helper plus email via `sendMail()`. De-duplication via `task_reminder_log` table (auto-created) prevents double sends. Job registered in `backend/src/utils/job-scheduler.ts` on a 30-minute interval. Integration tests in `backend/__tests__/task-reminders.test.ts` cover reminder windows, de-duplication, multi-assignee dispatch, preference suppression, escalation path with custom rules, and threshold enforcement (#793).
+
+- **Task #792 — Configurable RSVP reminder cadence + dispatcher job**: Added `rsvp_reminder_offsets INTEGER[]` column to `events` (default `{14,7,1}`) and `last_reminder_sent_at TIMESTAMPTZ` column to `rsvps` via migration `v23-event-rsvp-reminder-offsets.sql`. Created `backend/src/jobs/rsvp-reminders.ts` with `processRsvpReminders()` dispatcher that scans active events with future RSVP deadlines and enqueues email reminders for unconfirmed RSVPs (pending/maybe) at each configured offset. Reminders respect per-user notification preferences via `isChannelEnabled()` (`event_reminder` category). Double-fire prevention uses `last_reminder_sent_at` stamping per offset window. Unsubscribed guests are automatically suppressed. Job registered in `backend/src/utils/job-scheduler.ts` on an hourly interval. Integration tests in `backend/__tests__/rsvp-reminders.test.ts` cover schedule resolution, idempotency, preference suppression, and edge cases (#792).
+
+- **Task #786 — Notification preferences — backend model and endpoints**: Added normalised `notification_preferences` table with `(user_id, channel, category, enabled)` schema (migration `v22-notification-preferences-matrix.sql`), replacing the legacy per-type boolean columns. Migration seeds default-enabled rows for every existing user × channel × category combination. Added `GET /api/users/me/notification-preferences` returning the full channel × category matrix and `PATCH /api/users/me/notification-preferences` accepting bulk updates. Created `backend/src/services/notifications/dispatch-guard.ts` with `isChannelEnabled()` helper. Outbound dispatchers (`createBatchedNotification`, `createBudgetAlert`, `createRsvpNotification`, `createTaskDueAlert`) now consult the preference matrix before sending. Integration tests in `backend/__tests__/notification-preferences.test.ts` verify endpoints, validation, and dispatch suppression (#786).
+
+### Added (Track C — Auth & Identity)
+
+- **Task #790 — Entra-first login copy refresh for the four personas**: Added MFA help text below the "Sign in with Microsoft" CTA to set expectations for multi-factor authentication prompts. Forgot-password and create-account links are gated to local-fallback mode only. Added snapshot tests for Entra-on (entra-only), Entra-on (with fallback), and Entra-off (local-only) variants in `frontend/test/login-form.test.tsx`. Appended persona review note to `docs/entra-auth-rollout.md` mapping Sarah/Marcus/Emily/David FRD personas to the login copy changes (#790).
+
+### Added (Track B — Database & Infrastructure)
+
+- **Task #777 — PITR / WAL archiving configuration**: Implemented Point-in-Time Recovery (PITR) infrastructure fulfilling NFR §5.4 with 14-day retention. Added WAL archiving to `docker-compose.yml` with `archive_mode=on`, `wal_level=replica`, and custom `archive_command` pointing to `scripts/archive-wal.sh`. Created `wal-archive` Docker volume for archived WAL segments. Implemented `wal-archive-cleanup` service using cron to remove WAL files older than 14 days, maintaining automated retention policy. Added `scripts/restore-drill.sh` for documented recovery testing against throwaway database. Created comprehensive operations runbook at `docs/operations/pitr.md` covering architecture, configuration, recovery procedures, monitoring, troubleshooting, and maintenance schedule (#777).
+
+- **Task #778 — N-day permanent purge for soft-deleted events**: Implemented background job in `backend/src/jobs/purge-deleted-events.ts` that permanently removes events where `archived_at < NOW() - INTERVAL 'retention'` (configurable via `PURGE_RETENTION_DAYS` env var, default 30 days). Job is registered in the scheduler at midnight UTC daily to run alongside GDPR data-retention purge. Supports dry-run mode (`PURGE_DRY_RUN=true`) for testing, logging intent without deleting. Every purge is recorded in `audit_log` with row count, deleted event IDs, retention window, and severity level. Events cascade-delete all related data (tasks, rsvps, galleries, schedules, etc.). Comprehensive test suite in `backend/__tests__/purge-deleted-events.test.ts` covers retention math, dry-run branch, cascade deletes, boundary conditions (exactly at cutoff), no-op when empty, and audit-log recording (#778).
+
+- **Task #787 — Notification preferences profile UI tab**: Added `frontend/src/components/profile/notification-preferences-tab.tsx` — a new Material-UI tab on the profile page that renders a category × channel matrix for notification preferences (In-App, Email, Push). Uses React Hook Form + Zod for form state, optimistic toggle saves via PUT endpoint with rollback on failure, and full keyboard/aria-label accessibility. Converted the profile page from a flat form to a tabbed layout (General Info + Notifications). Added 9 component tests in `frontend/test/notification-preferences-tab.test.tsx` covering initial load, toggle save, error rollback, accessibility, and table rendering (#787).
+
+- **Task #785 — End-to-end Entra login flow Playwright test (mocked OIDC)**: Added `e2e/entra-auth.spec.ts` with five tests that drive the full Microsoft sign-in → Azure redirect → callback → dashboard flow using Playwright route interception as a mocked OIDC issuer. Added `e2e/fixtures/oidc-mock.ts` providing reusable `setupOidcMock()` helper with pre-configured test users and well-known group IDs for role-mapping assertions (Admin, Organizer, Viewer, no-groups default). Added `.github/workflows/e2e.yml` CI workflow that builds the frontend, starts a preview server, installs Playwright Chromium, and runs the e2e suite. No live Azure tenant required (#785).
+
+### Documentation
+
+- **Task #775 — PostgREST runtime decision and contract cleanup**: Removed the unused `postgrest` service from `docker-compose.yml`, recorded the "remove" decision and freed port `3001` in `docs/postgrest-pilot.md`, and updated TRD references in `docs/requirements/REQUIREMENTS_BASELINE.md` to declare Express `/api` as the active API contract (#775).
+
+- **Task #774 — SERIAL to UUID primary-key migration spike**: Added `docs/architecture/uuid-migration-spike.md` with migration option analysis (dual-column phased cutover vs in-place ALTER), data-migration script outline, FK rewrite plan, frontend type-change footprint, backward-compatibility risks, and effort estimates. Recorded decision in `docs/requirements/REQUIREMENTS_BASELINE.md` TRD section 4.2 to defer UUID cutover for the current cycle and ratify SERIAL/sequence-backed keys as the active baseline while tracking UUID migration as future phased work (#774).
+
+### Fixed
+
+- **Task #776 — Add `/api/health` TRD-compatible alias**: Backend now serves `GET /api/health` as an alias of `GET /health` using a shared handler so both endpoints always return identical payload and status. In-code OpenAPI definition now documents both routes, and smoke coverage in `backend/__tests__/health-endpoints.test.ts` asserts both endpoints return `200` and matching response bodies (#776).
+
+### Added (Track E — Performance & Observability)
+
+- **Task #784 — Microsoft Graph group fetch — cache and failure-mode hardening**: Added `backend/src/services/graph-groups.ts` implementing an in-memory TTL cache keyed by user OID (default 10 min, configurable via `GRAPH_GROUPS_CACHE_TTL_MS`). On Graph API failure, requests are authorised using last-known cached role for up to 24 hours (`GRAPH_GROUPS_MAX_STALE_MS`); beyond that ceiling, login is refused with HTTP 503. Counter metrics `graph_groups_cache_hit_total`, `graph_groups_cache_miss_total`, `graph_groups_failure_total` exposed via `GET /metrics` in Prometheus text format. `backend/src/controllers/entra-auth-controller.ts` updated to route group-overage fetches through the cache. Unit tests in `backend/__tests__/graph-groups.test.ts` cover happy path, cache hit, stale fallback within ceiling, stale refusal past ceiling, and metric counters (#784).
+
+### Security
+
+- **Task #783 — Block local-auth fallback in production deployments**: When `NODE_ENV=production` and `ENTRA_AUTH_ENABLED=true`, `POST /api/auth/login` now returns `410 Gone` with `LOCAL_AUTH_DISABLED` error code unless `ENTRA_ALLOW_LOCAL_FALLBACK=true` is explicitly set. Startup emits a security warning when both Entra and local fallback are active in production. Integration tests in `backend/__tests__/auth-fallback.test.ts` cover all acceptance criteria (#783).
+
+### Added (Track E — Performance & Observability)
+
+- **Task #817 — Load-test suite (k6) + nightly + PR smoke gate**: Added comprehensive k6 load test scenarios in `tests/load/k6/` covering login, dashboard, RSVP submission, event create, and guest import endpoints. Full run uses 100 VUs for 5 minutes with p95 < 500 ms and error rate < 1% thresholds. Smoke variant (10 VU, 30s) runs on every PR via `.github/workflows/load-smoke.yml`. Full variant runs nightly at 02:00 UTC via `.github/workflows/load-nightly.yml` (also manually dispatchable). Baseline performance numbers documented in `tests/load/baseline.md` (#817).
+
+### Fixed
+
+- **Issue #770 — Collapse dual RSVP status columns to single source of truth**: Consolidated `rsvps.status` (legacy) and `rsvps.canonical_status` (canonical) columns by dropping the legacy `status` column entirely. `canonical_status` is now the single source of truth with values `pending`, `confirmed`, `declined`, `maybe`, `waitlist`, `cancelled`, `checked_in`, `no_show`. All backend controllers updated to read/write canonical_status only; legacy status input is still accepted and mapped to canonical via `toCanonicalStatus()` for backward compatibility. Frontend types updated to use canonical_status instead of status. Database migration `v21-rsvp-status-collapse.sql` backfills any remaining NULL canonical_status values and drops the status column. All RSVP-related tests and seed data updated. Issue addresses data consistency issues where dual columns could diverge (#770).
+
+### Added (Track D — Real-time)
+
+- **Task #809 — Unified realtime SSE stream**: Introduced a multiplexed Server-Sent Events endpoint `GET /api/realtime/stream?topics=events,tasks,budgets,activity,presence` that fans out messages to subscribers for any combination of the five supported topics. Backed by an in-memory `RealtimeHub` singleton (`backend/src/services/realtime/hub.ts`) and a Postgres `LISTEN/NOTIFY` bridge (`backend/src/services/realtime/pg-bridge.ts`) that keeps multiple process replicas in sync. A heartbeat comment is sent every 30 s; the legacy `GET /api/events/:eventId/realtime/stream` remains fully back-compatible. Added `useRealtime()` React hook (`frontend/src/hooks/use-realtime.ts`) with automatic reconnect logic. Integration test covers subscribe → publish → receive → disconnect lifecycle (#809).
+- **Task #811 — Online/offline user presence**: Added `user_presence` table (`database/migrations/v19-user-presence-811.sql`) tracking per-user online/idle/offline status via periodic heartbeats. New presence service (`backend/src/services/realtime/presence.ts`) maintains in-memory map with DB snapshots, computes idle (15 min) and offline (30 min) thresholds, and runs periodic sweeps. New controller endpoints: `POST /api/user-presence/heartbeat`, `DELETE /api/user-presence/leave`, `GET /api/user-presence/online`. SSE topic `presence` broadcasts `presence.join` and `presence.leave` diffs. Frontend `usePresenceHeartbeat` hook sends 30s heartbeats. `TeamPresenceList` component mounted in sidebar shows green/grey dots for online/idle team members (#811).
+- **Task #812 — Custom report builder**: Added `builder_config JSONB` column to `scheduled_reports` and extended `report_type`/`frequency` constraints via `database/migrations/v20-report-builder-812.sql`. New `build-report` service (`backend/src/services/reports/build-report.ts`) executes safe allowlist-validated dynamic queries across five domains (events / guests / budget / tasks / vendors) supporting field selection, filter operators, group-by, and sort — no user strings ever interpolated into SQL. New `reports-builder-controller.ts` exposes `GET /api/reports/builder/domains`, `POST /api/events/:eventId/reports/builder/run` (JSON / CSV / XLSX output via ExcelJS), and `POST /api/events/:eventId/reports/builder/save`. Frontend builder at `frontend/src/components/reports/builder/` uses React Hook Form + Zod with `FieldSelector`, `FilterEditor`, and the full `ReportBuilderForm` page component with accessible ARIA labels. 25 integration tests covering all domains, filter operators, injection guards, and controller validations (#812).
+- **Task #813 — PDF report renderer (server-side)**: Added `pdfkit` dependency and new PDF renderer service at `backend/src/services/reports/pdf.ts`. Supports three report types: guest list, budget summary, and expense detail. Each PDF includes event header (title, date, location), tabular data with zebra striping and pagination, a "Generated at" timestamp, and page-number footers on every page. Report metadata tracks page count, byte length, and generation timestamp. 18 unit tests verify section presence, metadata accuracy, and file size under 5 MB (#813).
+
+### Added (Track C — Import/Export & Media)
+
+- **FR-GUEST-002 (XLSX import)**: Guest import wizard now accepts `.xlsx` and `.xls` files in addition to CSV. SheetJS (`xlsx`) parses the first sheet server-side (RSVP controller) and client-side (import dialog preview). The multer filter and file-input `accept` attribute are updated to allow Excel MIME types (#2, #14).
+- **FR-GUEST-002 (Download Failed Rows)**: After a guest import, any rows that were skipped or rejected (missing name/email, duplicate email, or DB error) are returned in the API response as `failedRows`. The import dialog shows a count alert with a "Download Failed Rows" button that exports a CSV containing the original data and failure reason (#3).
+- **FR-RPT-002 (Analytics PDF/Excel export)**: The analytics page Export button is replaced with a split-button dropdown offering CSV (existing), PDF (via jsPDF + jspdf-autotable), and Excel (via SheetJS) exports. PDF includes KPI summary, budget breakdown, and task breakdown sections; Excel has four sheets (Summary, Budget, Tasks, Dietary) (#9).
+- **FR-GALLERY-001 (HEIC MIME handling and multi-file upload)**: Gallery document upload now accepts `image/heic`, `image/heif`, and `application/octet-stream` with `.heic`/`.heif` extension (iOS sends octet-stream for HEIC). The effective MIME type is normalised to `image/heic` in the database. The multer handler is changed from `.single()` to `.array('document', 20)` and the controller iterates all uploaded files, scanning and persisting each. The frontend file input gains the `multiple` attribute and appends all selected files in one FormRequest. Partial-success (207) is returned when some files fail (#12).
+- **FR-RPT-001 (Scheduled report email dispatch)**: The `dispatchScheduledReports` job scheduler now calls `renderPayload()` from the reports controller to build a structured JSON body for each due report, then dispatches it via `sendMail()` to every recipient. Per-recipient failures are logged without aborting the batch. Delivery attempts are recorded in `scheduled_report_deliveries` for audit. `renderPayload` is exported from `reports-controller.ts` to allow reuse without HTTP round-trips (#8).
+
+### Fixed
+
+- **Task #769 — audit-column sweep and trigger enforcement**: added `database/migrations/v17-audit-columns-sweep-769.sql` and `database/functions/set_audit_columns.sql` to guarantee every public table has `created_at`, `created_by`, `updated_at`, and `updated_by`; added generic `set_audit_columns()` trigger semantics for write-time actor/timestamp population from `app.current_user_id`; and mirrored the same v17 logic in `backend/src/db/database.ts` startup migrations with a hard verification query that fails if any table is still missing required columns.
+- **Task #767 — RLS default-on and pilot flag retirement**: backend migration/runtime no longer depends on `RLS_PILOT_ENABLED`; RLS policies are applied by default, startup now hard-fails in `production`/`staging` if the connecting DB role has `BYPASSRLS`, request middleware now sets both `app.current_user_id` and `app.current_role`, and regression tests now cover at least 3 read paths plus 3 write paths with explicit allow/deny assertions.
+- **Task #768 — secondary-table RLS completion**: added `database/migrations/v16-rls-secondary-tables.sql` to explicitly enforce `ENABLE` + `FORCE` RLS and named policies across the full secondary-table acceptance list (tasks/timeline/shopping/rsvp/gallery/communication/reports/event metadata/attendance/vendor lifecycle tables), and added `backend/__tests__/rls-secondary-tables.test.ts` with positive and negative access assertions for each listed table plus fail-open context verification.
+- **Entra group overage fallback for RBAC**: Entra callback now handles group overage tokens (`hasgroups` / `_claim_names.groups`) by fetching group IDs from Microsoft Graph `me/memberOf` when direct `groups` claims are omitted, ensuring role mapping remains accurate for high-membership users.
+- **Secure-environment MFA/auth startup enforcement**: strict startup security controls now require `ENTRA_AUTH_ENABLED=true` and `ENTRA_MFA_REQUIRED=true` in `production`/`staging`, eliminating drift where Entra or MFA could be disabled in secure deployments.
+- **API cache policy evidence**: API GET/HEAD responses now emit explicit cache headers (`Cache-Control: private, max-age=300`) with auth-safe `Vary` headers; integration tests assert the policy.
+- **Entra role re-sync on every login (FR-AUTH-003)**: returning users matched by `entra_oid` were not getting their role re-synced from Azure group membership on subsequent logins — only initial provisioning updated the role. `entra-auth-controller.ts` now re-evaluates group membership and updates `role_id` on every Entra authentication, ensuring group changes in Azure AD propagate immediately.
+- **`/health` canonical endpoint path**: Docker-compose healthcheck targets `/health` but only `/api/health` existed in `server.js`. Added canonical `GET /health` endpoint alongside the legacy `/api/health` alias so container healthchecks pass.
+
+### Added (2026-05-19 compliance sprint)
+
+- **Universal audit/RLS enforcement migration**: added `database/migrations/v14-universal-audit-rls-enforcement.sql` to baseline-enforce audit columns (`created_at`, `created_by`, `updated_at`, `updated_by`) and RLS enablement/policy coverage across all public tables.
+- **Compliance evidence report**: added `docs/processes/compliance-evidence-2026-05-19.md` mapping each previously partial requirement to concrete implementation artifacts and verification commands.
+- **Browser support evidence expansion**: Playwright matrix now includes Chromium, Firefox, and WebKit, and frontend declares explicit latest-2 browser support policy via `browserslist`.
+- **PostgREST API gateway container**: Added `postgrest/postgrest:v12.2.3` service to `docker-compose.yml` on port 3001 with JWT auth pointed at the festival_planner database (TRD v1.0 §6).
+- **Automated database backup service**: Added `db-backup` container to `docker-compose.yml` — hourly incremental backups with 14-day retention and daily full backups with 30-day retention, stored in persistent `db-backups` volume.
+- **Database migration v13 — audit columns and full RLS coverage**: `database/migrations/v13-audit-cols-rls-full-coverage.sql` adds missing `created_by`, `updated_by`, `updated_at` audit columns to 30+ tables and enables RLS on 14 additional tables (timeline_activities, shopping_lists, shopping_items, task_comments, task_subtasks, task_dependencies, rsvp_questions, gallery_albums, event_messages, notifications, activity_feed, communication_log, store_suggestions, vendor_favorites, budget_categories, seating_tables, event_documents). Adds 14 new FK and performance indexes.
+- **Zustand 4 state management stores**: Created `frontend/src/stores/auth-store.ts`, `frontend/src/stores/event-store.ts`, and `frontend/src/stores/ui-store.ts` with localStorage persistence where appropriate. Barrel exported from `frontend/src/stores/index.ts`.
+- **TanStack Query v5 integration**: Wrapped app with `QueryClientProvider` in `frontend/src/main.tsx` (staleTime 5 min, gcTime 10 min, retry 2). Created `frontend/src/hooks/use-events.ts` with `useEvents`, `useEvent`, `useCreateEvent`, `useUpdateEvent`, `useDeleteEvent` hooks and optimistic updates.
+- **React Hook Form + Zod validation schemas**: Created `frontend/src/lib/validation-schemas.ts` with complete Zod schemas for login, register, event CRUD, guest, RSVP, task, expense, and vendor entities along with inferred TypeScript types.
+- **Swagger/OpenAPI interactive documentation**: Integrated `swagger-jsdoc` and `swagger-ui-express` into `backend/src/index.ts`. Interactive docs at `/api-docs` and raw spec at `/api-docs.json` (non-production environments only).
+- **Prettier code formatting**: Added `.prettierrc` (printWidth 100, singleQuote, trailingComma all, endOfLine lf) and `.prettierignore`. Added `format` and `format:check` npm scripts to root `package.json`.
+- **Lint-staged pre-commit hooks**: Added `lint-staged` with prettier + ESLint auto-fix on staged files. Created `.githooks/pre-commit`; `prepare` npm script activates the hook path via `git config core.hooksPath .githooks`.
+- **k6 load and stress tests**: Created `tests/load/load-test.js` (NFR §5.1 — 100 concurrent VUs, p95 < 500 ms, ramp stages) and `tests/load/stress-test.js` (3x spike to 300 VUs with recovery verification).
+- **WCAG 2.1 AA axe-core e2e test suite**: Replaced thin `e2e/accessibility.spec.ts` with a full `@axe-core/playwright` suite covering critical/serious violations, colour contrast, keyboard Tab traversal, and focus-indicator visibility across login, events, and dashboard pages.
+- **Global Ctrl+K command palette**: Created `frontend/src/components/nav/global-command-palette.tsx` mounted in AppShell — pressing `Ctrl+K` / `Cmd+K` on any authenticated page opens the `PowerUserSearch` dialog; `Escape` closes it.
+- **Architecture migration plan**: Created `docs/architecture-migration-plan.md` documenting ADR-001 (Next.js migration vs Vite) and ADR-002 (UUID primary keys vs SERIAL) with scope tables, migration step outlines, and decision status tracking.
+
+- **#664 post-merge review follow-ups**: hardened four issues identified during the develop-branch review of PRs #695–#698.
+  - **RLS default is now safe for non-superuser DB roles**: `runMigrations()` auto-detects the connecting role's `BYPASSRLS` attribute. RLS policies are only applied when the role bypasses them (so policies remain inert) or when `RLS_PILOT_ENABLED=true` is set explicitly. On a hardened non-superuser role with no `app.current_user_id` context plumbing yet in controllers, RLS is auto-disabled with a warning instead of silently filtering every row out.
+  - **Legacy `POST /api/rsvps` now normalizes status aliases**: the legacy `submitRsvp` and `updateRsvp` handlers reuse `normalizeLegacyRsvpStatusInput`, so `Confirmed`/`No Response`/`tentative`/`cancelled`/`rejected` (and every variant in `RSVP_STATUS_INPUT_ALIAS_LIST`) all persist as the canonical legacy values (`Going`, `Pending`, `Maybe`, `Not Going`, `Declined`). Eliminates the status drift between `/rsvps` and `/events/:id/rsvps`.
+  - **400-response `allowed` payload now surfaces every accepted alias** via the new `RSVP_STATUS_INPUT_ALIAS_LIST` export; previously only 7 of 17 accepted inputs were advertised to clients.
+  - **TZ-correctness fix extended to five sibling expiry/deadline columns**: `users.locked_until`, `users.pending_email_token_expiry`, `events.rsvp_deadline`, `rsvps.rsvp_deadline`, and `password_reset_rate_limit.window_start` are now `TIMESTAMPTZ` to match the sessions/password-reset-token fix in PR #698. New migration `database/migrations/v11-timestamptz-followup-664.sql` promotes existing prod columns in place via `AT TIME ZONE 'UTC'`; `runMigrations()` performs the same conversion idempotently at startup.
+  - **RBAC UI: Create-Event CTAs gated for non-edit roles**: dashboard `QuickAccessGrid`, `CalendarPage` (empty-state and toolbar), and `EventPickerModal` (both create buttons) now use `canEditEvent(user.roleName)` so attendees/guests/viewers no longer see CTAs that route to a denied page.
+  - Removed obsolete SQLite-style migration tests (`backend/__tests__/budget-expenses-migration.test.ts`, `backend/__tests__/venues-vendors-migration.test.ts`) that used `PRAGMA table_info()` against the PostgreSQL backend and could not be run.
+
+### Added
+
+- **P1-Duplicate Guest Detection UX (#727, Item 13):** Add Guest now performs immediate duplicate-email lookup and shows a warning before submit, including a merge recommendation and quick action to jump to the Duplicates tab; backend adds `GET /api/events/:eventId/rsvps/lookup?email=...` for exact-email match suggestions, with frontend/backend test coverage.
+- **Post-event thank-you send and unsubscribe management** (#444, story #413): Added `POST /api/events/:eventId/communication/thank-you` endpoint that bulk-sends thank-you messages to confirmed (Going) guests with automatic suppression of unsubscribed recipients; added planner-side `PATCH /api/events/:eventId/rsvps/:id/unsubscribe` toggle; `guest-communication-panel` now surfaces a "Send Thank-You" button, unsubscribed-count advisory, and suppression summary on send results; `sendThankYou` and `setGuestUnsubscribed` added to `frontend/src/services/guest-service.ts`
+- **QR scanning check-in page** (#445, story #413): `frontend/src/components/checkin/qr-scanner-page.tsx` provides a live camera scanner using the browser-native `BarcodeDetector` API (Chrome/Edge/Android) with a manual token-paste fallback for Safari/Firefox; tokens map to RSVP records via `POST /api/events/:eventId/checkin/scan`; route wired at `/events/:id/checkin/scan` in `App.tsx`; the existing check-in page always shows a QR Scanner button; the scanner page uses BarcodeDetector for camera scanning and falls back to manual token entry on unsupported browsers
+- **P1-CSV Template Download (#664, Item 12)**: Added a downloadable RSVP import template endpoint (`GET /api/events/:eventId/rsvps/import/template.csv`) plus a download button in the guest import dialog. The template ships a CSV header row covering the importable RSVP fields, and the Guests page import flow now exposes the template directly from the CSV import modal.
+- **P1-CSV Import Mapping Fix (#664, Item 11)**: Wired the field-mapping wizard to the backend import logic — `handleImport()` in `csv-import-dialog.tsx` now passes `columnMap` to `importCsv()` in `guest-service.ts`; `importCsv` sends it as a JSON `column_map` form field; the backend controller (`rsvps-controller.ts`) reads and applies the mapping so custom CSV headers are correctly resolved to guest fields (name, email, phone, dietary_restriction, notes, etc.), with `''`-mapped columns skipped and unmapped columns continuing to fall back to normalised header names. 9 new backend unit tests added (`backend/__tests__/csv-import-mapping.test.ts`).
+- **P1-Event Time Field (#664, Item 10)**: Added required `event_time` (HH:MM) field end-to-end — DB column + migration (`database/migrations/v10-event-time-field.sql`, `database/init.sql`, `backend/src/db/database.ts`), API validation/storage (`createEvent`, `updateEvent`, `cloneEvent` in `event-controller.ts`), frontend form input with client-side HH:MM validation (`event-form-page.tsx`), detail page display (`event-detail-page.tsx`), type definitions (`src/types/event-planner.ts`), and 12 backend unit tests (`backend/__tests__/event-time-field.test.ts`)
+- Strict 3.1.3 Data Security startup gates for production/staging: backend now fails closed unless HTTPS enforcement, TLS 1.3 edge policy (`EDGE_TLS_MIN_VERSION=TLSv1.3`), verified PostgreSQL TLS mode (`sslmode=verify-ca|verify-full`), at-rest encryption attestation (`DB_ENCRYPTION_AT_REST_VERIFIED=true`), and fail-closed malware scanning are all explicitly enabled
+- Entra group-to-role mapping with precedence (`Admin > Organizer > Collaborator > Guest > Viewer`) via configurable env vars (`ENTRA_GROUP_ADMINS`, `ENTRA_GROUP_ORGANIZERS`, `ENTRA_GROUP_COLLABORATORS`, `ENTRA_GROUP_GUESTS`, `ENTRA_GROUP_VIEWERS`) and callback-time role assignment for Entra SSO logins
+- Event member role normalization to BRD event roles (`Owner`, `Co-Organizer`, `Helper`, `Guest`) with dynamic precedence checks in shared event access utilities
+- RBAC permission-change audit trail coverage for role creation, role assignment, and permission add/remove controller operations
+- **UI Overhaul — Professional Design System**: Comprehensive MUI theme rewrite with enterprise-grade design tokens, Inter + Plus Jakarta Sans typography, refined color palette (`#4f46e5` primary), and consistent component overrides for buttons, inputs, cards, tables, dialogs, and more (`frontend/src/theme/app-theme.ts`)
+- **UI Overhaul — Collapsible Sidebar Navigation**: Full rewrite of `app-nav.tsx` with collapsible drawer (256px ↔ 68px), grouped nav sections ("Event Hub", "Workspace") with expand/collapse, dark sidebar background, user avatar, dark/light mode toggle, and smooth CSS transitions
+- **UI Overhaul — PageLayout Component**: New `frontend/src/components/layout/page-layout.tsx` wrapper providing consistent sticky header with breadcrumbs, page title/subtitle, and actions slot across all authenticated pages
+- **UI Overhaul — Login Screen**: Modernised auth shell with deep indigo gradient background, refined brand logo, improved typography hierarchy, and polished card layout
+- **UI Overhaul — All Pages**: Applied `PageLayout` wrapper with breadcrumbs and action buttons to all 17 authenticated pages: Dashboard, Events, Create Event, Event Detail, Calendar, Budget, Tasks, Guests, Vendors, Timeline, Gallery, Messages, Check-In, Seating, Analytics, Profile, Admin
+- **BRD v2 Story #531 vendor lifecycle parity** (#553 #554 #609 #610 #611): Added PostgreSQL-safe vendor favorites, booking lifecycle, and payment schedule schema (`vendor_favorites`, `vendor_bookings`, `vendor_payment_schedules`) in `database/init.sql`, runtime migration path in `backend/src/db/database.ts`, and versioned migration `database/migrations/v6-brd-v2-story-531-shopping-vendor-lifecycle.sql`; exposed new APIs for favorites, booking upsert/read, and payment schedules with integration coverage in `backend/__tests__/brd-v2-story-531-vendor-lifecycle-workflow.test.ts`
+- **BRD v2 — 5-Role Model** (#537, #573): Added Collaborator (id=4), Guest (id=5), and Viewer (id=6) roles alongside existing Attendee/Organizer/Admin; role-permission matrix extended with scopes for rsvp, tasks, guests, budget, gallery, checkin, and reports; `database/migrations/v2-brd-auth-rbac-rls-parity.sql` migration applied idempotently
+- **BRD v2 — Comprehensive Audit Logging** (#538, #572): `audit_log` table extended with `actor_id`, `target_type`, `target_id`, `context` (JSONB), and `severity` (INFO/WARN/ERROR/CRITICAL) columns; `backend/src/utils/audit-log.ts` centralised utility; audit events emitted for login success/failure/lock, logout, token refresh, session expiry, role changes, permission denials, and file upload scans
+- **BRD v2 — Session Inactivity Policy** (#536, #571): 30-min SESSION_TIMEOUT_MS enforced in `authenticateToken` middleware; `SESSION_EXPIRED` audit event emitted on inactivity timeout; configurable via `SESSION_TIMEOUT_MS` env var
+- **BRD v2 — RLS Extension** (#564, #632, #633): Row Level Security enabled on `tasks`, `expenses`, `vendors`, and `rsvps` tables (controlled by `RLS_PILOT_ENABLED=true`); event-member policies restrict access to event participants; idempotent policy creation in both migration SQL and runtime `database.ts`
+- **BRD v2 — Upload Virus Scanning** (#565, #634): `backend/src/utils/virus-scan.ts` integrates ClamAV (`VIRUS_SCAN_ENABLED=true`) with stub fallback (EICAR detection); scanning applied to profile photo uploads and event document uploads; `UPLOAD_SCAN_PASS`/`UPLOAD_SCAN_FAIL` audit events; `VIRUS_SCAN_BLOCK_ON_ERROR=true` for fail-closed policy
+- **BRD v2 — Frontend Role Gating** (#535, #573): `frontend/src/utils/roles.ts` utility replaces raw `roleId >= N` comparisons with semantic `canEditEvent()`, `isAdmin()`, `isViewOnly()` helpers; all existing role checks updated to use role names
+- **BRD v2 — Architecture Runbook** (#567, #630–#638): `docs/processes/brd-v2-migration-runbook.md` documents migration steps, rollback procedures, environment variables, deployment checklist, and audit event catalogue
+- **BRD v2 — MFA Enforcement** (#568): Entra callback enforces `amr=mfa` claim when `ENTRA_MFA_REQUIRED=true`; `isMfaRequired()` config helper; `amr` field added to `EntraTokenClaims`
+- **BRD v2 — Entra Password Recovery Block** (#570): `forgotPassword` returns 422 with Entra self-service URL for `auth_provider='entra'` accounts
+- Budget planning rates for tax, gratuity, and contingency are now persisted on `budget_categories` with PostgreSQL-safe schema updates, server-side rate validation, and computed planning totals surfaced in the budget UI category editor and category breakdown view (#596 #597)
+- Budget planning controls are now fully validated through backend integration coverage for create/update rate rules and rounding behavior, plus frontend edit-flow tests for tax/gratuity/contingency updates in category dialogs (#548)
+- Budget comparison across similar events now benchmarks the current event against accessible peer events in the budget page, with a new `/api/events/:eventId/budget/compare` endpoint, match scoring based on event attributes, secure access filtering, and tested planned-vs-actual budget summaries for each peer event (#598)
+- Expense approval and reimbursement workflow now enforces role-based review on budget expenses, adds reimbursement request/resolve APIs, persists audited workflow state in PostgreSQL (`expenses` workflow columns + `expense_workflow_events`), and surfaces approval/reimbursement statuses and summary chips in the budget UI with backend/frontend test coverage (#549 #599 #600)
+- OCR receipt extraction and reconciliation flow now supports extraction from receipt text, role-gated apply-to-expense actions, and immutable reconciliation/audit records via new PostgreSQL tables (`expense_receipt_ocr`, `expense_reconciliation_logs`) with budget-page integration and workflow tests (#550 #601)
+- Keyboard shortcut handler and discoverable help overlay: global `useKeyboardShortcuts` hook registers single-key (`?`, `Escape`, `F1`) and chord (`g→d`, `g→e`, `g→c`, `g→m`, `g→p`, `g→n`) shortcuts; all shortcuts are silenced when focus is inside `<input>`, `<textarea>`, `<select>`, or `[contenteditable]`; pressing `?` or `F1` opens a categorised `KeyboardShortcutsOverlay` dialog that lists every registered shortcut with accessible key chips; 25 new tests cover all three acceptance criteria (#456)
+- Planned-vs-actual timeline workflow: `timeline_activities` now stores `planned_start_time`, `planned_end_time`, `actual_start_time`, `actual_end_time`, and `status` (`planned`/`in-progress`/`completed`/`skipped`) fields; `GET /api/events/:eventId/timeline/comparison` returns per-activity variance in minutes and a status summary; timeline UI adds a "Planned vs Actual" comparison tab and status chips on activity cards; form updated with planned/actual time fields and a status selector; all existing CRUD behaviour preserved (#460)
+- Fixed pre-existing test timeout instability in `seating.test.tsx` and `events-page-compatibility.test.tsx` by adding explicit 15 s timeout per test
+
+### Added
+
+- Gallery albums: organise gallery images into named albums with create/edit/delete/assign workflows; `gallery_albums` table and `/api/events/:eventId/gallery/albums` CRUD + `PATCH .../gallery/:id/album` assignment endpoint (#417 #459)
+- Gallery moderation queue: guest submissions enter a pending state; event members can approve or reject via `PATCH .../gallery/:id/moderate` and `PATCH .../gallery/:id/submit`; moderation tab in gallery UI with approve/reject actions (#417 #459)
+- Gallery slideshows: create named slideshows from gallery images with ordered item lists; full-screen player dialog; `gallery_slideshows` and `slideshow_items` tables; CRUD + items endpoint; slideshows tab in gallery UI (#417 #459)
+- Gallery page tabs: gallery images (with album filter chips) · Albums · Moderation · Slideshows (#417 #459)
+
+### Added
+
+- Seating chart editor: tables now persist visual layout coordinates, can be dragged around the room canvas, and support visual guest reassignment by dragging guests between tables or back to the unassigned pool (#457)
+- Event templates: persistence (`event_templates` table) and `/api/event-templates` CRUD + apply endpoints; organizer-scoped permissions, admin-wide visibility (#410 #432)
+- Bulk event actions: `POST /api/events/bulk` with `archive`, `delete`, `export` actions, partial-success per-event reporting and CSV export (#410 #433)
+- Templates dialog and bulk-selection toolbar on the events list (`event-templates-dialog.tsx`, `events-page.tsx`) with archive / export CSV / delete-many buttons (#410 #434)
+- Event location map widget (`event-location-map.tsx`) using OpenStreetMap embed; `latitude`/`longitude` columns added to events; coordinate inputs in event create form and edit dialog with graceful fallback when coordinates are missing (#414 #446)
+- Capacity and waitlist indicators across list (`X/Y · N left` / `waitlist N` chips), calendar (chip label + tooltip with overflow), and detail page (capacity chip + waitlist chip); `waitlist_enabled` column added to events; aggregated `going_count`/`pending_count` returned by `GET /api/events` (#414 #447)
+- Event compatibility tests covering list rendering with new metadata, calendar capacity surfacing, and the location map widget (#414 #448)
+- Advanced event search: `title_q`, `location_q`, `date_from`, `date_to`, `capacity_min`, `capacity_max`, `event_type`, `has_waitlist` query parameters on `GET /api/events`; collapsible advanced search panel on the list page (#416 #455)
+- Saved filter presets: `event_filter_presets` table and `/api/event-filter-presets` CRUD; saved-filter dropdown / save-as / delete UI on the events list (#416 #454)
+- Budget templates: create reusable budget templates with line-item categories and apply them to any event, with conflict-safe idempotent migrations (#438)
+- Shopping-to-budget sync: purchased shopping list items can be synced as budget expense entries; duplicate syncs are handled safely (amount updates if cost changed) (#439)
+- Shopping-to-budget sync: one-click sync of purchased shopping items into event expenses; duplicate-safe via source-tag in notes field (#439)
+- Task dependencies: blocking/blocked-by relationships with BFS cycle detection to prevent circular chains (#440)
+- Gantt view: SVG-based task scheduling chart with colour-coded status bars, today marker, and no external library dependency (#441)
+- Recurring expense model: `is_recurring`, `recurrence_pattern`, `recurrence_end_date`, `is_installment`, `installment_total`, `installment_number` columns on `expenses` table (#449)
+- Recurring task, template, and time-entry support: `task_templates` table, apply-template action, and per-task actual time logging via `task_time_entries` (#450)
+- Workload dashboard: per-user task-count and estimated-vs-actual hours table with over-capacity warning (>40 h threshold) (#451)
+- Vendor communication log: chronological comm history per vendor (email/call/meeting/quote/follow-up) with add and delete actions (#452)
+- Vendor quote comparison: side-by-side comparison of 2–5 vendors on price, rating, contract, and communication recency (#452)
+- Vendor performance metrics: composite performance score (0–100) derived from rating, communication count, contract status, expenses, and timeline items (#463)
+- Store suggestions workflow: submit/approve/reject curated store entries per event, with case-insensitive duplicate prevention (#464)
+- `vendor-compare-page.tsx`: MUI table with best-value highlighting per metric column (#452)
+- All new backend controllers, API routes, frontend services, and UI components follow existing RBAC patterns with `authenticateToken` + `requireEventAccess` guards
+- Expense summary PDF export: "Export PDF" button on Budget Management page generates a downloadable A4 report with KPI summary, category breakdown table, and expense details table (`expense-pdf-export.ts`, `BudgetPage`) (#453)
+- 18 tests for PDF export utility and `BudgetPage` integration (`expense-pdf-export.test.tsx`) covering file naming, table rows, currency formatting, error handling, and button states (#453)
+- Name tag PDF export: guest list and seating pages now generate printable name-tag sheets with guest identity details, party size, and seating assignment context via a shared PDF utility (`name-tag-pdf-export.ts`) (#458)
+
+### Changed
+
+- API route ordering fixed: static sub-paths (`/vendors/compare`, `/vendors/performance`, `/timeline/conflicts`) now registered before parameterised `/:id` routes to prevent shadowing
+
+- Gallery image delete: hover overlay with delete button on gallery grid; delete button in preview dialog (`GalleryPage`, `MediaPreviewDialog`) (#409)
+- Gallery caption edit: inline caption editor in `MediaPreviewDialog` with save/cancel and keyboard support (#409)
+- `deleteGalleryItem()` and `updateGalleryCaption()` in `gallery-service.ts`; `PATCH /api/events/:eventId/gallery/:id` backend endpoint (#409)
+- `caption` column added to `event_documents` table via additive `ALTER TABLE … ADD COLUMN IF NOT EXISTS` migration (#409)
+- Messages service rewritten to use live backend APIs: `GET /api/events` for threads, `GET /api/events/:id/messages` for thread content, `POST /api/events/:id/messages` for sending — all mock data removed (#409)
+- My Events view at `/events/my` now returns only events owned by the authenticated user via `?owner=me` API filter (#408 #425)
+- Tag-based filtering on the events listing page via chip selectors; tags and My Events filter can be combined (#408 #426)
+- Global search field on the events listing page filters by title, location, status, tags, event type, and organiser name (#408 #427)
+- `GET /api/events` backend endpoint now accepts `?owner=me`, `?tags=`, `?status=`, `?q=` query parameters with parameterised queries (#408)
+- `EventListFilters` interface and `listMyEvents()` helper added to `events-service.ts`
+- `backend/__tests__/events-list-filter.test.ts` — 7 unit tests covering owner filter, tag filter, combined filters, no-auth guard, and error path
+
+### Fixed
+
+- RBAC UI enforcement hardening: added a reusable `RoleGuard` for route-level access control, enforced role-gated access to `/admin` (admin-only) and `/events/new` (organizer/collaborator/admin), and replaced numeric `roleId` checks in event detail controls with role-name helper checks to align with the five-role model (#664)
+- Story #417 UX polish: gallery now loads albums on initial render so filter chips and album assignment are available without visiting the Albums tab first, slideshow edits preserve existing selected items, seating tables support keyboard repositioning, and timeline comparison now shows end variance; regression tests added for each path (#417)
+- Frontend suite stability: analytics page tests now mock communication metrics consistently, and slower page smoke tests have explicit time budgets so the full Vitest run completes reliably under suite-wide load
+- Fixed frontend CSRF handling so login, password reset, uploads, and other mutating module actions reuse a valid token instead of refetching one per request, preventing proxy-path 403/429 failures in local Docker runs
+- Frontend API requests now resolve against an absolute origin in browser and test environments, and the budget forecast card falls back to a non-blocking unavailable state instead of surfacing raw fetch/URL errors (#458)
+- Local backend startup now auto-loads `backend/.env` or repo `.env`, and falls back to the standard local PostgreSQL URL when no development `DATABASE_URL` is set
+- Added a dedicated `db-test` PostgreSQL Docker service on port `5433` so backend integration tests match the documented local test setup
+- Added helper npm scripts for starting the main and test databases and for running backend build/test flows from the repo root
+- Corrected setup documentation to use the active backend port `4000` and to document the required database startup steps for local runs and backend tests
+- Fixed `docker-compose.yml` frontend service to build from `frontend/Dockerfile` (the full BRD feature app) instead of the root `Dockerfile.frontend` (stub app), so the new dashboard is served correctly
+- Fixed `analytics-controller.ts` query using non-existent column `e.event_date`; corrected to `e.date` to match the events table schema
+- Restored event date compatibility across backend and frontend event flows by returning both `date` and `event_date`, fixing calendar chips, event detail, and public RSVP pages
+
+### Added
+
+- Gallery and messages route wiring is now complete: backend `GET /api/events/:eventId/gallery`, frontend `/events/:id/gallery`, and frontend `/messages`
+- Event analytics reporting endpoints and frontend analytics UI, including CSV export and dashboard global analytics widget (BRD 3.10, 3.11)
+- Notifications controller helpers, due-task digest endpoint, and frontend notification bell/panel components (BRD 3.11)
+- Tasks Kanban Board at `/events/:id/tasks` with 4 columns: Pending, In Progress, Blocked, Complete (#373 #374)
+- `frontend/src/services/tasks-service.ts` — typed API adapter for tasks, comments, and subtasks
+- `frontend/src/components/tasks/tasks-kanban-page.tsx` — full Kanban board with drag-and-drop via `@dnd-kit/core` and `@dnd-kit/sortable`
+- `frontend/src/components/tasks/task-card.tsx` — individual task card with priority chip, due date (overdue red highlight), assignee avatar, subtask progress
+- `frontend/src/components/tasks/task-detail-drawer.tsx` — right-side MUI Drawer for inline task editing, subtask checklist, and comment thread
+- Extended `backend/src/controllers/tasks-controller.ts` with `listComments`, `addComment`, `addSubtask`, `toggleSubtask`, `deleteSubtask`
+- `frontend/test/tasks-kanban.test.tsx` — 8 tests covering column render, task count, add-task dialog, createTask call, loading/error states
+- npm packages: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@testing-library/user-event`
+
 ### Migration
+
 - Migrated backend database from SQLite to PostgreSQL (`pg` v8)
 - Replaced `sqlite` / `sqlite3` npm packages with `pg` and `@types/pg`
 - Rewrote `backend/src/db/database.ts`: PostgreSQL connection pool with a SQLite-compatible wrapper (`get`, `all`, `run`, `exec`) that auto-converts `?` placeholders to `$N` positional parameters
 - Converted all DDL: `INTEGER PRIMARY KEY AUTOINCREMENT` → `SERIAL PRIMARY KEY`, `DATETIME` → `TIMESTAMP`, seeded reference data uses `ON CONFLICT … DO NOTHING`
+- Migrated backend utility scripts and SQLite-backed test scaffolding to PostgreSQL-backed helpers so local tooling, CI, and application runtime all execute against PostgreSQL-only code paths
 - Fixed SQLite-only `INSERT OR IGNORE` → `INSERT … ON CONFLICT (col) DO NOTHING` in `profile-controller.ts`
 - Fixed SQLite integer-string concatenation `|| id ||` → `|| id::text ||` in `users-controller.ts`
 - Fixed SQLite `INSERT OR REPLACE` → `INSERT … ON CONFLICT (email) DO UPDATE SET …` in dev-seed route
@@ -25,10 +255,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `database/init.sql` to full PostgreSQL application schema (all tables, indexes, reference data)
 
 ### Security
+
 - Replace SHA-256 token hashing with scrypt KDF in `hashToken` (auth-helpers.ts) to address CodeQL high-severity "insufficient computational effort" alert (#77)
 - Fix session lookup in auth middleware to use `hashToken` (scrypt) instead of raw SHA-256, ensuring consistency with stored session hashes
 
 ### Added
+
 - Responsive event planner workspace with dashboard, sidebar navigation, event CRUD screens, task tracking, RSVP management, calendar view, and admin overview
 - Public RSVP route at `/rsvp/:eventId` backed by seeded local planner data
 - Root app planner store, validation helpers, and regression tests for dashboard rendering and public RSVP submission
@@ -51,6 +283,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tests for JWT token refresh, session timeout, remember-me sessions, forgot/reset password, admin user management
 
 ### Fixed
+
+- Seed default `role_permissions` rows during backend migrations for Admin, Organizer, and Attendee roles, and add coverage that verifies `authorizePermission` succeeds with Postgres-backed seeded permissions (#265, #287)
 - Backend entry point (`index.ts`) rewritten from PostgreSQL to SQLite for consistency with rest of codebase
 - `AuthRequest` interface in profile-controller.ts no longer conflicts with multer file types (#102)
 - `authenticateToken` middleware converted to async with database session validation and timeout checking
@@ -64,6 +298,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frontend `App.tsx` import updated from PascalCase `LoginForm` to kebab-case `login-form`
 
 ### Changed
+
 - User registration endpoint with bcrypt password hashing, email normalization, and validation (#16, #20)
 - Email confirmation flow with token generation and single-use enforcement (#16, #74)
 - Password reset and recovery with secure token generation and audit logging (#74)
@@ -95,7 +330,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Auto draft PR workflow for first push to feature/bugfix branches (#48)
 - Code quality and CodeQL workflows for PR quality gates (#48)
 - Repository ruleset definition files for PR quality gates and branch naming (#48)
+
 ### Changed
+
 - Updated README.md with GitHub Projects workflow integration
 - Updated docs/processes/release-process.md with Project 1 details and workflow states
 - Enhanced Making Changes section with project board workflow steps
@@ -104,6 +341,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased - Previously]
 
 ### Added
+
 - Initial project structure
 - Documentation framework
 - Issue templates for project management (Theme, User Story, Task, Sub-Task, Bug, Defect, Security Issue, Feature Request)
@@ -119,6 +357,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automated CI comments on PRs for validation results
 
 ### Changed
+
 - Issue templates updated to use GitHub native sub-issues instead of manual parent references
 - User Story template: removed story points, added hour estimation ranges
 - Task and Sub-Task templates: converted estimated hours to dropdown ranges
@@ -139,7 +378,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Releases will be documented below in reverse chronological order -->
 
-<!-- 
+<!--
 ## [X.Y.Z] - YYYY-MM-DD
 
 ### Added

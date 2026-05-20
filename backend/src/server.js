@@ -85,6 +85,12 @@ const cleanupTimer = setInterval(() => {
 
 cleanupTimer.unref();
 
+// Health endpoint — canonical path is /health (matches docker-compose healthcheck and index.ts).
+// Legacy /api/health alias retained for backward compat.
+app.get('/health', (_, res) => {
+  res.json({ status: 'ok' });
+});
+
 app.get('/api/health', (_, res) => {
   res.json({ status: 'ok' });
 });
