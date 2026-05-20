@@ -115,3 +115,69 @@ describe('LoginForm — Entra-aware rendering (#781)', () => {
     expect(screen.queryByTestId('entra-sign-in')).not.toBeInTheDocument();
   });
 });
+
+/**
+ * #782 — Snapshot coverage for the demo-credentials banner gate.
+ *
+ * The banner must render only when Entra is disabled AND the build is not
+ * production. We exercise the three documented states by stubbing the Entra
+ * config and toggling Vite's `import.meta.env.PROD` flag.
+ */
+describe('LoginForm — demo credentials banner (#782)', () => {
+  beforeEach(() => {
+    mockedApi.get.mockReset();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    // Restore NODE_ENV so later cases are not contaminated by a forced mode.
+    vi.unstubAllEnvs();
+  });
+
+  function setProdMode(isProd: boolean): void {
+    vi.stubEnv('NODE_ENV', isProd ? 'production' : 'development');
+  }
+
+  it('hides the demo banner when Entra is enabled (entra-on)', async () => {
+    setProdMode(false);
+    mockEntraConfig({ enabled: true, allowLocalFallback: true });
+
+    const { container } = render(<LoginForm />);
+
+    const disclosure = await screen.findByTestId('local-fallback-disclosure');
+    await userEvent.click(disclosure);
+
+    // Even after the user has revealed the local form, the demo banner must
+    // not appear when Entra is the active identity path.
+    expect(await screen.findByLabelText(/email address/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('demo-credentials-banner')).not.toBeInTheDocument();
+    expect(screen.queryByText(/demo credentials/i)).not.toBeInTheDocument();
+    expect(container).toMatchSnapshot();
+  });
+
+  it('shows the demo banner when Entra is disabled in a development build (dev no-entra)', async () => {
+    setProdMode(false);
+    mockEntraConfig({ enabled: false });
+
+    const { container } = render(<LoginForm />);
+
+    expect(await screen.findByLabelText(/email address/i)).toBeInTheDocument();
+    expect(await screen.findByTestId('demo-credentials-banner')).toBeInTheDocument();
+    expect(screen.getByText(/demo credentials/i)).toBeInTheDocument();
+    expect(container).toMatchSnapshot();
+  });
+
+  it('hides the demo banner when Entra is disabled but the build is production (prod no-entra)', async () => {
+    setProdMode(true);
+    mockEntraConfig({ enabled: false });
+
+    const { container } = render(<LoginForm />);
+
+    // Local form still renders (no Entra configured) but the dev-only demo
+    // disclosure must never reach a production bundle.
+    expect(await screen.findByLabelText(/email address/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('demo-credentials-banner')).not.toBeInTheDocument();
+    expect(screen.queryByText(/demo credentials/i)).not.toBeInTheDocument();
+    expect(container).toMatchSnapshot();
+  });
+});
