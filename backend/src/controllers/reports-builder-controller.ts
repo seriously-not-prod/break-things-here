@@ -137,9 +137,14 @@ export async function saveReport(req: Request, res: Response): Promise<Response>
     return res.status(400).json({ error: `frequency must be one of: ${[...VALID_FREQUENCIES].join(', ')}` });
   }
 
-  // Validate recipient emails
-  const isValidEmail = (e: unknown): e is string =>
-    typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+  // Validate recipient emails — use string operations to avoid ReDoS-prone regex
+  const isValidEmail = (e: unknown): e is string => {
+    if (typeof e !== 'string') return false;
+    const at = e.indexOf('@');
+    if (at <= 0 || at !== e.lastIndexOf('@')) return false; // no '@', or multiple '@'
+    const dot = e.lastIndexOf('.');
+    return dot > at + 1 && dot < e.length - 1; // at least one dot after '@'
+  };
   if (Array.isArray(recipients) && recipients.length > 0) {
     const invalid = recipients.filter((r) => !isValidEmail(r));
     if (invalid.length > 0) {
