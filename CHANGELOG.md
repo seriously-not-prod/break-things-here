@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Task #780 — Align task priority parity for `Urgent`**: Added migration `database/migrations/v23-task-priority-urgent-780.sql` and runtime/bootstrap schema updates so both `tasks.priority` and `task_templates.priority` accept `Urgent`. Backend task and task-template validation now allow the value, frontend task priority pickers now expose `Urgent` with a stronger visual treatment, and tests cover urgent-priority create/update flows (#780).
 - **Issue #770 — Collapse dual RSVP status columns to single source of truth**: Consolidated `rsvps.status` (legacy) and `rsvps.canonical_status` (canonical) columns by dropping the legacy `status` column entirely. `canonical_status` is now the single source of truth with values `pending`, `confirmed`, `declined`, `maybe`, `waitlist`, `cancelled`, `checked_in`, `no_show`. All backend controllers updated to read/write canonical_status only; legacy status input is still accepted and mapped to canonical via `toCanonicalStatus()` for backward compatibility. Frontend types updated to use canonical_status instead of status. Database migration `v21-rsvp-status-collapse.sql` backfills any remaining NULL canonical_status values and drops the status column. All RSVP-related tests and seed data updated. Issue addresses data consistency issues where dual columns could diverge (#770).
 
 ### Added (Track D — Real-time)

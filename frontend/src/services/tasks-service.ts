@@ -15,7 +15,7 @@ export type TaskStatus =
   | 'Complete'
   | 'Cancelled';
 
-export type TaskPriority = 'Low' | 'Medium' | 'High';
+export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
 
 export interface Task {
   id: number;
@@ -112,10 +112,7 @@ export async function updateTask(
   return data.task;
 }
 
-export async function deleteTask(
-  eventId: number | string,
-  taskId: number | string,
-): Promise<void> {
+export async function deleteTask(eventId: number | string, taskId: number | string): Promise<void> {
   await api.delete(`/api/events/${eventId}/tasks/${taskId}`);
 }
 
@@ -216,10 +213,10 @@ export async function updateTaskStatus(
   status: TaskStatus,
   options?: { cancelled_reason?: string; version?: number },
 ): Promise<Task> {
-  const data = await api.patch<{ task: Task }>(
-    `/api/events/${eventId}/tasks/${taskId}/status`,
-    { status, ...options },
-  );
+  const data = await api.patch<{ task: Task }>(`/api/events/${eventId}/tasks/${taskId}/status`, {
+    status,
+    ...options,
+  });
   return data.task;
 }
 
@@ -227,16 +224,18 @@ export async function verifyTaskCompletion(
   eventId: number | string,
   taskId: number | string,
 ): Promise<Task> {
-  const data = await api.post<{ task: Task }>(
-    `/api/events/${eventId}/tasks/${taskId}/verify`,
-  );
+  const data = await api.post<{ task: Task }>(`/api/events/${eventId}/tasks/${taskId}/verify`);
   return data.task;
 }
 
 // ── #605: Escalation policy ───────────────────────────────────────────────────
 
-export async function getEscalationPolicy(eventId: number | string): Promise<EscalationPolicy | null> {
-  const data = await api.get<{ policy: EscalationPolicy | null }>(`/api/events/${eventId}/escalation-policy`);
+export async function getEscalationPolicy(
+  eventId: number | string,
+): Promise<EscalationPolicy | null> {
+  const data = await api.get<{ policy: EscalationPolicy | null }>(
+    `/api/events/${eventId}/escalation-policy`,
+  );
   return data.policy;
 }
 

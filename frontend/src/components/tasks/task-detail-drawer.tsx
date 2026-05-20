@@ -37,13 +37,30 @@ import {
 } from '../../services/tasks-service';
 
 const STATUSES: TaskStatus[] = ['Pending', 'In Progress', 'Blocked', 'Complete'];
-const PRIORITIES: TaskPriority[] = ['Low', 'Medium', 'High'];
+const PRIORITIES: TaskPriority[] = ['Low', 'Medium', 'High', 'Urgent'];
 
 const PRIORITY_COLORS: Record<TaskPriority, 'success' | 'warning' | 'error'> = {
   Low: 'success',
   Medium: 'warning',
   High: 'error',
+  Urgent: 'error',
 };
+
+function getPriorityChipSx(priority: TaskPriority): {
+  fontWeight?: number;
+  bgcolor?: string;
+  color?: string;
+} {
+  if (priority !== 'Urgent') {
+    return {};
+  }
+
+  return {
+    bgcolor: 'error.dark',
+    color: 'common.white',
+    fontWeight: 700,
+  };
+}
 
 interface TaskDetailDrawerProps {
   open: boolean;
@@ -266,8 +283,8 @@ export function TaskDetailDrawer({
                     <Chip
                       label={p}
                       size="small"
-                      color={PRIORITY_COLORS[p as TaskPriority]}
-                      sx={{ mr: 1 }}
+                      color={PRIORITY_COLORS[p]}
+                      sx={{ mr: 1, ...getPriorityChipSx(p) }}
                     />
                     {p}
                   </MenuItem>
