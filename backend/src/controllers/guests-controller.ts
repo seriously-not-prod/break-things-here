@@ -82,7 +82,7 @@ export const listGuests: RequestHandler = async (req: AuthRequest, res: Response
             r.id   AS rsvp_id,
             r.canonical_status
        FROM guests g
-       LEFT JOIN rsvps r ON r.guest_id = g.id
+       LEFT JOIN rsvps r ON r.guest_id = g.id AND r.event_id = g.event_id
       WHERE g.event_id = $1
       ORDER BY g.name, g.id`,
     [eventId],
@@ -113,7 +113,7 @@ export const getGuest: RequestHandler = async (req: AuthRequest, res: Response) 
             r.id   AS rsvp_id,
             r.canonical_status
        FROM guests g
-       LEFT JOIN rsvps r ON r.guest_id = g.id
+       LEFT JOIN rsvps r ON r.guest_id = g.id AND r.event_id = g.event_id
       WHERE g.id = $1 AND g.event_id = $2`,
     [id, eventId],
   );
