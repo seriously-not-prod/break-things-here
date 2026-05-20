@@ -4,6 +4,7 @@
  * Task #789
  */
 
+import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -25,9 +26,6 @@ import {
 } from '@mui/material';
 import NotificationsRounded from '@mui/icons-material/NotificationsRounded';
 import NotificationsNoneRounded from '@mui/icons-material/NotificationsNoneRounded';
-import TaskAltRounded from '@mui/icons-material/TaskAltRounded';
-import ReplyRounded from '@mui/icons-material/ReplyRounded';
-import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -37,26 +35,10 @@ import {
   dismissNotification,
   type Notification,
 } from '../../services/notifications-service';
+import { getIcon, formatTimeAgo } from '../notifications/notifications-panel';
 
 const POLL_INTERVAL_MS = 60_000;
 const PAGE_SIZE = 20;
-
-function getNotificationIcon(type: string): JSX.Element {
-  if (type === 'task_due') return <TaskAltRounded fontSize="small" />;
-  if (type === 'rsvp') return <ReplyRounded fontSize="small" />;
-  if (type === 'budget_alert') return <WarningAmberRounded fontSize="small" />;
-  return <NotificationsNoneRounded fontSize="small" />;
-}
-
-function formatTimeAgo(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const minutes = Math.max(1, Math.floor(diffMs / 60_000));
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 export function NotificationCenter(): JSX.Element {
   const navigate = useNavigate();
@@ -223,7 +205,7 @@ export function NotificationCenter(): JSX.Element {
                       }}
                     >
                       <ListItemIcon sx={{ minWidth: 36, mt: 0.25 }}>
-                        {getNotificationIcon(notification.type)}
+                        {getIcon(notification.type)}
                       </ListItemIcon>
                       <ListItemText
                         primary={

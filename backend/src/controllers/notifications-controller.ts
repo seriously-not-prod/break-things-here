@@ -3,12 +3,13 @@
  * BRD 3.11
  *
  * Route handlers (wired by integration owner):
- *   GET  /api/notifications               → listNotifications
- *   PATCH /api/notifications/:id          → markRead
- *   POST /api/notifications/mark-all-read → markAllRead
+ *   GET    /api/notifications               → listNotifications
+ *   PATCH  /api/notifications/:id           → markRead
+ *   DELETE /api/notifications/:id           → dismissNotification
+ *   POST   /api/notifications/mark-all-read → markAllRead
  *
  * Route added by this scope:
- *   GET /api/notifications/digest         → getDueTaskAlerts
+ *   GET /api/notifications/digest           → getDueTaskAlerts
  *
  * Internal helper functions (not routes — called by other controllers):
  *   createBudgetAlert
@@ -173,7 +174,7 @@ export async function createBudgetAlert(
     // Consult preference matrix before dispatching (#786)
     if (!(await isChannelEnabled(userId, 'in_app', 'budget_alert'))) return;
 
-    const db   = getDatabase();
+    const db = getDatabase();
     const link = `/events/${eventId}/budget`;
     await db.run(
       `INSERT INTO notifications (user_id, type, title, body, link)
@@ -204,7 +205,7 @@ export async function createRsvpNotification(
     // to align with the broader category naming convention in the preference matrix.
     if (!(await isChannelEnabled(userId, 'in_app', 'rsvp_submitted'))) return;
 
-    const db   = getDatabase();
+    const db = getDatabase();
     const link = `/events/${eventId}/guests`;
     await db.run(
       `INSERT INTO notifications (user_id, type, title, body, link)
@@ -279,11 +280,9 @@ export async function upsertNotificationPreference(req: AuthRequest, res: Respon
   }
   const { type } = req.params;
   if (!VALID_NOTIFICATION_TYPES.has(type)) {
-    res
-      .status(400)
-      .json({
-        error: `Invalid notification_type. Allowed: ${[...VALID_NOTIFICATION_TYPES].join(', ')}`,
-      });
+    res.status(400).json({
+      error: `Invalid notification_type. Allowed: ${[...VALID_NOTIFICATION_TYPES].join(', ')}`,
+    });
     return;
   }
   const { email_enabled, in_app_enabled, push_enabled } = req.body as {
