@@ -1,0 +1,178 @@
+name: Lighthouse CI Gate
+
+# Issue #816 — NFR: Lighthouse ≥90 for performance / a11y / best-practices / SEO
+# Runs on every PR targeting develop, test, stage, or main.
+# Fails if any category (mobile or desktop) drops below 90.
+# Results are posted as a PR comment via LHCI temporary public storage.
+
+on:
+  pull_request:
+    branches: [develop, test, stage, main]
+
+concurrency:
+  group: lighthouse-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lighthouse:
+    name: Lighthouse CI (≥90 gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: festival_test
+          POSTGRES_USER: festival
+          POSTGRES_PASSWORD: festival_test_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U festival"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://festival:festival_test_pass@localhost:5432/festival_test
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        run: cd backend && npm ci
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.14.x
+
+      - name: Install Chromium for Lighthouse
+        run: npx playwright install --with-deps chromium
+
+      - name: Run database migrations
+        run: |
+          cd backend
+          npx tsx scripts/migrate.ts || echo "::warning::Migration script not found, skipping"
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Start backend
+        run: |
+          cd backend && npx tsx src/index.ts &
+          echo "Waiting for backend..."
+          npx wait-on http://localhost:4000/api/health --timeout 60000
+        env:
+          PORT: 4000
+          JWT_SECRET: ci-test-secret-not-for-production
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Build frontend for preview
+        run: cd frontend && npm run build
+        env:
+          VITE_API_URL: http://localhost:4000
+
+      - name: Start frontend preview server
+        run: |
+          cd frontend && npx vite preview --port 5173 --host 0.0.0.0 &
+          echo "Waiting for frontend..."
+          npx wait-on http://localhost:5173 --timeout 60000
+
+      - name: Run Lighthouse CI (desktop)
+        run: |
+          lhci autorun \
+            --config=lighthouserc.json \
+            --collect.settings.formFactor=desktop \
+            --collect.settings.screenEmulation.mobile=false \
+            --collect.settings.screenEmulation.width=1350 \
+            --collect.settings.screenEmulation.height=940 \
+            --collect.settings.screenEmulation.deviceScaleFactor=1
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Lighthouse CI (mobile)
+        run: |
+          lhci autorun \
+            --config=lighthouserc.json \
+            --collect.settings.formFactor=mobile \
+            --collect.settings.screenEmulation.mobile=true \
+            --collect.settings.screenEmulation.width=375 \
+            --collect.settings.screenEmulation.height=812 \
+            --collect.settings.screenEmulation.deviceScaleFactor=3
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/
+          retention-days: 30
+
+      - name: Post Lighthouse summary as PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const lhDir = '.lighthouseci';
+
+            if (!fs.existsSync(lhDir)) {
+              console.log('No Lighthouse results found');
+              return;
+            }
+
+            const manifestFiles = fs.readdirSync(lhDir)
+              .filter(f => f.startsWith('manifest') && f.endsWith('.json'));
+
+            if (manifestFiles.length === 0) {
+              console.log('No manifest files found');
+              return;
+            }
+
+            let summaryLines = ['## 🔦 Lighthouse CI Results\n'];
+            summaryLines.push('| Route | Performance | Accessibility | Best Practices | SEO |');
+            summaryLines.push('|-------|:-----------:|:-------------:|:--------------:|:---:|');
+
+            const threshold = 0.9;
+            const emoji = (score) => score >= threshold ? '✅' : '❌';
+            const pct = (score) => `${emoji(score)} ${Math.round(score * 100)}`;
+
+            for (const file of manifestFiles) {
+              const manifest = JSON.parse(fs.readFileSync(path.join(lhDir, file), 'utf8'));
+              for (const entry of manifest) {
+                const s = entry.summary;
+                const route = new URL(entry.url).pathname;
+                summaryLines.push(
+                  `| \`${route}\` | ${pct(s.performance)} | ${pct(s.accessibility)} | ${pct(s['best-practices'])} | ${pct(s.seo)} |`
+                );
+              }
+            }
+
+            summaryLines.push('\n> Threshold: **90** for all categories. ❌ = below threshold.');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: summaryLines.join('\n')
+            });
