@@ -3,12 +3,13 @@
  * BRD 3.11
  *
  * Route handlers (wired by integration owner):
- *   GET  /api/notifications               → listNotifications
- *   PATCH /api/notifications/:id          → markRead
- *   POST /api/notifications/mark-all-read → markAllRead
+ *   GET    /api/notifications               → listNotifications
+ *   PATCH  /api/notifications/:id           → markRead
+ *   DELETE /api/notifications/:id           → dismissNotification
+ *   POST   /api/notifications/mark-all-read → markAllRead
  *
  * Route added by this scope:
- *   GET /api/notifications/digest         → getDueTaskAlerts
+ *   GET /api/notifications/digest           → getDueTaskAlerts
  *
  * Internal helper functions (not routes — called by other controllers):
  *   createBudgetAlert
@@ -33,14 +34,20 @@ export async function listNotifications(req: AuthRequest, res: Response): Promis
     return;
   }
   const db = getDatabase();
+  const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
   const rows = await db.all(
     `SELECT * FROM notifications
      WHERE user_id = $1
      ORDER BY created_at DESC
-     LIMIT 50`,
+     LIMIT $2 OFFSET $3`,
+    [req.user.id, limit, offset],
+  );
+  const total = await db.get<{ count: number }>(
+    `SELECT COUNT(*) AS count FROM notifications WHERE user_id = $1`,
     [req.user.id],
   );
-  res.json({ notifications: rows });
+  res.json({ notifications: rows, total: total?.count ?? 0 });
 }
 
 /** PATCH /api/notifications/:id */
@@ -57,10 +64,10 @@ export async function markRead(req: AuthRequest, res: Response): Promise<void> {
     res.status(400).json({ error: 'Invalid notification id' });
     return;
   }
-  await db.run(
-    `UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2`,
-    [notifId, req.user.id],
-  );
+  await db.run(`UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2`, [
+    notifId,
+    req.user.id,
+  ]);
   res.json({ ok: true });
 }
 
@@ -71,10 +78,31 @@ export async function markAllRead(req: AuthRequest, res: Response): Promise<void
     return;
   }
   const db = getDatabase();
-  await db.run(
-    `UPDATE notifications SET is_read = TRUE WHERE user_id = $1`,
-    [req.user.id],
-  );
+  await db.run(`UPDATE notifications SET is_read = TRUE WHERE user_id = $1`, [req.user.id]);
+  res.json({ ok: true });
+}
+
+/** DELETE /api/notifications/:id */
+export async function dismissNotification(req: AuthRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const db = getDatabase();
+  const { id } = req.params;
+  const notifId = Number(id);
+  if (!Number.isInteger(notifId) || notifId <= 0) {
+    res.status(400).json({ error: 'Invalid notification id' });
+    return;
+  }
+  const result = await db.run(`DELETE FROM notifications WHERE id = $1 AND user_id = $2`, [
+    notifId,
+    req.user.id,
+  ]);
+  if (result.changes === 0) {
+    res.status(404).json({ error: 'Notification not found' });
+    return;
+  }
   res.json({ ok: true });
 }
 
@@ -88,16 +116,16 @@ export async function getDueTaskAlerts(req: AuthRequest, res: Response): Promise
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
-  const db     = getDatabase();
+  const db = getDatabase();
   const userId = req.user.id;
 
   const rows = await db.all<{
-    id:          number;
-    title:       string;
-    due_date:    string;
-    status:      string;
-    priority:    string;
-    event_id:    number;
+    id: number;
+    title: string;
+    due_date: string;
+    status: string;
+    priority: string;
+    event_id: number;
     event_title: string;
   }>(
     `SELECT t.id, t.title, t.due_date, t.status, t.priority, t.event_id,
@@ -146,16 +174,12 @@ export async function createBudgetAlert(
     // Consult preference matrix before dispatching (#786)
     if (!(await isChannelEnabled(userId, 'in_app', 'budget_alert'))) return;
 
-    const db   = getDatabase();
+    const db = getDatabase();
     const link = `/events/${eventId}/budget`;
     await db.run(
       `INSERT INTO notifications (user_id, type, title, body, link)
        VALUES ($1, 'budget_alert', 'Budget Warning', $2, $3)`,
-      [
-        userId,
-        `Category "${categoryName}" is at ${pct}% of its allocation.`,
-        link,
-      ],
+      [userId, `Category "${categoryName}" is at ${pct}% of its allocation.`, link],
     );
   } catch (err) {
     console.error('createBudgetAlert failed:', err);
@@ -181,7 +205,7 @@ export async function createRsvpNotification(
     // to align with the broader category naming convention in the preference matrix.
     if (!(await isChannelEnabled(userId, 'in_app', 'rsvp_submitted'))) return;
 
-    const db   = getDatabase();
+    const db = getDatabase();
     const link = `/events/${eventId}/guests`;
     await db.run(
       `INSERT INTO notifications (user_id, type, title, body, link)
@@ -224,13 +248,22 @@ export async function createTaskDueAlert(
 // ── #623: Notification preferences ───────────────────────────────────────────
 
 const VALID_NOTIFICATION_TYPES = new Set([
-  'task_due', 'task_overdue', 'task_assigned', 'budget_alert',
-  'rsvp_submitted', 'event_update', 'chat_message', 'event_reminder',
+  'task_due',
+  'task_overdue',
+  'task_assigned',
+  'budget_alert',
+  'rsvp_submitted',
+  'event_update',
+  'chat_message',
+  'event_reminder',
 ]);
 
 /** GET /api/notifications/preferences */
 export async function listNotificationPreferences(req: AuthRequest, res: Response): Promise<void> {
-  if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
   const db = getDatabase();
   const rows = await db.all(
     'SELECT * FROM notification_type_preferences WHERE user_id = $1 ORDER BY notification_type ASC',
@@ -241,10 +274,15 @@ export async function listNotificationPreferences(req: AuthRequest, res: Respons
 
 /** PUT /api/notifications/preferences/:type */
 export async function upsertNotificationPreference(req: AuthRequest, res: Response): Promise<void> {
-  if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
   const { type } = req.params;
   if (!VALID_NOTIFICATION_TYPES.has(type)) {
-    res.status(400).json({ error: `Invalid notification_type. Allowed: ${[...VALID_NOTIFICATION_TYPES].join(', ')}` });
+    res.status(400).json({
+      error: `Invalid notification_type. Allowed: ${[...VALID_NOTIFICATION_TYPES].join(', ')}`,
+    });
     return;
   }
   const { email_enabled, in_app_enabled, push_enabled } = req.body as {
@@ -275,9 +313,14 @@ export async function upsertNotificationPreference(req: AuthRequest, res: Respon
 
 /** GET /api/notifications/batch-rules */
 export async function listBatchRules(req: AuthRequest, res: Response): Promise<void> {
-  if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
   const db = getDatabase();
-  const rules = await db.all('SELECT * FROM notification_batch_rules ORDER BY notification_type ASC');
+  const rules = await db.all(
+    'SELECT * FROM notification_batch_rules ORDER BY notification_type ASC',
+  );
   res.json({ rules });
 }
 

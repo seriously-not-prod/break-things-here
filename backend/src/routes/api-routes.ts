@@ -1021,6 +1021,7 @@ router.get(
 // ============ NOTIFICATIONS ROUTES — BRD 3.11 ============
 router.get('/notifications', authenticateToken, notificationsController.listNotifications);
 router.patch('/notifications/:id', authenticateToken, notificationsController.markRead);
+router.delete('/notifications/:id', authenticateToken, notificationsController.dismissNotification);
 router.post('/notifications/mark-all-read', authenticateToken, notificationsController.markAllRead);
 router.get('/notifications/digest', authenticateToken, notificationsController.getDueTaskAlerts);
 
