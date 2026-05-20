@@ -1,0 +1,1052 @@
+[
+  {
+    "author": {
+      "id": "U_kgDODt486Q",
+      "is_bot": false,
+      "login": "kevinjesse-equip",
+      "type": "User",
+      "url": "https://github.com/kevinjesse-equip"
+    },
+    "createdAt": "2026-03-20T14:41:42Z",
+    "number": 55,
+    "state": "merged",
+    "title": "feat(scaffold): [TASK] Scaffold application project structure (frontend, backend API routes, data tier)",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/55"
+  },
+  {
+    "author": {
+      "id": "U_kgDODt486Q",
+      "is_bot": false,
+      "login": "kevinjesse-equip",
+      "type": "User",
+      "url": "https://github.com/kevinjesse-equip"
+    },
+    "createdAt": "2026-03-20T14:41:54Z",
+    "number": 56,
+    "state": "merged",
+    "title": "feat(docker): [TASK] Set Up Docker Desktop Development Environment",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/56"
+  },
+  {
+    "author": {
+      "id": "U_kgDODt486Q",
+      "is_bot": false,
+      "login": "kevinjesse-equip",
+      "type": "User",
+      "url": "https://github.com/kevinjesse-equip"
+    },
+    "createdAt": "2026-03-20T14:42:29Z",
+    "number": 57,
+    "state": "merged",
+    "title": "feat(docs): enforce GitHub CLI usage for all GitHub interactions",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/57"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-03-20T15:02:57Z",
+    "number": 58,
+    "state": "merged",
+    "title": "feat: implement login form with 3-attempt lockout",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/58"
+  },
+  {
+    "author": {
+      "id": "U_kgDODt486Q",
+      "is_bot": false,
+      "login": "kevinjesse-equip",
+      "type": "User",
+      "url": "https://github.com/kevinjesse-equip"
+    },
+    "createdAt": "2026-03-27T13:02:29Z",
+    "number": 73,
+    "state": "merged",
+    "title": "fix(ci): use GraphQL API for sub-issue parent detection #72",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/73"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-04-02T11:04:29Z",
+    "number": 95,
+    "state": "closed",
+    "title": "feat(auth): implement password reset token generation and email delivery API endpoint #77",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/95"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-04-02T11:09:36Z",
+    "number": 96,
+    "state": "closed",
+    "title": "feat(auth): implement and harden password reset endpoint for task #77",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/96"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-03T05:15:07Z",
+    "number": 97,
+    "state": "closed",
+    "title": "feat: [TASK] Create forgot password request form UI component",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/97"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-03T07:55:44Z",
+    "number": 101,
+    "state": "closed",
+    "title": "feat(auth): implement user registration, authentication & password reset",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/101"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-04T03:40:05Z",
+    "number": 103,
+    "state": "merged",
+    "title": "fix: [BUG] TypeScript error: Property 'file' does not exist on type 'AuthRequest' in profile-controller.ts",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/103"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-04-10T11:55:08Z",
+    "number": 131,
+    "state": "closed",
+    "title": "fix(backend): resolve compile errors and auth helper conflicts #28",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/131"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-04-10T11:58:06Z",
+    "number": 132,
+    "state": "open",
+    "title": "chore(sync): merge latest main into develop",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/132"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-04-10T14:50:45Z",
+    "number": 134,
+    "state": "closed",
+    "title": "chore: merge consolidated branches into develop",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/134"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T06:17:45Z",
+    "number": 318,
+    "state": "closed",
+    "title": "feat: schedule_items, RSVP/task emails, notification center (#272, #238, #239, #240)",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/318"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T06:44:56Z",
+    "number": 324,
+    "state": "closed",
+    "title": "feat(db): Phase 1 Database Migrations - issues 273 and 274",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/324"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T07:07:23Z",
+    "number": 327,
+    "state": "closed",
+    "title": "feat(venues-vendors): Phase 2 — Venue & Vendor Management (#232, #233)",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/327"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T07:30:07Z",
+    "number": 330,
+    "state": "closed",
+    "title": "feat(budget-expenses): Phase 3 — Budget & Expense Management (#234, #235)",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/330"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T10:12:10Z",
+    "number": 332,
+    "state": "merged",
+    "title": "feat: [TASK] Wire admin-controller routes into api-routes.ts",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/332"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T10:19:17Z",
+    "number": 333,
+    "state": "merged",
+    "title": "feat(security): add helmet middleware for HTTP security headers #266",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/333"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T10:22:30Z",
+    "number": 334,
+    "state": "closed",
+    "title": "feat(analytics): Phase 4 — Reports & Analytics (#242, #243)",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/334"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T10:42:08Z",
+    "number": 335,
+    "state": "merged",
+    "title": "feat: [TASK] Move refresh token storage to HttpOnly cookie",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/335"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T10:52:19Z",
+    "number": 340,
+    "state": "closed",
+    "title": "docs(postgresql): Phase 5 — Documentation & Developer Experience (#336, #338, #339)",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/340"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T11:02:44Z",
+    "number": 341,
+    "state": "merged",
+    "title": "fix(rbac): seed default role permissions in migrations #265",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/341"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-04-30T11:09:04Z",
+    "number": 342,
+    "state": "merged",
+    "title": "fix(security): tighten auth endpoint rate limits #248",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/342"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-04-30T11:13:21Z",
+    "number": 343,
+    "state": "merged",
+    "title": "fix(security): sanitize request bodies against XSS #247",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/343"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T11:22:19Z",
+    "number": 344,
+    "state": "merged",
+    "title": "feat: [STORY] Move Access Token Out of localStorage",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/344"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-04-30T11:22:24Z",
+    "number": 345,
+    "state": "merged",
+    "title": "fix(security): keep access token in memory #250",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/345"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-04-30T11:32:48Z",
+    "number": 346,
+    "state": "merged",
+    "title": "[STORY] Admin Restore Soft-Deleted Users",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/346"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T11:32:53Z",
+    "number": 347,
+    "state": "merged",
+    "title": "feat: [STORY] Admin Restore Soft-Deleted Users",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/347"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T13:16:14Z",
+    "number": 349,
+    "state": "merged",
+    "title": "fix(auth): resolve code-quality build failures #227",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/349"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-04-30T13:36:49Z",
+    "number": 350,
+    "state": "merged",
+    "title": "fix(auth): seed role-permission assignments #265",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/350"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T13:44:19Z",
+    "number": 351,
+    "state": "merged",
+    "title": "fix: [TASK] Seed role-permission assignments in DB migration",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/351"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-02T13:24:02Z",
+    "number": 360,
+    "state": "merged",
+    "title": "feat: [STORY] Move Access Token Out of localStorage",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/360"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-04T10:15:39Z",
+    "number": 392,
+    "state": "merged",
+    "title": "feat: feat(db): Migrate database from SQLite to PostgreSQL",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/392"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-04T15:30:49Z",
+    "number": 394,
+    "state": "merged",
+    "title": "feat(dashboard): implement full BRD feature suite - analytics, budget, guests, vendors, tasks, timeline, gallery, seating, notifications, checkin, shopping #372",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/394"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-05T07:57:20Z",
+    "number": 395,
+    "state": "merged",
+    "title": "feat(messaging,security,frontend): PostgreSQL messages API, event-access guards, and UI feature completions #381 #376 #374",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/395"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-05T12:59:02Z",
+    "number": 398,
+    "state": "merged",
+    "title": "fix: [BUG] Fix CSRF token reuse for proxied frontend mutations",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/398"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-06T14:19:18Z",
+    "number": 480,
+    "state": "merged",
+    "title": "feat(gallery): implement delete, caption edit, and full test suite #430",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/480"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-07T05:46:13Z",
+    "number": 488,
+    "state": "merged",
+    "title": "feat(budget): add expense summary PDF export",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/488"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-05-07T10:28:39Z",
+    "number": 506,
+    "state": "merged",
+    "title": "[TASK] Add seating chart editor",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/506"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-07T11:30:00Z",
+    "number": 508,
+    "state": "merged",
+    "title": "feat: [TASK] Add name tag PDF export",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/508"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-07T12:09:25Z",
+    "number": 510,
+    "state": "merged",
+    "title": "feat: [TASK] Add gallery albums, moderation queue, and slideshow #459",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/510"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-07T12:58:28Z",
+    "number": 512,
+    "state": "merged",
+    "title": "[TASK] Add planned-vs-actual timeline workflow #460",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/512"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-07T13:42:04Z",
+    "number": 514,
+    "state": "merged",
+    "title": "feat(keyboard-shortcuts): add keyboard shortcut handler and help overlay #456",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/514"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-07T14:32:12Z",
+    "number": 516,
+    "state": "merged",
+    "title": "fix(frontend): tighten advanced finance, media, and timeline ux #417",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/516"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-07T17:05:54Z",
+    "number": 518,
+    "state": "merged",
+    "title": "feat: [TASK] Build Material UI dashboard shell and responsive navigation",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/518"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-05-12T08:44:58Z",
+    "number": 639,
+    "state": "merged",
+    "title": "chore(db): refresh demo seed bootstrap #526",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/639"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-12T08:53:10Z",
+    "number": 640,
+    "state": "merged",
+    "title": "feat(budget): add tax/gratuity/contingency planning #526",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/640"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-12T11:18:38Z",
+    "number": 647,
+    "state": "merged",
+    "title": "feat: budget comparison across similar events",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/647"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-12T12:20:33Z",
+    "number": 648,
+    "state": "merged",
+    "title": "feat: expense approval and reimbursement workflow",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/648"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-12T12:50:03Z",
+    "number": 649,
+    "state": "merged",
+    "title": "feat: [TASK] BRD v2 OCR receipt extraction and reconciliation pipeline",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/649"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-05-12T12:50:08Z",
+    "number": 650,
+    "state": "closed",
+    "title": "feat: OCR receipt extraction and reconciliation workflow (#550 #601)",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/650"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-12T13:31:00Z",
+    "number": 651,
+    "state": "merged",
+    "title": "feat: [TASK] BRD v2 budget planning controls (tax, gratuity, contingency)",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/651"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-12T15:18:23Z",
+    "number": 652,
+    "state": "merged",
+    "title": "feat: BRD v2 Story 531 vendor lifecycle parity",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/652"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-05-16T07:46:59Z",
+    "number": 684,
+    "state": "merged",
+    "title": "feat(auth): close Entra/RBAC security gaps",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/684"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-16T09:35:59Z",
+    "number": 686,
+    "state": "closed",
+    "title": "feat: [STORY] BRD parity for auth and RBAC on PostgreSQL",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/686"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-05-16T10:00:25Z",
+    "number": 687,
+    "state": "merged",
+    "title": "fix(auth): harden entra oauth flow and runtime config #3",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/687"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-05-16T11:14:29Z",
+    "number": 688,
+    "state": "closed",
+    "title": "fix(security): enforce strict 3.1.3 startup controls",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/688"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-05-16T11:15:34Z",
+    "number": 689,
+    "state": "merged",
+    "title": "fix(security): enforce strict 3.1.3 startup controls",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/689"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-18T05:04:25Z",
+    "number": 691,
+    "state": "merged",
+    "title": "feat: [STORY] Implement CI Validation Workflows",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/691"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-18T07:17:48Z",
+    "number": 693,
+    "state": "merged",
+    "title": "fix(test-db): bootstrap missing test database #664",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/693"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-18T09:31:34Z",
+    "number": 694,
+    "state": "merged",
+    "title": "feat(auth): enforce 30-min inactivity timeout on frontend #664",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/694"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-18T10:00:02Z",
+    "number": 695,
+    "state": "merged",
+    "title": "feat(rbac-ui): enforce route-level role guards and role-name checks #664",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/695"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-18T10:20:02Z",
+    "number": 696,
+    "state": "merged",
+    "title": "feat(rls): enable RLS policies by default #664",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/696"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-18T10:28:41Z",
+    "number": 697,
+    "state": "merged",
+    "title": "feat(rsvp): normalize canonical RSVP status aliases #664",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/697"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-18T10:43:30Z",
+    "number": 699,
+    "state": "merged",
+    "title": "feat: [TASK] Create config.yml to disable blank issues",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/699"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-18T11:46:41Z",
+    "number": 704,
+    "state": "merged",
+    "title": "feat: [THEME] Full Application Technical Audit — Production Readiness & Gap Closure",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/704"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-18T12:02:35Z",
+    "number": 705,
+    "state": "merged",
+    "title": "feat: [THEME] Full Application Technical Audit — Production Readiness & Gap Closure",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/705"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-18T12:26:39Z",
+    "number": 706,
+    "state": "merged",
+    "title": "feat(events): P1-Event Time Field — add required event_time end-to-end #664",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/706"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-18T13:02:59Z",
+    "number": 710,
+    "state": "merged",
+    "title": "fix(guests): P1-CSV Import Mapping Fix — wire field-mapping wizard to backend import logic #664",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/710"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-05-18T16:16:09Z",
+    "number": 725,
+    "state": "merged",
+    "title": "feat(guests): add RSVP import template download (#664)",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/725"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-19T05:30:17Z",
+    "number": 728,
+    "state": "merged",
+    "title": "feat: [TASK] P1 Duplicate Guest Detection UX in add-guest flow",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/728"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-19T05:35:34Z",
+    "number": 730,
+    "state": "merged",
+    "title": "feat: [TASK] Admin user management UX + analytics event picker + remove legacy login page",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/730"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-19T08:19:59Z",
+    "number": 732,
+    "state": "merged",
+    "title": "feat: [THEME] Full Application Technical Audit — Production Readiness & Gap Closure",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/732"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-19T08:59:45Z",
+    "number": 733,
+    "state": "merged",
+    "title": "feat: [THEME] Full Application Technical Audit — Production Readiness & Gap Closure",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/733"
+  }
+]

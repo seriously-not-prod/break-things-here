@@ -1,0 +1,144 @@
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CircularProgress,
+  Grid,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  Typography,
+} from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { PageLayout } from '../layout/page-layout';
+import { api, ApiError } from '../../lib/api-client';
+import { useAuth } from '../../contexts/auth-context';
+import { canEditEvent } from '../../utils/roles';
+
+interface PlannerEvent {
+  id: number;
+  title: string;
+  date: string;
+  location?: string | null;
+}
+
+export default function CalendarPage(): JSX.Element {
+  const [events, setEvents] = useState<PlannerEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'month' | 'week' | 'day'>('month');
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const canCreate = canEditEvent(user?.roleName);
+
+  async function load(): Promise<void> {
+    setLoading(true);
+    try {
+      const data = await api.get<PlannerEvent[] | { events: PlannerEvent[] }>('/api/events');
+      const list: PlannerEvent[] = Array.isArray(data) ? data : (data.events ?? []);
+      setEvents(list);
+    } catch (err) {
+      console.error('Calendar load failed', err instanceof ApiError ? err.message : err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const grouped = useMemo(() => {
+    const m = new Map<string, PlannerEvent[]>();
+    for (const e of events) {
+      // Slice directly to avoid UTC conversion shifting the displayed day.
+      const d = e.date.slice(0, 10);
+      const arr = m.get(d) ?? [];
+      arr.push(e);
+      m.set(d, arr);
+    }
+    return m;
+  }, [events]);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  return (
+    <PageLayout
+      title="Calendar"
+      breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Calendar' }]}
+      actions={
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Select
+            value={view}
+            size="small"
+            onChange={(e) => setView(e.target.value as 'month' | 'week' | 'day')}
+          >
+            <MenuItem value="month">Month</MenuItem>
+            <MenuItem value="week">Week</MenuItem>
+            <MenuItem value="day">Day</MenuItem>
+          </Select>
+          {canCreate && (
+            <Button variant="outlined" onClick={() => navigate('/events/new')}>
+              Create
+            </Button>
+          )}
+        </Stack>
+      }
+    >
+      {grouped.size === 0 ? (
+        <Box sx={{ textAlign: 'center', mt: 8 }}>
+          <Typography color="text.secondary">No events scheduled yet.</Typography>
+          {canCreate && (
+            <Button variant="contained" sx={{ mt: 2 }} onClick={() => navigate('/events/new')}>
+              Create your first event
+            </Button>
+          )}
+        </Box>
+      ) : (
+        <Grid container spacing={2}>
+          {Array.from(grouped.entries())
+            .sort(([a], [b]) => a.localeCompare(b))
+            .slice(0, 30)
+            .map(([date, evs]) => (
+              <Grid item xs={12} md={6} lg={4} key={date}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      {new Date(date).toDateString()}
+                    </Typography>
+                    {evs.map((e) => (
+                      <Paper
+                        key={e.id}
+                        sx={{
+                          p: 1,
+                          mt: 1,
+                          cursor: 'pointer',
+                          '&:hover': { bgcolor: 'action.hover' },
+                        }}
+                        onClick={() => navigate(`/events/${e.id}`)}
+                      >
+                        <Typography variant="body1">{e.title}</Typography>
+                        {e.location && (
+                          <Typography variant="caption" color="text.secondary">
+                            {e.location}
+                          </Typography>
+                        )}
+                      </Paper>
+                    ))}
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+        </Grid>
+      )}
+    </PageLayout>
+  );
+}

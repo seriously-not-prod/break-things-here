@@ -1,0 +1,134 @@
+name: Load Test — Nightly Full Run
+
+on:
+  schedule:
+    # Run nightly at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      vus:
+        description: 'Number of virtual users'
+        default: '100'
+        type: string
+      duration:
+        description: 'Test duration (k6 format)'
+        default: '5m'
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  BASE_URL: http://localhost:4000
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/festival_test
+  NODE_ENV: test
+  JWT_SECRET: test-jwt-secret-for-ci
+
+jobs:
+  load-full:
+    name: k6 Full Load Test (100 VU / 5 min)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: festival_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Initialize database
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d festival_test -f database/init.sql || true
+          for f in database/migrations/*.sql; do
+            PGPASSWORD=postgres psql -h localhost -U postgres -d festival_test -f "$f" || true
+          done
+
+      - name: Start backend
+        run: |
+          cd backend && npx tsx src/index.ts &
+          npx wait-on http://localhost:4000/health --timeout 60000
+
+      - name: Run k6 full load test
+        run: |
+          k6 run tests/load/k6/full-run.js \
+            --env BASE_URL=http://localhost:4000 \
+            --summary-export=k6-full-results.json \
+            --out json=k6-full-output.json
+
+      - name: Run individual scenario — Login
+        if: success() || failure()
+        run: |
+          k6 run tests/load/k6/login.js \
+            --env BASE_URL=http://localhost:4000 \
+            --summary-export=k6-login-results.json
+
+      - name: Run individual scenario — Dashboard
+        if: success() || failure()
+        run: |
+          k6 run tests/load/k6/dashboard.js \
+            --env BASE_URL=http://localhost:4000 \
+            --summary-export=k6-dashboard-results.json
+
+      - name: Run individual scenario — RSVP
+        if: success() || failure()
+        run: |
+          k6 run tests/load/k6/rsvp-submission.js \
+            --env BASE_URL=http://localhost:4000 \
+            --summary-export=k6-rsvp-results.json
+
+      - name: Run individual scenario — Event Create
+        if: success() || failure()
+        run: |
+          k6 run tests/load/k6/event-create.js \
+            --env BASE_URL=http://localhost:4000 \
+            --summary-export=k6-event-create-results.json
+
+      - name: Run individual scenario — Guest Import
+        if: success() || failure()
+        run: |
+          k6 run tests/load/k6/guest-import.js \
+            --env BASE_URL=http://localhost:4000 \
+            --summary-export=k6-guest-import-results.json
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-nightly-results
+          path: |
+            k6-*.json
+          retention-days: 30

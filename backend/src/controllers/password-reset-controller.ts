@@ -1,6 +1,13 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
-import { validateEmailFormat, generatePasswordResetTokenPair, sendPasswordResetEmail, hashPassword, hashResetVerifier, verifyResetToken } from '../utils/auth-helpers.js';
+import {
+  validateEmailFormat,
+  generatePasswordResetTokenPair,
+  sendPasswordResetEmail,
+  hashPassword,
+  hashResetVerifier,
+  verifyResetToken,
+} from '../utils/auth-helpers.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -49,7 +56,7 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
   try {
     // Check rate limiting (AC: max 3 requests per email per hour)
     const rateLimitEntry = await db.get(
-      `SELECT request_count, window_start FROM password_reset_rate_limit WHERE email = ?`,
+      `SELECT request_count, window_start FROM password_reset_rate_limit WHERE email = $1`,
       [normalizedEmail],
     );
 
@@ -77,29 +84,42 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
 
         // Increment request count
         await db.run(
-          `UPDATE password_reset_rate_limit SET request_count = request_count + 1 WHERE email = ?`,
+          `UPDATE password_reset_rate_limit SET request_count = request_count + 1 WHERE email = $1`,
           [normalizedEmail],
         );
       } else {
         // Window expired, reset counter
         await db.run(
-          `UPDATE password_reset_rate_limit SET request_count = 1, window_start = CURRENT_TIMESTAMP WHERE email = ?`,
+          `UPDATE password_reset_rate_limit SET request_count = 1, window_start = CURRENT_TIMESTAMP WHERE email = $1`,
           [normalizedEmail],
         );
       }
     } else {
       // Create new rate limit entry
       await db.run(
-        `INSERT INTO password_reset_rate_limit (email, request_count, window_start) VALUES (?, 1, CURRENT_TIMESTAMP)`,
+        `INSERT INTO password_reset_rate_limit (email, request_count, window_start) VALUES ($1, 1, CURRENT_TIMESTAMP)`,
         [normalizedEmail],
       );
     }
 
     // AC: Look up user (but don't reveal if they exist)
-    const user = await db.get(
-      'SELECT id FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL',
+    const user = await db.get<{ id: number; auth_provider?: string | null }>(
+      'SELECT id, auth_provider FROM users WHERE LOWER(email) = $1 AND deleted_at IS NULL',
       [normalizedEmail],
     );
+
+    // #570 — Entra-tied accounts must use Entra self-service password reset.
+    // Block local password reset to prevent auth-provider confusion.
+    if (user?.auth_provider === 'entra') {
+      const entraTenantId = process.env.AZURE_TENANT_ID ?? 'common';
+      const entraPasswordResetUrl = `https://account.activedirectory.windowsazure.com/r/#/passwordReset`;
+      return res.status(422).json({
+        error:
+          'This account uses Microsoft Entra ID (SSO) for authentication. Please reset your password via your organisation\u2019s Microsoft account portal.',
+        entraPasswordResetUrl,
+        tenantId: entraTenantId,
+      });
+    }
 
     // AC: Generate cryptographically secure token (selector/verifier pattern)
     // selector: 32-char hex stored in plaintext for fast DB lookup
@@ -111,7 +131,7 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
 
     // AC: Store token in database with expiration
     await db.run(
-      `INSERT INTO password_reset_tokens (user_id, email, token_selector, token, expires_at) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO password_reset_tokens (user_id, email, token_selector, token, expires_at) VALUES ($1, $2, $3, $4, $5)`,
       [user?.id || null, normalizedEmail, selector, verifierHash, expiresAt],
     );
 
@@ -128,7 +148,7 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
       );
 
       try {
-        await sendPasswordResetEmail(normalizedEmail, fullToken, baseUrl);  // full token (selector+verifier) in email link
+        await sendPasswordResetEmail(normalizedEmail, fullToken, baseUrl); // full token (selector+verifier) in email link
       } catch (emailError) {
         console.error('Failed to send password reset email:', emailError);
         // Continue despite email failure - token is stored and audit log is written
@@ -192,7 +212,9 @@ export async function resetPassword(req: AuthRequest, res: Response): Promise<Re
 
   // Basic complexity check: require at least one letter and one digit
   if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-    return res.status(400).json({ error: 'Password must contain at least one letter and one number.' });
+    return res
+      .status(400)
+      .json({ error: 'Password must contain at least one letter and one number.' });
   }
 
   const db = getDatabase();
@@ -207,7 +229,7 @@ export async function resetPassword(req: AuthRequest, res: Response): Promise<Re
     const verifier = token.slice(32);
 
     const tokenRow = await db.get(
-      `SELECT id, user_id, email, token, expires_at, used_at FROM password_reset_tokens WHERE token_selector = ?`,
+      `SELECT id, user_id, email, token, expires_at, used_at FROM password_reset_tokens WHERE token_selector = $1`,
       [selector],
     );
 
@@ -227,7 +249,9 @@ export async function resetPassword(req: AuthRequest, res: Response): Promise<Re
 
     const expiresAt = new Date(tokenRow.expires_at as string).getTime();
     if (Date.now() > expiresAt) {
-      return res.status(400).json({ error: 'This reset link has expired. Please request a new one.' });
+      return res
+        .status(400)
+        .json({ error: 'This reset link has expired. Please request a new one.' });
     }
 
     const userId = tokenRow.user_id as number;
@@ -237,24 +261,32 @@ export async function resetPassword(req: AuthRequest, res: Response): Promise<Re
     const passwordHash = await hashPassword(newPassword);
 
     // Update user password
-    await db.run(`UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [
-      passwordHash,
-      userId,
-    ]);
-
-    // Invalidate all existing sessions
-    await db.run(`DELETE FROM sessions WHERE user_id = ?`, [userId]);
-
-    // Mark token as used
     await db.run(
-      `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [tokenRow.id],
+      `UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [passwordHash, userId],
     );
 
-    // Log audit entry
-    await logAudit(db, userId, email, 'PASSWORD_RESET_COMPLETED', 'Password successfully reset', req.ip);
+    // Invalidate all existing sessions
+    await db.run(`DELETE FROM sessions WHERE user_id = $1`, [userId]);
 
-    return res.status(200).json({ message: 'Your password has been reset. You can now log in with your new password.' });
+    // Mark token as used
+    await db.run(`UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = $1`, [
+      tokenRow.id,
+    ]);
+
+    // Log audit entry
+    await logAudit(
+      db,
+      userId,
+      email,
+      'PASSWORD_RESET_COMPLETED',
+      'Password successfully reset',
+      req.ip,
+    );
+
+    return res.status(200).json({
+      message: 'Your password has been reset. You can now log in with your new password.',
+    });
   } catch (error) {
     console.error('Error in reset password endpoint:', error);
     return res.status(500).json({ error: 'An unexpected error occurred. Please try again.' });
@@ -274,7 +306,7 @@ async function logAudit(
 ): Promise<void> {
   try {
     await db.run(
-      `INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)`,
       [userId || null, email || null, action, description, ipAddress || null],
     );
   } catch (err) {

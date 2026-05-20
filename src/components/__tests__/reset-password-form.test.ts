@@ -97,7 +97,12 @@ describe('reset-password-form', () => {
     });
 
     it('should return a success result on valid input', async () => {
-      const result = await submitPasswordReset('valid-token', 'NewPass123@', 'NewPass123@', mockReset);
+      const result = await submitPasswordReset(
+        'valid-token',
+        'NewPass123@',
+        'NewPass123@',
+        mockReset,
+      );
       expect(result.success).toBe(true);
       expect(result.message).toContain('successfully');
     });

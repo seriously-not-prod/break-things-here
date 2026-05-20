@@ -9,6 +9,7 @@ A training repository for learning Git workflows, Kanban processes, and collabor
 ## Purpose
 
 This repository is designed to teach:
+
 - **Git Workflow**: Four-branch strategy (develop → test → stage → main)
 - **Kanban Process**: Work item hierarchy and continuous flow with GitHub Projects
 - **Commit Standards**: Conventional Commits with issue tracking
@@ -40,26 +41,32 @@ This repository is designed to teach:
 ### Initial Setup
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/seriously-not-prod/break-things-here.git
    cd break-things-here
    ```
 
 2. **Install git hooks** (enforces commit message standards)
+
    ```bash
    ./scripts/setup-hooks.sh
    ```
 
 3. **Install dependencies**
+
    ```bash
    npm install
    ```
 
    Optional training surfaces can also be installed independently when needed:
+
    ```bash
    cd backend && npm install
    cd ../frontend && npm install
    ```
+
+   Backend tests resolve `TEST_DATABASE_URL` when provided. Without it, the backend defaults to the dedicated local test database at `postgresql://postgres:postgres@127.0.0.1:5433/festival_planner_test`.
 
 4. **Read the documentation**
    - [Universal Agent Guide](.github/universal-agent-guide.md) - Mandatory rules
@@ -78,6 +85,7 @@ npm run dev
 Optional: run backend API in another terminal when working on backend training tasks:
 
 ```bash
+docker compose up -d db
 cd backend && npm run dev
 ```
 
@@ -87,26 +95,34 @@ Optional: run the separate `frontend/` training app surface if you specifically 
 cd frontend && npm run dev
 ```
 
-The active root planner app runs on `http://localhost:5173` and the backend runs on `http://localhost:3001`.
+The active root planner app runs on `http://localhost:5173` and the backend runs on `http://localhost:4000`.
 
 Current implementation includes:
+
 - Dashboard with event, RSVP, and task summaries
 - Sidebar and top navigation with responsive mobile behavior
-- Event list, create, detail, and edit flows
+- Event list, create, detail, and edit flows (with owner filter, tag filter, and full-text search)
 - Task tracking linked to events
 - RSVP management plus a public RSVP route (`/rsvp/:eventId`)
 - Minimal admin overview with sample users and activity logs
+- **Gallery management**: upload, delete (with confirmation), and caption editing of event images; `GET/DELETE/PATCH /api/events/:id/gallery`
+- **Messaging**: live event-thread messaging backed by `GET/POST /api/events/:id/messages`; no mock data
 
 ### Backend Environment Variables
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `PORT` | `3001` | Backend server port |
-| `DEMO_EMAIL` | `user@example.com` | Demo login email |
-| `DEMO_PASSWORD` | `Password123!` | Demo login password |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated list of allowed CORS origins |
-| `LOGIN_RECORD_TTL_MS` | `600000` | How long login attempt records are retained after lockout expires |
-| `MAX_TRACKED_LOGIN_RECORDS` | `5000` | Maximum number of login attempt records kept in memory |
+| Variable                    | Default                 | Purpose                                                           |
+| --------------------------- | ----------------------- | ----------------------------------------------------------------- |
+| `PORT`                      | `4000`                  | Backend server port                                               |
+| `CORS_ALLOWED_ORIGINS`      | `http://localhost:5173` | Comma-separated list of allowed CORS origins                      |
+| `LOGIN_RECORD_TTL_MS`       | `600000`                | How long login attempt records are retained after lockout expires |
+| `MAX_TRACKED_LOGIN_RECORDS` | `5000`                  | Maximum number of login attempt records kept in memory            |
+
+For local development, `backend/.env` is loaded automatically when present. If no database URL is set, the backend falls back to `postgresql://postgres:postgres@127.0.0.1:5432/festival_planner`, so `docker compose up -d db` plus `cd backend && npm run dev` is enough for the standard local path.
+
+In development, the Postgres-backed backend auto-seeds these demo users on startup:
+
+- `admin@festival.local` / `festivalAdmin2025`
+- `alice@email.com` / `password123`
 
 For local development, the backend allows requests from `http://localhost:5173` by default. In non-local environments, set `CORS_ALLOWED_ORIGINS` to a comma-separated list of frontend origins instead of changing the code.
 
@@ -116,6 +132,13 @@ For local development, the backend allows requests from `http://localhost:5173` 
 
 ```bash
 npm run build
+```
+
+To run backend integration tests locally, start the dedicated test database first:
+
+```bash
+docker compose up -d db-test
+cd backend && npm test
 ```
 
 ## Repository Structure
@@ -174,16 +197,17 @@ npm run build
 
 ### Branch Strategy
 
-| Branch    | Purpose           | Deployed To     |
-|-----------|-------------------|-----------------|
-| `develop` | Integration       | Development     |
-| `test`    | QA Testing        | Test            |
-| `stage`   | Pre-production    | Stage/UAT       |
-| `main`    | Production        | Production      |
+| Branch    | Purpose        | Deployed To |
+| --------- | -------------- | ----------- |
+| `develop` | Integration    | Development |
+| `test`    | QA Testing     | Test        |
+| `stage`   | Pre-production | Stage/UAT   |
+| `main`    | Production     | Production  |
 
 ### Creating Work Items
 
 Follow the strict hierarchy using GitHub's **native sub-issues**:
+
 ```
 Theme (standalone issue)
 └── User Story (sub-issue of Theme)
@@ -192,6 +216,7 @@ Theme (standalone issue)
 ```
 
 **How to Create:**
+
 1. Start by creating a Theme issue
 2. Open the Theme and click "Create sub-issue" → Select User Story template
 3. Open the User Story and click "Create sub-issue" → Select Task template
@@ -232,21 +257,38 @@ See [Branching Strategy](docs/processes/branching-strategy.md) for complete comm
 ## Documentation
 
 ### Process Documentation
+
 - [Branching Strategy](docs/processes/branching-strategy.md) - Complete Git workflow
 - [Release Process](docs/processes/release-process.md) - Monthly release cadence
 - [Contributing Guidelines](CONTRIBUTING.md) - How to contribute
 - [Code of Conduct](CODE_OF_CONDUCT.md) - Community standards
 
+### Security & Identity
+
+- [Entra Auth Rollout Matrix](docs/entra-auth-rollout.md) - Environment rollout matrix, local-fallback policy, and rollback procedures
+- [Entra Outage Runbook](docs/operations/entra-outage.md) - Temporary fallback toggle process during Entra outages
+
+### Database Documentation
+
+- [Schema Reference](docs/database/schema.md) - Generated table/column/index/RLS reference for `public` schema
+- [ER Diagram (SVG)](docs/database/erd.svg) - Generated entity relationship diagram from live schema
+- [PITR Operations Runbook](docs/operations/pitr.md) - Point-in-time recovery configuration, procedures, and monitoring (14-day retention)
+- [Disaster Recovery Runbook](docs/operations/dr-runbook.md) - DR procedure: detection, escalation, RTO/RPO targets, restore steps, communications and post-incident review templates
+- Regenerate schema artifacts with: `./scripts/generate-erd.sh`
+
 ### Configuration
+
 - [Universal Agent Guide](.github/universal-agent-guide.md) - Mandatory rules for all agents
 - [GitHub Copilot Instructions](.github/copilot-instructions.md) - AI assistant setup
 - [CODEOWNERS](.github/CODEOWNERS) - Code review assignments
 - [Issue Templates](.github/ISSUE_TEMPLATE/) - Work item templates
 
 ### Project Information
+
 - [AGENTS.md](AGENTS.md) - Development agents and automation
 - [CHANGELOG.md](CHANGELOG.md) - Release history
 - [SECURITY.md](SECURITY.md) - Security policies
+- [docs/security/tls.md](docs/security/tls.md) - TLS termination, HSTS, and certificate ownership
 - [LICENSE](LICENSE) - MIT License
 
 ## Git Hooks
@@ -254,11 +296,13 @@ See [Branching Strategy](docs/processes/branching-strategy.md) for complete comm
 This repository includes git hooks to enforce commit standards:
 
 **Installation:**
+
 ```bash
 ./scripts/setup-hooks.sh
 ```
 
 **Validations:**
+
 - ✅ Commit messages must reference GitHub issue (#123)
 - ✅ Conventional Commits format
 - ✅ Subject line ≤72 characters
@@ -297,6 +341,7 @@ By using this repository, you will learn:
 ## Contributing
 
 We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
 - Pull request process
 - Commit message requirements
 - Code style guidelines
@@ -309,6 +354,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 ## Support
 
 This is a training repository. For questions:
+
 - Review the [documentation](docs/)
 - Check [issue templates](.github/ISSUE_TEMPLATE/)
 - Read the [Universal Agent Guide](.github/universal-agent-guide.md)

@@ -23,8 +23,7 @@ describe('GET /api/auth/confirm-email', () => {
     const token = generateConfirmationToken('user@example.com');
     const app = createApp();
 
-    const res = await request(app)
-      .get(`/api/auth/confirm-email?token=${token}`);
+    const res = await request(app).get(`/api/auth/confirm-email?token=${token}`);
 
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/confirmed successfully/i);

@@ -1,9 +1,5 @@
 import { UserRole, USER_ROLES, DEFAULT_ROLE } from '../types/user-role';
-import {
-  Permission,
-  ROLE_PERMISSIONS,
-  hasPermission,
-} from '../types/permissions';
+import { Permission, ROLE_PERMISSIONS, hasPermission } from '../types/permissions';
 import { USER_SCHEMA } from '../types/user';
 
 describe('UserRole enum', () => {
@@ -104,6 +100,10 @@ describe('hasPermission helper', () => {
 
   it('returns false for an invalid role-permission pair', () => {
     expect(hasPermission(UserRole.Attendee, Permission.ManageUsers)).toBe(false);
+  });
+
+  it('returns false for an unknown/invalid role without crashing', () => {
+    expect(hasPermission('InvalidRole' as UserRole, Permission.ManageUsers)).toBe(false);
   });
 });
 

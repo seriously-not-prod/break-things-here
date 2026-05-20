@@ -7,6 +7,7 @@ This directory contains git hook templates for the project.
 ### commit-msg
 
 Validates commit messages to ensure:
+
 - Every commit references a GitHub issue (#123)
 - Commit messages follow Conventional Commits format
 

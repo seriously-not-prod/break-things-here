@@ -30,7 +30,6 @@ import {
 import { AuthProvider, useAuth } from '../../contexts/auth-context';
 import { seededUsers } from '../../data/event-planner-seed';
 import { useEventPlannerStore } from '../../hooks/use-event-planner-store';
-import { LoginPage } from '../login-page/login-page';
 import { ProtectedRoute } from '../protected-route/protected-route';
 import {
   EventDraft,
@@ -150,7 +149,10 @@ function StatusBadge(props: { status: string }): React.JSX.Element {
   return <span className={`planner-status planner-status--${tone}`}>{props.status}</span>;
 }
 
-function PlannerLayout(props: { notify: (message: string) => void; users: PlannerUser[] }): React.JSX.Element {
+function PlannerLayout(props: {
+  notify: (message: string) => void;
+  users: PlannerUser[];
+}): React.JSX.Element {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const { user, logout } = useAuth();
@@ -169,7 +171,7 @@ function PlannerLayout(props: { notify: (message: string) => void; users: Planne
 
   const handleLogout = (): void => {
     logout();
-    navigate('/login');
+    navigate('/');
   };
 
   return (
@@ -221,9 +223,7 @@ function PlannerLayout(props: { notify: (message: string) => void; users: Planne
         </div>
         <div className="planner-sidebar__user">
           <div className="planner-sidebar__user-info">
-            <div className="planner-sidebar__user-avatar">
-              {user?.name.charAt(0).toUpperCase()}
-            </div>
+            <div className="planner-sidebar__user-avatar">{user?.name.charAt(0).toUpperCase()}</div>
             <div>
               <strong>{user?.name}</strong>
               <span>{user?.role}</span>
@@ -243,7 +243,11 @@ function PlannerLayout(props: { notify: (message: string) => void; users: Planne
       <main className="planner-main">
         <header className="planner-topbar">
           <div className="planner-topbar__left">
-            <button className="planner-menu-button" onClick={(): void => setSidebarOpen(true)} type="button">
+            <button
+              className="planner-menu-button"
+              onClick={(): void => setSidebarOpen(true)}
+              type="button"
+            >
               <MenuRounded />
             </button>
             <div>
@@ -273,20 +277,48 @@ function DashboardPage(): React.JSX.Element {
         description="A working summary of current event operations, task load, and recent RSVP activity."
         actions={
           <>
-            <button className="planner-button planner-button--secondary" onClick={(): void => navigate('/events')} type="button">
+            <button
+              className="planner-button planner-button--secondary"
+              onClick={(): void => navigate('/events')}
+              type="button"
+            >
               View Events
             </button>
-            <button className="planner-button" onClick={(): void => navigate('/events/new')} type="button">
+            <button
+              className="planner-button"
+              onClick={(): void => navigate('/events/new')}
+              type="button"
+            >
               Create Event
             </button>
           </>
         }
       />
       <div className="planner-summary-grid">
-        <SummaryCard accent="amber" icon={<EventRounded />} label="Total Events" value={stats.totalEvents} />
-        <SummaryCard accent="teal" icon={<ScheduleRounded />} label="Active Events" value={stats.activeEvents} />
-        <SummaryCard accent="blue" icon={<HowToRegRounded />} label="Recent RSVPs" value={stats.recentRsvps.length} />
-        <SummaryCard accent="slate" icon={<ChecklistRounded />} label="Pending Tasks" value={stats.pendingTasks} />
+        <SummaryCard
+          accent="amber"
+          icon={<EventRounded />}
+          label="Total Events"
+          value={stats.totalEvents}
+        />
+        <SummaryCard
+          accent="teal"
+          icon={<ScheduleRounded />}
+          label="Active Events"
+          value={stats.activeEvents}
+        />
+        <SummaryCard
+          accent="blue"
+          icon={<HowToRegRounded />}
+          label="Recent RSVPs"
+          value={stats.recentRsvps.length}
+        />
+        <SummaryCard
+          accent="slate"
+          icon={<ChecklistRounded />}
+          label="Pending Tasks"
+          value={stats.pendingTasks}
+        />
       </div>
       <div className="planner-two-column-grid">
         <SectionCard title="Upcoming Events">
@@ -363,10 +395,16 @@ function EventsPage(): React.JSX.Element {
                 </div>
               </dl>
               <footer>
-                <Link className="planner-button planner-button--secondary" to={`/events/${event.id}`}>
+                <Link
+                  className="planner-button planner-button--secondary"
+                  to={`/events/${event.id}`}
+                >
                   View Details
                 </Link>
-                <Link className="planner-button planner-button--ghost" to={`/events/${event.id}/edit`}>
+                <Link
+                  className="planner-button planner-button--ghost"
+                  to={`/events/${event.id}/edit`}
+                >
                   Edit
                 </Link>
               </footer>
@@ -441,18 +479,30 @@ function EventEditorPage(): React.JSX.Element {
       <form className="planner-form-card" onSubmit={handleSubmit} noValidate>
         <label>
           <span>Title</span>
-          <input value={draft.title} onChange={(event): void => updateField('title', event.target.value)} />
+          <input
+            value={draft.title}
+            onChange={(event): void => updateField('title', event.target.value)}
+          />
           {errors.title ? <small>{errors.title}</small> : null}
         </label>
         <div className="planner-form-grid">
           <label>
             <span>Date</span>
-            <input type="date" value={draft.date} onChange={(event): void => updateField('date', event.target.value)} />
+            <input
+              type="date"
+              value={draft.date}
+              onChange={(event): void => updateField('date', event.target.value)}
+            />
             {errors.date ? <small>{errors.date}</small> : null}
           </label>
           <label>
             <span>Status</span>
-            <select value={draft.status} onChange={(event): void => updateField('status', event.target.value as EventDraft['status'])}>
+            <select
+              value={draft.status}
+              onChange={(event): void =>
+                updateField('status', event.target.value as EventDraft['status'])
+              }
+            >
               <option value="Draft">Draft</option>
               <option value="Active">Active</option>
               <option value="Completed">Completed</option>
@@ -461,16 +511,27 @@ function EventEditorPage(): React.JSX.Element {
         </div>
         <label>
           <span>Location</span>
-          <input value={draft.location} onChange={(event): void => updateField('location', event.target.value)} />
+          <input
+            value={draft.location}
+            onChange={(event): void => updateField('location', event.target.value)}
+          />
           {errors.location ? <small>{errors.location}</small> : null}
         </label>
         <label>
           <span>Description</span>
-          <textarea value={draft.description} onChange={(event): void => updateField('description', event.target.value)} rows={6} />
+          <textarea
+            value={draft.description}
+            onChange={(event): void => updateField('description', event.target.value)}
+            rows={6}
+          />
           {errors.description ? <small>{errors.description}</small> : null}
         </label>
         <div className="planner-form-actions">
-          <button className="planner-button planner-button--secondary" onClick={(): void => navigate(-1)} type="button">
+          <button
+            className="planner-button planner-button--secondary"
+            onClick={(): void => navigate(-1)}
+            type="button"
+          >
             Cancel
           </button>
           <button className="planner-button" type="submit">
@@ -513,7 +574,13 @@ function EventDetailsPage(): React.JSX.Element {
     try {
       await context.createTask(taskDraft);
       context.notify('Task created for this event.');
-      setTaskDraft({ eventId: params.eventId ?? '', title: '', description: '', assignee: '', dueDate: '' });
+      setTaskDraft({
+        eventId: params.eventId ?? '',
+        title: '',
+        description: '',
+        assignee: '',
+        dueDate: '',
+      });
     } catch (error) {
       context.notify('Error creating task');
       console.error('Error creating task:', error);
@@ -530,7 +597,11 @@ function EventDetailsPage(): React.JSX.Element {
             <Link className="planner-button planner-button--secondary" to={`/rsvp/${event.id}`}>
               Public RSVP Form
             </Link>
-            <button className="planner-button" onClick={(): void => navigate(`/events/${event.id}/edit`)} type="button">
+            <button
+              className="planner-button"
+              onClick={(): void => navigate(`/events/${event.id}/edit`)}
+              type="button"
+            >
               Edit Event
             </button>
           </>
@@ -578,24 +649,46 @@ function EventDetailsPage(): React.JSX.Element {
           <form className="planner-inline-form" onSubmit={handleTaskSubmit} noValidate>
             <label>
               <span>Task Title</span>
-              <input value={taskDraft.title} onChange={(eventForm): void => setTaskDraft({ ...taskDraft, title: eventForm.target.value })} />
+              <input
+                value={taskDraft.title}
+                onChange={(eventForm): void =>
+                  setTaskDraft({ ...taskDraft, title: eventForm.target.value })
+                }
+              />
               {taskErrors.title ? <small>{taskErrors.title}</small> : null}
             </label>
             <div className="planner-form-grid">
               <label>
                 <span>Assignee</span>
-                <input value={taskDraft.assignee} onChange={(eventForm): void => setTaskDraft({ ...taskDraft, assignee: eventForm.target.value })} />
+                <input
+                  value={taskDraft.assignee}
+                  onChange={(eventForm): void =>
+                    setTaskDraft({ ...taskDraft, assignee: eventForm.target.value })
+                  }
+                />
                 {taskErrors.assignee ? <small>{taskErrors.assignee}</small> : null}
               </label>
               <label>
                 <span>Due Date</span>
-                <input type="date" value={taskDraft.dueDate} onChange={(eventForm): void => setTaskDraft({ ...taskDraft, dueDate: eventForm.target.value })} />
+                <input
+                  type="date"
+                  value={taskDraft.dueDate}
+                  onChange={(eventForm): void =>
+                    setTaskDraft({ ...taskDraft, dueDate: eventForm.target.value })
+                  }
+                />
                 {taskErrors.dueDate ? <small>{taskErrors.dueDate}</small> : null}
               </label>
             </div>
             <label>
               <span>Description</span>
-              <textarea rows={3} value={taskDraft.description} onChange={(eventForm): void => setTaskDraft({ ...taskDraft, description: eventForm.target.value })} />
+              <textarea
+                rows={3}
+                value={taskDraft.description}
+                onChange={(eventForm): void =>
+                  setTaskDraft({ ...taskDraft, description: eventForm.target.value })
+                }
+              />
             </label>
             <div className="planner-form-actions">
               <button className="planner-button" type="submit">
@@ -612,10 +705,15 @@ function EventDetailsPage(): React.JSX.Element {
                   <div>
                     <strong>{task.title}</strong>
                     <p>
-                      {task.assignee} · due {task.dueDate ? formatDisplayDate(task.dueDate) : 'No due date'}
+                      {task.assignee} · due{' '}
+                      {task.dueDate ? formatDisplayDate(task.dueDate) : 'No due date'}
                     </p>
                   </div>
-                  <button className="planner-button planner-button--ghost" onClick={(): void => void context.toggleTask(task.id)} type="button">
+                  <button
+                    className="planner-button planner-button--ghost"
+                    onClick={(): void => void context.toggleTask(task.id)}
+                    type="button"
+                  >
                     {task.status === 'Complete' ? 'Reopen' : 'Complete'}
                   </button>
                 </li>
@@ -659,13 +757,19 @@ function TasksPage(): React.JSX.Element {
 
   return (
     <div className="planner-page">
-      <PageHeader title="Tasks" description="Track basic event activity with assignable tasks and completion toggles." />
+      <PageHeader
+        title="Tasks"
+        description="Track basic event activity with assignable tasks and completion toggles."
+      />
       <div className="planner-two-column-grid">
         <SectionCard title="Create Task">
           <form className="planner-inline-form" onSubmit={handleSubmit} noValidate>
             <label>
               <span>Event</span>
-              <select value={draft.eventId} onChange={(event): void => setDraft({ ...draft, eventId: event.target.value })}>
+              <select
+                value={draft.eventId}
+                onChange={(event): void => setDraft({ ...draft, eventId: event.target.value })}
+              >
                 {context.events.map((item: PlannerEvent) => {
                   return (
                     <option key={item.id} value={item.id}>
@@ -677,24 +781,38 @@ function TasksPage(): React.JSX.Element {
             </label>
             <label>
               <span>Task Title</span>
-              <input value={draft.title} onChange={(event): void => setDraft({ ...draft, title: event.target.value })} />
+              <input
+                value={draft.title}
+                onChange={(event): void => setDraft({ ...draft, title: event.target.value })}
+              />
               {errors.title ? <small>{errors.title}</small> : null}
             </label>
             <div className="planner-form-grid">
               <label>
                 <span>Assignee</span>
-                <input value={draft.assignee} onChange={(event): void => setDraft({ ...draft, assignee: event.target.value })} />
+                <input
+                  value={draft.assignee}
+                  onChange={(event): void => setDraft({ ...draft, assignee: event.target.value })}
+                />
                 {errors.assignee ? <small>{errors.assignee}</small> : null}
               </label>
               <label>
                 <span>Due Date</span>
-                <input type="date" value={draft.dueDate} onChange={(event): void => setDraft({ ...draft, dueDate: event.target.value })} />
+                <input
+                  type="date"
+                  value={draft.dueDate}
+                  onChange={(event): void => setDraft({ ...draft, dueDate: event.target.value })}
+                />
                 {errors.dueDate ? <small>{errors.dueDate}</small> : null}
               </label>
             </div>
             <label>
               <span>Description</span>
-              <textarea rows={4} value={draft.description} onChange={(event): void => setDraft({ ...draft, description: event.target.value })} />
+              <textarea
+                rows={4}
+                value={draft.description}
+                onChange={(event): void => setDraft({ ...draft, description: event.target.value })}
+              />
             </label>
             <div className="planner-form-actions">
               <button className="planner-button" type="submit">
@@ -712,10 +830,15 @@ function TasksPage(): React.JSX.Element {
                   <div>
                     <strong>{task.title}</strong>
                     <p>
-                      {event?.title ?? 'Unknown event'} · {task.assignee} · due {task.dueDate ? formatDisplayDate(task.dueDate) : 'No due date'}
+                      {event?.title ?? 'Unknown event'} · {task.assignee} · due{' '}
+                      {task.dueDate ? formatDisplayDate(task.dueDate) : 'No due date'}
                     </p>
                   </div>
-                  <button className="planner-button planner-button--ghost" onClick={(): void => void context.toggleTask(task.id)} type="button">
+                  <button
+                    className="planner-button planner-button--ghost"
+                    onClick={(): void => void context.toggleTask(task.id)}
+                    type="button"
+                  >
                     {task.status === 'Complete' ? 'Completed' : 'Mark Complete'}
                   </button>
                 </li>
@@ -759,13 +882,19 @@ function RsvpsPage(): React.JSX.Element {
 
   return (
     <div className="planner-page">
-      <PageHeader title="RSVPs" description="Manage guest RSVP records and share public forms for each event." />
+      <PageHeader
+        title="RSVPs"
+        description="Manage guest RSVP records and share public forms for each event."
+      />
       <div className="planner-two-column-grid">
         <SectionCard title="Manual RSVP Entry">
           <form className="planner-inline-form" onSubmit={handleSubmit} noValidate>
             <label>
               <span>Event</span>
-              <select value={draft.eventId} onChange={(event): void => setDraft({ ...draft, eventId: event.target.value })}>
+              <select
+                value={draft.eventId}
+                onChange={(event): void => setDraft({ ...draft, eventId: event.target.value })}
+              >
                 {context.events.map((item: PlannerEvent) => {
                   return (
                     <option key={item.id} value={item.id}>
@@ -779,23 +908,41 @@ function RsvpsPage(): React.JSX.Element {
             <div className="planner-form-grid">
               <label>
                 <span>Name</span>
-                <input value={draft.name} onChange={(event): void => setDraft({ ...draft, name: event.target.value })} />
+                <input
+                  value={draft.name}
+                  onChange={(event): void => setDraft({ ...draft, name: event.target.value })}
+                />
                 {errors.name ? <small>{errors.name}</small> : null}
               </label>
               <label>
                 <span>Email</span>
-                <input value={draft.email} onChange={(event): void => setDraft({ ...draft, email: event.target.value })} />
+                <input
+                  value={draft.email}
+                  onChange={(event): void => setDraft({ ...draft, email: event.target.value })}
+                />
                 {errors.email ? <small>{errors.email}</small> : null}
               </label>
             </div>
             <div className="planner-form-grid">
               <label>
                 <span>Guests</span>
-                <input type="number" min="1" value={draft.guests} onChange={(event): void => setDraft({ ...draft, guests: parseInt(event.target.value) || 1 })} />
+                <input
+                  type="number"
+                  min="1"
+                  value={draft.guests}
+                  onChange={(event): void =>
+                    setDraft({ ...draft, guests: parseInt(event.target.value) || 1 })
+                  }
+                />
               </label>
               <label>
                 <span>Status</span>
-                <select value={draft.status} onChange={(event): void => setDraft({ ...draft, status: event.target.value as RsvpStatus })}>
+                <select
+                  value={draft.status}
+                  onChange={(event): void =>
+                    setDraft({ ...draft, status: event.target.value as RsvpStatus })
+                  }
+                >
                   <option value="Pending">Pending</option>
                   <option value="Confirmed">Confirmed</option>
                   <option value="Declined">Declined</option>
@@ -821,7 +968,9 @@ function RsvpsPage(): React.JSX.Element {
               </thead>
               <tbody>
                 {context.rsvps.map((rsvp: PlannerRsvp) => {
-                  const event = context.events.find((item: PlannerEvent) => item.id === rsvp.eventId);
+                  const event = context.events.find(
+                    (item: PlannerEvent) => item.id === rsvp.eventId,
+                  );
                   return (
                     <tr key={rsvp.id}>
                       <td>
@@ -833,7 +982,9 @@ function RsvpsPage(): React.JSX.Element {
                         <select
                           className="planner-status-select"
                           value={rsvp.status}
-                          onChange={(event): void => void context.updateRsvpStatus(rsvp.id, event.target.value as RsvpStatus)}
+                          onChange={(event): void =>
+                            void context.updateRsvpStatus(rsvp.id, event.target.value as RsvpStatus)
+                          }
                         >
                           <option value="Pending">Pending</option>
                           <option value="Confirmed">Confirmed</option>
@@ -858,7 +1009,10 @@ function CalendarPage(): React.JSX.Element {
 
   return (
     <div className="planner-page">
-      <PageHeader title="Calendar View" description="A simple calendar-style grouping of events by month." />
+      <PageHeader
+        title="Calendar View"
+        description="A simple calendar-style grouping of events by month."
+      />
       <div className="planner-calendar-stack">
         {groupedEvents.map((group) => {
           return (
@@ -896,10 +1050,30 @@ function AdminPage(): React.JSX.Element {
         description="A minimal system-control view with overview metrics, sample users, all events, and recent activity logs."
       />
       <div className="planner-summary-grid">
-        <SummaryCard accent="amber" icon={<AdminPanelSettingsRounded />} label="System Users" value={context.users.length} />
-        <SummaryCard accent="teal" icon={<EventRounded />} label="All Events" value={context.events.length} />
-        <SummaryCard accent="blue" icon={<HowToRegRounded />} label="All RSVPs" value={context.rsvps.length} />
-        <SummaryCard accent="slate" icon={<ChecklistRounded />} label="Open Tasks" value={context.tasks.filter((task: PlannerTask) => task.status === 'Pending').length} />
+        <SummaryCard
+          accent="amber"
+          icon={<AdminPanelSettingsRounded />}
+          label="System Users"
+          value={context.users.length}
+        />
+        <SummaryCard
+          accent="teal"
+          icon={<EventRounded />}
+          label="All Events"
+          value={context.events.length}
+        />
+        <SummaryCard
+          accent="blue"
+          icon={<HowToRegRounded />}
+          label="All RSVPs"
+          value={context.rsvps.length}
+        />
+        <SummaryCard
+          accent="slate"
+          icon={<ChecklistRounded />}
+          label="Open Tasks"
+          value={context.tasks.filter((task: PlannerTask) => task.status === 'Pending').length}
+        />
       </div>
       <div className="planner-two-column-grid">
         <SectionCard title="Sample Users">
@@ -946,7 +1120,9 @@ function AdminPage(): React.JSX.Element {
             </thead>
             <tbody>
               {context.events.map((event: PlannerEvent) => {
-                const taskCount = context.tasks.filter((task: PlannerTask) => task.eventId === event.id).length;
+                const taskCount = context.tasks.filter(
+                  (task: PlannerTask) => task.eventId === event.id,
+                ).length;
                 return (
                   <tr key={event.id}>
                     <td>
@@ -1013,7 +1189,11 @@ function PublicRsvpPage(): React.JSX.Element {
   return (
     <div className="planner-public-page">
       <div className="planner-public-page__panel">
-        <button className="planner-link-button" onClick={(): void => navigate('/rsvps')} type="button">
+        <button
+          className="planner-link-button"
+          onClick={(): void => navigate('/rsvps')}
+          type="button"
+        >
           <KeyboardBackspaceRounded fontSize="small" /> Back to planner
         </button>
         <StatusBadge status={event.status} />
@@ -1026,7 +1206,10 @@ function PublicRsvpPage(): React.JSX.Element {
       </div>
       <div className="planner-public-page__form-card">
         <h2>RSVP</h2>
-        <p>No login is required. Submit or update a response with your name, email, and attendance status.</p>
+        <p>
+          No login is required. Submit or update a response with your name, email, and attendance
+          status.
+        </p>
         {submitted ? (
           <div className="planner-success-box">
             <CheckCircleRounded />
@@ -1039,22 +1222,42 @@ function PublicRsvpPage(): React.JSX.Element {
           <form className="planner-inline-form" onSubmit={handleSubmit} noValidate>
             <label>
               <span>Name</span>
-              <input value={draft.name} onChange={(eventForm): void => setDraft({ ...draft, name: eventForm.target.value })} />
+              <input
+                value={draft.name}
+                onChange={(eventForm): void => setDraft({ ...draft, name: eventForm.target.value })}
+              />
               {errors.name ? <small>{errors.name}</small> : null}
             </label>
             <label>
               <span>Email</span>
-              <input value={draft.email} onChange={(eventForm): void => setDraft({ ...draft, email: eventForm.target.value })} />
+              <input
+                value={draft.email}
+                onChange={(eventForm): void =>
+                  setDraft({ ...draft, email: eventForm.target.value })
+                }
+              />
               {errors.email ? <small>{errors.email}</small> : null}
             </label>
             <div className="planner-form-grid">
               <label>
                 <span>Guests</span>
-                <input type="number" min="1" value={draft.guests} onChange={(eventForm): void => setDraft({ ...draft, guests: parseInt(eventForm.target.value) || 1 })} />
+                <input
+                  type="number"
+                  min="1"
+                  value={draft.guests}
+                  onChange={(eventForm): void =>
+                    setDraft({ ...draft, guests: parseInt(eventForm.target.value) || 1 })
+                  }
+                />
               </label>
               <label>
                 <span>Status</span>
-                <select value={draft.status} onChange={(eventForm): void => setDraft({ ...draft, status: eventForm.target.value as RsvpStatus })}>
+                <select
+                  value={draft.status}
+                  onChange={(eventForm): void =>
+                    setDraft({ ...draft, status: eventForm.target.value as RsvpStatus })
+                  }
+                >
                   <option value="Pending">Pending</option>
                   <option value="Confirmed">Confirmed</option>
                   <option value="Declined">Declined</option>
@@ -1091,7 +1294,6 @@ function PlannerRoutes(props: { notify: (message: string) => void }): React.JSX.
 
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
       <Route element={<Outlet context={outletContext} />}>
         <Route path="/rsvp/:eventId" element={<PublicRsvpPage />} />
       </Route>
@@ -1115,7 +1317,7 @@ function PlannerRoutes(props: { notify: (message: string) => void }): React.JSX.
           <Route path="/admin" element={<AdminPage />} />
         </Route>
       </Route>
-      <Route path="*" element={<Navigate replace to="/login" />} />
+      <Route path="*" element={<Navigate replace to="/" />} />
     </Routes>
   );
 }
