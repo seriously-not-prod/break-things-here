@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Track E — Performance & Observability)
+
+- **Task #817 — Load-test suite (k6) + nightly + PR smoke gate**: Added comprehensive k6 load test scenarios in `tests/load/k6/` covering login, dashboard, RSVP submission, event create, and guest import endpoints. Full run uses 100 VUs for 5 minutes with p95 < 500 ms and error rate < 1% thresholds. Smoke variant (10 VU, 30s) runs on every PR via `.github/workflows/load-smoke.yml`. Full variant runs nightly at 02:00 UTC via `.github/workflows/load-nightly.yml` (also manually dispatchable). Baseline performance numbers documented in `tests/load/baseline.md` (#817).
+
 ### Fixed
 
 - **Issue #770 — Collapse dual RSVP status columns to single source of truth**: Consolidated `rsvps.status` (legacy) and `rsvps.canonical_status` (canonical) columns by dropping the legacy `status` column entirely. `canonical_status` is now the single source of truth with values `pending`, `confirmed`, `declined`, `maybe`, `waitlist`, `cancelled`, `checked_in`, `no_show`. All backend controllers updated to read/write canonical_status only; legacy status input is still accepted and mapped to canonical via `toCanonicalStatus()` for backward compatibility. Frontend types updated to use canonical_status instead of status. Database migration `v21-rsvp-status-collapse.sql` backfills any remaining NULL canonical_status values and drops the status column. All RSVP-related tests and seed data updated. Issue addresses data consistency issues where dual columns could diverge (#770).
