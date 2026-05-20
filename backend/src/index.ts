@@ -1,5 +1,5 @@
 import './config/load-env.js';
-import { validateEntraConfigAtStartup } from './config/entra.js';
+import { isEntraEnabled, isLocalFallbackAllowed, validateEntraConfigAtStartup } from './config/entra.js';
 import { assertStrictDataSecurityControlsAtStartup } from './config/security-controls.js';
 import { logger, requestLogger } from './utils/logger.js';
 import { startJobScheduler } from './utils/job-scheduler.js';
@@ -294,6 +294,16 @@ export function createApp(): express.Express {
 async function start(): Promise<void> {
   assertStrictDataSecurityControlsAtStartup();
   validateEntraConfigAtStartup();
+
+  // Warn if local-auth fallback is permitted alongside Entra in production (#783)
+  if (process.env.NODE_ENV === 'production' && isEntraEnabled() && isLocalFallbackAllowed()) {
+    console.warn(
+      '[SECURITY] WARNING: ENTRA_ALLOW_LOCAL_FALLBACK is enabled in production. ' +
+      'Local email/password login is available alongside Entra ID SSO. ' +
+      'Set ENTRA_ALLOW_LOCAL_FALLBACK=false (or unset it) to enforce Entra-only authentication.',
+    );
+  }
+
   await initializeDatabase();
   startJobScheduler();
   const app = createApp();
