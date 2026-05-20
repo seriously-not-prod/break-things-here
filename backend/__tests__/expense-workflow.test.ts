@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS budget_categories (
   name TEXT NOT NULL,
   allocated_amount NUMERIC(10,2) DEFAULT 0,
   color TEXT,
+  selected_vendor_id INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -187,7 +188,11 @@ async function seedCategory(eventId: number): Promise<number> {
   return Number(result.lastID);
 }
 
-async function seedExpense(eventId: number, categoryId: number, createdBy: number): Promise<number> {
+async function seedExpense(
+  eventId: number,
+  categoryId: number,
+  createdBy: number,
+): Promise<number> {
   const result = await testDb.run(
     `INSERT INTO expenses
       (event_id, category_id, title, amount, payment_status, created_by, updated_by)
@@ -212,7 +217,10 @@ describe('expense approval and reimbursement workflow (#549 #599 #600)', () => {
     const eventId = await seedEvent(ownerId);
     const categoryId = await seedCategory(eventId);
     const expenseId = await seedExpense(eventId, categoryId, memberId);
-    await testDb.run(`INSERT INTO event_members (event_id, user_id) VALUES (?, ?)`, [eventId, memberId]);
+    await testDb.run(`INSERT INTO event_members (event_id, user_id) VALUES (?, ?)`, [
+      eventId,
+      memberId,
+    ]);
 
     const forbidReq = makeReq(
       { eventId: String(eventId), id: String(expenseId) },
@@ -255,7 +263,10 @@ describe('expense approval and reimbursement workflow (#549 #599 #600)', () => {
     const eventId = await seedEvent(ownerId);
     const categoryId = await seedCategory(eventId);
     const expenseId = await seedExpense(eventId, categoryId, memberId);
-    await testDb.run(`INSERT INTO event_members (event_id, user_id) VALUES (?, ?)`, [eventId, memberId]);
+    await testDb.run(`INSERT INTO event_members (event_id, user_id) VALUES (?, ?)`, [
+      eventId,
+      memberId,
+    ]);
 
     await testDb.run(
       `UPDATE expenses SET approval_status = 'approved', approved_by = ?, approved_at = CURRENT_TIMESTAMP WHERE id = ?`,
@@ -300,8 +311,13 @@ describe('expense approval and reimbursement workflow (#549 #599 #600)', () => {
     const expenseA = await seedExpense(eventId, categoryId, ownerId);
     const expenseB = await seedExpense(eventId, categoryId, ownerId);
     await testDb.run(`UPDATE expenses SET approval_status = 'approved' WHERE id = ?`, [expenseA]);
-    await testDb.run(`UPDATE expenses SET reimbursement_status = 'requested' WHERE id = ?`, [expenseA]);
-    await testDb.run(`UPDATE expenses SET approval_status = 'rejected', reimbursement_status = 'rejected' WHERE id = ?`, [expenseB]);
+    await testDb.run(`UPDATE expenses SET reimbursement_status = 'requested' WHERE id = ?`, [
+      expenseA,
+    ]);
+    await testDb.run(
+      `UPDATE expenses SET approval_status = 'rejected', reimbursement_status = 'rejected' WHERE id = ?`,
+      [expenseB],
+    );
 
     const req = makeReq(
       { eventId: String(eventId) },
@@ -333,7 +349,10 @@ describe('expense approval and reimbursement workflow (#549 #599 #600)', () => {
     const eventId = await seedEvent(ownerId);
     const categoryId = await seedCategory(eventId);
     const expenseId = await seedExpense(eventId, categoryId, memberId);
-    await testDb.run(`INSERT INTO event_members (event_id, user_id) VALUES (?, ?)`, [eventId, memberId]);
+    await testDb.run(`INSERT INTO event_members (event_id, user_id) VALUES (?, ?)`, [
+      eventId,
+      memberId,
+    ]);
 
     const extractReq = makeReq(
       { eventId: String(eventId), id: String(expenseId) },

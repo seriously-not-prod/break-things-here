@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS budget_categories (
   tax_rate         NUMERIC(5,2) DEFAULT 0,
   gratuity_rate    NUMERIC(5,2) DEFAULT 0,
   contingency_rate NUMERIC(5,2) DEFAULT 0,
+  selected_vendor_id INTEGER,
   created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -238,11 +239,7 @@ import {
   updateItemPriceData,
 } from '../src/controllers/shopping-controller.js';
 
-import {
-  createReport,
-  listReports,
-  renderReport,
-} from '../src/controllers/reports-controller.js';
+import { createReport, listReports, renderReport } from '../src/controllers/reports-controller.js';
 
 // ─── Test Helpers ─────────────────────────────────────────────────────────────
 
@@ -258,9 +255,18 @@ function makeRes(): MockResponse {
   const r: MockResponse = {
     statusCode: 200,
     body: null,
-    status(code: number) { this.statusCode = code; return this; },
-    json(data: unknown) { this.body = data; return this; },
-    send(data: unknown) { this.body = data; return this; },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data: unknown) {
+      this.body = data;
+      return this;
+    },
+    send(data: unknown) {
+      this.body = data;
+      return this;
+    },
   };
   return r;
 }
@@ -468,8 +474,8 @@ describe('brd-v2 story 530/531 — finance, shopping & store suggestion engine',
         {
           source_store_name: 'Costco',
           source_store_url: 'https://costco.com',
-          compared_price_low: 12.50,
-          compared_price_high: 18.00,
+          compared_price_low: 12.5,
+          compared_price_high: 18.0,
         },
       );
       const res = makeRes();
@@ -545,7 +551,12 @@ describe('brd-v2 story 530/531 — finance, shopping & store suggestion engine',
 
       expect(res.statusCode).toBe(200);
       const body = res.body as {
-        summary: { total_estimated: number; total_actual: number; total_variance: number; items_over_budget: number };
+        summary: {
+          total_estimated: number;
+          total_actual: number;
+          total_variance: number;
+          items_over_budget: number;
+        };
         items: { name: string; variance: number }[];
       };
       expect(body.summary.total_estimated).toBe(150);
@@ -702,7 +713,12 @@ describe('brd-v2 story 530/531 — finance, shopping & store suggestion engine',
       const body = renderRes.body as {
         payload: {
           type: string;
-          categories: { name: string; spent: string; tax_rate: string; effective_allocated: string }[];
+          categories: {
+            name: string;
+            spent: string;
+            tax_rate: string;
+            effective_allocated: string;
+          }[];
           summary: { total_spent: string };
         };
       };
@@ -813,11 +829,13 @@ describe('brd-v2 story 530/531 — finance, shopping & store suggestion engine',
         [eventId, ownerId],
       );
       const row = await testDb.get<{
-        location: string; latitude: string; longitude: string; usage_count: number;
-      }>(
-        `SELECT location, latitude, longitude, usage_count FROM store_suggestions WHERE id = ?`,
-        [Number(r.lastID)],
-      );
+        location: string;
+        latitude: string;
+        longitude: string;
+        usage_count: number;
+      }>(`SELECT location, latitude, longitude, usage_count FROM store_suggestions WHERE id = ?`, [
+        Number(r.lastID),
+      ]);
       expect(row?.location).toBe('City Center');
       expect(Number(row?.latitude)).toBeCloseTo(41.8781, 3);
       expect(row?.usage_count).toBe(3);
@@ -838,7 +856,9 @@ describe('brd-v2 story 530/531 — finance, shopping & store suggestion engine',
         [Number(lr.lastID)],
       );
       const row = await testDb.get<{
-        compared_price_low: string; compared_price_high: string; source_store_name: string;
+        compared_price_low: string;
+        compared_price_high: string;
+        source_store_name: string;
       }>(
         `SELECT compared_price_low, compared_price_high, source_store_name FROM shopping_items WHERE id = ?`,
         [Number(ir.lastID)],
