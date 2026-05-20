@@ -6,7 +6,6 @@ import {
   Checkbox,
   Divider,
   FormControlLabel,
-  Fade,
   Link,
   Paper,
   Stack,
@@ -227,8 +226,7 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
 
         {localFallbackDisclosure}
 
-        <Fade in={localFormVisible} timeout={250} mountOnEnter unmountOnExit>
-          <Box>
+        {localFormVisible && <>
             {entraEnabled && <Divider>or use a local account</Divider>}
 
             <TextField
@@ -332,8 +330,7 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
                 </Typography>
               </Paper>
             )}
-          </Box>
-        </Fade>
+        </>}
       </Stack>
     </Box>
   );
