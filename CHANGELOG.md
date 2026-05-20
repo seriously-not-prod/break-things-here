@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added (Track C — Auth & Identity)
 
+- **Task #790 — Entra-first login copy refresh for the four personas**: Added MFA help text below the "Sign in with Microsoft" CTA to set expectations for multi-factor authentication prompts. Forgot-password and create-account links are gated to local-fallback mode only. Added snapshot tests for Entra-on (entra-only), Entra-on (with fallback), and Entra-off (local-only) variants in `frontend/test/login-form.test.tsx`. Appended persona review note to `docs/entra-auth-rollout.md` mapping Sarah/Marcus/Emily/David FRD personas to the login copy changes (#790).
+
+### Added (Track B — Database & Infrastructure)
+
+- **Task #777 — PITR / WAL archiving configuration**: Implemented Point-in-Time Recovery (PITR) infrastructure fulfilling NFR §5.4 with 14-day retention. Added WAL archiving to `docker-compose.yml` with `archive_mode=on`, `wal_level=replica`, and custom `archive_command` pointing to `scripts/archive-wal.sh`. Created `wal-archive` Docker volume for archived WAL segments. Implemented `wal-archive-cleanup` service using cron to remove WAL files older than 14 days, maintaining automated retention policy. Added `scripts/restore-drill.sh` for documented recovery testing against throwaway database. Created comprehensive operations runbook at `docs/operations/pitr.md` covering architecture, configuration, recovery procedures, monitoring, troubleshooting, and maintenance schedule (#777).
+
 - **Task #787 — Notification preferences profile UI tab**: Added `frontend/src/components/profile/notification-preferences-tab.tsx` — a new Material-UI tab on the profile page that renders a category × channel matrix for notification preferences (In-App, Email, Push). Uses React Hook Form + Zod for form state, optimistic toggle saves via PUT endpoint with rollback on failure, and full keyboard/aria-label accessibility. Converted the profile page from a flat form to a tabbed layout (General Info + Notifications). Added 9 component tests in `frontend/test/notification-preferences-tab.test.tsx` covering initial load, toggle save, error rollback, accessibility, and table rendering (#787).
 
 - **Task #785 — End-to-end Entra login flow Playwright test (mocked OIDC)**: Added `e2e/entra-auth.spec.ts` with five tests that drive the full Microsoft sign-in → Azure redirect → callback → dashboard flow using Playwright route interception as a mocked OIDC issuer. Added `e2e/fixtures/oidc-mock.ts` providing reusable `setupOidcMock()` helper with pre-configured test users and well-known group IDs for role-mapping assertions (Admin, Organizer, Viewer, no-groups default). Added `.github/workflows/e2e.yml` CI workflow that builds the frontend, starts a preview server, installs Playwright Chromium, and runs the e2e suite. No live Azure tenant required (#785).
@@ -26,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Task #775 — PostgREST runtime decision and contract cleanup**: Removed the unused `postgrest` service from `docker-compose.yml`, recorded the "remove" decision and freed port `3001` in `docs/postgrest-pilot.md`, and updated TRD references in `docs/requirements/REQUIREMENTS_BASELINE.md` to declare Express `/api` as the active API contract (#775).
 
 - **Task #774 — SERIAL to UUID primary-key migration spike**: Added `docs/architecture/uuid-migration-spike.md` with migration option analysis (dual-column phased cutover vs in-place ALTER), data-migration script outline, FK rewrite plan, frontend type-change footprint, backward-compatibility risks, and effort estimates. Recorded decision in `docs/requirements/REQUIREMENTS_BASELINE.md` TRD section 4.2 to defer UUID cutover for the current cycle and ratify SERIAL/sequence-backed keys as the active baseline while tracking UUID migration as future phased work (#774).
+
+### Fixed
+
+- **Task #776 — Add `/api/health` TRD-compatible alias**: Backend now serves `GET /api/health` as an alias of `GET /health` using a shared handler so both endpoints always return identical payload and status. In-code OpenAPI definition now documents both routes, and smoke coverage in `backend/__tests__/health-endpoints.test.ts` asserts both endpoints return `200` and matching response bodies (#776).
 
 ### Added (Track E — Performance & Observability)
 
