@@ -69,6 +69,7 @@ import * as unsubscribeController from '../controllers/unsubscribe-controller.js
 import * as qrCheckinController from '../controllers/qr-checkin-controller.js';
 import * as attendanceBoardController from '../controllers/attendance-board-controller.js';
 import * as seatingGroupsController from '../controllers/seating-groups-controller.js';
+import * as guestsController from '../controllers/guests-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import {
   apiLimiter,
@@ -1653,6 +1654,17 @@ router.post(
   '/events/:eventId/guest-groups/bulk-checkin',
   authenticateToken,
   guestGroupsController.bulkCheckIn,
+);
+
+// ============ GUEST RECORDS (first-class guests table) — #771 ============
+router.get('/events/:eventId/guest-records', authenticateToken, guestsController.listGuests);
+router.get('/events/:eventId/guest-records/:id', authenticateToken, guestsController.getGuest);
+router.post('/events/:eventId/guest-records', authenticateToken, guestsController.createGuest);
+router.put('/events/:eventId/guest-records/:id', authenticateToken, guestsController.updateGuest);
+router.delete(
+  '/events/:eventId/guest-records/:id',
+  authenticateToken,
+  guestsController.deleteGuest,
 );
 
 // ============ GDPR — #680 ============
