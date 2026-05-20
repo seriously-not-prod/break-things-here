@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Track D — Real-time)
+
+- **Task #810 — @mentions parser + notification fanout**: Comments and chat messages now parse `@username` and `@"display name"` tokens. Resolved users receive an in-app notification (subject to their `mention` preference). Each mention is persisted to a new `message_mentions` table for analytics. The parser (`backend/src/services/mentions/parse.ts`) handles escaped `\@`, quoted display names, multi-line bodies, and case-insensitive deduplication. The fanout (`backend/src/services/mentions/fanout.ts`) resolves handles against `display_name` and email prefix, stores mention rows, and emits notifications. Hooked into `event-chat-controller.ts` and `tasks-controller.ts`. DB migration `v18-message-mentions-810.sql` adds the table + indexes. 26 tests pass (#810).
+
+- **Task #809 — Unified realtime SSE stream**: Introduced a multiplexed Server-Sent Events endpoint `GET /api/realtime/stream?topics=events,tasks,budgets,activity,presence` that fans out messages to subscribers for any combination of the five supported topics. Backed by an in-memory `RealtimeHub` singleton (`backend/src/services/realtime/hub.ts`) and a Postgres `LISTEN/NOTIFY` bridge (`backend/src/services/realtime/pg-bridge.ts`) that keeps multiple process replicas in sync. A heartbeat comment is sent every 30 s; the legacy `GET /api/events/:eventId/realtime/stream` remains fully back-compatible. Added `useRealtime()` React hook (`frontend/src/hooks/use-realtime.ts`) with automatic reconnect logic. Integration test covers subscribe → publish → receive → disconnect lifecycle (#809).
+
 ### Added (Track C — Import/Export & Media)
 
 - **FR-GUEST-002 (XLSX import)**: Guest import wizard now accepts `.xlsx` and `.xls` files in addition to CSV. SheetJS (`xlsx`) parses the first sheet server-side (RSVP controller) and client-side (import dialog preview). The multer filter and file-input `accept` attribute are updated to allow Excel MIME types (#2, #14).

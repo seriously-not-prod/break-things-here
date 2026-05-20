@@ -3385,4 +3385,21 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       END $$;
     `);
   }
+
+  // v18 — Task #810: message_mentions table for @mention analytics.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS message_mentions (
+      id                   SERIAL PRIMARY KEY,
+      source_type          TEXT    NOT NULL,
+      source_id            INTEGER NOT NULL,
+      mentioned_user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      mentioned_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      raw_token            TEXT    NOT NULL,
+      created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_message_mentions_mentioned_user
+      ON message_mentions(mentioned_user_id);
+    CREATE INDEX IF NOT EXISTS idx_message_mentions_source
+      ON message_mentions(source_type, source_id);
+  `);
 }

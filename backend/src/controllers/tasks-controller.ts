@@ -3,6 +3,7 @@ import { getDatabase } from '../db/database.js';
 import { logActivity } from './activity-feed-controller.js';
 import { requireEventAccess } from '../utils/event-access.js';
 import { AUDIT_ACTIONS, logMutation } from '../utils/audit-log.js';
+import { processMentions } from '../services/mentions/fanout.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -562,6 +563,17 @@ export async function addComment(req: AuthRequest, res: Response): Promise<Respo
      WHERE tc.id = $1`,
     [result.lastID],
   );
+
+  // Fire-and-forget: parse @mentions and notify mentioned users (#810).
+  void processMentions({
+    sourceType: 'task_comment',
+    sourceId: result.lastID!,
+    authorId: req.user!.id,
+    body: body.trim(),
+    contextLabel: `task comment`,
+    link: `/events/${eventId}/tasks/${taskId}`,
+  });
+
   return res.status(201).json({ comment });
 }
 
