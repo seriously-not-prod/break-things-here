@@ -62,7 +62,16 @@ beforeAll(async (): Promise<void> => {
   const currentEventResult = await db.run(
     `INSERT INTO events (title, date, location, capacity, status, created_by, event_type, tags)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-    ['Summer Music Fest', '2031-06-15', 'River Park', 200, 'Active', ownerId, 'Music', 'outdoor,summer,local'],
+    [
+      'Summer Music Fest',
+      '2031-06-15',
+      'River Park',
+      200,
+      'Active',
+      ownerId,
+      'Music',
+      'outdoor,summer,local',
+    ],
   );
   currentEventId = Number(currentEventResult.lastID);
 
@@ -76,14 +85,32 @@ beforeAll(async (): Promise<void> => {
   const hiddenEventResult = await db.run(
     `INSERT INTO events (title, date, location, capacity, status, created_by, event_type, tags)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-    ['Private Music Gala', '2031-07-01', 'River Park', 210, 'Active', otherOwnerId, 'Music', 'summer,private'],
+    [
+      'Private Music Gala',
+      '2031-07-01',
+      'River Park',
+      210,
+      'Active',
+      otherOwnerId,
+      'Music',
+      'summer,private',
+    ],
   );
   hiddenEventId = Number(hiddenEventResult.lastID);
 
   const unrelatedEventResult = await db.run(
     `INSERT INTO events (title, date, location, capacity, status, created_by, event_type, tags)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-    ['Tech Expo', '2032-01-20', 'Convention Center', 1200, 'Active', ownerId, 'Technology', 'indoor,b2b'],
+    [
+      'Tech Expo',
+      '2032-01-20',
+      'Convention Center',
+      1200,
+      'Active',
+      ownerId,
+      'Technology',
+      'indoor,b2b',
+    ],
   );
   unrelatedEventId = Number(unrelatedEventResult.lastID);
 
@@ -214,7 +241,9 @@ describe('compareSimilarEvents', () => {
     });
     expect(body.comparison[0].matchReasons).toContain('Same event type');
     expect(body.comparison[0].matchReasons).toContain('Same location');
-    expect(body.comparison[0].matchReasons.some((reason) => reason.startsWith('Shared tags:'))).toBe(true);
+    expect(
+      body.comparison[0].matchReasons.some((reason) => reason.startsWith('Shared tags:')),
+    ).toBe(true);
     expect(body.comparison.some((item) => item.id === hiddenEventId)).toBe(false);
   });
 

@@ -74,9 +74,7 @@ import {
   patchPreferences,
 } from '../src/controllers/notification-preferences-controller.js';
 
-import {
-  createBatchedNotification,
-} from '../src/controllers/notifications-controller.js';
+import { createBatchedNotification } from '../src/controllers/notifications-controller.js';
 
 // ── Mock helpers ────────────────────────────────────────────────────────────
 interface MockResponse {
@@ -90,8 +88,14 @@ function makeRes(): MockResponse {
   const res: MockResponse = {
     statusCode: 200,
     body: null,
-    status(code) { this.statusCode = code; return this; },
-    json(data) { this.body = data; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -115,8 +119,14 @@ async function seedUser(email: string): Promise<number> {
 async function seedPreferences(userId: number): Promise<void> {
   const channels = ['email', 'in_app'];
   const categories = [
-    'task_due', 'task_overdue', 'task_assigned', 'budget_alert',
-    'rsvp_submitted', 'event_update', 'chat_message', 'event_reminder',
+    'task_due',
+    'task_overdue',
+    'task_assigned',
+    'budget_alert',
+    'rsvp_submitted',
+    'event_update',
+    'chat_message',
+    'event_reminder',
   ];
   for (const channel of channels) {
     for (const category of categories) {
@@ -280,10 +290,7 @@ describe('Notification preferences (#786)', () => {
     expect(created).toBe(false);
 
     // Verify no notification was inserted
-    const rows = await testDb.all(
-      'SELECT * FROM notifications WHERE user_id = $1',
-      [userId],
-    );
+    const rows = await testDb.all('SELECT * FROM notifications WHERE user_id = $1', [userId]);
     expect(rows).toHaveLength(0);
   });
 
@@ -306,10 +313,7 @@ describe('Notification preferences (#786)', () => {
 
     expect(created).toBe(true);
 
-    const rows = await testDb.all(
-      'SELECT * FROM notifications WHERE user_id = $1',
-      [userId],
-    );
+    const rows = await testDb.all('SELECT * FROM notifications WHERE user_id = $1', [userId]);
     expect(rows).toHaveLength(1);
   });
 
@@ -317,19 +321,11 @@ describe('Notification preferences (#786)', () => {
     const userId = await seedUser('judy@example.com');
 
     // No preferences seeded — should default to enabled
-    const created = await createBatchedNotification(
-      userId,
-      'task_due',
-      'Task Due',
-      'Test body',
-    );
+    const created = await createBatchedNotification(userId, 'task_due', 'Task Due', 'Test body');
 
     expect(created).toBe(true);
 
-    const rows = await testDb.all(
-      'SELECT * FROM notifications WHERE user_id = $1',
-      [userId],
-    );
+    const rows = await testDb.all('SELECT * FROM notifications WHERE user_id = $1', [userId]);
     expect(rows).toHaveLength(1);
   });
 });

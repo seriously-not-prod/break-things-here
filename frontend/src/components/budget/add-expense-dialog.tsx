@@ -118,7 +118,13 @@ export function AddExpenseDialog({
   }
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth aria-labelledby="add-expense-dialog-title">
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="sm"
+      fullWidth
+      aria-labelledby="add-expense-dialog-title"
+    >
       <form onSubmit={(e) => void handleSubmit(e)} noValidate>
         <DialogTitle id="add-expense-dialog-title">
           {isEdit ? 'Edit Expense' : 'Add Expense'}

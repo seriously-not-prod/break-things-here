@@ -16,7 +16,9 @@ export default defineConfig({
   reporter: [
     ['html', { open: 'never' }],
     ['list'],
-    ...(process.env.CI ? [['junit', { outputFile: 'playwright-results.xml' }] as [string, object]] : []),
+    ...(process.env.CI
+      ? [['junit', { outputFile: 'playwright-results.xml' }] as [string, object]]
+      : []),
   ],
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173',

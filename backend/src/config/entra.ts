@@ -27,7 +27,7 @@ export function getEntraConfig(): EntraConfig {
   if (!tenantId || !clientId || !clientSecret) {
     throw new Error(
       'Entra auth is enabled but missing required environment variables: ' +
-      'AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET must all be set.',
+        'AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET must all be set.',
     );
   }
 

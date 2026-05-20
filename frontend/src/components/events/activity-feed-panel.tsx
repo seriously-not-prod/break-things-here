@@ -41,8 +41,14 @@ function timeAgo(dateStr: string): string {
 
 function avatarColor(name: string | null): string {
   const colors = [
-    '#1976d2', '#388e3c', '#f57c00', '#7b1fa2',
-    '#c62828', '#00838f', '#558b2f', '#ad1457',
+    '#1976d2',
+    '#388e3c',
+    '#f57c00',
+    '#7b1fa2',
+    '#c62828',
+    '#00838f',
+    '#558b2f',
+    '#ad1457',
   ] as const;
   if (!name) return colors[0];
   let hash = 0;
@@ -60,10 +66,7 @@ function FeedSkeleton(): JSX.Element {
           <ListItemAvatar>
             <Skeleton variant="circular" width={40} height={40} />
           </ListItemAvatar>
-          <ListItemText
-            primary={<Skeleton width="60%" />}
-            secondary={<Skeleton width="40%" />}
-          />
+          <ListItemText primary={<Skeleton width="60%" />} secondary={<Skeleton width="40%" />} />
         </ListItem>
       ))}
     </>
@@ -94,7 +97,9 @@ export function ActivityFeedPanel({ eventId }: ActivityFeedPanelProps): JSX.Elem
 
   useEffect(() => {
     void fetchFeed();
-    intervalRef.current = setInterval(() => { void fetchFeed(); }, POLL_INTERVAL_MS);
+    intervalRef.current = setInterval(() => {
+      void fetchFeed();
+    }, POLL_INTERVAL_MS);
     return () => {
       if (intervalRef.current !== null) clearInterval(intervalRef.current);
     };
@@ -103,7 +108,11 @@ export function ActivityFeedPanel({ eventId }: ActivityFeedPanelProps): JSX.Elem
   return (
     <Paper variant="outlined" sx={{ mt: 1 }}>
       <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-        <Typography variant="subtitle1" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography
+          variant="subtitle1"
+          fontWeight={600}
+          sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+        >
           <FeedRounded fontSize="small" />
           Activity Feed
         </Typography>
@@ -111,7 +120,9 @@ export function ActivityFeedPanel({ eventId }: ActivityFeedPanelProps): JSX.Elem
 
       {error && (
         <Box sx={{ px: 2, py: 1.5 }}>
-          <Typography color="error" variant="body2">{error}</Typography>
+          <Typography color="error" variant="body2">
+            {error}
+          </Typography>
         </Box>
       )}
 
@@ -122,7 +133,11 @@ export function ActivityFeedPanel({ eventId }: ActivityFeedPanelProps): JSX.Elem
           <ListItem>
             <ListItemText
               primary={
-                <Typography color="text.secondary" variant="body2" sx={{ textAlign: 'center', py: 2 }}>
+                <Typography
+                  color="text.secondary"
+                  variant="body2"
+                  sx={{ textAlign: 'center', py: 2 }}
+                >
                   No activity yet. Actions like RSVPs, tasks, and expenses will appear here.
                 </Typography>
               }
@@ -133,18 +148,19 @@ export function ActivityFeedPanel({ eventId }: ActivityFeedPanelProps): JSX.Elem
             <ListItem key={entry.id} alignItems="flex-start" divider>
               <ListItemAvatar>
                 <Avatar
-                  sx={{ bgcolor: avatarColor(entry.actor_name), width: 36, height: 36, fontSize: '0.75rem' }}
+                  sx={{
+                    bgcolor: avatarColor(entry.actor_name),
+                    width: 36,
+                    height: 36,
+                    fontSize: '0.75rem',
+                  }}
                   aria-label={entry.actor_name ?? 'System'}
                 >
                   {initials(entry.actor_name)}
                 </Avatar>
               </ListItemAvatar>
               <ListItemText
-                primary={
-                  <Typography variant="body2">
-                    {entry.description}
-                  </Typography>
-                }
+                primary={<Typography variant="body2">{entry.description}</Typography>}
                 secondary={
                   <Typography variant="caption" color="text.secondary">
                     {entry.actor_name ?? 'System'} · {timeAgo(entry.created_at)}

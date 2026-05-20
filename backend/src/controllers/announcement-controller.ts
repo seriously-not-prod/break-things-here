@@ -99,7 +99,9 @@ export async function sendAnnouncement(req: AuthRequest, res: Response): Promise
   }
 
   logger.info(`[Announcement] Dispatched announcement for event ${eventId}`, {
-    total: recipients.length, sent: successCount, failed: failCount,
+    total: recipients.length,
+    sent: successCount,
+    failed: failCount,
   });
 
   return res.json({
@@ -145,7 +147,8 @@ export async function handleEmailBounce(req: Request, res: Response): Promise<Re
       processed++;
     } else if (eventType === 'open') {
       // Track email opens
-      const messageId: string | undefined = event.sg_message_id ?? event['message-id'] ?? event.MessageID;
+      const messageId: string | undefined =
+        event.sg_message_id ?? event['message-id'] ?? event.MessageID;
       if (messageId) {
         await db.run(
           `UPDATE communication_log SET opened = true, opened_at = CURRENT_TIMESTAMP

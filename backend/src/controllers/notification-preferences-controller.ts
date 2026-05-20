@@ -26,10 +26,7 @@ interface AuthRequest extends Request {
  * Returns the full channel × category preference matrix for the
  * authenticated user.
  */
-export async function listPreferences(
-  req: AuthRequest,
-  res: Response,
-): Promise<void> {
+export async function listPreferences(req: AuthRequest, res: Response): Promise<void> {
   if (!req.user) {
     res.status(401).json({ error: 'Authentication required' });
     return;
@@ -57,10 +54,7 @@ export async function listPreferences(
  * }
  * ```
  */
-export async function patchPreferences(
-  req: AuthRequest,
-  res: Response,
-): Promise<void> {
+export async function patchPreferences(req: AuthRequest, res: Response): Promise<void> {
   if (!req.user) {
     res.status(401).json({ error: 'Authentication required' });
     return;

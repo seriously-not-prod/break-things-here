@@ -10,7 +10,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const DEFAULT_DEV_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:5432/festival_planner';
-const DEFAULT_DEV_CORS_ORIGINS = 'http://localhost:3000,http://localhost:4173,http://localhost:5173,http://localhost:5174';
+const DEFAULT_DEV_CORS_ORIGINS =
+  'http://localhost:3000,http://localhost:4173,http://localhost:5173,http://localhost:5174';
 
 function parseEnvFile(filePath: string): EnvMap {
   if (!existsSync(filePath)) {
@@ -35,8 +36,8 @@ function parseEnvFile(filePath: string): EnvMap {
     let value = line.slice(separatorIndex + 1).trim();
 
     if (
-      (value.startsWith('"') && value.endsWith('"'))
-      || (value.startsWith("'") && value.endsWith("'"))
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
     ) {
       value = value.slice(1, -1);
     }

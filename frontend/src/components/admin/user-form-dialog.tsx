@@ -110,7 +110,9 @@ export function UserFormDialog({
     api
       .get<EventOption[] | { events: EventOption[] }>('/api/events')
       .then((data) => {
-        const list = Array.isArray(data) ? data : ((data as { events: EventOption[] }).events ?? []);
+        const list = Array.isArray(data)
+          ? data
+          : ((data as { events: EventOption[] }).events ?? []);
         setAllEvents(list);
       })
       .catch(() => setAllEvents([]));
@@ -135,7 +137,9 @@ export function UserFormDialog({
             assignedEventIds: (data.events ?? []).map((e) => e.id),
           }));
         })
-        .catch(() => {/* silently fall back to empty */});
+        .catch(() => {
+          /* silently fall back to empty */
+        });
     } else {
       setForm(emptyForm(roles));
     }
@@ -265,7 +269,10 @@ export function UserFormDialog({
         </Grid>
 
         {/* Section 2 — Role & permissions */}
-        <SectionHeader icon={<AdminPanelSettingsRounded fontSize="small" />} title="Role & Access" />
+        <SectionHeader
+          icon={<AdminPanelSettingsRounded fontSize="small" />}
+          title="Role & Access"
+        />
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6}>
             <TextField
@@ -338,7 +345,11 @@ export function UserFormDialog({
                       onClick={() => setShowPassword((v) => !v)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
-                      {showPassword ? <VisibilityOffRounded fontSize="small" /> : <VisibilityRounded fontSize="small" />}
+                      {showPassword ? (
+                        <VisibilityOffRounded fontSize="small" />
+                      ) : (
+                        <VisibilityRounded fontSize="small" />
+                      )}
                     </IconButton>
                   </InputAdornment>
                 ),
@@ -389,10 +400,7 @@ export function UserFormDialog({
           {allEvents.map((ev) => (
             <MenuItem key={ev.id} value={ev.id}>
               <Checkbox checked={form.assignedEventIds.includes(ev.id)} />
-              <ListItemText
-                primary={ev.title}
-                secondary={ev.status}
-              />
+              <ListItemText primary={ev.title} secondary={ev.status} />
             </MenuItem>
           ))}
         </MuiSelect>

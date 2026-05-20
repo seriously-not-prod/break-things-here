@@ -95,12 +95,14 @@ export async function getProfilePhoto(req: AuthRequest, res: Response) {
     }
 
     const db = getDatabase();
-  const profile = await db.get<ProfilePhotoRow>(
+    const profile = await db.get<ProfilePhotoRow>(
       'SELECT profile_photo_url FROM user_profiles WHERE user_id = $1',
       [req.user.id],
     );
 
-    const currentFileName = profile?.profile_photo_url ? path.basename(profile.profile_photo_url) : null;
+    const currentFileName = profile?.profile_photo_url
+      ? path.basename(profile.profile_photo_url)
+      : null;
     if (!currentFileName || currentFileName !== filename) {
       return res.status(404).json({ error: 'Photo not found' });
     }
@@ -121,12 +123,16 @@ export async function updateUserProfile(req: AuthRequest, res: Response) {
       });
     }
 
-    const { bio, phoneNumber, phone_number, address, city, state, zipCode, zip_code, country } = req.body;
+    const { bio, phoneNumber, phone_number, address, city, state, zipCode, zip_code, country } =
+      req.body;
 
     const db = getDatabase();
 
     // Upsert — create profile row if it doesn't exist yet
-    await db.run('INSERT INTO user_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [req.user.id]);
+    await db.run(
+      'INSERT INTO user_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING',
+      [req.user.id],
+    );
 
     await db.run(
       `UPDATE user_profiles
@@ -191,7 +197,9 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
     if (!scanResult.clean) {
       await fs.unlink(assertSafePath(req.file.path));
       await logAuditEvent({
-        db, userId: req.user.id, email: req.user.email,
+        db,
+        userId: req.user.id,
+        email: req.user.email,
         action: AUDIT_ACTIONS.UPLOAD_SCAN_FAIL,
         description: `Malicious file detected: ${scanResult.threat}`,
         ipAddress: req.ip,
@@ -204,7 +212,9 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
       });
     }
     await logAuditEvent({
-      db, userId: req.user.id, email: req.user.email,
+      db,
+      userId: req.user.id,
+      email: req.user.email,
       action: AUDIT_ACTIONS.UPLOAD_SCAN_PASS,
       description: 'Profile photo passed security scan',
       ipAddress: req.ip,
@@ -223,7 +233,9 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
     // profile_photo_url already contains 'uploads/profile-photos/...' — do NOT prepend 'uploads' again
     if (existingProfile?.profile_photo_url) {
       try {
-        const oldFilePath = assertSafePath(path.join(process.cwd(), existingProfile.profile_photo_url));
+        const oldFilePath = assertSafePath(
+          path.join(process.cwd(), existingProfile.profile_photo_url),
+        );
         await fs.unlink(oldFilePath);
       } catch (err) {
         console.error('Failed to delete old profile photo:', err);
@@ -305,8 +317,6 @@ export async function changeEmail(req: AuthRequest, res: Response) {
       return res.status(400).json({ error: 'newEmail and password are required' });
     }
 
-
-
     if (!validateEmailFormat(newEmail)) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
@@ -380,7 +390,8 @@ export async function changeEmail(req: AuthRequest, res: Response) {
     }
 
     return res.status(200).json({
-      message: 'Confirmation sent to your new email address. Your current email remains active until confirmed.',
+      message:
+        'Confirmation sent to your new email address. Your current email remains active until confirmed.',
     });
   } catch (error) {
     console.error('Change email error:', error);
@@ -418,7 +429,9 @@ export async function confirmEmailChange(req: AuthRequest, res: Response) {
     }
 
     if (new Date(user.pending_email_token_expiry) < new Date()) {
-      return res.status(400).json({ error: 'Token has expired. Please request a new email change.' });
+      return res
+        .status(400)
+        .json({ error: 'Token has expired. Please request a new email change.' });
     }
 
     await db.run(
@@ -465,7 +478,6 @@ export async function deleteAccount(req: AuthRequest, res: Response) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-
     const passwordMatch = await verifyPassword(password, user.password_hash);
     if (!passwordMatch) {
       return res.status(401).json({ error: 'Invalid password' });
@@ -475,7 +487,9 @@ export async function deleteAccount(req: AuthRequest, res: Response) {
     if (user.profile_photo_url) {
       try {
         await fs.unlink(path.join(process.cwd(), user.profile_photo_url));
-      } catch { /* file may already be gone */ }
+      } catch {
+        /* file may already be gone */
+      }
     }
 
     // Anonymise personal data and soft-delete — issue #39
@@ -513,4 +527,3 @@ export async function deleteAccount(req: AuthRequest, res: Response) {
     return res.status(500).json({ error: 'Failed to delete account' });
   }
 }
-

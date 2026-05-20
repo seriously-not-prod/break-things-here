@@ -121,7 +121,6 @@ describe('GalleryPage (#430)', () => {
     expect(screen.getAllByText('Gallery').length).toBeGreaterThan(0);
   });
 
-
   it('renders a grid of image thumbnails', async () => {
     mockedListGallery.mockResolvedValue(MOCK_ITEMS);
     renderGallery();
@@ -163,7 +162,9 @@ describe('GalleryPage (#430)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Open preview for sunset-stage.jpg/i }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close preview' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Close preview' }),
+    );
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
@@ -224,9 +225,7 @@ describe('GalleryPage (#430)', () => {
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm delete' }));
 
-    await waitFor(() =>
-      expect(screen.queryByAltText('sunset-stage.jpg')).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.queryByAltText('sunset-stage.jpg')).not.toBeInTheDocument());
     expect(mockedDeleteGalleryItem).toHaveBeenCalledWith('42', 1);
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
@@ -278,7 +277,9 @@ describe('GalleryPage (#430)', () => {
     fireEvent.change(input, { target: { value: 'Sunset performance' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save caption' }));
 
-    await waitFor(() => expect(mockedUpdateGalleryCaption).toHaveBeenCalledWith('42', 1, 'Sunset performance'));
+    await waitFor(() =>
+      expect(mockedUpdateGalleryCaption).toHaveBeenCalledWith('42', 1, 'Sunset performance'),
+    );
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 

@@ -1,11 +1,4 @@
-import {
-  createContext,
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { api, getToken, setToken } from '../lib/api-client';
 import { useSessionTimeout } from '../hooks/use-session-timeout';
 
@@ -75,7 +68,8 @@ function normalizeEmail(email: string): string {
 
 function getDemoAccount(email: string, password: string): AuthUser | null {
   const match = DEMO_ACCOUNTS.find(
-    (account) => normalizeEmail(account.email) === normalizeEmail(email) && account.password === password,
+    (account) =>
+      normalizeEmail(account.email) === normalizeEmail(email) && account.password === password,
   );
   return match?.user ?? null;
 }
@@ -160,7 +154,13 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     }
 
     try {
-      const data = await api.get<{ id: number; email: string; display_name: string; role_id: number; role_name: string }>('/api/auth/me');
+      const data = await api.get<{
+        id: number;
+        email: string;
+        display_name: string;
+        role_id: number;
+        role_name: string;
+      }>('/api/auth/me');
       const nextUser: AuthUser = {
         id: data.id,
         email: data.email,
@@ -201,31 +201,44 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     void restoreSession();
   }, [loadCurrentUser]);
 
-  const login = useCallback(async (email: string, password: string, _rememberMe = false) => {
-    // POST credentials. Backend sets httpOnly cookies and returns accessToken
-    // in development so requests can attach it from in-memory state only.
-    try {
-      const data = await api.post<Record<string, unknown>>('/api/auth/login', { email, password });
-      if (data && typeof data.accessToken === 'string') setToken(data.accessToken);
-      await loadCurrentUser();
-      return;
-    } catch {
-      const demoUser = getDemoAccount(email, password);
-      if (!demoUser) {
-        throw new Error('Invalid credentials');
+  const login = useCallback(
+    async (email: string, password: string, _rememberMe = false) => {
+      // POST credentials. Backend sets httpOnly cookies and returns accessToken
+      // in development so requests can attach it from in-memory state only.
+      try {
+        const data = await api.post<Record<string, unknown>>('/api/auth/login', {
+          email,
+          password,
+        });
+        if (data && typeof data.accessToken === 'string') setToken(data.accessToken);
+        await loadCurrentUser();
+        return;
+      } catch {
+        const demoUser = getDemoAccount(email, password);
+        if (!demoUser) {
+          throw new Error('Invalid credentials');
+        }
+
+        setToken(null);
+        setUser(demoUser);
+        setAuthSource('demo');
+        storeAuth({ source: 'demo', user: demoUser });
       }
+    },
+    [loadCurrentUser],
+  );
 
-      setToken(null);
-      setUser(demoUser);
-      setAuthSource('demo');
-      storeAuth({ source: 'demo', user: demoUser });
-    }
-  }, [loadCurrentUser]);
-
-  const register = useCallback(async (email: string, password: string, displayName: string): Promise<string> => {
-    const data = await api.post<{ message: string }>('/api/auth/register', { email, password, displayName });
-    return data.message;
-  }, []);
+  const register = useCallback(
+    async (email: string, password: string, displayName: string): Promise<string> => {
+      const data = await api.post<{ message: string }>('/api/auth/register', {
+        email,
+        password,
+        displayName,
+      });
+      return data.message;
+    },
+    [],
+  );
 
   const logout = useCallback(async () => {
     try {
@@ -288,7 +301,19 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
   }, [authSource]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, loadCurrentUser, sessionTimedOut, clearSessionTimeout, authSource }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        logout,
+        loadCurrentUser,
+        sessionTimedOut,
+        clearSessionTimeout,
+        authSource,
+      }}
+    >
       {user && <SessionTimeoutWatcher onTimeout={handleSessionTimeout} />}
       {children}
     </AuthContext.Provider>

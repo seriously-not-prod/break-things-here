@@ -22,9 +22,25 @@ function makeUser(overrides: Partial<User> & { id: string }): User {
   };
 }
 
-const adminUser = makeUser({ id: 'admin-1', displayName: 'Alice Admin', email: 'admin@test.com', role: UserRole.Admin });
-const orgUser = makeUser({ id: 'org-1', displayName: 'Organizer Jane', email: 'jane@test.com', role: UserRole.Organizer });
-const attendeeUser = makeUser({ id: 'att-1', displayName: 'Attendee Sam', email: 'sam@test.com', role: UserRole.Attendee, emailConfirmed: false });
+const adminUser = makeUser({
+  id: 'admin-1',
+  displayName: 'Alice Admin',
+  email: 'admin@test.com',
+  role: UserRole.Admin,
+});
+const orgUser = makeUser({
+  id: 'org-1',
+  displayName: 'Organizer Jane',
+  email: 'jane@test.com',
+  role: UserRole.Organizer,
+});
+const attendeeUser = makeUser({
+  id: 'att-1',
+  displayName: 'Attendee Sam',
+  email: 'sam@test.com',
+  role: UserRole.Attendee,
+  emailConfirmed: false,
+});
 
 function mockFetchUsers(users: User[]) {
   mockFetch.mockResolvedValueOnce({
@@ -130,7 +146,9 @@ describe('AdminUserManagement', () => {
       expect(screen.getByText('Alice Admin')).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText(/filter users by role/i), { target: { value: 'Organizer' } });
+    fireEvent.change(screen.getByLabelText(/filter users by role/i), {
+      target: { value: 'Organizer' },
+    });
     expect(screen.getByText('Organizer Jane')).toBeInTheDocument();
     expect(screen.queryByText('Alice Admin')).not.toBeInTheDocument();
     expect(screen.queryByText('Attendee Sam')).not.toBeInTheDocument();
@@ -175,7 +193,9 @@ describe('AdminUserManagement', () => {
     fireEvent.click(screen.getByRole('button', { name: /change role for organizer jane/i }));
 
     // Change dropdown to Admin
-    fireEvent.change(screen.getByLabelText(/new role for organizer jane/i), { target: { value: 'Admin' } });
+    fireEvent.change(screen.getByLabelText(/new role for organizer jane/i), {
+      target: { value: 'Admin' },
+    });
 
     const updatedUser = { ...orgUser, role: UserRole.Admin };
     mockRoleUpdate(updatedUser);
@@ -197,7 +217,9 @@ describe('AdminUserManagement', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /change role for organizer jane/i }));
-    fireEvent.change(screen.getByLabelText(/new role for organizer jane/i), { target: { value: 'Admin' } });
+    fireEvent.change(screen.getByLabelText(/new role for organizer jane/i), {
+      target: { value: 'Admin' },
+    });
 
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -251,7 +273,9 @@ describe('AdminUserManagement', () => {
     });
 
     expect(screen.queryByText('Deleted')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /change role for deleted dana/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /change role for deleted dana/i }),
+    ).toBeInTheDocument();
   });
 
   it('shows table headers with correct scope', async () => {
@@ -264,7 +288,13 @@ describe('AdminUserManagement', () => {
 
     const headers = screen.getAllByRole('columnheader');
     expect(headers).toHaveLength(5);
-    expect(headers.map((h) => h.textContent)).toEqual(['Name', 'Email', 'Role', 'Status', 'Actions']);
+    expect(headers.map((h) => h.textContent)).toEqual([
+      'Name',
+      'Email',
+      'Role',
+      'Status',
+      'Actions',
+    ]);
   });
 
   it('shows no users found when filter matches nothing', async () => {

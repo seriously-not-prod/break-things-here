@@ -118,8 +118,14 @@ export async function addDependency(req: Request, res: Response): Promise<Respon
 
   // Verify both tasks belong to this event
   const [task, dep] = await Promise.all([
-    db.get<{ id: number }>(`SELECT id FROM tasks WHERE id = $1 AND event_id = $2`, [taskId, eventId]),
-    db.get<{ id: number }>(`SELECT id FROM tasks WHERE id = $1 AND event_id = $2`, [depends_on_id, eventId]),
+    db.get<{ id: number }>(`SELECT id FROM tasks WHERE id = $1 AND event_id = $2`, [
+      taskId,
+      eventId,
+    ]),
+    db.get<{ id: number }>(`SELECT id FROM tasks WHERE id = $1 AND event_id = $2`, [
+      depends_on_id,
+      eventId,
+    ]),
   ]);
 
   if (!task) return res.status(404).json({ error: 'Task not found in this event.' });
@@ -128,7 +134,9 @@ export async function addDependency(req: Request, res: Response): Promise<Respon
   // Cycle check
   const hasCycle = await wouldCreateCycle(db, Number(taskId), depends_on_id);
   if (hasCycle) {
-    return res.status(409).json({ error: 'Adding this dependency would create a circular dependency.' });
+    return res
+      .status(409)
+      .json({ error: 'Adding this dependency would create a circular dependency.' });
   }
 
   // Check for existing dependency
@@ -145,10 +153,9 @@ export async function addDependency(req: Request, res: Response): Promise<Respon
     [taskId, depends_on_id, authReq.user.id],
   );
 
-  const dependency = await db.get<TaskDependency>(
-    `SELECT * FROM task_dependencies WHERE id = $1`,
-    [result.lastID],
-  );
+  const dependency = await db.get<TaskDependency>(`SELECT * FROM task_dependencies WHERE id = $1`, [
+    result.lastID,
+  ]);
   return res.status(201).json({ dependency });
 }
 

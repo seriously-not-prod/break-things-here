@@ -32,10 +32,10 @@ export const options = {
       executor: 'ramping-vus',
       startVUs: 0,
       stages: [
-        { duration: '30s', target: 25 },  // ramp up to 25
+        { duration: '30s', target: 25 }, // ramp up to 25
         { duration: '30s', target: 100 }, // ramp up to 100 (spec: 100+ concurrent)
         { duration: '60s', target: 100 }, // hold at 100
-        { duration: '20s', target: 0 },   // ramp down
+        { duration: '20s', target: 0 }, // ramp down
       ],
       gracefulRampDown: '15s',
     },
@@ -119,7 +119,11 @@ export default function main(data) {
   const eventsOk = check(eventsRes, {
     'events: status 200': (r) => r.status === 200,
     'events: is array': (r) => {
-      try { return Array.isArray(JSON.parse(r.body)); } catch { return false; }
+      try {
+        return Array.isArray(JSON.parse(r.body));
+      } catch {
+        return false;
+      }
     },
     'events: response < 500ms': (r) => r.timings.duration < 500,
   });
@@ -144,7 +148,11 @@ export default function main(data) {
   check(csrfRes, {
     'csrf: status 200': (r) => r.status === 200,
     'csrf: has token': (r) => {
-      try { return Boolean(JSON.parse(r.body).csrfToken); } catch { return false; }
+      try {
+        return Boolean(JSON.parse(r.body).csrfToken);
+      } catch {
+        return false;
+      }
     },
   });
   trackRequest(csrfRes, 'csrf');
@@ -155,10 +163,6 @@ export default function main(data) {
 // ── Teardown ─────────────────────────────────────────────────────────────────
 export function teardown(data) {
   if (data.token) {
-    http.post(
-      `${BASE_URL}/api/auth/logout`,
-      null,
-      { headers: authHeaders(data.token) },
-    );
+    http.post(`${BASE_URL}/api/auth/logout`, null, { headers: authHeaders(data.token) });
   }
 }

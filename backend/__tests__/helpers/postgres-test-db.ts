@@ -128,9 +128,8 @@ async function ensureDatabaseExists(connectionString: string): Promise<void> {
 }
 
 export async function createPostgresTestDatabase(schemaSql: string): Promise<TestDatabase> {
-  const connectionString = process.env.TEST_DATABASE_URL
-    ?? process.env.DATABASE_URL
-    ?? resolveTestDatabaseUrl();
+  const connectionString =
+    process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? resolveTestDatabaseUrl();
 
   await ensureDatabaseExists(connectionString);
 

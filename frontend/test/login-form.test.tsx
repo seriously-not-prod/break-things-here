@@ -16,7 +16,8 @@ import { LoginForm } from '../src/components/login-form/login-form';
 import { api } from '../src/lib/api-client';
 
 vi.mock('../src/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../src/lib/api-client')>('../src/lib/api-client');
+  const actual =
+    await vi.importActual<typeof import('../src/lib/api-client')>('../src/lib/api-client');
   return {
     ...actual,
     api: {

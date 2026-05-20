@@ -22,16 +22,16 @@ entry:
 
 ## Allowlisted Violations
 
-| Rule ID | Description | Impact | Pages Affected | Follow-up Issue |
-|---------|-------------|--------|----------------|-----------------|
-| `color-contrast` | Elements must meet minimum colour contrast ratio requirements | serious | /login, /events | To be filed |
-| `landmark-one-main` | Page must have one main landmark | serious | /rsvp | To be filed |
+| Rule ID             | Description                                                   | Impact  | Pages Affected  | Follow-up Issue |
+| ------------------- | ------------------------------------------------------------- | ------- | --------------- | --------------- |
+| `color-contrast`    | Elements must meet minimum colour contrast ratio requirements | serious | /login, /events | To be filed     |
+| `landmark-one-main` | Page must have one main landmark                              | serious | /rsvp           | To be filed     |
 
 ## Graduated (Fixed) Entries
 
-| Rule ID | Fixed In | Date |
-|---------|----------|------|
-| *(none yet)* | — | — |
+| Rule ID      | Fixed In | Date |
+| ------------ | -------- | ---- |
+| _(none yet)_ | —        | —    |
 
 ## References
 

@@ -5,19 +5,19 @@
 
 ## NFR Targets
 
-| Metric | Target | Source |
-|--------|--------|--------|
-| p95 response time | < 500 ms | NFR §5.1 |
+| Metric            | Target    | Source   |
+| ----------------- | --------- | -------- |
+| p95 response time | < 500 ms  | NFR §5.1 |
 | p99 response time | < 2000 ms | NFR §5.1 |
-| Concurrent users | 100+ | NFR §5.1 |
-| Error rate | < 1% | NFR §5.1 |
+| Concurrent users  | 100+      | NFR §5.1 |
+| Error rate        | < 1%      | NFR §5.1 |
 
 ## Test Configuration
 
-| Variant | VUs | Duration | Trigger |
-|---------|-----|----------|---------|
-| Smoke | 10 | 30 s | Every PR |
-| Full | 100 | 5 min | Nightly (02:00 UTC) |
+| Variant | VUs | Duration | Trigger             |
+| ------- | --- | -------- | ------------------- |
+| Smoke   | 10  | 30 s     | Every PR            |
+| Full    | 100 | 5 min    | Nightly (02:00 UTC) |
 
 ## Baseline Numbers (Initial)
 
@@ -25,16 +25,16 @@
 > **Environment**: CI (ubuntu-latest, Postgres 16, Node.js 20)
 > **Commit**: Initial baseline — to be updated after first nightly run
 
-| Scenario | p50 | p90 | p95 | p99 | Error Rate |
-|----------|-----|-----|-----|-----|------------|
-| Login | — | — | — | — | — |
-| Dashboard (health) | — | — | — | — | — |
-| Dashboard (events) | — | — | — | — | — |
-| Dashboard (profile) | — | — | — | — | — |
-| RSVP submission | — | — | — | — | — |
-| Event create | — | — | — | — | — |
-| Guest import | — | — | — | — | — |
-| **Combined (full-run)** | — | — | — | — | — |
+| Scenario                | p50 | p90 | p95 | p99 | Error Rate |
+| ----------------------- | --- | --- | --- | --- | ---------- |
+| Login                   | —   | —   | —   | —   | —          |
+| Dashboard (health)      | —   | —   | —   | —   | —          |
+| Dashboard (events)      | —   | —   | —   | —   | —          |
+| Dashboard (profile)     | —   | —   | —   | —   | —          |
+| RSVP submission         | —   | —   | —   | —   | —          |
+| Event create            | —   | —   | —   | —   | —          |
+| Guest import            | —   | —   | —   | —   | —          |
+| **Combined (full-run)** | —   | —   | —   | —   | —          |
 
 ## Thresholds
 

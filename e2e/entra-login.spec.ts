@@ -21,7 +21,10 @@ async function stubEntraConfig(
 }
 
 test.describe('Login form — Entra modes (#781)', () => {
-  test('entra-only mode hides password field and offers only Microsoft sign-in', async ({ page, context }) => {
+  test('entra-only mode hides password field and offers only Microsoft sign-in', async ({
+    page,
+    context,
+  }) => {
     await stubEntraConfig(context, { enabled: true, allowLocalFallback: false });
 
     await page.goto('/login');
@@ -33,7 +36,10 @@ test.describe('Login form — Entra modes (#781)', () => {
     await expect(page.getByTestId('local-fallback-disclosure')).toHaveCount(0);
   });
 
-  test('entra + fallback reveals local form only after disclosure click', async ({ page, context }) => {
+  test('entra + fallback reveals local form only after disclosure click', async ({
+    page,
+    context,
+  }) => {
     await stubEntraConfig(context, { enabled: true, allowLocalFallback: true });
 
     await page.goto('/login');

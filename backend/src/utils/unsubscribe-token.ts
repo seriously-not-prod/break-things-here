@@ -21,10 +21,7 @@ function newToken(): string {
 /**
  * Returns the guest's unsubscribe token, creating one if needed. Idempotent.
  */
-export async function ensureUnsubscribeToken(
-  db: DatabaseAdapter,
-  rsvpId: number,
-): Promise<string> {
+export async function ensureUnsubscribeToken(db: DatabaseAdapter, rsvpId: number): Promise<string> {
   const row = await db.get<{ unsubscribe_token: string | null }>(
     'SELECT unsubscribe_token FROM rsvps WHERE id = $1',
     [rsvpId],

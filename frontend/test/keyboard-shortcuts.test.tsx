@@ -17,11 +17,7 @@ function fireKey(key: string): void {
   fireEvent.keyDown(document, { key });
 }
 
-function renderOverlay(
-  open: boolean,
-  shortcuts: ShortcutDefinition[],
-  onClose = vi.fn(),
-) {
+function renderOverlay(open: boolean, shortcuts: ShortcutDefinition[], onClose = vi.fn()) {
   return render(
     <ThemeProvider theme={createTheme()}>
       <KeyboardShortcutsOverlay open={open} onClose={onClose} shortcuts={shortcuts} />
@@ -414,12 +410,8 @@ describe('KeyboardShortcutsOverlay', () => {
 
     it('has accessible dialog title and description', () => {
       renderOverlay(true, sampleShortcuts);
-      expect(
-        document.getElementById('keyboard-shortcuts-dialog-title'),
-      ).toBeTruthy();
-      expect(
-        document.getElementById('keyboard-shortcuts-dialog-desc'),
-      ).toBeTruthy();
+      expect(document.getElementById('keyboard-shortcuts-dialog-title')).toBeTruthy();
+      expect(document.getElementById('keyboard-shortcuts-dialog-desc')).toBeTruthy();
     });
 
     it('shows empty state when no shortcuts are registered', () => {

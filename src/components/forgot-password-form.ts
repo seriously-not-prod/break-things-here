@@ -20,7 +20,7 @@ export interface ForgotPasswordFormResult {
 
 /** Generic success message — identical regardless of email existence (prevents enumeration) */
 export const GENERIC_SUCCESS_MESSAGE =
-  "If an account exists with that email, a reset link has been sent.";
+  'If an account exists with that email, a reset link has been sent.';
 
 /** ARIA labels for all interactive elements */
 export const ARIA_LABELS = {
@@ -79,7 +79,7 @@ export function validateEmail(email: string): string | null {
  */
 export async function submitForgotPasswordRequest(
   email: string,
-  onRequest: (email: string) => Promise<void>
+  onRequest: (email: string) => Promise<void>,
 ): Promise<ForgotPasswordFormResult> {
   const validationError = validateEmail(email);
   if (validationError) {

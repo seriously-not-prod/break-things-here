@@ -26,8 +26,14 @@ function makeRes() {
   const res = {
     statusCode: 200,
     body: null as unknown,
-    status(code: number) { this.statusCode = code; return this; },
-    json(data: unknown) { this.body = data; return this; },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data: unknown) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -49,7 +55,10 @@ beforeEach(() => {
 describe('getAllEvents advanced search', () => {
   it('title_q produces an ILIKE constraint with surrounding wildcards', async () => {
     mockDb.all.mockResolvedValueOnce([]);
-    await getAllEvents(makeReq({ title_q: 'jazz' }), makeRes() as unknown as import('express').Response);
+    await getAllEvents(
+      makeReq({ title_q: 'jazz' }),
+      makeRes() as unknown as import('express').Response,
+    );
     const sql = mockDb.all.mock.calls[0][0] as string;
     const params = mockDb.all.mock.calls[0][1] as unknown[];
     expect(sql.toLowerCase()).toContain('e.title ilike');
@@ -58,7 +67,10 @@ describe('getAllEvents advanced search', () => {
 
   it('location_q filter is appended with wildcards', async () => {
     mockDb.all.mockResolvedValueOnce([]);
-    await getAllEvents(makeReq({ location_q: 'park' }), makeRes() as unknown as import('express').Response);
+    await getAllEvents(
+      makeReq({ location_q: 'park' }),
+      makeRes() as unknown as import('express').Response,
+    );
     const sql = mockDb.all.mock.calls[0][0] as string;
     const params = mockDb.all.mock.calls[0][1] as unknown[];
     expect(sql.toLowerCase()).toContain('e.location ilike');
@@ -80,14 +92,20 @@ describe('getAllEvents advanced search', () => {
 
   it('capacity_min only adds bound when value is numeric', async () => {
     mockDb.all.mockResolvedValueOnce([]);
-    await getAllEvents(makeReq({ capacity_min: '50' }), makeRes() as unknown as import('express').Response);
+    await getAllEvents(
+      makeReq({ capacity_min: '50' }),
+      makeRes() as unknown as import('express').Response,
+    );
     let sql = mockDb.all.mock.calls[0][0] as string;
     let params = mockDb.all.mock.calls[0][1] as unknown[];
     expect(sql).toContain('e.capacity >= ?');
     expect(params).toContain(50);
 
     mockDb.all.mockResolvedValueOnce([]);
-    await getAllEvents(makeReq({ capacity_min: 'not-a-number' }), makeRes() as unknown as import('express').Response);
+    await getAllEvents(
+      makeReq({ capacity_min: 'not-a-number' }),
+      makeRes() as unknown as import('express').Response,
+    );
     sql = mockDb.all.mock.calls[1][0] as string;
     params = mockDb.all.mock.calls[1][1] as unknown[];
     expect(sql).not.toContain('e.capacity >= ?');
@@ -95,7 +113,10 @@ describe('getAllEvents advanced search', () => {
 
   it('event_type filters exactly', async () => {
     mockDb.all.mockResolvedValueOnce([]);
-    await getAllEvents(makeReq({ event_type: 'Concert' }), makeRes() as unknown as import('express').Response);
+    await getAllEvents(
+      makeReq({ event_type: 'Concert' }),
+      makeRes() as unknown as import('express').Response,
+    );
     const sql = mockDb.all.mock.calls[0][0] as string;
     const params = mockDb.all.mock.calls[0][1] as unknown[];
     expect(sql).toContain('e.event_type = ?');
@@ -104,14 +125,20 @@ describe('getAllEvents advanced search', () => {
 
   it('has_waitlist=true narrows to waitlist_enabled events', async () => {
     mockDb.all.mockResolvedValueOnce([]);
-    await getAllEvents(makeReq({ has_waitlist: 'true' }), makeRes() as unknown as import('express').Response);
+    await getAllEvents(
+      makeReq({ has_waitlist: 'true' }),
+      makeRes() as unknown as import('express').Response,
+    );
     const sql = mockDb.all.mock.calls[0][0] as string;
     expect(sql).toContain('e.waitlist_enabled = TRUE');
   });
 
   it('has_waitlist=false narrows to non-waitlist events', async () => {
     mockDb.all.mockResolvedValueOnce([]);
-    await getAllEvents(makeReq({ has_waitlist: 'false' }), makeRes() as unknown as import('express').Response);
+    await getAllEvents(
+      makeReq({ has_waitlist: 'false' }),
+      makeRes() as unknown as import('express').Response,
+    );
     const sql = mockDb.all.mock.calls[0][0] as string;
     expect(sql).toContain('COALESCE(e.waitlist_enabled, FALSE) = FALSE');
   });

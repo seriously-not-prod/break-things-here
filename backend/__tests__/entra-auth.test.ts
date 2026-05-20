@@ -72,11 +72,26 @@ function makeRes() {
     statusCode: 200,
     body: null as unknown,
     cookies: {} as Record<string, unknown>,
-    status(code: number) { this.statusCode = code; return this; },
-    json(data: unknown) { this.body = data; return this; },
-    cookie(name: string, val: string) { this.cookies[name] = val; return this; },
-    clearCookie(name: string) { delete this.cookies[name]; return this; },
-    redirect(url: string) { this.body = { redirect: url }; return this; },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data: unknown) {
+      this.body = data;
+      return this;
+    },
+    cookie(name: string, val: string) {
+      this.cookies[name] = val;
+      return this;
+    },
+    clearCookie(name: string) {
+      delete this.cookies[name];
+      return this;
+    },
+    redirect(url: string) {
+      this.body = { redirect: url };
+      return this;
+    },
   };
   return res;
 }
@@ -172,7 +187,9 @@ describe('GET /api/auth/entra/config', () => {
     const { getEntraStatus } = await import('../src/controllers/entra-auth-controller.js');
     const res = makeRes();
     getEntraStatus({} as import('express').Request, res as unknown as import('express').Response);
-    expect((res.body as { enabled: boolean; allowLocalFallback: boolean }).allowLocalFallback).toBe(false);
+    expect((res.body as { enabled: boolean; allowLocalFallback: boolean }).allowLocalFallback).toBe(
+      false,
+    );
     delete process.env.ENTRA_AUTH_ENABLED;
   });
 
@@ -182,7 +199,9 @@ describe('GET /api/auth/entra/config', () => {
     const { getEntraStatus } = await import('../src/controllers/entra-auth-controller.js');
     const res = makeRes();
     getEntraStatus({} as import('express').Request, res as unknown as import('express').Response);
-    expect((res.body as { enabled: boolean; allowLocalFallback: boolean }).allowLocalFallback).toBe(true);
+    expect((res.body as { enabled: boolean; allowLocalFallback: boolean }).allowLocalFallback).toBe(
+      true,
+    );
     delete process.env.ENTRA_AUTH_ENABLED;
     delete process.env.ENTRA_ALLOW_LOCAL_FALLBACK;
   });
@@ -193,7 +212,9 @@ describe('GET /api/auth/entra/config', () => {
     const { getEntraStatus } = await import('../src/controllers/entra-auth-controller.js');
     const res = makeRes();
     getEntraStatus({} as import('express').Request, res as unknown as import('express').Response);
-    expect((res.body as { enabled: boolean; allowLocalFallback: boolean }).allowLocalFallback).toBe(true);
+    expect((res.body as { enabled: boolean; allowLocalFallback: boolean }).allowLocalFallback).toBe(
+      true,
+    );
     delete process.env.ENTRA_ALLOW_LOCAL_FALLBACK;
   });
 });
@@ -425,7 +446,7 @@ describe('POST /api/auth/entra/callback — MFA enforcement (#568)', () => {
         iss: 'https://login.microsoftonline.com/test-tenant/v2.0',
         exp: Math.floor(Date.now() / 1000) + 3600,
         iat: Math.floor(Date.now() / 1000),
-        amr: ['pwd'],   // password only — no MFA
+        amr: ['pwd'], // password only — no MFA
       }),
     }));
 
@@ -472,7 +493,7 @@ describe('POST /api/auth/entra/callback — MFA enforcement (#568)', () => {
         iss: 'https://login.microsoftonline.com/test-tenant/v2.0',
         exp: Math.floor(Date.now() / 1000) + 3600,
         iat: Math.floor(Date.now() / 1000),
-        amr: ['mfa', 'pwd'],   // MFA completed
+        amr: ['mfa', 'pwd'], // MFA completed
       }),
     }));
 
@@ -497,7 +518,7 @@ describe('POST /api/auth/entra/callback — MFA enforcement (#568)', () => {
         iss: 'https://login.microsoftonline.com/test-tenant/v2.0',
         exp: Math.floor(Date.now() / 1000) + 3600,
         iat: Math.floor(Date.now() / 1000),
-        amr: ['pwd'],   // no MFA — should still succeed
+        amr: ['pwd'], // no MFA — should still succeed
       }),
     }));
 

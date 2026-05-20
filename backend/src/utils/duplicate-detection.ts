@@ -50,7 +50,10 @@ export function emailDomain(email: string | null | undefined): string | null {
   if (!email) return null;
   const at = email.lastIndexOf('@');
   if (at < 0) return null;
-  return email.slice(at + 1).toLowerCase().trim();
+  return email
+    .slice(at + 1)
+    .toLowerCase()
+    .trim();
 }
 
 function chooseRecommendedPrimary(rows: DuplicateCandidateRow[]): number {
@@ -63,9 +66,7 @@ function chooseRecommendedPrimary(rows: DuplicateCandidateRow[]): number {
   return sorted[0].id;
 }
 
-export function detectDuplicateClusters(
-  rsvps: DuplicateCandidateRow[],
-): DuplicateCluster[] {
+export function detectDuplicateClusters(rsvps: DuplicateCandidateRow[]): DuplicateCluster[] {
   const byPhone = new Map<string, DuplicateCandidateRow[]>();
   const byNameDomain = new Map<string, DuplicateCandidateRow[]>();
   const byNormName = new Map<string, DuplicateCandidateRow[]>();

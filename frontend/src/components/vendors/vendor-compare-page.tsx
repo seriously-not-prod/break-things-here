@@ -80,14 +80,25 @@ export default function VendorComparePage({ eventId }: Props): JSX.Element {
 
   const fmt = (n: number | null): string =>
     n != null
-      ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
+      ? new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          maximumFractionDigits: 0,
+        }).format(n)
       : '—';
 
   /** Returns the id(s) of the best vendor(s) for a given numeric metric. */
-  const bestIds = (getter: (v: VendorCompare) => number | null, lowerIsBetter = false): Set<number> => {
-    const vals = compared.map((v) => ({ id: v.id, val: getter(v) })).filter((x) => x.val != null) as { id: number; val: number }[];
+  const bestIds = (
+    getter: (v: VendorCompare) => number | null,
+    lowerIsBetter = false,
+  ): Set<number> => {
+    const vals = compared
+      .map((v) => ({ id: v.id, val: getter(v) }))
+      .filter((x) => x.val != null) as { id: number; val: number }[];
     if (vals.length === 0) return new Set();
-    const best = lowerIsBetter ? Math.min(...vals.map((x) => x.val)) : Math.max(...vals.map((x) => x.val));
+    const best = lowerIsBetter
+      ? Math.min(...vals.map((x) => x.val))
+      : Math.max(...vals.map((x) => x.val));
     return new Set(vals.filter((x) => x.val === best).map((x) => x.id));
   };
 
@@ -98,12 +109,18 @@ export default function VendorComparePage({ eventId }: Props): JSX.Element {
 
   return (
     <Box>
-      <Typography variant="h6" mb={1}>Compare Vendors</Typography>
+      <Typography variant="h6" mb={1}>
+        Compare Vendors
+      </Typography>
       <Typography variant="body2" color="text.secondary" mb={2}>
         Select 2–5 vendors to compare side by side.
       </Typography>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
 
       {/* Vendor selection */}
       <Stack direction="row" flexWrap="wrap" gap={1} mb={2}>
@@ -146,7 +163,11 @@ export default function VendorComparePage({ eventId }: Props): JSX.Element {
             <TableBody>
               <TableRow>
                 <TableCell>Category</TableCell>
-                {compared.map((v) => <TableCell key={v.id} align="center">{v.category}</TableCell>)}
+                {compared.map((v) => (
+                  <TableCell key={v.id} align="center">
+                    {v.category}
+                  </TableCell>
+                ))}
               </TableRow>
               <TableRow>
                 <TableCell>Status</TableCell>
@@ -157,25 +178,33 @@ export default function VendorComparePage({ eventId }: Props): JSX.Element {
                 ))}
               </TableRow>
               {/* Lowest quoted amount highlighted */}
-              {(() => { const best = bestIds((v) => v.quoted_amount, true); return (
-              <TableRow>
-                <TableCell>Quoted Amount</TableCell>
-                {compared.map((v) => (
-                  <TableCell key={v.id} align="center" sx={bestBg(best, v.id)}>{fmt(v.quoted_amount)}</TableCell>
-                ))}
-              </TableRow>
-              ); })()}
+              {(() => {
+                const best = bestIds((v) => v.quoted_amount, true);
+                return (
+                  <TableRow>
+                    <TableCell>Quoted Amount</TableCell>
+                    {compared.map((v) => (
+                      <TableCell key={v.id} align="center" sx={bestBg(best, v.id)}>
+                        {fmt(v.quoted_amount)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+              })()}
               {/* Highest rating highlighted */}
-              {(() => { const best = bestIds((v) => v.rating); return (
-              <TableRow>
-                <TableCell>Rating</TableCell>
-                {compared.map((v) => (
-                  <TableCell key={v.id} align="center" sx={bestBg(best, v.id)}>
-                    {v.rating ? <Rating value={v.rating} readOnly size="small" /> : '—'}
-                  </TableCell>
-                ))}
-              </TableRow>
-              ); })()}
+              {(() => {
+                const best = bestIds((v) => v.rating);
+                return (
+                  <TableRow>
+                    <TableCell>Rating</TableCell>
+                    {compared.map((v) => (
+                      <TableCell key={v.id} align="center" sx={bestBg(best, v.id)}>
+                        {v.rating ? <Rating value={v.rating} readOnly size="small" /> : '—'}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+              })()}
               <TableRow>
                 <TableCell>Contract on File</TableCell>
                 {compared.map((v) => (
@@ -189,21 +218,24 @@ export default function VendorComparePage({ eventId }: Props): JSX.Element {
                 ))}
               </TableRow>
               {/* Most communications highlighted */}
-              {(() => { const best = bestIds((v) => v.communication_count); return (
-              <TableRow>
-                <TableCell>Communications</TableCell>
-                {compared.map((v) => (
-                  <TableCell key={v.id} align="center" sx={bestBg(best, v.id)}>{v.communication_count}</TableCell>
-                ))}
-              </TableRow>
-              ); })()}
+              {(() => {
+                const best = bestIds((v) => v.communication_count);
+                return (
+                  <TableRow>
+                    <TableCell>Communications</TableCell>
+                    {compared.map((v) => (
+                      <TableCell key={v.id} align="center" sx={bestBg(best, v.id)}>
+                        {v.communication_count}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+              })()}
               <TableRow>
                 <TableCell>Last Contact</TableCell>
                 {compared.map((v) => (
                   <TableCell key={v.id} align="center">
-                    {v.last_contact_at
-                      ? new Date(v.last_contact_at).toLocaleDateString()
-                      : '—'}
+                    {v.last_contact_at ? new Date(v.last_contact_at).toLocaleDateString() : '—'}
                   </TableCell>
                 ))}
               </TableRow>

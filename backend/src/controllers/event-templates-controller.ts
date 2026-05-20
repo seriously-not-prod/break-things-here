@@ -29,7 +29,14 @@ export interface EventTemplateRow {
   updated_at: string;
 }
 
-const VALID_STATUSES = ['Draft', 'Planning', 'Confirmed', 'Active', 'Completed', 'Cancelled'] as const;
+const VALID_STATUSES = [
+  'Draft',
+  'Planning',
+  'Confirmed',
+  'Active',
+  'Completed',
+  'Cancelled',
+] as const;
 const VALID_TEMPLATE_SECTIONS = [
   'tasks',
   'budget',
@@ -120,7 +127,10 @@ export async function createTemplate(req: Request, res: Response): Promise<void>
       res.status(400).json({ error: 'Template name is required' });
       return;
     }
-    if (body.default_status && !VALID_STATUSES.includes(body.default_status as typeof VALID_STATUSES[number])) {
+    if (
+      body.default_status &&
+      !VALID_STATUSES.includes(body.default_status as (typeof VALID_STATUSES)[number])
+    ) {
       res.status(400).json({ error: 'Invalid default_status. Must be Draft, Active or Completed' });
       return;
     }
@@ -147,10 +157,9 @@ export async function createTemplate(req: Request, res: Response): Promise<void>
         user.id,
       ],
     );
-    const created = await db.get<EventTemplateRow>(
-      'SELECT * FROM event_templates WHERE id = $1',
-      [result.lastID],
-    );
+    const created = await db.get<EventTemplateRow>('SELECT * FROM event_templates WHERE id = $1', [
+      result.lastID,
+    ]);
     res.status(201).json(created);
   } catch (error) {
     console.error('Error creating template:', error);
@@ -186,7 +195,10 @@ export async function updateTemplate(req: Request, res: Response): Promise<void>
     }
 
     const body = (req.body ?? {}) as Partial<EventTemplateRow>;
-    if (body.default_status && !VALID_STATUSES.includes(body.default_status as typeof VALID_STATUSES[number])) {
+    if (
+      body.default_status &&
+      !VALID_STATUSES.includes(body.default_status as (typeof VALID_STATUSES)[number])
+    ) {
       res.status(400).json({ error: 'Invalid default_status. Must be Draft, Active or Completed' });
       return;
     }
@@ -211,7 +223,9 @@ export async function updateTemplate(req: Request, res: Response): Promise<void>
         body.default_title !== undefined ? body.default_title : existing.default_title,
         body.default_location !== undefined ? body.default_location : existing.default_location,
         body.default_capacity !== undefined ? body.default_capacity : existing.default_capacity,
-        body.default_event_type !== undefined ? body.default_event_type : existing.default_event_type,
+        body.default_event_type !== undefined
+          ? body.default_event_type
+          : existing.default_event_type,
         body.default_status ?? existing.default_status,
         body.default_tags !== undefined ? body.default_tags : existing.default_tags,
         body.default_is_public !== undefined ? body.default_is_public : existing.default_is_public,
@@ -221,10 +235,9 @@ export async function updateTemplate(req: Request, res: Response): Promise<void>
         req.params['id'],
       ],
     );
-    const updated = await db.get<EventTemplateRow>(
-      'SELECT * FROM event_templates WHERE id = $1',
-      [req.params['id']],
-    );
+    const updated = await db.get<EventTemplateRow>('SELECT * FROM event_templates WHERE id = $1', [
+      req.params['id'],
+    ]);
     res.json(updated);
   } catch (error) {
     console.error('Error updating template:', error);
@@ -258,10 +271,9 @@ export async function deleteTemplate(req: Request, res: Response): Promise<void>
       res.status(403).json({ error: 'Not authorised to delete this template.' });
       return;
     }
-    await db.run(
-      'UPDATE event_templates SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1',
-      [req.params['id']],
-    );
+    await db.run('UPDATE event_templates SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [
+      req.params['id'],
+    ]);
     res.json({ message: 'Template deleted' });
   } catch (error) {
     console.error('Error deleting template:', error);
@@ -328,7 +340,7 @@ export async function applyTemplate(req: Request, res: Response): Promise<void> 
       return;
     }
     const status = overrides.status ?? template.default_status ?? 'Draft';
-    if (!VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
+    if (!VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
       res.status(400).json({
         error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`,
       });
@@ -359,10 +371,9 @@ export async function applyTemplate(req: Request, res: Response): Promise<void> 
     // Template depth (#579) — replay section payloads into the new event.
     await applyTemplateSections(db, Number(template.id), Number(result.lastID), user.id);
 
-    const created = await db.get(
-      'SELECT *, date AS event_date FROM events WHERE id = $1',
-      [result.lastID],
-    );
+    const created = await db.get('SELECT *, date AS event_date FROM events WHERE id = $1', [
+      result.lastID,
+    ]);
     await db.run(
       'INSERT INTO audit_log (user_id, email, action, description, ip_address) VALUES ($1, $2, $3, $4, $5)',
       [
@@ -577,7 +588,11 @@ async function applyTemplateSections(
         await db.run(
           `INSERT INTO budget_categories (event_id, name, allocated_amount)
            VALUES ($1, $2, $3)`,
-          [eventId, String(cat['name'] ?? 'Category').slice(0, 100), Number(cat['allocated_amount'] ?? 0)],
+          [
+            eventId,
+            String(cat['name'] ?? 'Category').slice(0, 100),
+            Number(cat['allocated_amount'] ?? 0),
+          ],
         );
       }
     } else if (section.section_key === 'custom_fields' && Array.isArray(payload['fields'])) {

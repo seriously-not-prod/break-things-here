@@ -75,7 +75,7 @@ describe('#603 Task multi-assignee', () => {
   it('addTaskAssignee returns 400 when user is not an event member', async () => {
     mockDb.get
       .mockResolvedValueOnce({ id: 1 }) // task exists
-      .mockResolvedValueOnce(null);     // not a member
+      .mockResolvedValueOnce(null); // not a member
     const req = makeReq({ params: { eventId: '1', taskId: '1' }, body: { user_id: 5 } });
     const res = makeRes();
     await taskMultiAssignee.addTaskAssignee(req, res);
@@ -95,8 +95,9 @@ describe('#604 Task status lifecycle', () => {
   it('updateTaskStatus allows Cancelled status', async () => {
     mockDb.get.mockResolvedValue({ id: 1, status: 'In Progress', version: 1, title: 'Task A' });
     mockDb.run.mockResolvedValue({});
-    mockDb.get.mockResolvedValueOnce({ id: 1, status: 'In Progress', version: 1, title: 'Task A' })
-              .mockResolvedValueOnce({ id: 1, status: 'Cancelled', version: 2, title: 'Task A' });
+    mockDb.get
+      .mockResolvedValueOnce({ id: 1, status: 'In Progress', version: 1, title: 'Task A' })
+      .mockResolvedValueOnce({ id: 1, status: 'Cancelled', version: 2, title: 'Task A' });
     const req = makeReq({
       params: { eventId: '1', taskId: '1' },
       body: { status: 'Cancelled', cancelled_reason: 'No longer needed' },
@@ -154,14 +155,23 @@ describe('#606 My tasks and capacity planning', () => {
   });
 
   it('getCapacityPlanning returns capacity object', async () => {
-    mockDb.all.mockResolvedValue([{
-      total_tasks: 5, pending: 2, in_progress: 1, blocked: 0,
-      in_verification: 1, overdue: 1, total_estimated_hours: 8,
-    }]);
+    mockDb.all.mockResolvedValue([
+      {
+        total_tasks: 5,
+        pending: 2,
+        in_progress: 1,
+        blocked: 0,
+        in_verification: 1,
+        overdue: 1,
+        total_estimated_hours: 8,
+      },
+    ]);
     const req = makeReq();
     const res = makeRes();
     await taskMultiAssignee.getCapacityPlanning(req, res);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ capacity: expect.any(Object) }));
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ capacity: expect.any(Object) }),
+    );
   });
 });
 
@@ -226,14 +236,20 @@ describe('#623 Notification preferences', () => {
   it('listNotificationPreferences returns 401 without user', async () => {
     const req = makeReq({ user: undefined });
     const res = makeRes();
-    await notificationsCtrl.listNotificationPreferences(req as unknown as import('express').Request & { user?: unknown }, res);
+    await notificationsCtrl.listNotificationPreferences(
+      req as unknown as import('express').Request & { user?: unknown },
+      res,
+    );
     expect(res.status).toHaveBeenCalledWith(401);
   });
 
   it('upsertNotificationPreference rejects invalid type', async () => {
     const req = makeReq({ params: { type: 'invalid_type' }, body: {} });
     const res = makeRes();
-    await notificationsCtrl.upsertNotificationPreference(req as unknown as import('express').Request & { user?: unknown }, res);
+    await notificationsCtrl.upsertNotificationPreference(
+      req as unknown as import('express').Request & { user?: unknown },
+      res,
+    );
     expect(res.status).toHaveBeenCalledWith(400);
   });
 });
@@ -243,7 +259,10 @@ describe('#624 Notification batching', () => {
   it('createBatchedNotification returns false when preference is disabled', async () => {
     mockDb.get.mockResolvedValue({ in_app_enabled: false });
     const result = await notificationsCtrl.createBatchedNotification(
-      1, 'task_due', 'Title', 'Body',
+      1,
+      'task_due',
+      'Title',
+      'Body',
     );
     expect(result).toBe(false);
   });
@@ -254,7 +273,12 @@ describe('#624 Notification batching', () => {
       .mockResolvedValueOnce({ batch_window_mins: 60, max_per_window: 3 })
       .mockResolvedValueOnce({ cnt: 3 }); // at limit
     const result = await notificationsCtrl.createBatchedNotification(
-      1, 'task_due', 'Title', 'Body', undefined, 'task_due:1',
+      1,
+      'task_due',
+      'Title',
+      'Body',
+      undefined,
+      'task_due:1',
     );
     expect(result).toBe(false);
   });
@@ -271,7 +295,9 @@ describe('#626 Presence indicators', () => {
 
   it('heartbeatPresence records presence for valid entity', async () => {
     mockDb.run.mockResolvedValue({});
-    mockDb.all.mockResolvedValue([{ user_id: 1, display_name: 'Alice', started_at: '', last_seen_at: '' }]);
+    mockDb.all.mockResolvedValue([
+      { user_id: 1, display_name: 'Alice', started_at: '', last_seen_at: '' },
+    ]);
     const req = makeReq({ body: { entity_type: 'task', entity_id: 5 } });
     const res = makeRes();
     await collaborationCtrl.heartbeatPresence(req, res);
@@ -290,7 +316,14 @@ describe('#628 Event chat', () => {
 
   it('postChatMessage creates a message', async () => {
     mockDb.run.mockResolvedValue({ lastID: 1 });
-    mockDb.get.mockResolvedValue({ id: 1, body: 'Hello', author_name: 'Alice', event_id: 1, user_id: 1, created_at: '' });
+    mockDb.get.mockResolvedValue({
+      id: 1,
+      body: 'Hello',
+      author_name: 'Alice',
+      event_id: 1,
+      user_id: 1,
+      created_at: '',
+    });
     const req = makeReq({ params: { eventId: '1' }, body: { body: 'Hello team!' } });
     const res = makeRes();
     await chatCtrl.postChatMessage(req, res);
@@ -314,7 +347,10 @@ describe('#628 Event chat', () => {
 describe('#629 Version history and rollback', () => {
   it('listEntityVersions returns versions list', async () => {
     mockDb.all.mockResolvedValue([{ id: 1, version: 1, changed_by_name: 'Alice' }]);
-    const req = makeReq({ params: { eventId: '1', entityId: '5' }, query: { entity_type: 'task' } });
+    const req = makeReq({
+      params: { eventId: '1', entityId: '5' },
+      query: { entity_type: 'task' },
+    });
     const res = makeRes();
     await versionsCtrl.listEntityVersions(req, res);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ versions: expect.any(Array) }));

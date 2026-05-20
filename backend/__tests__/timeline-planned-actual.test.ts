@@ -99,9 +99,18 @@ function makeRes() {
   } = {
     statusCode: 200,
     body: null,
-    status(code) { this.statusCode = code; return this; },
-    json(data) { this.body = data; return this; },
-    send(data) { this.body = data; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
+    send(data) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -195,24 +204,24 @@ describe('Timeline planned-vs-actual workflow — #460', () => {
     await deleteActivity(req, res as unknown as import('express').Response);
 
     expect(res.statusCode).toBe(204);
-    const row = await testDb.get(
-      'SELECT id FROM timeline_activities WHERE id = ?',
-      [actId],
-    );
+    const row = await testDb.get('SELECT id FROM timeline_activities WHERE id = ?', [actId]);
     expect(row).toBeUndefined();
   });
 
   // ── Planned/actual time capture ────────────────────────────────────────────
 
   it('creates an activity with planned and actual times', async () => {
-    const req = makeReq({ eventId: String(eventId) }, {
-      title: 'Doors Open',
-      planned_start_time: '2026-08-01T18:00:00Z',
-      planned_end_time: '2026-08-01T18:30:00Z',
-      actual_start_time: '2026-08-01T18:05:00Z',
-      actual_end_time: '2026-08-01T18:35:00Z',
-      status: 'completed',
-    });
+    const req = makeReq(
+      { eventId: String(eventId) },
+      {
+        title: 'Doors Open',
+        planned_start_time: '2026-08-01T18:00:00Z',
+        planned_end_time: '2026-08-01T18:30:00Z',
+        actual_start_time: '2026-08-01T18:05:00Z',
+        actual_end_time: '2026-08-01T18:35:00Z',
+        status: 'completed',
+      },
+    );
     const res = makeRes();
     await createActivity(req, res as unknown as import('express').Response);
 
@@ -231,11 +240,14 @@ describe('Timeline planned-vs-actual workflow — #460', () => {
     );
     const actId = r.lastID as number;
 
-    const req = makeReq({ eventId: String(eventId), id: String(actId) }, {
-      planned_start_time: '2026-08-01T14:00:00Z',
-      planned_end_time: '2026-08-01T16:00:00Z',
-      status: 'in-progress',
-    });
+    const req = makeReq(
+      { eventId: String(eventId), id: String(actId) },
+      {
+        planned_start_time: '2026-08-01T14:00:00Z',
+        planned_end_time: '2026-08-01T16:00:00Z',
+        status: 'in-progress',
+      },
+    );
     const res = makeRes();
     await updateActivity(req, res as unknown as import('express').Response);
 
@@ -253,9 +265,12 @@ describe('Timeline planned-vs-actual workflow — #460', () => {
     );
     const actId = r.lastID as number;
 
-    const req = makeReq({ eventId: String(eventId), id: String(actId) }, {
-      status: 'invalid-value',
-    });
+    const req = makeReq(
+      { eventId: String(eventId), id: String(actId) },
+      {
+        status: 'invalid-value',
+      },
+    );
     const res = makeRes();
     await updateActivity(req, res as unknown as import('express').Response);
 
@@ -353,7 +368,13 @@ describe('Timeline planned-vs-actual workflow — #460', () => {
     await getTimelineComparison(req, res as unknown as import('express').Response);
 
     const body = res.body as {
-      summary: { total: number; planned: number; in_progress: number; completed: number; skipped: number };
+      summary: {
+        total: number;
+        planned: number;
+        in_progress: number;
+        completed: number;
+        skipped: number;
+      };
     };
     expect(body.summary.total).toBe(4);
     expect(body.summary.planned).toBe(1);

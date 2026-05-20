@@ -52,30 +52,18 @@ export const EventoraTopbar: FC<TopbarProps> = ({
       {/* Right Section */}
       <div className="topbar-right">
         {/* Add Button */}
-        <button
-          className="topbar-add"
-          title="Add new item"
-          onClick={onAddClick}
-        >
+        <button className="topbar-add" title="Add new item" onClick={onAddClick}>
           +
         </button>
 
         {/* Notification Bell */}
-        <button
-          className="topbar-icon"
-          title="Notifications"
-          onClick={onNotificationClick}
-        >
+        <button className="topbar-icon" title="Notifications" onClick={onNotificationClick}>
           <i className="fa-solid fa-bell"></i>
           <div className="notif-dot"></div>
         </button>
 
         {/* Messages */}
-        <button
-          className="topbar-icon"
-          title="Messages"
-          onClick={onMessageClick}
-        >
+        <button className="topbar-icon" title="Messages" onClick={onMessageClick}>
           <i className="fa-solid fa-message"></i>
         </button>
 

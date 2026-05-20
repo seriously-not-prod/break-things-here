@@ -1,9 +1,5 @@
 import { UserRole, USER_ROLES, DEFAULT_ROLE } from '../types/user-role';
-import {
-  Permission,
-  ROLE_PERMISSIONS,
-  hasPermission,
-} from '../types/permissions';
+import { Permission, ROLE_PERMISSIONS, hasPermission } from '../types/permissions';
 import { USER_SCHEMA } from '../types/user';
 
 describe('UserRole enum', () => {

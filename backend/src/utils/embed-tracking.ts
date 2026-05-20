@@ -33,11 +33,7 @@ export function wrapLinksWithTracking(
 }
 
 /** Append a 1×1 open-tracking pixel to an HTML body. */
-export function appendOpenPixel(
-  html: string,
-  baseUrl: string,
-  communicationLogId: number,
-): string {
+export function appendOpenPixel(html: string, baseUrl: string, communicationLogId: number): string {
   const token = buildOpenToken(communicationLogId);
   const pixel =
     `<img src="${baseUrl}/api/tracking/open/${token}" width="1" height="1" ` +
@@ -55,10 +51,10 @@ export function appendOpenPixel(
  * @param baseUrl            - Externally reachable origin (e.g. `https://app.example.com`).
  * @param communicationLogId - Row id from `communication_log` for this delivery.
  */
-export function embedTracking(
-  html: string,
-  baseUrl: string,
-  communicationLogId: number,
-): string {
-  return appendOpenPixel(wrapLinksWithTracking(html, baseUrl, communicationLogId), baseUrl, communicationLogId);
+export function embedTracking(html: string, baseUrl: string, communicationLogId: number): string {
+  return appendOpenPixel(
+    wrapLinksWithTracking(html, baseUrl, communicationLogId),
+    baseUrl,
+    communicationLogId,
+  );
 }

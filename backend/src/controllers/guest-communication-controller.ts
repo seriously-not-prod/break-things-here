@@ -72,7 +72,13 @@ async function bulkSend(
   if (!authorizedEvent) return res as Response;
   const senderUserId = authReq.user!.id;
 
-  const { rsvpIds, subject, body, templateId, ignoreUnsubscribed: rawIgnore } = req.body as {
+  const {
+    rsvpIds,
+    subject,
+    body,
+    templateId,
+    ignoreUnsubscribed: rawIgnore,
+  } = req.body as {
     rsvpIds?: number[];
     subject?: string;
     body?: string;
@@ -146,10 +152,14 @@ async function bulkSend(
   if (!effectiveSubject.trim()) return res.status(400).json({ error: 'Subject is required.' });
   if (!effectiveBody.trim()) return res.status(400).json({ error: 'Body is required.' });
 
-  const event = await db.get<{ id: number; title: string; date: string | null; location: string | null }>(
-    'SELECT id, title, date, location FROM events WHERE id = $1 AND deleted_at IS NULL',
-    [eventId],
-  );
+  const event = await db.get<{
+    id: number;
+    title: string;
+    date: string | null;
+    location: string | null;
+  }>('SELECT id, title, date, location FROM events WHERE id = $1 AND deleted_at IS NULL', [
+    eventId,
+  ]);
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
   // Resolve recipients
@@ -200,9 +210,8 @@ async function bulkSend(
     const unsubToken = trackingBaseUrl
       ? await ensureUnsubscribeToken(db, rsvp.id).catch(() => null)
       : null;
-    const unsubscribeUrl = trackingBaseUrl && unsubToken
-      ? buildUnsubscribeUrl(trackingBaseUrl, unsubToken)
-      : '';
+    const unsubscribeUrl =
+      trackingBaseUrl && unsubToken ? buildUnsubscribeUrl(trackingBaseUrl, unsubToken) : '';
 
     const tokens = buildGuestTokens({
       name: rsvp.name,
@@ -235,15 +244,16 @@ async function bulkSend(
       continue;
     }
 
-    const htmlBody = trackingBaseUrl && logId
-      ? embedTracking(
-          unsubscribeUrl
-            ? `${personalised}<hr><p style="font-size:12px;color:#6b7280">Don't want these emails? <a href="${unsubscribeUrl}">Unsubscribe</a>.</p>`
-            : personalised,
-          trackingBaseUrl,
-          logId,
-        )
-      : null;
+    const htmlBody =
+      trackingBaseUrl && logId
+        ? embedTracking(
+            unsubscribeUrl
+              ? `${personalised}<hr><p style="font-size:12px;color:#6b7280">Don't want these emails? <a href="${unsubscribeUrl}">Unsubscribe</a>.</p>`
+              : personalised,
+            trackingBaseUrl,
+            logId,
+          )
+        : null;
 
     try {
       await transport.sendMail({

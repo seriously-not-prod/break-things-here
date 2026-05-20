@@ -82,7 +82,8 @@ describe('graph-groups cache service', () => {
     vi.stubEnv('GRAPH_GROUPS_CACHE_TTL_MS', '60000'); // 1 min TTL
 
     const groups = ['group-a'];
-    const fetcher = vi.fn()
+    const fetcher = vi
+      .fn()
       .mockResolvedValueOnce(groups)
       .mockRejectedValueOnce(new Error('Graph 503'));
 
@@ -107,10 +108,11 @@ describe('graph-groups cache service', () => {
   // --------------------------------------------------------------------------
 
   it('throws GraphGroupsStaleError when stale data exceeds 24 h ceiling', async () => {
-    vi.stubEnv('GRAPH_GROUPS_CACHE_TTL_MS', '60000');    // 1 min
-    vi.stubEnv('GRAPH_GROUPS_MAX_STALE_MS', '120000');   // 2 min ceiling
+    vi.stubEnv('GRAPH_GROUPS_CACHE_TTL_MS', '60000'); // 1 min
+    vi.stubEnv('GRAPH_GROUPS_MAX_STALE_MS', '120000'); // 2 min ceiling
 
-    const fetcher = vi.fn()
+    const fetcher = vi
+      .fn()
       .mockResolvedValueOnce(['group-a'])
       .mockRejectedValueOnce(new Error('Graph 503'));
 
@@ -152,7 +154,8 @@ describe('graph-groups cache service', () => {
   it('re-fetches after TTL expires and updates cache', async () => {
     vi.stubEnv('GRAPH_GROUPS_CACHE_TTL_MS', '60000'); // 1 min
 
-    const fetcher = vi.fn()
+    const fetcher = vi
+      .fn()
       .mockResolvedValueOnce(['group-old'])
       .mockResolvedValueOnce(['group-new']);
 

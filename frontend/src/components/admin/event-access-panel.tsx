@@ -99,12 +99,12 @@ export function EventAccessPanel(): JSX.Element {
     api
       .get<EventOption[] | { events: EventOption[] }>('/api/events?limit=200')
       .then((data) => {
-        const list = Array.isArray(data) ? data : (data as { events: EventOption[] }).events ?? [];
+        const list = Array.isArray(data)
+          ? data
+          : ((data as { events: EventOption[] }).events ?? []);
         setEvents(list);
       })
-      .catch((err) =>
-        setError(err instanceof ApiError ? err.message : 'Failed to load events.'),
-      )
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Failed to load events.'))
       .finally(() => setEventsLoading(false));
   }, []);
 
@@ -206,8 +206,8 @@ export function EventAccessPanel(): JSX.Element {
           1. Select an event
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Pick an event below to manage which users can access it. Users without an entry here cannot see
-          the event's data.
+          Pick an event below to manage which users can access it. Users without an entry here
+          cannot see the event's data.
         </Typography>
         <Autocomplete
           options={events}
@@ -219,7 +219,14 @@ export function EventAccessPanel(): JSX.Element {
           renderOption={(props, opt) => (
             <Box component="li" {...props} key={opt.id}>
               <Avatar
-                sx={{ width: 32, height: 32, mr: 1.5, bgcolor: 'primary.main', fontSize: 12, fontWeight: 700 }}
+                sx={{
+                  width: 32,
+                  height: 32,
+                  mr: 1.5,
+                  bgcolor: 'primary.main',
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
               >
                 {opt.title
                   .split(' ')
@@ -274,8 +281,16 @@ export function EventAccessPanel(): JSX.Element {
         )}
       </Paper>
 
-      {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
-      {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}
+      {error && (
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert severity="success" onClose={() => setSuccess(null)}>
+          {success}
+        </Alert>
+      )}
 
       {selectedEvent && (
         <>

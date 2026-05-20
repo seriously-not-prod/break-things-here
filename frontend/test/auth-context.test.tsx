@@ -5,7 +5,8 @@ import { AuthProvider, calculateRefreshDelayMs, useAuth } from '../src/contexts/
 import { api, getToken, setToken } from '../src/lib/api-client';
 
 vi.mock('../src/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../src/lib/api-client')>('../src/lib/api-client');
+  const actual =
+    await vi.importActual<typeof import('../src/lib/api-client')>('../src/lib/api-client');
   return {
     ...actual,
     api: {
@@ -26,14 +27,14 @@ function LoginHarness() {
   return (
     <div>
       <button onClick={() => void login('user@test.com', 'Pass1234')}>Login</button>
-      <span>{loading ? 'loading' : user?.email ?? 'signed-out'}</span>
+      <span>{loading ? 'loading' : (user?.email ?? 'signed-out')}</span>
     </div>
   );
 }
 
 function StatusHarness() {
   const { loading, user } = useAuth();
-  return <span>{loading ? 'loading' : user?.email ?? 'signed-out'}</span>;
+  return <span>{loading ? 'loading' : (user?.email ?? 'signed-out')}</span>;
 }
 
 describe('AuthProvider token storage (#250)', () => {

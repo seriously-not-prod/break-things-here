@@ -128,7 +128,9 @@ export function KpiCards({ data, loading, totalBudget }: KpiCardsProps): JSX.Ele
         }).format(totalBudget)
       : '—';
   const budgetSub =
-    totalBudget != null ? 'total allocated across active events' : 'Open an event to manage its budget';
+    totalBudget != null
+      ? 'total allocated across active events'
+      : 'Open an event to manage its budget';
 
   return (
     <Grid container spacing={2}>

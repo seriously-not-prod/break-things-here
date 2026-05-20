@@ -52,9 +52,10 @@ const channelSchema = z.object({
 });
 
 const preferencesSchema = z.object(
-  Object.fromEntries(
-    NOTIFICATION_TYPES.map((type) => [type, channelSchema]),
-  ) as Record<NotificationType, typeof channelSchema>,
+  Object.fromEntries(NOTIFICATION_TYPES.map((type) => [type, channelSchema])) as Record<
+    NotificationType,
+    typeof channelSchema
+  >,
 );
 
 type PreferencesFormValues = z.infer<typeof preferencesSchema>;
@@ -67,9 +68,7 @@ function buildDefaultValues(): PreferencesFormValues {
   return values as PreferencesFormValues;
 }
 
-function prefsToFormValues(
-  prefs: NotificationPreference[],
-): PreferencesFormValues {
+function prefsToFormValues(prefs: NotificationPreference[]): PreferencesFormValues {
   const values = buildDefaultValues();
   for (const p of prefs) {
     if (p.notification_type in values) {
@@ -108,7 +107,9 @@ export function NotificationPreferencesTab(): React.JSX.Element {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [reset]);
 
   const handleToggle = useCallback(
@@ -131,7 +132,9 @@ export function NotificationPreferencesTab(): React.JSX.Element {
         });
       } catch (err: unknown) {
         // Rollback on failure
-        setValue(fieldPath as `${NotificationType}.${Channel}`, currentValue, { shouldDirty: true });
+        setValue(fieldPath as `${NotificationType}.${Channel}`, currentValue, {
+          shouldDirty: true,
+        });
         setError(err instanceof Error ? err.message : 'Failed to save preference');
       } finally {
         setSavingKey(null);
@@ -151,12 +154,7 @@ export function NotificationPreferencesTab(): React.JSX.Element {
   return (
     <Box aria-label="Notification preferences">
       {error && (
-        <Alert
-          severity="error"
-          sx={{ mb: 2 }}
-          onClose={() => setError(null)}
-          role="alert"
-        >
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)} role="alert">
           {error}
         </Alert>
       )}

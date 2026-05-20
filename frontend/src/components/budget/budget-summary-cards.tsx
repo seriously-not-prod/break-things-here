@@ -10,7 +10,11 @@ interface BudgetSummaryCardsProps {
 }
 
 const fmt = (n: number): string =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(n);
 
 interface KpiCardProps {
   label: string;
@@ -70,7 +74,9 @@ export function BudgetSummaryCards({ summary }: BudgetSummaryCardsProps): JSX.El
         <KpiCard
           label="% Used"
           value={`${percentUsed}%`}
-          color={percentUsed >= 90 ? 'error.main' : percentUsed >= 70 ? 'warning.main' : 'success.main'}
+          color={
+            percentUsed >= 90 ? 'error.main' : percentUsed >= 70 ? 'warning.main' : 'success.main'
+          }
           icon={<TrendingUpRounded />}
         />
       </Grid>

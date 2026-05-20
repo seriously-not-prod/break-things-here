@@ -215,7 +215,11 @@ export function RsvpQuestionsPanel({ eventId }: Props): JSX.Element {
                 </IconButton>
               </Tooltip>
               <Tooltip title="Delete">
-                <IconButton size="small" onClick={() => handleDelete(q)} aria-label="Delete question">
+                <IconButton
+                  size="small"
+                  onClick={() => handleDelete(q)}
+                  aria-label="Delete question"
+                >
                   <DeleteRounded fontSize="small" />
                 </IconButton>
               </Tooltip>

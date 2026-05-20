@@ -1,6 +1,10 @@
 import { Box, Typography } from '@mui/material';
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-import type { Formatter, NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
+import type {
+  Formatter,
+  NameType,
+  ValueType,
+} from 'recharts/types/component/DefaultTooltipContent';
 import type { BudgetCategory } from '../../services/budget-service';
 
 interface BudgetChartProps {
@@ -8,12 +12,24 @@ interface BudgetChartProps {
 }
 
 const DEFAULT_COLORS = [
-  '#F97316', '#7C3AED', '#06B6D4', '#10B981', '#F59E0B',
-  '#EF4444', '#3B82F6', '#EC4899', '#14B8A6', '#8B5CF6',
+  '#F97316',
+  '#7C3AED',
+  '#06B6D4',
+  '#10B981',
+  '#F59E0B',
+  '#EF4444',
+  '#3B82F6',
+  '#EC4899',
+  '#14B8A6',
+  '#8B5CF6',
 ];
 
 const fmt = (n: number): string =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(n);
 
 function normalizeTooltipValue(value: ValueType | undefined): number {
   if (Array.isArray(value)) {

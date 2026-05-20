@@ -13,10 +13,7 @@ import { getTokenVersion } from '../data/user-store';
  * @param allowedRoles - One or more roles permitted to access the route.
  * @param handler - The API route handler to execute if authorized.
  */
-export function requireRole(
-  allowedRoles: UserRole | UserRole[],
-  handler: ApiHandler,
-): ApiHandler {
+export function requireRole(allowedRoles: UserRole | UserRole[], handler: ApiHandler): ApiHandler {
   const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
 
   return (req: ApiRequest, res: ApiResponse) => {

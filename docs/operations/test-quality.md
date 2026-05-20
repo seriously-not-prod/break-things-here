@@ -11,13 +11,14 @@ This document describes the test coverage strategy, CI enforcement gates, and th
 All three workspaces enforce the same thresholds as a **regression-guard floor**. The targets are aspirational (≥ 80%) and the floor is raised incrementally as test coverage improves.
 
 | Workspace | Lines | Statements | Branches | Functions |
-|-----------|-------|------------|----------|-----------|
+| --------- | ----- | ---------- | -------- | --------- |
 | Frontend  | ≥ 25% | ≥ 25%      | ≥ 20%    | ≥ 20%     |
 | Backend   | ≥ 25% | ≥ 25%      | ≥ 20%    | ≥ 20%     |
 
 > **Goal:** Raise thresholds by 5–10 percentage points each sprint until all workspaces reach ≥ 80%.
 
 These thresholds are enforced in:
+
 - `frontend/vitest.config.ts` → `coverage.thresholds`
 - `backend/vitest.config.ts` → `coverage.thresholds`
 
@@ -30,7 +31,7 @@ CI fails with a non-zero exit code if any threshold is not met.
 Both workspaces use the `v8` coverage provider and generate three report formats:
 
 | Reporter       | Purpose                                 |
-|----------------|-----------------------------------------|
+| -------------- | --------------------------------------- |
 | `text`         | Human-readable table printed to CI log  |
 | `lcov`         | Compatible with external coverage tools |
 | `json-summary` | Machine-readable; used for PR comments  |
@@ -88,10 +89,10 @@ npm run test:coverage
 
 ## Workflow Files
 
-| File | Purpose |
-|------|---------|
+| File                               | Purpose                                                                                 |
+| ---------------------------------- | --------------------------------------------------------------------------------------- |
 | `.github/workflows/ci-unified.yml` | Main CI pipeline; includes `test-frontend`, `test-backend`, and `coverage-comment` jobs |
-| `scripts/post-coverage-comment.js` | Node.js script that posts the coverage delta comment to the PR |
+| `scripts/post-coverage-comment.js` | Node.js script that posts the coverage delta comment to the PR                          |
 
 ---
 

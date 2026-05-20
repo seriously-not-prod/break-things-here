@@ -111,8 +111,7 @@ export default function PowerUserSearch({ open, onClose }: Props): JSX.Element {
   }
 
   const groups = useMemo(
-    () =>
-      Object.entries(state.results).filter(([, items]) => items.length > 0),
+    () => Object.entries(state.results).filter(([, items]) => items.length > 0),
     [state.results],
   );
 
@@ -161,14 +160,17 @@ export default function PowerUserSearch({ open, onClose }: Props): JSX.Element {
                     <ListItemText
                       primary={
                         <Typography variant="body2" fontWeight={500}>
-                          {(hit['title'] as string)
-                            ?? (hit['name'] as string)
-                            ?? (hit['original_name'] as string)
-                            ?? String(hit['id'])}
+                          {(hit['title'] as string) ??
+                            (hit['name'] as string) ??
+                            (hit['original_name'] as string) ??
+                            String(hit['id'])}
                         </Typography>
                       }
                       secondary={
-                        <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box
+                          component="span"
+                          sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                        >
                           <Chip
                             label={String(hit['kind'])}
                             size="small"

@@ -130,13 +130,14 @@ export async function createField(req: Request, res: Response): Promise<Response
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
 
-  const { field_key, label, field_type, options, value, required, sort_order } =
-    (req.body ?? {}) as Record<string, unknown>;
+  const { field_key, label, field_type, options, value, required, sort_order } = (req.body ??
+    {}) as Record<string, unknown>;
 
   if (typeof field_key !== 'string' || !isValidKey(field_key)) {
-    return res
-      .status(400)
-      .json({ error: 'field_key must be lowercase alphanumeric/underscore (a-z0-9_), starting with a letter.' });
+    return res.status(400).json({
+      error:
+        'field_key must be lowercase alphanumeric/underscore (a-z0-9_), starting with a letter.',
+    });
   }
   if (typeof label !== 'string' || !label.trim()) {
     return res.status(400).json({ error: 'label is required.' });
@@ -232,21 +233,14 @@ export async function updateField(req: Request, res: Response): Promise<Response
   let nextOptions: unknown = existing.options;
   if (existing.field_type === 'select' && options !== undefined) {
     if (!Array.isArray(options) || options.length === 0) {
-      return res
-        .status(400)
-        .json({ error: 'select field requires a non-empty options array.' });
+      return res.status(400).json({ error: 'select field requires a non-empty options array.' });
     }
     nextOptions = (options as unknown[]).map((o) => String(o)).slice(0, 50);
   }
 
   let nextValue: string | null = existing.value;
   if (value !== undefined) {
-    const v = validateValueAgainstType(
-      existing.field_type,
-      value,
-      nextRequired,
-      nextOptions,
-    );
+    const v = validateValueAgainstType(existing.field_type, value, nextRequired, nextOptions);
     if (!v.ok) return res.status(400).json({ error: v.error });
     nextValue = v.value;
   } else if (nextRequired && (existing.value === null || existing.value === '')) {
@@ -294,9 +288,6 @@ export async function deleteField(req: Request, res: Response): Promise<Response
   );
   if (!existing) return res.status(404).json({ error: 'Custom field not found.' });
 
-  await db.run(
-    'DELETE FROM event_custom_fields WHERE id = ? AND event_id = ?',
-    [fieldId, eventId],
-  );
+  await db.run('DELETE FROM event_custom_fields WHERE id = ? AND event_id = ?', [fieldId, eventId]);
   return res.json({ message: 'Custom field deleted.' });
 }

@@ -51,6 +51,12 @@ jobs:
         working-directory: backend
         run: npx tsc --noEmit
 
+      # Defensive mirror of the .githooks/pre-commit checks.
+      # Ensures format and lint regressions are caught even when the local hook
+      # was bypassed (e.g. git commit --no-verify or a fresh clone without npm install).
+      - name: Prettier format check (pre-commit mirror)
+        run: npm run format:check
+
   test-root:
     name: Test - Root (Vitest)
     runs-on: ubuntu-latest

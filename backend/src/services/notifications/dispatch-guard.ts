@@ -62,9 +62,7 @@ export async function isChannelEnabled(
  */
 export async function getPreferenceMatrix(
   userId: number,
-): Promise<
-  Record<NotificationCategory, Record<NotificationChannel, boolean>>
-> {
+): Promise<Record<NotificationCategory, Record<NotificationChannel, boolean>>> {
   const db = getDatabase();
   const rows = await db.all<{
     channel: NotificationChannel;

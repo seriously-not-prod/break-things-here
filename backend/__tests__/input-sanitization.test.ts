@@ -29,13 +29,15 @@ function buildApp() {
 describe('Input sanitization middleware (#247)', () => {
   it('strips HTML and script content from string body fields', async () => {
     const app = buildApp();
-    const response = await request(app).post('/submit').send({
-      displayName: '<script>alert("xss")</script>Alice <b>Admin</b>',
-      profile: {
-        bio: '<img src=x onerror=alert(1)>Hello',
-      },
-      tags: ['<i>vip</i>', '<style>body{display:none}</style>member'],
-    });
+    const response = await request(app)
+      .post('/submit')
+      .send({
+        displayName: '<script>alert("xss")</script>Alice <b>Admin</b>',
+        profile: {
+          bio: '<img src=x onerror=alert(1)>Hello',
+        },
+        tags: ['<i>vip</i>', '<style>body{display:none}</style>member'],
+      });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
@@ -110,7 +112,10 @@ describe('Input sanitization middleware (#247)', () => {
   it('does not allow prototype-pollution style payloads to affect sanitized bodies', async () => {
     const app = buildApp();
     // JSON.parse bypasses object literal key restrictions, simulating a real attack
-    const payload = JSON.parse('{"displayName":"Alice","__proto__":{"isAdmin":true}}') as Record<string, unknown>;
+    const payload = JSON.parse('{"displayName":"Alice","__proto__":{"isAdmin":true}}') as Record<
+      string,
+      unknown
+    >;
 
     expect(({} as { isAdmin?: boolean }).isAdmin).toBeUndefined();
 

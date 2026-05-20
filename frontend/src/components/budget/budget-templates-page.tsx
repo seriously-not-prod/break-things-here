@@ -83,9 +83,15 @@ export default function BudgetTemplatesPage({ eventId, onApplied }: Props): JSX.
 
   const handleCreate = async (): Promise<void> => {
     setFormError(null);
-    if (!newName.trim()) { setFormError('Template name is required.'); return; }
+    if (!newName.trim()) {
+      setFormError('Template name is required.');
+      return;
+    }
     const validItems = newItems.filter((i) => i.name.trim());
-    if (validItems.length === 0) { setFormError('At least one item is required.'); return; }
+    if (validItems.length === 0) {
+      setFormError('At least one item is required.');
+      return;
+    }
     for (const item of validItems) {
       if (Number(item.allocated_amount) < 0) {
         setFormError('Allocated amounts must be non-negative.');
@@ -146,7 +152,11 @@ export default function BudgetTemplatesPage({ eventId, onApplied }: Props): JSX.
   const addItemRow = (): void => {
     setNewItems((prev) => [
       ...prev,
-      { name: '', allocated_amount: '', color: DEFAULT_COLORS[prev.length % DEFAULT_COLORS.length] },
+      {
+        name: '',
+        allocated_amount: '',
+        color: DEFAULT_COLORS[prev.length % DEFAULT_COLORS.length],
+      },
     ]);
   };
 
@@ -164,16 +174,16 @@ export default function BudgetTemplatesPage({ eventId, onApplied }: Props): JSX.
     <Box>
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h6">Budget Templates</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddRounded />}
-          onClick={() => setCreateOpen(true)}
-        >
+        <Button variant="contained" startIcon={<AddRounded />} onClick={() => setCreateOpen(true)}>
           New Template
         </Button>
       </Stack>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
 
       {templates.length === 0 ? (
         <Alert severity="info">No budget templates yet. Create one to reuse across events.</Alert>
@@ -182,9 +192,13 @@ export default function BudgetTemplatesPage({ eventId, onApplied }: Props): JSX.
           {templates.map((t) => (
             <Card key={t.id} variant="outlined">
               <CardContent>
-                <Typography variant="subtitle1" fontWeight={600}>{t.name}</Typography>
+                <Typography variant="subtitle1" fontWeight={600}>
+                  {t.name}
+                </Typography>
                 {t.description && (
-                  <Typography variant="body2" color="text.secondary">{t.description}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {t.description}
+                  </Typography>
                 )}
                 <Chip label={`${t.item_count ?? 0} categories`} size="small" sx={{ mt: 1 }} />
               </CardContent>
@@ -258,11 +272,21 @@ export default function BudgetTemplatesPage({ eventId, onApplied }: Props): JSX.
                   type="color"
                   value={item.color}
                   onChange={(e) => updateItemRow(idx, 'color', e.target.value)}
-                  style={{ width: 36, height: 36, border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    border: 'none',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                  }}
                   aria-label={`Color for category ${item.name || idx + 1}`}
                 />
                 {newItems.length > 1 && (
-                  <IconButton size="small" onClick={() => removeItemRow(idx)} aria-label="Remove row">
+                  <IconButton
+                    size="small"
+                    onClick={() => removeItemRow(idx)}
+                    aria-label="Remove row"
+                  >
                     <DeleteRounded fontSize="small" />
                   </IconButton>
                 )}

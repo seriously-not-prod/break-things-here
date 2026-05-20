@@ -24,7 +24,10 @@ export interface GuestProfileFields {
   accessibility_needs?: string | null;
 }
 
-interface CompletenessField { key: keyof GuestProfileFields; weight: number; }
+interface CompletenessField {
+  key: keyof GuestProfileFields;
+  weight: number;
+}
 
 const FIELDS: CompletenessField[] = [
   { key: 'name', weight: 12 },

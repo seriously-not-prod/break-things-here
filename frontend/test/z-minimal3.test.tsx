@@ -5,7 +5,12 @@ import { CheckCircleOutlineRounded } from '@mui/icons-material';
 
 describe('z-minimal3', () => {
   it('renders MUI icons', () => {
-    const { container } = render(<Box><Button>Hi</Button><CheckCircleOutlineRounded /></Box>);
+    const { container } = render(
+      <Box>
+        <Button>Hi</Button>
+        <CheckCircleOutlineRounded />
+      </Box>,
+    );
     expect(container).toBeTruthy();
   });
 });

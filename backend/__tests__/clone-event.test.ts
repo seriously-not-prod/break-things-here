@@ -34,8 +34,14 @@ function makeRes() {
   } = {
     statusCode: 200,
     body: null,
-    status(code) { this.statusCode = code; return this; },
-    json(data) { this.body = data; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -82,9 +88,7 @@ describe('cloneEvent', () => {
       created_by: 7,
     };
 
-    mockDb.get
-      .mockResolvedValueOnce(sourceEvent)
-      .mockResolvedValueOnce(clonedEvent);
+    mockDb.get.mockResolvedValueOnce(sourceEvent).mockResolvedValueOnce(clonedEvent);
     mockDb.run
       .mockResolvedValueOnce({ lastID: 44, changes: 1 })
       .mockResolvedValueOnce({ lastID: undefined, changes: 1 });
@@ -96,23 +100,20 @@ describe('cloneEvent', () => {
 
     expect(res.statusCode).toBe(201);
     expect(res.body).toEqual(clonedEvent);
-    expect(mockDb.run).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO events'),
-      [
-        'Copy of Festival Launch',
-        '2026-08-10',
-        'Main Square',
-        'Original description',
-        250,
-        '/img/original.jpg',
-        'Concert',
-        true,
-        null,
-        'music,summer',
-        '18:00',
-        7,
-      ],
-    );
+    expect(mockDb.run).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO events'), [
+      'Copy of Festival Launch',
+      '2026-08-10',
+      'Main Square',
+      'Original description',
+      250,
+      '/img/original.jpg',
+      'Concert',
+      true,
+      null,
+      'music,summer',
+      '18:00',
+      7,
+    ]);
     expect(sourceEvent['title']).toBe('Festival Launch');
     expect(sourceEvent['status']).toBe('Active');
   });
@@ -150,9 +151,7 @@ describe('cloneEvent', () => {
       created_by: 7,
     };
 
-    mockDb.get
-      .mockResolvedValueOnce(sourceEvent)
-      .mockResolvedValueOnce(clonedEvent);
+    mockDb.get.mockResolvedValueOnce(sourceEvent).mockResolvedValueOnce(clonedEvent);
     mockDb.all.mockResolvedValueOnce([taskRow]);
     mockDb.run
       .mockResolvedValueOnce({ lastID: 45, changes: 1 })
@@ -166,19 +165,16 @@ describe('cloneEvent', () => {
 
     expect(res.statusCode).toBe(201);
     expect(mockDb.all).toHaveBeenCalledWith('SELECT * FROM tasks WHERE event_id = ?', ['12']);
-    expect(mockDb.run).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO tasks'),
-      [
-        45,
-        'Book vendors',
-        'Need food and drink stands',
-        'Owner',
-        '2026-08-01',
-        'Pending',
-        'High',
-        7,
-      ],
-    );
+    expect(mockDb.run).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO tasks'), [
+      45,
+      'Book vendors',
+      'Need food and drink stands',
+      'Owner',
+      '2026-08-01',
+      'Pending',
+      'High',
+      7,
+    ]);
   });
 
   it('returns 404 when the source event does not exist', async () => {

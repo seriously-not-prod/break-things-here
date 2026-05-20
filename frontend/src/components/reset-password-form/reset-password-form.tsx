@@ -1,13 +1,5 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  LinearProgress,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Alert, Box, Button, LinearProgress, Stack, TextField, Typography } from '@mui/material';
 import { apiFetch } from '../../lib/api-client';
 
 const PASSWORD_REQUIREMENTS = [
@@ -133,8 +125,16 @@ export function ResetPasswordForm({ onBackToLogin }: ResetPasswordFormProps): JS
   return (
     <Box component="form" onSubmit={handleSubmit} noValidate>
       <Stack spacing={2}>
-        {errorMessage && <Alert severity="error" role="alert">{errorMessage}</Alert>}
-        {successMessage && <Alert severity="success" role="status">{successMessage}</Alert>}
+        {errorMessage && (
+          <Alert severity="error" role="alert">
+            {errorMessage}
+          </Alert>
+        )}
+        {successMessage && (
+          <Alert severity="success" role="status">
+            {successMessage}
+          </Alert>
+        )}
 
         {!successMessage && (
           <>
@@ -191,7 +191,9 @@ export function ResetPasswordForm({ onBackToLogin }: ResetPasswordFormProps): JS
               label="Confirm new password"
               value={confirmPassword}
               onChange={handleConfirmPasswordChange}
-              slotProps={{ htmlInput: { 'aria-label': 'Confirm new password', 'aria-required': 'true' } }}
+              slotProps={{
+                htmlInput: { 'aria-label': 'Confirm new password', 'aria-required': 'true' },
+              }}
               autoComplete="new-password"
               fullWidth
               error={!passwordsMatch}
@@ -216,12 +218,7 @@ export function ResetPasswordForm({ onBackToLogin }: ResetPasswordFormProps): JS
           </>
         )}
 
-        <Button
-          variant="text"
-          onClick={onBackToLogin}
-          aria-label="Back to login"
-          fullWidth
-        >
+        <Button variant="text" onClick={onBackToLogin} aria-label="Back to login" fullWidth>
           Back to login
         </Button>
       </Stack>

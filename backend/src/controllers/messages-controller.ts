@@ -45,7 +45,7 @@ export async function listMessages(req: Request, res: Response): Promise<Respons
   if (!event) return res as Response;
 
   const rawBefore = req.query.before;
-  const rawLimit  = req.query.limit;
+  const rawLimit = req.query.limit;
 
   // Reject fractional values so the error message ("positive integer") is accurate.
   const parsedLimit = rawLimit !== undefined ? parseInt(String(rawLimit), 10) : 50;
@@ -95,7 +95,9 @@ export async function postMessage(req: Request, res: Response): Promise<Response
   const { body } = req.body as { body?: string };
   if (!body?.trim()) return res.status(400).json({ error: 'Message body is required.' });
   if (body.trim().length > MAX_BODY_LENGTH) {
-    return res.status(400).json({ error: `Message body cannot exceed ${MAX_BODY_LENGTH} characters.` });
+    return res
+      .status(400)
+      .json({ error: `Message body cannot exceed ${MAX_BODY_LENGTH} characters.` });
   }
 
   const db = getDatabase();
@@ -104,10 +106,7 @@ export async function postMessage(req: Request, res: Response): Promise<Response
     [eventId, authReq.user!.id, body.trim()],
   );
 
-  const message = await db.get(
-    `${MESSAGE_SELECT} WHERE m.id = $1`,
-    [result.lastID],
-  );
+  const message = await db.get(`${MESSAGE_SELECT} WHERE m.id = $1`, [result.lastID]);
 
   return res.status(201).json({ message });
 }
@@ -140,7 +139,9 @@ export async function editMessage(req: Request, res: Response): Promise<Response
   const { body } = req.body as { body?: string };
   if (!body?.trim()) return res.status(400).json({ error: 'Message body is required.' });
   if (body.trim().length > MAX_BODY_LENGTH) {
-    return res.status(400).json({ error: `Message body cannot exceed ${MAX_BODY_LENGTH} characters.` });
+    return res
+      .status(400)
+      .json({ error: `Message body cannot exceed ${MAX_BODY_LENGTH} characters.` });
   }
 
   await db.run(
@@ -177,10 +178,7 @@ export async function deleteMessage(req: Request, res: Response): Promise<Respon
     return res.status(403).json({ error: 'You can only delete your own messages.' });
   }
 
-  await db.run(
-    'UPDATE event_messages SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1',
-    [id],
-  );
+  await db.run('UPDATE event_messages SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
 
   return res.json({ message: 'Message deleted.' });
 }

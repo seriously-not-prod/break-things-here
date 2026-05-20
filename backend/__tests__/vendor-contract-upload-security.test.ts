@@ -104,7 +104,9 @@ describe('vendor contract upload virus scan enforcement', () => {
       expect.stringContaining('UPDATE vendors SET contract_file'),
       expect.anything(),
     );
-    expect(mockUnlink).toHaveBeenCalledWith(path.resolve('uploads/vendor-contracts/contract-123.pdf'));
+    expect(mockUnlink).toHaveBeenCalledWith(
+      path.resolve('uploads/vendor-contracts/contract-123.pdf'),
+    );
     expect(mockLogAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'UPLOAD_SCAN_FAIL',
@@ -115,7 +117,11 @@ describe('vendor contract upload virus scan enforcement', () => {
   });
 
   it('accepts clean contract files and updates vendor record', async () => {
-    mockScanFile.mockResolvedValue({ clean: true, scanner: 'stub', scannedAt: new Date().toISOString() });
+    mockScanFile.mockResolvedValue({
+      clean: true,
+      scanner: 'stub',
+      scannedAt: new Date().toISOString(),
+    });
 
     const req = makeReq();
     const res = makeRes();

@@ -27,11 +27,16 @@ const PAGE_SIZE = {
   height: 297,
 };
 const CARDS_PER_PAGE = CARD_COLUMNS * CARD_ROWS;
-const CARD_WIDTH = (PAGE_SIZE.width - PAGE_MARGIN * 2 - CARD_GAP * (CARD_COLUMNS - 1)) / CARD_COLUMNS;
+const CARD_WIDTH =
+  (PAGE_SIZE.width - PAGE_MARGIN * 2 - CARD_GAP * (CARD_COLUMNS - 1)) / CARD_COLUMNS;
 const CARD_HEIGHT = (PAGE_SIZE.height - PAGE_MARGIN * 2 - CARD_GAP * (CARD_ROWS - 1)) / CARD_ROWS;
 
 function sanitizeFileSegment(value: string): string {
-  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
   return normalized || 'event';
 }
 

@@ -65,7 +65,8 @@ export function getGraphGroupsCacheConfig(): GraphGroupsCacheConfig {
   const rawMaxStale = parseInt(process.env.GRAPH_GROUPS_MAX_STALE_MS ?? '', 10);
   return {
     ttlMs: Number.isFinite(rawTtl) && rawTtl >= 0 ? rawTtl : DEFAULT_TTL_MS,
-    maxStaleMs: Number.isFinite(rawMaxStale) && rawMaxStale >= 0 ? rawMaxStale : DEFAULT_MAX_STALE_MS,
+    maxStaleMs:
+      Number.isFinite(rawMaxStale) && rawMaxStale >= 0 ? rawMaxStale : DEFAULT_MAX_STALE_MS,
   };
 }
 

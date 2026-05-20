@@ -55,11 +55,17 @@ export async function getUnsubscribe(req: Request, res: Response): Promise<Respo
   const row = await applyUnsubscribe(token);
   if (!row) {
     res.status(404);
-    return res.type('html').send(htmlBody('We could not find your record. The link may have expired.'));
+    return res
+      .type('html')
+      .send(htmlBody('We could not find your record. The link may have expired.'));
   }
-  return res.type('html').send(
-    htmlBody(`You have been unsubscribed. We will no longer send invitation, reminder, or template-based emails to <strong>${row.email}</strong>.`),
-  );
+  return res
+    .type('html')
+    .send(
+      htmlBody(
+        `You have been unsubscribed. We will no longer send invitation, reminder, or template-based emails to <strong>${row.email}</strong>.`,
+      ),
+    );
 }
 
 /** POST /api/public/unsubscribe/:token */

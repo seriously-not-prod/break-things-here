@@ -35,9 +35,15 @@ export function ProfileEdit({
 }: ProfileEditProps): React.ReactElement {
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [email, setEmail] = useState(profile.email);
-  const [campingPreferred, setCampingPreferred] = useState(profile.festivalPreferences.campingPreferred);
-  const [emailNotifications, setEmailNotifications] = useState(profile.notificationPreferences.emailNotifications);
-  const [pushNotifications, setPushNotifications] = useState(profile.notificationPreferences.pushNotifications);
+  const [campingPreferred, setCampingPreferred] = useState(
+    profile.festivalPreferences.campingPreferred,
+  );
+  const [emailNotifications, setEmailNotifications] = useState(
+    profile.notificationPreferences.emailNotifications,
+  );
+  const [pushNotifications, setPushNotifications] = useState(
+    profile.notificationPreferences.pushNotifications,
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [photoError, setPhotoError] = useState('');
 
@@ -74,7 +80,10 @@ export function ProfileEdit({
   }
 
   function handleCancel(): void {
-    if (isProfileDirty && !window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+    if (
+      isProfileDirty &&
+      !window.confirm('You have unsaved changes. Are you sure you want to leave?')
+    ) {
       return;
     }
     onCancel();
@@ -116,7 +125,9 @@ export function ProfileEdit({
 
       <form onSubmit={handleSubmit} noValidate aria-label="Edit profile form">
         <div>
-          <label htmlFor="display-name">Display Name <span aria-hidden="true">*</span></label>
+          <label htmlFor="display-name">
+            Display Name <span aria-hidden="true">*</span>
+          </label>
           <input
             id="display-name"
             type="text"
@@ -127,12 +138,16 @@ export function ProfileEdit({
             aria-invalid={!!errors.displayName}
           />
           {errors.displayName && (
-            <span id="display-name-error" role="alert">{errors.displayName}</span>
+            <span id="display-name-error" role="alert">
+              {errors.displayName}
+            </span>
           )}
         </div>
 
         <div>
-          <label htmlFor="email">Email <span aria-hidden="true">*</span></label>
+          <label htmlFor="email">
+            Email <span aria-hidden="true">*</span>
+          </label>
           <input
             id="email"
             type="email"
@@ -144,7 +159,9 @@ export function ProfileEdit({
           />
           <span id="email-hint">Changing your email will require re-confirmation.</span>
           {errors.email && (
-            <span id="email-error" role="alert">{errors.email}</span>
+            <span id="email-error" role="alert">
+              {errors.email}
+            </span>
           )}
         </div>
 
@@ -158,7 +175,11 @@ export function ProfileEdit({
             aria-describedby={photoError ? 'photo-hint photo-error' : 'photo-hint'}
           />
           <span id="photo-hint">JPEG, PNG, or WebP. Max 2 MB.</span>
-          {photoError && <span id="photo-error" role="alert">{photoError}</span>}
+          {photoError && (
+            <span id="photo-error" role="alert">
+              {photoError}
+            </span>
+          )}
         </div>
 
         <fieldset>
@@ -193,7 +214,11 @@ export function ProfileEdit({
           </label>
         </fieldset>
 
-        {saveError && <div role="alert" aria-live="assertive">{saveError}</div>}
+        {saveError && (
+          <div role="alert" aria-live="assertive">
+            {saveError}
+          </div>
+        )}
 
         <div>
           <button type="submit" disabled={isSaving} aria-disabled={isSaving}>

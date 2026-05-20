@@ -10,7 +10,7 @@ This implements secure password hashing using bcryptjs for the Festival Event Pl
 
 1. **`src/utils/password-hash.ts`** - Main password hashing utility
    - `hashPassword(plainPassword: string): Promise<string>` - Hash a plain-text password
-   - `verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean>` - Verify a password 
+   - `verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean>` - Verify a password
    - `getSaltRounds(): number` - Get the configured salt rounds
    - `PasswordHashError` - Custom error class for password hashing errors
 
@@ -29,8 +29,9 @@ This implements secure password hashing using bcryptjs for the Festival Event Pl
 **Selected: bcryptjs** (pure JavaScript implementation)
 
 **Reason**: The original `bcrypt` package requires native compilation (node-gyp), which causes issues in WSL/Windows hybrid environments. `bcryptjs` is a pure JavaScript implementation that:
+
 - Has identical API to bcrypt
-- Requires no native compilation  
+- Requires no native compilation
 - Works across all platforms (Windows, Linux, MacOS, WSL)
 - Is production-ready and widely used
 - Meets all security requirements
@@ -46,17 +47,20 @@ This implements secure password hashing using bcryptjs for the Festival Event Pl
 ## Security Features
 
 ### 1. Work Factor (Cost)
+
 - Set to 12 (2^12 = 4,096 iterations)
 - Meets industry standard for 2026
 - Balances security vs performance
 
 ### 2. Error Handling
+
 - Custom `PasswordHashError` class
 - Never exposes plain-text passwords in error messages
 - Validates all inputs before processing
 - Wraps underlying errors safely
 
 ### 3. Input Validation
+
 - Rejects empty passwords
 - Rejects non-string passwords
 - Validates hash format on verification
@@ -64,7 +68,7 @@ This implements secure password hashing using bcryptjs for the Festival Event Pl
 
 ## Usage Examples
 
-###  Basic Usage
+### Basic Usage
 
 ```typescript
 import { hashPassword, verifyPassword } from './utils/password-hash';
@@ -100,6 +104,7 @@ try {
 ## Testing
 
 ### Run Tests
+
 ```bash
 npm test                # Run all tests
 npm run test:watch      # Run tests in watch mode
@@ -107,6 +112,7 @@ npm run test:coverage   # Run tests with coverage report
 ```
 
 ### Run Demo
+
 ```bash
 npm run build           # Compile TypeScript
 node demo-password-hash.js  # Run demo script
@@ -115,6 +121,7 @@ node demo-password-hash.js  # Run demo script
 ### Test Coverage
 
 The test suite includes:
+
 - Password hashing verification
 - Work factor validation
 - Plain-text vs hash comparison
@@ -132,6 +139,7 @@ The test suite includes:
 ## Integration with Other Tasks
 
 This implementation unblocks:
+
 - **Task #22** - Registration endpoint (can now hash passwords on signup)
 - **Task #28** - Login endpoint (can now verify passwords on signin)
 - **Task #24** - Email confirmation (registration endpoint needs hashing)
@@ -147,6 +155,7 @@ This implementation unblocks:
 ## Future Enhancements
 
 When project requirements evolve:
+
 1. Consider increasing work factor to 13-14 for enhanced security
 2. Add password strength validation
 3. Implement password history (prevent reuse)
@@ -156,6 +165,7 @@ When project requirements evolve:
 ## Notes for Next.js Integration
 
 When the Next.js structure (Task #50) is complete:
+
 1. This utility can be moved to `src/lib/auth/` or similar
 2. Use in API routes: `app/api/auth/register/route.ts`
 3. Export as server-side utility only (not client-side)

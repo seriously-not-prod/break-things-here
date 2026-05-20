@@ -11,7 +11,7 @@ const TEST_USER = {
     name: 'Alex Carter',
     email: 'alex.carter@festival.local',
     role: 'Admin',
-  }
+  },
 };
 
 const MOCK_EVENTS = [
@@ -25,7 +25,7 @@ const MOCK_EVENTS = [
     created_by: 1,
     created_at: '2026-03-01T09:00:00.000Z',
     updated_at: '2026-04-11T14:10:00.000Z',
-  }
+  },
 ];
 
 const MOCK_TASKS: any[] = [];
@@ -148,9 +148,12 @@ describe('EventPlannerApp', () => {
     render(<EventPlannerApp />);
 
     // Wait for the RSVP form to load
-    await waitFor(() => {
-      expect(screen.getByLabelText('Name')).toBeInTheDocument();
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        expect(screen.getByLabelText('Name')).toBeInTheDocument();
+      },
+      { timeout: 3000 },
+    );
 
     await user.type(screen.getByLabelText('Name'), 'Public Guest');
     await user.type(screen.getByLabelText('Email'), 'guest@example.com');

@@ -52,9 +52,6 @@ export async function updateStoreSuggestionStatus(
   return data.suggestion;
 }
 
-export async function deleteStoreSuggestion(
-  eventId: number | string,
-  id: number,
-): Promise<void> {
+export async function deleteStoreSuggestion(eventId: number | string, id: number): Promise<void> {
   await api.delete(`/api/events/${eventId}/store-suggestions/${id}`);
 }
