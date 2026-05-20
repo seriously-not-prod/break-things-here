@@ -60,8 +60,16 @@ export function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordFormProps): 
           Enter your email address and we will send you a password reset link.
         </Typography>
 
-        {errorMessage && <Alert severity="error" role="alert">{errorMessage}</Alert>}
-        {successMessage && <Alert severity="success" role="status">{successMessage}</Alert>}
+        {errorMessage && (
+          <Alert severity="error" role="alert">
+            {errorMessage}
+          </Alert>
+        )}
+        {successMessage && (
+          <Alert severity="success" role="status">
+            {successMessage}
+          </Alert>
+        )}
 
         <TextField
           required
@@ -87,12 +95,7 @@ export function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordFormProps): 
           {isSubmitting ? 'Sending...' : 'Send reset link'}
         </Button>
 
-        <Button
-          variant="text"
-          onClick={onBackToLogin}
-          aria-label="Back to login"
-          fullWidth
-        >
+        <Button variant="text" onClick={onBackToLogin} aria-label="Back to login" fullWidth>
           Back to login
         </Button>
       </Stack>

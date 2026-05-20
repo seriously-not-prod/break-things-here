@@ -14,15 +14,12 @@ function getCsrfToken(): string | null {
 }
 
 // Generic API call helper
-async function apiCall<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers as Record<string, string>,
+    ...(options.headers as Record<string, string>),
   };
-  
+
   // Add CSRF token for state-changing methods
   if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method)) {
     const csrfToken = getCsrfToken();
@@ -30,18 +27,18 @@ async function apiCall<T>(
       headers['X-XSRF-TOKEN'] = csrfToken;
     }
   }
-  
+
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     credentials: 'include', // Important: send cookies with each request
     headers,
   });
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Request failed' }));
     throw new Error(error.error || `HTTP ${response.status}`);
   }
-  
+
   return response.json();
 }
 
@@ -193,12 +190,12 @@ export async function submitRsvp(data: RsvpInput): Promise<Rsvp> {
     },
     body: JSON.stringify(data),
   });
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Request failed' }));
     throw new Error(error.error || `HTTP ${response.status}`);
   }
-  
+
   return response.json();
 }
 

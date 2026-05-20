@@ -16,29 +16,26 @@ describe('validateAndNormalizeResponse', () => {
   });
 
   it('treats empty input as null when not required', () => {
-    const result = validateAndNormalizeResponse(
-      { ...baseQ, question_type: 'short_text' },
-      '',
-    );
+    const result = validateAndNormalizeResponse({ ...baseQ, question_type: 'short_text' }, '');
     expect(result).toEqual({ value: null });
   });
 
   it('coerces booleans from common truthy/falsy strings', () => {
-    expect(
-      validateAndNormalizeResponse({ ...baseQ, question_type: 'boolean' }, 'true'),
-    ).toEqual({ value: 'true' });
-    expect(
-      validateAndNormalizeResponse({ ...baseQ, question_type: 'boolean' }, 0),
-    ).toEqual({ value: 'false' });
+    expect(validateAndNormalizeResponse({ ...baseQ, question_type: 'boolean' }, 'true')).toEqual({
+      value: 'true',
+    });
+    expect(validateAndNormalizeResponse({ ...baseQ, question_type: 'boolean' }, 0)).toEqual({
+      value: 'false',
+    });
     expect(
       validateAndNormalizeResponse({ ...baseQ, question_type: 'boolean' }, 'maybe'),
     ).toMatchObject({ error: expect.any(String) });
   });
 
   it('validates numbers', () => {
-    expect(
-      validateAndNormalizeResponse({ ...baseQ, question_type: 'number' }, '42'),
-    ).toEqual({ value: '42' });
+    expect(validateAndNormalizeResponse({ ...baseQ, question_type: 'number' }, '42')).toEqual({
+      value: '42',
+    });
     expect(
       validateAndNormalizeResponse({ ...baseQ, question_type: 'number' }, 'abc'),
     ).toMatchObject({ error: expect.any(String) });

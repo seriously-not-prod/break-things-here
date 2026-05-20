@@ -7,7 +7,11 @@ interface UiState {
   themeMode: ThemeMode;
   sidebarOpen: boolean;
   commandPaletteOpen: boolean;
-  activeToasts: Array<{ id: string; message: string; severity: 'success' | 'error' | 'warning' | 'info' }>;
+  activeToasts: Array<{
+    id: string;
+    message: string;
+    severity: 'success' | 'error' | 'warning' | 'info';
+  }>;
   setThemeMode: (mode: ThemeMode) => void;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;

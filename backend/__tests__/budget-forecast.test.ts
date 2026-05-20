@@ -70,7 +70,8 @@ function buildDb(input: {
         return input.expenses.map((e) => ({
           ...e,
           amount: String(e.amount),
-          amount_base: e.amount_base !== undefined && e.amount_base !== null ? String(e.amount_base) : null,
+          amount_base:
+            e.amount_base !== undefined && e.amount_base !== null ? String(e.amount_base) : null,
           updated_at: e.updated_at ?? '2026-04-15T00:00:00Z',
           created_at: e.created_at ?? '2026-04-15T00:00:00Z',
           payment_status: e.payment_status ?? 'paid',
@@ -147,9 +148,7 @@ describe('buildBudgetForecast', () => {
     const db = buildDb({
       event: { id: 1, date: '2026-06-01', currency_code: 'USD' },
       categories: [{ id: 10, name: 'Misc', allocated_amount: 100 }],
-      expenses: [
-        { id: 1, category_id: 10, amount: 50, amount_base: null, currency_code: 'XYZ' },
-      ],
+      expenses: [{ id: 1, category_id: 10, amount: 50, amount_base: null, currency_code: 'XYZ' }],
       rates: [],
     });
     const forecast = await buildBudgetForecast(db, 1, new Date('2026-05-01T00:00:00Z'));
@@ -162,9 +161,7 @@ describe('buildBudgetForecast', () => {
     const db = buildDb({
       event: { id: 1, date: '2026-06-01' },
       categories: [{ id: 10, name: 'Decor', allocated_amount: 100 }],
-      expenses: [
-        { id: 1, category_id: 10, amount: 200, amount_base: 200, currency_code: 'USD' },
-      ],
+      expenses: [{ id: 1, category_id: 10, amount: 200, amount_base: 200, currency_code: 'USD' }],
     });
     const forecast = await buildBudgetForecast(db, 1, new Date('2026-05-15T00:00:00Z'));
     expect(forecast!.categories[0].status).toBe('over');

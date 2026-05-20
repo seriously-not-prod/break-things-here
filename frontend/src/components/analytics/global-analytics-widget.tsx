@@ -39,7 +39,8 @@ export function GlobalAnalyticsWidget(): JSX.Element {
         const result = await getGlobalAnalytics();
         if (active) setData(result);
       } catch (err) {
-        if (active) setError(err instanceof Error ? err.message : 'Failed to load global analytics.');
+        if (active)
+          setError(err instanceof Error ? err.message : 'Failed to load global analytics.');
       } finally {
         if (active) setLoading(false);
       }
@@ -85,7 +86,10 @@ export function GlobalAnalyticsWidget(): JSX.Element {
                 <Stat label="Avg acceptance" value={`${data?.averageRsvpRate ?? 0}%`} />
               </Grid>
               <Grid item xs={6}>
-                <Stat label="Budget managed" value={`$${(data?.totalBudgetManaged ?? 0).toLocaleString()}`} />
+                <Stat
+                  label="Budget managed"
+                  value={`$${(data?.totalBudgetManaged ?? 0).toLocaleString()}`}
+                />
               </Grid>
             </Grid>
           )}

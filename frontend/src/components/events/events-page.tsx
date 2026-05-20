@@ -71,10 +71,23 @@ import { PageLayout } from '../layout/page-layout';
 import PowerUserSearch from './power-user-search';
 
 interface PlannerEvent extends Omit<
-  Pick<PlannerEventFull,
-    'id' | 'title' | 'location' | 'date' | 'capacity' | 'status'
-    | 'creator_name' | 'created_by' | 'event_type' | 'tags'
-    | 'latitude' | 'longitude' | 'waitlist_enabled' | 'going_count' | 'pending_count'
+  Pick<
+    PlannerEventFull,
+    | 'id'
+    | 'title'
+    | 'location'
+    | 'date'
+    | 'capacity'
+    | 'status'
+    | 'creator_name'
+    | 'created_by'
+    | 'event_type'
+    | 'tags'
+    | 'latitude'
+    | 'longitude'
+    | 'waitlist_enabled'
+    | 'going_count'
+    | 'pending_count'
   >,
   'status'
 > {
@@ -199,7 +212,10 @@ function capacityLabel(event: PlannerEvent): string {
   return `${going}/${event.capacity} · ${remaining} left`;
 }
 
-export default function EventsPage({ initialView = 'list', ownerOnly = false }: EventsPageProps): JSX.Element {
+export default function EventsPage({
+  initialView = 'list',
+  ownerOnly = false,
+}: EventsPageProps): JSX.Element {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -288,7 +304,9 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
     try {
       const qs = buildEventQuery(filters);
       const data = await api.get<PlannerEvent[] | { events: PlannerEvent[] }>(`/api/events${qs}`);
-      const list: PlannerEvent[] = Array.isArray(data) ? data : (data as { events: PlannerEvent[] }).events ?? [];
+      const list: PlannerEvent[] = Array.isArray(data)
+        ? data
+        : ((data as { events: PlannerEvent[] }).events ?? []);
       setEvents(list);
       // Drop selections that no longer match the current filter
       setSelectedIds((prev) => {
@@ -376,7 +394,7 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
     const f = p.filters ?? {};
     setSelectedTags(f.tags ?? []);
     setSearchQuery(f.q ?? '');
-    setStatusFilter(Array.isArray(f.status) ? f.status.join(',') : f.status ?? '');
+    setStatusFilter(Array.isArray(f.status) ? f.status.join(',') : (f.status ?? ''));
     setAdvanced({
       title_q: f.title_q ?? '',
       location_q: f.location_q ?? '',
@@ -385,8 +403,7 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
       capacity_min: f.capacity_min !== undefined ? String(f.capacity_min) : '',
       capacity_max: f.capacity_max !== undefined ? String(f.capacity_max) : '',
       event_type: f.event_type ?? '',
-      has_waitlist:
-        f.has_waitlist === true ? 'true' : f.has_waitlist === false ? 'false' : '',
+      has_waitlist: f.has_waitlist === true ? 'true' : f.has_waitlist === false ? 'false' : '',
     });
     setActivePresetId(p.id);
     setPresetMenuAnchor(null);
@@ -424,8 +441,7 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
   // ---- Bulk selection ----
 
   const allVisibleIds = useMemo(() => events.map((e) => e.id), [events]);
-  const allSelected =
-    allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.has(id));
+  const allSelected = allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.has(id));
   const someSelected = selectedIds.size > 0 && !allSelected;
 
   function toggleSelect(id: number): void {
@@ -448,7 +464,10 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
   async function runBulkArchiveOrDelete(action: 'archive' | 'delete'): Promise<void> {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
-    if (action === 'delete' && !window.confirm(`Delete ${ids.length} events? This cannot be undone.`)) {
+    if (
+      action === 'delete' &&
+      !window.confirm(`Delete ${ids.length} events? This cannot be undone.`)
+    ) {
       return;
     }
     setBulkRunning(true);
@@ -586,7 +605,11 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
     <PageLayout
       title={pageTitle}
       subtitle={isMyEvents ? 'Showing only events you created' : undefined}
-      breadcrumbs={isMyEvents ? [{ label: 'Events', to: '/events' }, { label: 'My Events' }] : [{ label: 'Events' }]}
+      breadcrumbs={
+        isMyEvents
+          ? [{ label: 'Events', to: '/events' }, { label: 'My Events' }]
+          : [{ label: 'Events' }]
+      }
       actions={
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
           <ButtonGroup size="small" variant="outlined" aria-label="View toggle">
@@ -635,8 +658,8 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
             {archiveFilter === 'active'
               ? 'Active only'
               : archiveFilter === 'all'
-              ? 'Including archived'
-              : 'Archived only'}
+                ? 'Including archived'
+                : 'Archived only'}
           </Button>
           <Button
             size="small"
@@ -657,7 +680,12 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               >
                 Templates
               </Button>
-              <Button variant="contained" size="small" startIcon={<AddRounded />} onClick={openCreate}>
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<AddRounded />}
+                onClick={openCreate}
+              >
                 New Event
               </Button>
             </>
@@ -665,8 +693,16 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
         </Stack>
       }
     >
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
-      {feedback && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setFeedback(null)}>{feedback}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+      {feedback && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setFeedback(null)}>
+          {feedback}
+        </Alert>
+      )}
       {bulkSummary && bulkSummary.results.some((r) => r.status !== 'ok') && (
         <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setBulkSummary(null)}>
           {bulkSummary.results.filter((r) => r.status !== 'ok').length} events skipped:{' '}
@@ -678,12 +714,20 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
       )}
 
       {/* Search / advanced / preset toolbar */}
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }} sx={{ mb: 2 }}>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={1}
+        alignItems={{ md: 'center' }}
+        sx={{ mb: 2 }}
+      >
         <TextField
           size="small"
           placeholder="Search by title, location, status, tags…"
           value={searchQuery}
-          onChange={(e) => { setSearchQuery(e.target.value); setActivePresetId(null); }}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setActivePresetId(null);
+          }}
           sx={{ flex: 1, maxWidth: 480 }}
           inputProps={{ 'aria-label': 'event-search' }}
           InputProps={{
@@ -725,7 +769,11 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
             <Button
               size="small"
               startIcon={<BookmarkAddRounded />}
-              onClick={() => { setPresetSaveOpen(true); setPresetSaveName(''); setPresetSaveError(null); }}
+              onClick={() => {
+                setPresetSaveOpen(true);
+                setPresetSaveName('');
+                setPresetSaveError(null);
+              }}
             >
               Save as preset
             </Button>
@@ -766,14 +814,20 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               >
                 <Box>
                   <Stack direction="row" spacing={0.5} alignItems="center">
-                    <BookmarkRounded fontSize="small" color={activePresetId === p.id ? 'primary' : 'action'} />
+                    <BookmarkRounded
+                      fontSize="small"
+                      color={activePresetId === p.id ? 'primary' : 'action'}
+                    />
                     <Typography variant="body2">{p.name}</Typography>
                   </Stack>
                 </Box>
                 <IconButton
                   size="small"
                   edge="end"
-                  onClick={(e) => { e.stopPropagation(); void handleDeletePreset(p); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleDeletePreset(p);
+                  }}
                   aria-label={`Delete preset ${p.name}`}
                 >
                   <DeleteRounded fontSize="small" />
@@ -792,14 +846,20 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               size="small"
               label="Title contains"
               value={advanced.title_q}
-              onChange={(e) => { setAdvanced((p) => ({ ...p, title_q: e.target.value })); setActivePresetId(null); }}
+              onChange={(e) => {
+                setAdvanced((p) => ({ ...p, title_q: e.target.value }));
+                setActivePresetId(null);
+              }}
               inputProps={{ 'aria-label': 'advanced-title' }}
             />
             <TextField
               size="small"
               label="Location contains"
               value={advanced.location_q}
-              onChange={(e) => { setAdvanced((p) => ({ ...p, location_q: e.target.value })); setActivePresetId(null); }}
+              onChange={(e) => {
+                setAdvanced((p) => ({ ...p, location_q: e.target.value }));
+                setActivePresetId(null);
+              }}
               inputProps={{ 'aria-label': 'advanced-location' }}
             />
             <TextField
@@ -808,7 +868,10 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               type="date"
               InputLabelProps={{ shrink: true }}
               value={advanced.date_from}
-              onChange={(e) => { setAdvanced((p) => ({ ...p, date_from: e.target.value })); setActivePresetId(null); }}
+              onChange={(e) => {
+                setAdvanced((p) => ({ ...p, date_from: e.target.value }));
+                setActivePresetId(null);
+              }}
               inputProps={{ 'aria-label': 'advanced-date-from' }}
             />
             <TextField
@@ -817,7 +880,10 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               type="date"
               InputLabelProps={{ shrink: true }}
               value={advanced.date_to}
-              onChange={(e) => { setAdvanced((p) => ({ ...p, date_to: e.target.value })); setActivePresetId(null); }}
+              onChange={(e) => {
+                setAdvanced((p) => ({ ...p, date_to: e.target.value }));
+                setActivePresetId(null);
+              }}
               inputProps={{ 'aria-label': 'advanced-date-to' }}
             />
             <TextField
@@ -825,7 +891,10 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               label="Capacity min"
               type="number"
               value={advanced.capacity_min}
-              onChange={(e) => { setAdvanced((p) => ({ ...p, capacity_min: e.target.value })); setActivePresetId(null); }}
+              onChange={(e) => {
+                setAdvanced((p) => ({ ...p, capacity_min: e.target.value }));
+                setActivePresetId(null);
+              }}
               inputProps={{ min: 0, 'aria-label': 'advanced-capacity-min' }}
             />
             <TextField
@@ -833,25 +902,38 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               label="Capacity max"
               type="number"
               value={advanced.capacity_max}
-              onChange={(e) => { setAdvanced((p) => ({ ...p, capacity_max: e.target.value })); setActivePresetId(null); }}
+              onChange={(e) => {
+                setAdvanced((p) => ({ ...p, capacity_max: e.target.value }));
+                setActivePresetId(null);
+              }}
               inputProps={{ min: 0, 'aria-label': 'advanced-capacity-max' }}
             />
             <TextField
               size="small"
               label="Event type"
               value={advanced.event_type}
-              onChange={(e) => { setAdvanced((p) => ({ ...p, event_type: e.target.value })); setActivePresetId(null); }}
+              onChange={(e) => {
+                setAdvanced((p) => ({ ...p, event_type: e.target.value }));
+                setActivePresetId(null);
+              }}
             />
             <TextField
               size="small"
               label="Status"
               select
               value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setActivePresetId(null); }}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setActivePresetId(null);
+              }}
               sx={{ minWidth: 140 }}
             >
               <MenuItem value="">Any</MenuItem>
-              {STATUS_OPTIONS.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              {STATUS_OPTIONS.map((s) => (
+                <MenuItem key={s} value={s}>
+                  {s}
+                </MenuItem>
+              ))}
             </TextField>
             <TextField
               size="small"
@@ -859,7 +941,10 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               select
               value={advanced.has_waitlist}
               onChange={(e) => {
-                setAdvanced((p) => ({ ...p, has_waitlist: e.target.value as AdvancedFilters['has_waitlist'] }));
+                setAdvanced((p) => ({
+                  ...p,
+                  has_waitlist: e.target.value as AdvancedFilters['has_waitlist'],
+                }));
                 setActivePresetId(null);
               }}
               sx={{ minWidth: 140 }}
@@ -899,7 +984,10 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
 
       {/* Bulk toolbar */}
       {canCreate && view === 'list' && events.length > 0 && (
-        <Paper variant="outlined" sx={{ p: 1, mb: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+        <Paper
+          variant="outlined"
+          sx={{ p: 1, mb: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}
+        >
           <Checkbox
             checked={allSelected}
             indeterminate={someSelected}
@@ -912,7 +1000,11 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               : `${selectedIds.size} of ${events.length} selected`}
           </Typography>
           <Box sx={{ flex: 1 }} />
-          <ButtonGroup size="small" variant="outlined" disabled={selectedIds.size === 0 || bulkRunning}>
+          <ButtonGroup
+            size="small"
+            variant="outlined"
+            disabled={selectedIds.size === 0 || bulkRunning}
+          >
             <Button
               startIcon={<ArchiveRounded />}
               onClick={() => void runBulkArchiveOrDelete('archive')}
@@ -940,7 +1032,9 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
       )}
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}><CircularProgress /></Box>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}>
+          <CircularProgress />
+        </Box>
       ) : view === 'calendar' ? (
         <EventCalendarView events={events as unknown as PlannerEventFull[]} />
       ) : events.length === 0 ? (
@@ -949,8 +1043,8 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
             {filterCount > 0
               ? 'No events match the current filters.'
               : isMyEvents
-              ? 'You have not created any events yet.'
-              : 'No events yet. Create your first event!'}
+                ? 'You have not created any events yet.'
+                : 'No events yet. Create your first event!'}
           </Typography>
         </Paper>
       ) : view === 'grid' ? (
@@ -975,7 +1069,9 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
               sx={{ p: 2, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 1 }}
               onClick={() => navigate(`/events/${event.id}`)}
             >
-              <Typography variant="subtitle1" fontWeight={600}>{event.title}</Typography>
+              <Typography variant="subtitle1" fontWeight={600}>
+                {event.title}
+              </Typography>
               <Typography variant="body2" color="text.secondary">
                 {new Date(event.date).toLocaleDateString()} · {event.location}
               </Typography>
@@ -1010,7 +1106,9 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
                     </Typography>
                   </Box>
                   <Box sx={{ flex: 1 }}>
-                    <Typography variant="subtitle2" fontWeight={600}>{event.title}</Typography>
+                    <Typography variant="subtitle2" fontWeight={600}>
+                      {event.title}
+                    </Typography>
                     <Typography variant="caption" color="text.secondary">
                       {event.location}
                     </Typography>
@@ -1039,14 +1137,30 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
                     />
                   </TableCell>
                 )}
-                <TableCell><strong>Title</strong></TableCell>
-                <TableCell><strong>Date</strong></TableCell>
-                <TableCell><strong>Location</strong></TableCell>
-                <TableCell><strong>Capacity</strong></TableCell>
-                <TableCell><strong>Status</strong></TableCell>
-                <TableCell><strong>Tags</strong></TableCell>
-                <TableCell><strong>Created by</strong></TableCell>
-                <TableCell align="right"><strong>Actions</strong></TableCell>
+                <TableCell>
+                  <strong>Title</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Date</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Location</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Capacity</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Status</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Tags</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Created by</strong>
+                </TableCell>
+                <TableCell align="right">
+                  <strong>Actions</strong>
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -1055,7 +1169,12 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
                 const overflow =
                   event.capacity != null && Number(event.going_count ?? 0) > event.capacity;
                 return (
-                  <TableRow key={event.id} hover selected={selected} data-testid={`event-row-${event.id}`}>
+                  <TableRow
+                    key={event.id}
+                    hover
+                    selected={selected}
+                    data-testid={`event-row-${event.id}`}
+                  >
                     {canCreate && (
                       <TableCell padding="checkbox">
                         <Checkbox
@@ -1068,11 +1187,22 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
                     <TableCell>
                       {event.title}
                       {event.event_type && (
-                        <Chip label={event.event_type} size="small" variant="outlined" sx={{ ml: 1 }} />
+                        <Chip
+                          label={event.event_type}
+                          size="small"
+                          variant="outlined"
+                          sx={{ ml: 1 }}
+                        />
                       )}
                       {event.waitlist_enabled && (
                         <Tooltip title="Waitlist enabled for this event">
-                          <Chip label="Waitlist" size="small" color="warning" variant="outlined" sx={{ ml: 0.5 }} />
+                          <Chip
+                            label="Waitlist"
+                            size="small"
+                            color="warning"
+                            variant="outlined"
+                            sx={{ ml: 0.5 }}
+                          />
                         </Tooltip>
                       )}
                     </TableCell>
@@ -1080,7 +1210,9 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
                     <TableCell>
                       {event.location ?? '—'}
                       {event.latitude != null && event.longitude != null && (
-                        <Tooltip title={`Coordinates: ${event.latitude.toFixed(3)}, ${event.longitude.toFixed(3)}`}>
+                        <Tooltip
+                          title={`Coordinates: ${event.latitude.toFixed(3)}, ${event.longitude.toFixed(3)}`}
+                        >
                           <Chip label="Map" size="small" variant="outlined" sx={{ ml: 0.5 }} />
                         </Tooltip>
                       )}
@@ -1089,7 +1221,12 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
                       <Stack direction="row" spacing={0.5} alignItems="center">
                         <Typography variant="body2">{capacityLabel(event)}</Typography>
                         {overflow && (
-                          <Chip label="Over capacity" size="small" color="error" variant="outlined" />
+                          <Chip
+                            label="Over capacity"
+                            size="small"
+                            color="error"
+                            variant="outlined"
+                          />
                         )}
                       </Stack>
                     </TableCell>
@@ -1123,18 +1260,35 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
                     <TableCell>{event.creator_name ?? '—'}</TableCell>
                     <TableCell align="right">
                       <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                        <Button size="small" startIcon={<OpenInNewRounded />} onClick={() => navigate(`/events/${event.id}`)}>
+                        <Button
+                          size="small"
+                          startIcon={<OpenInNewRounded />}
+                          onClick={() => navigate(`/events/${event.id}`)}
+                        >
                           Open
                         </Button>
                         {canCreate && (
                           <>
-                            <Button size="small" startIcon={<EditRounded />} onClick={() => openEdit(event)}>
+                            <Button
+                              size="small"
+                              startIcon={<EditRounded />}
+                              onClick={() => openEdit(event)}
+                            >
                               Edit
                             </Button>
-                            <Button size="small" startIcon={<ContentCopyRounded />} onClick={() => handleClone(event.id)}>
+                            <Button
+                              size="small"
+                              startIcon={<ContentCopyRounded />}
+                              onClick={() => handleClone(event.id)}
+                            >
                               Clone
                             </Button>
-                            <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => handleDelete(event.id)}>
+                            <Button
+                              size="small"
+                              color="error"
+                              startIcon={<DeleteRounded />}
+                              onClick={() => handleDelete(event.id)}
+                            >
                               Delete
                             </Button>
                           </>
@@ -1160,7 +1314,12 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
       />
 
       {/* Save preset dialog */}
-      <Dialog open={presetSaveOpen} onClose={() => setPresetSaveOpen(false)} maxWidth="xs" fullWidth>
+      <Dialog
+        open={presetSaveOpen}
+        onClose={() => setPresetSaveOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
         <DialogTitle>Save filter preset</DialogTitle>
         <DialogContent>
           <Stack spacing={1.5} sx={{ mt: 1 }}>
@@ -1183,7 +1342,9 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPresetSaveOpen(false)}>Cancel</Button>
-          <Button onClick={() => void savePresetSubmit()} variant="contained">Save</Button>
+          <Button onClick={() => void savePresetSubmit()} variant="contained">
+            Save
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -1194,9 +1355,27 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
           <Box component="form" id="event-form" onSubmit={handleSave} noValidate>
             <Stack spacing={2} sx={{ mt: 1 }}>
               {saveError && <Alert severity="error">{saveError}</Alert>}
-              <TextField label="Title" value={form.title} onChange={handleField('title')} required fullWidth />
-              <TextField label="Description" value={form.description} onChange={handleField('description')} multiline rows={3} fullWidth />
-              <TextField label="Location" value={form.location} onChange={handleField('location')} fullWidth />
+              <TextField
+                label="Title"
+                value={form.title}
+                onChange={handleField('title')}
+                required
+                fullWidth
+              />
+              <TextField
+                label="Description"
+                value={form.description}
+                onChange={handleField('description')}
+                multiline
+                rows={3}
+                fullWidth
+              />
+              <TextField
+                label="Location"
+                value={form.location}
+                onChange={handleField('location')}
+                fullWidth
+              />
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                 <TextField
                   label="Latitude"
@@ -1217,8 +1396,18 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
                   helperText="-180 to 180"
                 />
               </Stack>
-              <TextField label="Event type" value={form.event_type} onChange={handleField('event_type')} fullWidth />
-              <TextField label="Tags (comma-separated)" value={form.tags} onChange={handleField('tags')} fullWidth />
+              <TextField
+                label="Event type"
+                value={form.event_type}
+                onChange={handleField('event_type')}
+                fullWidth
+              />
+              <TextField
+                label="Tags (comma-separated)"
+                value={form.tags}
+                onChange={handleField('tags')}
+                fullWidth
+              />
               <TextField
                 label="Capacity"
                 type="number"
@@ -1232,7 +1421,9 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
                   id="event-form-waitlist"
                   type="checkbox"
                   checked={form.waitlist_enabled}
-                  onChange={(e) => setForm((prev) => ({ ...prev, waitlist_enabled: e.target.checked }))}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, waitlist_enabled: e.target.checked }))
+                  }
                 />
                 <label htmlFor="event-form-waitlist">Enable waitlist</label>
               </Stack>
@@ -1252,7 +1443,11 @@ export default function EventsPage({ initialView = 'list', ownerOnly = false }: 
                 onChange={handleField('status')}
                 fullWidth
               >
-                {STATUS_OPTIONS.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                {STATUS_OPTIONS.map((s) => (
+                  <MenuItem key={s} value={s}>
+                    {s}
+                  </MenuItem>
+                ))}
               </TextField>
             </Stack>
           </Box>

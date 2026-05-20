@@ -179,12 +179,12 @@ describe('build-report service (#812)', () => {
         domain: 'guests',
         eventId: 1,
         fields: ['guest_name', 'status'],
-        filters: [{ field: 'status', operator: '=', value: 'Going' }],
+        filters: [{ field: 'status', operator: '=', value: 'confirmed' }],
       });
 
       const [sql, params] = mockAll.mock.calls[0] as [string, unknown[]];
-      expect(sql).toContain('r.status = $');
-      expect(params).toContain('Going');
+      expect(sql).toContain('r.canonical_status = $');
+      expect(params).toContain('confirmed');
     });
 
     it('applies contains filter correctly', async () => {

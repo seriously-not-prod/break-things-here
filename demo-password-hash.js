@@ -16,7 +16,7 @@ async function demo() {
     console.log('Test 1: Hashing a password');
     const plainPassword = 'mySecurePassword123!';
     console.log('Plain password: [REDACTED]');
-    
+
     const hashedPassword = await hashPassword(plainPassword);
     console.log(`Hashed password: ${hashedPassword}`);
     console.log(`✓ Hash is different from plain text: ${hashedPassword !== plainPassword}`);
@@ -31,7 +31,9 @@ async function demo() {
     // Test 3: Verify incorrect password
     console.log('Test 3: Verifying incorrect password');
     const isInvalid = await verifyPassword('wrongPassword', hashedPassword);
-    console.log(`✓ Verification result: ${isInvalid ? 'FAIL (should reject)' : 'PASS (correctly rejected)'}\n`);
+    console.log(
+      `✓ Verification result: ${isInvalid ? 'FAIL (should reject)' : 'PASS (correctly rejected)'}\n`,
+    );
 
     // Test 4: Multiple hashes of same password produce different results
     console.log('Test 4: Same password produces different hashes (salt testing)');
@@ -40,20 +42,26 @@ async function demo() {
     console.log(`Hash 1: ${hash1}`);
     console.log(`Hash 2: ${hash2}`);
     console.log(`✓ Hashes are different: ${hash1 !== hash2}`);
-    console.log(`✓ Both verify correctly: ${await verifyPassword(plainPassword, hash1) && await verifyPassword(plainPassword, hash2)}\n`);
+    console.log(
+      `✓ Both verify correctly: ${(await verifyPassword(plainPassword, hash1)) && (await verifyPassword(plainPassword, hash2))}\n`,
+    );
 
     // Test 5: Error handling
     console.log('Test 5: Error handling');
     try {
       await hashPassword('');
     } catch (error) {
-      console.log(`✓ Empty password rejected: ${error instanceof Error ? error.message : String(error)}`);
+      console.log(
+        `✓ Empty password rejected: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     try {
       await verifyPassword('test', 'invalid-hash');
     } catch (error) {
-      console.log(`✓ Invalid hash rejected: ${error instanceof Error ? error.message : String(error)}`);
+      console.log(
+        `✓ Invalid hash rejected: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     console.log('\n✅ All tests passed!');
@@ -63,7 +71,6 @@ async function demo() {
     console.log('  [✓] Plain-text password never written (hash !== password)');
     console.log('  [✓] Hash verified correctly on login simulation');
     console.log('  [✓] Unit tests confirm stored value != input password');
-
   } catch (error) {
     console.error('❌ Error:', error instanceof Error ? error.message : String(error));
     process.exit(1);

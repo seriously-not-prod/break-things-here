@@ -45,11 +45,25 @@ function makeRes() {
     statusCode: 200,
     body: null,
     headers,
-    get sentBody() { return bodySent; },
-    setHeader(k, v) { headers[k] = v; },
-    status(code) { this.statusCode = code; return this; },
-    json(data) { this.body = data; return this; },
-    send(data) { bodySent = data; this.body = data; return this; },
+    get sentBody() {
+      return bodySent;
+    },
+    setHeader(k, v) {
+      headers[k] = v;
+    },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
+    send(data) {
+      bodySent = data;
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -68,14 +82,28 @@ function makeReq(opts: {
 }
 
 const EVENT_OWNED = {
-  id: 1, title: 'Mine', date: '2026-06-01', location: 'A',
-  capacity: 10, status: 'Active', event_type: 'Other',
-  tags: null, created_by: ORGANIZER.id, deleted_at: null,
+  id: 1,
+  title: 'Mine',
+  date: '2026-06-01',
+  location: 'A',
+  capacity: 10,
+  status: 'Active',
+  event_type: 'Other',
+  tags: null,
+  created_by: ORGANIZER.id,
+  deleted_at: null,
 };
 const EVENT_OTHERS = {
-  id: 2, title: 'Theirs', date: '2026-06-02', location: 'B',
-  capacity: 20, status: 'Active', event_type: 'Concert',
-  tags: 'music', created_by: 99, deleted_at: null,
+  id: 2,
+  title: 'Theirs',
+  date: '2026-06-02',
+  location: 'B',
+  capacity: 20,
+  status: 'Active',
+  event_type: 'Concert',
+  tags: 'music',
+  created_by: 99,
+  deleted_at: null,
 };
 
 beforeEach(() => {
@@ -85,7 +113,10 @@ beforeEach(() => {
 describe('bulkEventAction validation', () => {
   it('rejects unauthenticated callers', async () => {
     const res = makeRes();
-    await bulkEventAction(makeReq({ user: undefined }), res as unknown as import('express').Response);
+    await bulkEventAction(
+      makeReq({ user: undefined }),
+      res as unknown as import('express').Response,
+    );
     expect(res.statusCode).toBe(401);
   });
 
@@ -130,7 +161,11 @@ describe('bulkEventAction archive', () => {
     );
 
     expect(res.statusCode).toBe(200);
-    const body = res.body as { success: number; total: number; results: { event_id: number; status: string }[] };
+    const body = res.body as {
+      success: number;
+      total: number;
+      results: { event_id: number; status: string }[];
+    };
     expect(body.success).toBe(1);
     expect(body.total).toBe(2);
     const ownedResult = body.results.find((r) => r.event_id === 1);
@@ -139,8 +174,8 @@ describe('bulkEventAction archive', () => {
     expect(othersResult?.status).toBe('forbidden');
 
     // Confirm at least one UPDATE … status='Cancelled' was issued
-    const archiveCall = mockDb.run.mock.calls.find((c) =>
-      typeof c[0] === 'string' && (c[0] as string).includes("status = 'Cancelled'"),
+    const archiveCall = mockDb.run.mock.calls.find(
+      (c) => typeof c[0] === 'string' && (c[0] as string).includes("status = 'Cancelled'"),
     );
     expect(archiveCall).toBeTruthy();
   });
@@ -169,8 +204,9 @@ describe('bulkEventAction delete', () => {
       res as unknown as import('express').Response,
     );
     expect(res.statusCode).toBe(200);
-    const deleteCall = mockDb.run.mock.calls.find((c) =>
-      typeof c[0] === 'string' && (c[0] as string).includes('deleted_at = CURRENT_TIMESTAMP'),
+    const deleteCall = mockDb.run.mock.calls.find(
+      (c) =>
+        typeof c[0] === 'string' && (c[0] as string).includes('deleted_at = CURRENT_TIMESTAMP'),
     );
     expect(deleteCall).toBeTruthy();
   });

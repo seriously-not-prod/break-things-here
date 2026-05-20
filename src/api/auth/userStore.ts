@@ -26,7 +26,7 @@ const users: User[] = [];
 
 export const inMemoryUserStore: UserStore = {
   async findByEmail(email: string): Promise<User | null> {
-    return users.find(u => u.email === email.toLowerCase()) ?? null;
+    return users.find((u) => u.email === email.toLowerCase()) ?? null;
   },
 
   async create(userData: Omit<User, 'id' | 'createdAt' | 'emailConfirmed'>): Promise<User> {
@@ -41,7 +41,7 @@ export const inMemoryUserStore: UserStore = {
   },
 
   async confirmEmail(email: string): Promise<boolean> {
-    const user = users.find(u => u.email === email.toLowerCase());
+    const user = users.find((u) => u.email === email.toLowerCase());
     if (!user) throw new Error(`No user found for email: ${email}`);
     if (user.emailConfirmed) return false;
     user.emailConfirmed = true;

@@ -92,7 +92,9 @@ export default function AdminPage(): JSX.Element {
     }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+  }, []);
 
   async function changeRole(userId: number, roleId: number): Promise<void> {
     setError(null);
@@ -143,7 +145,11 @@ export default function AdminPage(): JSX.Element {
   }
 
   if (loading) {
-    return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
+        <CircularProgress />
+      </Box>
+    );
   }
 
   return (
@@ -153,11 +159,7 @@ export default function AdminPage(): JSX.Element {
       breadcrumbs={[{ label: 'Admin' }, { label: 'User Management' }]}
       actions={
         tab === 'users' ? (
-          <Button
-            variant="contained"
-            startIcon={<PersonAddRounded />}
-            onClick={openCreate}
-          >
+          <Button variant="contained" startIcon={<PersonAddRounded />} onClick={openCreate}>
             Create User
           </Button>
         ) : undefined
@@ -176,101 +178,117 @@ export default function AdminPage(): JSX.Element {
         <EventAccessPanel />
       ) : (
         <>
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+          {success && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              {success}
+            </Alert>
+          )}
 
-      <TableContainer component={Paper} elevation={1}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Role</TableCell>
-              <TableCell>Verified</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Joined</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {users.map((u) => {
-              const isSelf = u.id === me?.id;
-              const isDeleted = Boolean(u.deleted_at);
-              return (
-                <TableRow key={u.id} hover sx={{ opacity: isDeleted ? 0.5 : 1 }}>
-                  <TableCell>{u.display_name}</TableCell>
-                  <TableCell>{u.email}</TableCell>
-                  <TableCell>
-                    <Select
-                      size="small"
-                      value={u.role_id}
-                      disabled={isSelf || isDeleted}
-                      onChange={(e) => changeRole(u.id, Number(e.target.value))}
-                      sx={{ minWidth: 120 }}
-                    >
-                      {roles.map((r) => <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>)}
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={u.email_verified ? 'Yes' : 'No'} size="small" color={u.email_verified ? 'success' : 'warning'} />
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={isDeleted ? 'Deleted' : u.account_locked ? 'Locked' : 'Active'}
-                      size="small"
-                      color={isDeleted ? 'error' : u.account_locked ? 'warning' : 'success'}
-                    />
-                  </TableCell>
-                  <TableCell>{new Date(u.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                      {!isDeleted && (
-                        <Button
-                          size="small"
-                          startIcon={<EditRounded />}
-                          onClick={() => openEdit(u)}
-                        >
-                          Edit
-                        </Button>
-                      )}
-                      {!isSelf && !isDeleted && (
-                        <>
-                          <Button
-                            size="small"
-                            color={u.account_locked ? 'success' : 'warning'}
-                            startIcon={u.account_locked ? <LockOpenRounded /> : <LockRounded />}
-                            onClick={() => toggleLock(u.id, !u.account_locked)}
-                          >
-                            {u.account_locked ? 'Unlock' : 'Lock'}
-                          </Button>
-                          <Button
-                            size="small"
-                            color="error"
-                            startIcon={<DeleteRounded />}
-                            onClick={() => deleteUser(u.id)}
-                          >
-                            Delete
-                          </Button>
-                        </>
-                      )}
-                      {!isSelf && isDeleted && (
-                        <Button
-                          size="small"
-                          color="success"
-                          startIcon={<RestoreRounded />}
-                          onClick={() => restoreUser(u.id)}
-                        >
-                          Restore
-                        </Button>
-                      )}
-                    </Stack>
-                  </TableCell>
+          <TableContainer component={Paper} elevation={1}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell>Role</TableCell>
+                  <TableCell>Verified</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Joined</TableCell>
+                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+              </TableHead>
+              <TableBody>
+                {users.map((u) => {
+                  const isSelf = u.id === me?.id;
+                  const isDeleted = Boolean(u.deleted_at);
+                  return (
+                    <TableRow key={u.id} hover sx={{ opacity: isDeleted ? 0.5 : 1 }}>
+                      <TableCell>{u.display_name}</TableCell>
+                      <TableCell>{u.email}</TableCell>
+                      <TableCell>
+                        <Select
+                          size="small"
+                          value={u.role_id}
+                          disabled={isSelf || isDeleted}
+                          onChange={(e) => changeRole(u.id, Number(e.target.value))}
+                          sx={{ minWidth: 120 }}
+                        >
+                          {roles.map((r) => (
+                            <MenuItem key={r.id} value={r.id}>
+                              {r.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={u.email_verified ? 'Yes' : 'No'}
+                          size="small"
+                          color={u.email_verified ? 'success' : 'warning'}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={isDeleted ? 'Deleted' : u.account_locked ? 'Locked' : 'Active'}
+                          size="small"
+                          color={isDeleted ? 'error' : u.account_locked ? 'warning' : 'success'}
+                        />
+                      </TableCell>
+                      <TableCell>{new Date(u.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                          {!isDeleted && (
+                            <Button
+                              size="small"
+                              startIcon={<EditRounded />}
+                              onClick={() => openEdit(u)}
+                            >
+                              Edit
+                            </Button>
+                          )}
+                          {!isSelf && !isDeleted && (
+                            <>
+                              <Button
+                                size="small"
+                                color={u.account_locked ? 'success' : 'warning'}
+                                startIcon={u.account_locked ? <LockOpenRounded /> : <LockRounded />}
+                                onClick={() => toggleLock(u.id, !u.account_locked)}
+                              >
+                                {u.account_locked ? 'Unlock' : 'Lock'}
+                              </Button>
+                              <Button
+                                size="small"
+                                color="error"
+                                startIcon={<DeleteRounded />}
+                                onClick={() => deleteUser(u.id)}
+                              >
+                                Delete
+                              </Button>
+                            </>
+                          )}
+                          {!isSelf && isDeleted && (
+                            <Button
+                              size="small"
+                              color="success"
+                              startIcon={<RestoreRounded />}
+                              onClick={() => restoreUser(u.id)}
+                            >
+                              Restore
+                            </Button>
+                          )}
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </>
       )}
 

@@ -8,7 +8,10 @@ vi.mock('../src/services/messages-service');
 
 // Mock useAuth so MessagesInbox can render without a real AuthProvider.
 vi.mock('../src/contexts/auth-context', () => ({
-  useAuth: () => ({ user: { id: 42, email: 'test@example.com', displayName: 'Test', roleId: 1 }, loading: false }),
+  useAuth: () => ({
+    user: { id: 42, email: 'test@example.com', displayName: 'Test', roleId: 1 },
+    loading: false,
+  }),
 }));
 
 /** currentUserId used by the mocked useAuth above. */
@@ -121,7 +124,9 @@ describe('MessagesInbox', () => {
     await waitFor(() => screen.getAllByText('Alice Johnson')[0]);
 
     await waitFor(() => expect(mockedGetMessages).toHaveBeenCalledWith('conv-1', CURRENT_USER_ID));
-    await waitFor(() => expect(screen.getByText('Hi, can you confirm stage times?')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('Hi, can you confirm stage times?')).toBeInTheDocument(),
+    );
   });
 
   it('switches to another conversation on click', async () => {
@@ -272,9 +277,7 @@ describe('MessagesInbox', () => {
     const dialog = await screen.findByRole('dialog', { name: /delete this message/i });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
-    await waitFor(() =>
-      expect(mockedDeleteMessage).toHaveBeenCalledWith('conv-1', 'msg-own'),
-    );
+    await waitFor(() => expect(mockedDeleteMessage).toHaveBeenCalledWith('conv-1', 'msg-own'));
     await waitFor(() => expect(screen.queryByText('Yes — 7pm and 9pm.')).toBeNull());
   });
 

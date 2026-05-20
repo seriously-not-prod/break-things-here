@@ -21,15 +21,15 @@ export const options = {
       stages: [
         { duration: '20s', target: 50 },
         { duration: '30s', target: 100 },
-        { duration: '30s', target: 200 },  // 2x normal load
-        { duration: '30s', target: 300 },  // 3x normal load
-        { duration: '20s', target: 0 },    // ramp down — check recovery
+        { duration: '30s', target: 200 }, // 2x normal load
+        { duration: '30s', target: 300 }, // 3x normal load
+        { duration: '20s', target: 0 }, // ramp down — check recovery
       ],
     },
   },
   thresholds: {
-    http_req_failed: ['rate<0.10'],      // 10% error rate allowed under stress
-    http_req_duration: ['p(95)<2000'],   // 2s under stress (degraded but functional)
+    http_req_failed: ['rate<0.10'], // 10% error rate allowed under stress
+    http_req_duration: ['p(95)<2000'], // 2s under stress (degraded but functional)
   },
 };
 

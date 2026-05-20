@@ -34,7 +34,9 @@ async function adminRequest<T>(path: string, options: RequestInit): Promise<T> {
 }
 
 export async function fetchAllUsers(): Promise<User[]> {
-  const data = await adminRequest<User[] | { users: BackendAdminUser[] }>('/admin/users', { method: 'GET' });
+  const data = await adminRequest<User[] | { users: BackendAdminUser[] }>('/admin/users', {
+    method: 'GET',
+  });
   const rows = Array.isArray(data) ? data : data.users;
 
   return rows.map((row) => {
@@ -53,13 +55,12 @@ export async function fetchAllUsers(): Promise<User[]> {
   });
 }
 
-export async function updateUserRole(
-  userId: string,
-  role: UserRole,
-): Promise<void> {
+export async function updateUserRole(userId: string, role: UserRole): Promise<void> {
   await adminRequest<{ message: string }>(`/admin/users/${encodeURIComponent(userId)}/role`, {
     method: 'PATCH',
-    body: JSON.stringify({ role_id: role === UserRole.Admin ? 3 : role === UserRole.Organizer ? 2 : 1 }),
+    body: JSON.stringify({
+      role_id: role === UserRole.Admin ? 3 : role === UserRole.Organizer ? 2 : 1,
+    }),
   });
 }
 

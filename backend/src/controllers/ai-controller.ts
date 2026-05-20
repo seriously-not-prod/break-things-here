@@ -136,7 +136,9 @@ export async function getSuggestion(req: AuthRequest, res: Response): Promise<Re
 
   const userId = req.user?.id;
   if (userId !== undefined && !(await checkAiRateLimit(userId))) {
-    return res.status(429).json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
+    return res
+      .status(429)
+      .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
   }
 
   // Validate that context is one of the four known keys before indexing into

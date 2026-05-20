@@ -75,9 +75,30 @@ const VERSIONS_M: Record<number, VersionInfo> = {
   5: { totalCodewords: 134, ecCodewordsPerBlock: 24, blockGroups: [[2, 43]] },
   6: { totalCodewords: 172, ecCodewordsPerBlock: 16, blockGroups: [[4, 27]] },
   7: { totalCodewords: 196, ecCodewordsPerBlock: 18, blockGroups: [[4, 31]] },
-  8: { totalCodewords: 242, ecCodewordsPerBlock: 22, blockGroups: [[2, 38], [2, 39]] },
-  9: { totalCodewords: 292, ecCodewordsPerBlock: 22, blockGroups: [[3, 36], [2, 37]] },
-  10: { totalCodewords: 346, ecCodewordsPerBlock: 26, blockGroups: [[4, 43], [1, 44]] },
+  8: {
+    totalCodewords: 242,
+    ecCodewordsPerBlock: 22,
+    blockGroups: [
+      [2, 38],
+      [2, 39],
+    ],
+  },
+  9: {
+    totalCodewords: 292,
+    ecCodewordsPerBlock: 22,
+    blockGroups: [
+      [3, 36],
+      [2, 37],
+    ],
+  },
+  10: {
+    totalCodewords: 346,
+    ecCodewordsPerBlock: 26,
+    blockGroups: [
+      [4, 43],
+      [1, 44],
+    ],
+  },
 };
 
 function totalDataCodewords(v: VersionInfo): number {
@@ -155,7 +176,8 @@ function interleaveBlocks(data: Uint8Array, version: number): Uint8Array {
 
   const maxData = Math.max(...blocks.map((b) => b.data.length));
   const out: number[] = [];
-  for (let i = 0; i < maxData; i++) for (const b of blocks) if (i < b.data.length) out.push(b.data[i]);
+  for (let i = 0; i < maxData; i++)
+    for (const b of blocks) if (i < b.data.length) out.push(b.data[i]);
   for (let i = 0; i < ecLen; i++) for (const b of blocks) out.push(b.ec[i]);
   return Uint8Array.from(out);
 }
@@ -266,15 +288,24 @@ function placeData(mat: Uint8Array[], reserved: Uint8Array[], data: Uint8Array):
 
 function maskCondition(mask: number, r: number, c: number): boolean {
   switch (mask) {
-    case 0: return (r + c) % 2 === 0;
-    case 1: return r % 2 === 0;
-    case 2: return c % 3 === 0;
-    case 3: return (r + c) % 3 === 0;
-    case 4: return (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0;
-    case 5: return ((r * c) % 2) + ((r * c) % 3) === 0;
-    case 6: return (((r * c) % 2) + ((r * c) % 3)) % 2 === 0;
-    case 7: return (((r + c) % 2) + ((r * c) % 3)) % 2 === 0;
-    default: return false;
+    case 0:
+      return (r + c) % 2 === 0;
+    case 1:
+      return r % 2 === 0;
+    case 2:
+      return c % 3 === 0;
+    case 3:
+      return (r + c) % 3 === 0;
+    case 4:
+      return (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0;
+    case 5:
+      return ((r * c) % 2) + ((r * c) % 3) === 0;
+    case 6:
+      return (((r * c) % 2) + ((r * c) % 3)) % 2 === 0;
+    case 7:
+      return (((r + c) % 2) + ((r * c) % 3)) % 2 === 0;
+    default:
+      return false;
   }
 }
 
@@ -365,7 +396,10 @@ function buildMatrix(text: string): Uint8Array[] {
 }
 
 /** Render a QR code as an SVG string for inline embedding. */
-export function renderQrSvg(text: string, options: { scale?: number; quietZone?: number } = {}): string {
+export function renderQrSvg(
+  text: string,
+  options: { scale?: number; quietZone?: number } = {},
+): string {
   const scale = Math.max(1, Math.floor(options.scale ?? 4));
   const quiet = Math.max(0, Math.floor(options.quietZone ?? 4));
   const mat = buildMatrix(text);
@@ -388,7 +422,10 @@ export function renderQrSvg(text: string, options: { scale?: number; quietZone?:
 }
 
 /** Return the QR code as a `data:image/svg+xml;base64,...` URI. */
-export function renderQrDataUri(text: string, options?: { scale?: number; quietZone?: number }): string {
+export function renderQrDataUri(
+  text: string,
+  options?: { scale?: number; quietZone?: number },
+): string {
   const svg = renderQrSvg(text, options);
   return 'data:image/svg+xml;base64,' + Buffer.from(svg, 'utf8').toString('base64');
 }

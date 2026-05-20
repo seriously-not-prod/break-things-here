@@ -1,5 +1,9 @@
 import './config/load-env.js';
-import { validateEntraConfigAtStartup } from './config/entra.js';
+import {
+  isEntraEnabled,
+  isLocalFallbackAllowed,
+  validateEntraConfigAtStartup,
+} from './config/entra.js';
 import { assertStrictDataSecurityControlsAtStartup } from './config/security-controls.js';
 import { logger, requestLogger } from './utils/logger.js';
 import { startJobScheduler } from './utils/job-scheduler.js';
@@ -21,7 +25,7 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { initializeDatabase } from './db/database.js';
 import { sanitizeRequestBody } from './middleware/sanitize-input.js';
-import { apiLimiter, csrfLimiter, healthLimiter } from './middleware/rate-limit.js';
+import { apiLimiter, csrfLimiter, healthLimiter, metricsLimiter } from './middleware/rate-limit.js';
 import { verifyEmailWebhookSignature } from './middleware/verify-email-webhook.js';
 import * as announcementController from './controllers/announcement-controller.js';
 import apiRoutes from './routes/api-routes.js';
@@ -43,13 +47,15 @@ const CSRF_SECRET: string = (() => {
   if (s) return s;
   const env = process.env.NODE_ENV ?? 'development';
   if (env === 'production' || env === 'staging') {
-    console.error('[SECURITY] FATAL: CSRF_SECRET is not set in production/staging environment. Refusing to start.');
+    console.error(
+      '[SECURITY] FATAL: CSRF_SECRET is not set in production/staging environment. Refusing to start.',
+    );
     process.exit(1);
   }
   const ephemeral = crypto.randomBytes(32).toString('hex');
   console.warn(
     '[SECURITY] CSRF_SECRET is not set. Using an ephemeral per-startup secret — ' +
-    'tokens will not survive restarts. Set CSRF_SECRET for stable sessions.',
+      'tokens will not survive restarts. Set CSRF_SECRET for stable sessions.',
   );
   return ephemeral;
 })();
@@ -75,7 +81,10 @@ function isRequestSecure(req: express.Request): boolean {
   if (req.secure) return true;
   const forwardedProto = req.header('x-forwarded-proto');
   if (!forwardedProto) return false;
-  return forwardedProto.split(',').map((part) => part.trim()).includes('https');
+  return forwardedProto
+    .split(',')
+    .map((part) => part.trim())
+    .includes('https');
 }
 
 export function createApp(): express.Express {
@@ -151,7 +160,11 @@ export function createApp(): express.Express {
     }
   }
 
-  const csrfProtection = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+  const csrfProtection = (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ): void => {
     // GET / HEAD / OPTIONS are safe methods — skip check
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       next();
@@ -171,6 +184,12 @@ export function createApp(): express.Express {
   // - API GET/HEAD responses: 5-minute private cache
   // - vary on auth credentials to prevent cross-user cache bleed
   app.use('/api', (req, res, next) => {
+    // Keep /api/health behavior aligned with canonical /health endpoint.
+    if (req.path === '/health') {
+      next();
+      return;
+    }
+
     if (req.method === 'GET' || req.method === 'HEAD') {
       res.setHeader('Cache-Control', 'private, max-age=300, stale-while-revalidate=60');
       res.setHeader('Vary', 'Authorization, Cookie');
@@ -198,16 +217,19 @@ export function createApp(): express.Express {
     });
   }
 
-  // Health check — validates DB connectivity; returns 503 if DB unreachable (#676)
-  app.get('/health', healthLimiter, async (_req, res) => {
+  // Shared health handler so /health and /api/health always stay identical.
+  const healthCheckHandler: express.RequestHandler = async (_req, res) => {
     const checks: Record<string, string> = {};
     let httpStatus = 200;
     try {
       const { getPool } = await import('./db/database.js');
       const pool = getPool();
       const client = await pool.connect();
-      await client.query('SELECT 1');
-      client.release();
+      try {
+        await client.query('SELECT 1');
+      } finally {
+        client.release();
+      }
       checks.database = 'ok';
     } catch (err) {
       const msg = String(err);
@@ -225,6 +247,31 @@ export function createApp(): express.Express {
       uptime: process.uptime(),
       checks,
     });
+  };
+
+  // Health check — validates DB connectivity; returns 503 if DB unreachable (#676)
+  app.get('/health', healthLimiter, healthCheckHandler);
+
+  // TRD path compatibility alias.
+  app.get('/api/health', healthLimiter, healthCheckHandler);
+
+  // #784 — Graph groups cache metrics endpoint
+  app.get('/metrics', metricsLimiter, async (_req, res) => {
+    const { getGraphGroupsMetrics } = await import('./services/graph-groups.js');
+    const m = getGraphGroupsMetrics();
+    const lines = [
+      `# HELP graph_groups_cache_hit_total Number of graph group cache hits`,
+      `# TYPE graph_groups_cache_hit_total counter`,
+      `graph_groups_cache_hit_total ${m.graph_groups_cache_hit_total}`,
+      `# HELP graph_groups_cache_miss_total Number of graph group cache misses`,
+      `# TYPE graph_groups_cache_miss_total counter`,
+      `graph_groups_cache_miss_total ${m.graph_groups_cache_miss_total}`,
+      `# HELP graph_groups_failure_total Number of graph group fetch failures`,
+      `# TYPE graph_groups_failure_total counter`,
+      `graph_groups_failure_total ${m.graph_groups_failure_total}`,
+    ];
+    res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+    res.send(lines.join('\n') + '\n');
   });
 
   // CSRF token endpoint — called by the frontend before any state-changing request.
@@ -280,8 +327,57 @@ export function createApp(): express.Express {
           },
         },
         security: [{ BearerAuth: [] }],
+        paths: {
+          '/health': {
+            get: {
+              summary: 'Service health check',
+              description:
+                'Returns service health and database connectivity status. ' +
+                'Canonical health endpoint for runtime probes.',
+              tags: ['Health'],
+              security: [],
+              servers: [
+                { url: `http://localhost:${port}`, description: 'Development (root)' },
+                { url: 'https://api.festivalplanner.example', description: 'Production (root)' },
+              ],
+              responses: {
+                200: {
+                  description: 'Service is healthy',
+                },
+                503: {
+                  description: 'Service is degraded (for example, database unavailable)',
+                },
+              },
+            },
+          },
+          '/api/health': {
+            get: {
+              summary: 'Service health check (alias)',
+              description: 'Alias of /health that returns the same payload and status code.',
+              tags: ['Health'],
+              security: [],
+              servers: [
+                { url: `http://localhost:${port}`, description: 'Development (root)' },
+                { url: 'https://api.festivalplanner.example', description: 'Production (root)' },
+              ],
+              responses: {
+                200: {
+                  description: 'Service is healthy',
+                },
+                503: {
+                  description: 'Service is degraded (for example, database unavailable)',
+                },
+              },
+            },
+          },
+        },
       },
-      apis: ['./src/routes/*.ts', './src/routes/*.js', './src/controllers/*.ts', './src/controllers/*.js'],
+      apis: [
+        './src/routes/*.ts',
+        './src/routes/*.js',
+        './src/controllers/*.ts',
+        './src/controllers/*.js',
+      ],
     });
     app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
     app.get('/api-docs.json', (_req, res) => res.json(swaggerSpec));
@@ -294,6 +390,16 @@ export function createApp(): express.Express {
 async function start(): Promise<void> {
   assertStrictDataSecurityControlsAtStartup();
   validateEntraConfigAtStartup();
+
+  // Warn if local-auth fallback is permitted alongside Entra in production (#783)
+  if (process.env.NODE_ENV === 'production' && isEntraEnabled() && isLocalFallbackAllowed()) {
+    console.warn(
+      '[SECURITY] WARNING: ENTRA_ALLOW_LOCAL_FALLBACK is enabled in production. ' +
+        'Local email/password login is available alongside Entra ID SSO. ' +
+        'Set ENTRA_ALLOW_LOCAL_FALLBACK=false (or unset it) to enforce Entra-only authentication.',
+    );
+  }
+
   await initializeDatabase();
   startJobScheduler();
   const app = createApp();
@@ -302,7 +408,8 @@ async function start(): Promise<void> {
   });
 }
 
-const isDirectExecution = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isDirectExecution =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isDirectExecution) {
   start().catch((err) => {

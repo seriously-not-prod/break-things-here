@@ -100,8 +100,13 @@ export async function assignRoleToUser(req: AuthRequest, res: Response): Promise
     return res.status(404).json({ error: 'User not found' });
   }
 
-  const previous = await db.get<{ role_id: number }>('SELECT role_id FROM users WHERE id = $1', [userId]);
-  await db.run('UPDATE users SET role_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [roleId, userId]);
+  const previous = await db.get<{ role_id: number }>('SELECT role_id FROM users WHERE id = $1', [
+    userId,
+  ]);
+  await db.run('UPDATE users SET role_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [
+    roleId,
+    userId,
+  ]);
 
   await logAuditEvent({
     db,
@@ -140,10 +145,10 @@ export async function addPermissionToRole(req: AuthRequest, res: Response): Prom
     return res.status(409).json({ error: 'Permission already assigned to role' });
   }
 
-  await db.run(
-    'INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)',
-    [roleId, permissionId],
-  );
+  await db.run('INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)', [
+    roleId,
+    permissionId,
+  ]);
 
   await logAuditEvent({
     db,
@@ -173,10 +178,10 @@ export async function removePermissionFromRole(req: AuthRequest, res: Response):
   }
 
   const db = getDatabase();
-  await db.run(
-    'DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2',
-    [roleId, permissionId],
-  );
+  await db.run('DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2', [
+    roleId,
+    permissionId,
+  ]);
 
   await logAuditEvent({
     db,
@@ -208,13 +213,18 @@ export async function getAllPermissions(req: AuthRequest, res: Response): Promis
  * GET /api/user/role-permissions
  * Returns the current user's role and permissions.
  */
-export async function getUserRoleAndPermissions(req: AuthRequest, res: Response): Promise<Response> {
+export async function getUserRoleAndPermissions(
+  req: AuthRequest,
+  res: Response,
+): Promise<Response> {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
   const db = getDatabase();
-  const role = await db.get('SELECT id, name, description FROM roles WHERE id = $1', [req.user.role_id]);
+  const role = await db.get('SELECT id, name, description FROM roles WHERE id = $1', [
+    req.user.role_id,
+  ]);
 
   const permissions = await db.all(
     `SELECT p.id, p.name, p.description FROM permissions p

@@ -52,8 +52,7 @@ export function EventLocationMap({
   locationLabel,
   height = 240,
 }: EventLocationMapProps): JSX.Element {
-  const hasCoords =
-    isFiniteCoord(latitude, -90, 90) && isFiniteCoord(longitude, -180, 180);
+  const hasCoords = isFiniteCoord(latitude, -90, 90) && isFiniteCoord(longitude, -180, 180);
 
   return (
     <Paper variant="outlined" sx={{ p: 1.5 }}>

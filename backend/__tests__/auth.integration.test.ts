@@ -30,17 +30,39 @@ function makeRes() {
     statusCode: 200,
     body: null,
     cookies: {},
-    status(code: number) { this.statusCode = code; return this; },
-    json(data: unknown) { this.body = data; return this; },
-    send(data?: unknown) { this.body = data ?? null; return this; },
-    cookie(name: string, value: string) { this.cookies[name] = value; return this; },
-    clearCookie(name: string) { delete this.cookies[name]; return this; },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data: unknown) {
+      this.body = data;
+      return this;
+    },
+    send(data?: unknown) {
+      this.body = data ?? null;
+      return this;
+    },
+    cookie(name: string, value: string) {
+      this.cookies[name] = value;
+      return this;
+    },
+    clearCookie(name: string) {
+      delete this.cookies[name];
+      return this;
+    },
   };
   return res;
 }
 
-function makeReq(body: Record<string, unknown> = {}, user?: { id: number; email: string; role_id: number }) {
-  return { body, user, headers: { authorization: user ? `Bearer access-tok` : undefined } } as unknown as import('express').Request;
+function makeReq(
+  body: Record<string, unknown> = {},
+  user?: { id: number; email: string; role_id: number },
+) {
+  return {
+    body,
+    user,
+    headers: { authorization: user ? `Bearer access-tok` : undefined },
+  } as unknown as import('express').Request;
 }
 
 // ---------------------------------------------------------------------------
@@ -83,7 +105,7 @@ async function seedUser(opts: {
     [
       opts.email,
       hash,
-      opts.emailVerified ?? true ? 1 : 0,
+      (opts.emailVerified ?? true) ? 1 : 0,
       opts.accountLocked ? 1 : 0,
       opts.loginAttempts ?? 0,
       opts.lockedUntil ?? null,
@@ -167,11 +189,17 @@ describe('Auth Integration — Login', () => {
     // Get message for known email + wrong password
     await seedUser({ email: 'carol@example.com', password: 'Known1Pass!', emailVerified: true });
     const resKnown = makeRes();
-    await login(makeReq({ email: 'carol@example.com', password: 'Wrong1!' }), resKnown as unknown as import('express').Response);
+    await login(
+      makeReq({ email: 'carol@example.com', password: 'Wrong1!' }),
+      resKnown as unknown as import('express').Response,
+    );
 
     // Get message for unknown email
     const resUnknown = makeRes();
-    await login(makeReq({ email: 'does-not-exist@example.com', password: 'Any1Pass!' }), resUnknown as unknown as import('express').Response);
+    await login(
+      makeReq({ email: 'does-not-exist@example.com', password: 'Any1Pass!' }),
+      resUnknown as unknown as import('express').Response,
+    );
 
     expect(resKnown.statusCode).toBe(401);
     expect(resUnknown.statusCode).toBe(401);
@@ -215,7 +243,9 @@ describe('Auth Integration — Login', () => {
 describe('Auth Integration — Logout', () => {
   it('returns 200 and clears the refreshToken cookie on logout', async () => {
     await seedUser({ email: 'frank@example.com', password: 'Valid1Pass!', emailVerified: true });
-    const user = await testDb.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['frank@example.com']);
+    const user = await testDb.get<{ id: number }>('SELECT id FROM users WHERE email = ?', [
+      'frank@example.com',
+    ]);
 
     // Insert a session so logout has something to invalidate
     await testDb.run(
@@ -234,7 +264,9 @@ describe('Auth Integration — Logout', () => {
 
   it('session is invalidated after logout — token no longer in sessions table', async () => {
     await seedUser({ email: 'grace@example.com', password: 'Valid1Pass!', emailVerified: true });
-    const user = await testDb.get<{ id: number }>('SELECT id FROM users WHERE email = ?', ['grace@example.com']);
+    const user = await testDb.get<{ id: number }>('SELECT id FROM users WHERE email = ?', [
+      'grace@example.com',
+    ]);
 
     await testDb.run(
       `INSERT INTO sessions (user_id, token, refresh_token, expires_at)

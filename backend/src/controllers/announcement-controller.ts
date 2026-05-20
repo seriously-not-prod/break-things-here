@@ -48,7 +48,7 @@ export async function sendAnnouncement(req: AuthRequest, res: Response): Promise
      FROM rsvps r
      LEFT JOIN users u ON u.id = r.user_id
      WHERE r.event_id = $1
-       AND r.status = 'Going'
+       AND r.canonical_status = 'confirmed'
        AND r.waitlist_position IS NULL
        AND COALESCE(u.deleted_at, r.deleted_at) IS NULL`,
     [eventId],
@@ -99,7 +99,9 @@ export async function sendAnnouncement(req: AuthRequest, res: Response): Promise
   }
 
   logger.info(`[Announcement] Dispatched announcement for event ${eventId}`, {
-    total: recipients.length, sent: successCount, failed: failCount,
+    total: recipients.length,
+    sent: successCount,
+    failed: failCount,
   });
 
   return res.json({
@@ -145,7 +147,8 @@ export async function handleEmailBounce(req: Request, res: Response): Promise<Re
       processed++;
     } else if (eventType === 'open') {
       // Track email opens
-      const messageId: string | undefined = event.sg_message_id ?? event['message-id'] ?? event.MessageID;
+      const messageId: string | undefined =
+        event.sg_message_id ?? event['message-id'] ?? event.MessageID;
       if (messageId) {
         await db.run(
           `UPDATE communication_log SET opened = true, opened_at = CURRENT_TIMESTAMP

@@ -6,7 +6,11 @@
 import { Box, Skeleton, Stack, Typography } from '@mui/material';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-import type { Formatter, NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
+import type {
+  Formatter,
+  NameType,
+  ValueType,
+} from 'recharts/types/component/DefaultTooltipContent';
 import type { DashboardTask } from '../../services/dashboard-service';
 
 export interface TaskSummaryPanelProps {

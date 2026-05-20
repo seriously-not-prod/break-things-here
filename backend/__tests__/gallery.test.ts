@@ -42,8 +42,14 @@ function makeRes(): Response {
   const res: Partial<Response> & { statusCode: number; body: unknown } = {
     statusCode: 200,
     body: null,
-    status(code: number) { this.statusCode = code; return this as Response; },
-    json(data: unknown) { this.body = data; return this as Response; },
+    status(code: number) {
+      this.statusCode = code;
+      return this as Response;
+    },
+    json(data: unknown) {
+      this.body = data;
+      return this as Response;
+    },
     sendFile: vi.fn(),
   };
   return res as Response;
@@ -294,7 +300,9 @@ const MOCK_ALBUM = {
 };
 
 describe('listAlbums (#459)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('returns 200 with albums', async () => {
     mockRequireEventAccess.mockResolvedValue(MOCK_EVENT);
@@ -321,14 +329,19 @@ describe('listAlbums (#459)', () => {
 });
 
 describe('createAlbum (#459)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('returns 201 with created album', async () => {
     mockRequireEventAccess.mockResolvedValue(MOCK_EVENT);
     mockDb.run.mockResolvedValue({});
     mockDb.get.mockResolvedValue(MOCK_ALBUM);
 
-    const req = makeReq({ eventId: '42' }, { name: 'Stage Photos', description: 'Photos from the stage' });
+    const req = makeReq(
+      { eventId: '42' },
+      { name: 'Stage Photos', description: 'Photos from the stage' },
+    );
     const res = makeRes();
 
     await createAlbum(req, res);
@@ -359,7 +372,9 @@ describe('createAlbum (#459)', () => {
 });
 
 describe('updateAlbum (#459)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('returns 200 with updated album', async () => {
     mockRequireEventAccess.mockResolvedValue(MOCK_EVENT);
@@ -390,7 +405,9 @@ describe('updateAlbum (#459)', () => {
 });
 
 describe('deleteAlbum (#459)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('returns 200 and deletes album', async () => {
     mockRequireEventAccess.mockResolvedValue(MOCK_EVENT);
@@ -421,7 +438,9 @@ describe('deleteAlbum (#459)', () => {
 });
 
 describe('assignItemToAlbum (#459)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('assigns item to album', async () => {
     mockRequireEventAccess.mockResolvedValue(MOCK_EVENT);
@@ -471,7 +490,9 @@ describe('assignItemToAlbum (#459)', () => {
 // ─── Moderation (#459) ────────────────────────────────────────────────────────
 
 describe('listModerationQueue (#459)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('returns 200 with pending items', async () => {
     mockRequireEventAccess.mockResolvedValue(MOCK_EVENT);
@@ -511,7 +532,9 @@ describe('listModerationQueue (#459)', () => {
 });
 
 describe('moderateItem (#459)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('approves item successfully', async () => {
     mockRequireEventAccess.mockResolvedValue(MOCK_EVENT);
@@ -576,7 +599,9 @@ describe('moderateItem (#459)', () => {
 });
 
 describe('submitGuestPhoto (#459)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('marks item as pending moderation', async () => {
     mockRequireEventAccess.mockResolvedValue(MOCK_EVENT);
@@ -618,7 +643,9 @@ const MOCK_SLIDESHOW = {
 };
 
 describe('listSlideshows (#459)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('returns 200 with slideshows', async () => {
     mockRequireEventAccess.mockResolvedValue(MOCK_EVENT);
@@ -644,7 +671,9 @@ describe('listSlideshows (#459)', () => {
 });
 
 describe('createSlideshow (#459)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('returns 201 with created slideshow', async () => {
     mockRequireEventAccess.mockResolvedValue(MOCK_EVENT);
@@ -674,16 +703,23 @@ describe('createSlideshow (#459)', () => {
 });
 
 describe('getSlideshowItems (#459)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('returns items for valid slideshow', async () => {
     mockRequireEventAccess.mockResolvedValue(MOCK_EVENT);
     mockDb.get.mockResolvedValue({ id: 20 });
     mockDb.all.mockResolvedValue([
       {
-        id: 1, slideshow_id: 20, document_id: 1, sort_order: 0,
-        file_name: 'photo.jpg', original_name: 'concert.jpg',
-        mime_type: 'image/jpeg', caption: null,
+        id: 1,
+        slideshow_id: 20,
+        document_id: 1,
+        sort_order: 0,
+        file_name: 'photo.jpg',
+        original_name: 'concert.jpg',
+        mime_type: 'image/jpeg',
+        caption: null,
       },
     ]);
 
@@ -711,7 +747,9 @@ describe('getSlideshowItems (#459)', () => {
 });
 
 describe('updateSlideshow (#459)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('returns 200 with updated slideshow', async () => {
     mockRequireEventAccess.mockResolvedValue(MOCK_EVENT);
@@ -720,7 +758,10 @@ describe('updateSlideshow (#459)', () => {
       .mockResolvedValueOnce({ ...MOCK_SLIDESHOW, name: 'Updated Name' });
     mockDb.run.mockResolvedValue({});
 
-    const req = makeReq({ eventId: '42', slideshowId: '20' }, { name: 'Updated Name', itemIds: [1] });
+    const req = makeReq(
+      { eventId: '42', slideshowId: '20' },
+      { name: 'Updated Name', itemIds: [1] },
+    );
     const res = makeRes();
 
     await updateSlideshow(req, res);
@@ -742,7 +783,9 @@ describe('updateSlideshow (#459)', () => {
 });
 
 describe('deleteSlideshow (#459)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('returns 200 and deletes slideshow', async () => {
     mockRequireEventAccess.mockResolvedValue(MOCK_EVENT);

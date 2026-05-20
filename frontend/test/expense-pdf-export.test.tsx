@@ -340,7 +340,7 @@ describe('generateExpenseSummaryPdf', () => {
     });
 
     const expenseTableCall = mockAutoTable.mock.calls[1][0] as { body: string[][] };
-    expect(expenseTableCall.body[0][3]).toBe('Paid');   // 'paid' → 'Paid'
+    expect(expenseTableCall.body[0][3]).toBe('Paid'); // 'paid' → 'Paid'
     expect(expenseTableCall.body[1][3]).toBe('Pending'); // 'pending' → 'Pending'
   });
 
@@ -399,7 +399,9 @@ describe('BudgetPage — Export PDF button', () => {
   it('renders the Export PDF button', async () => {
     renderBudgetPage();
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /export expense summary as pdf/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /export expense summary as pdf/i }),
+      ).toBeInTheDocument();
     });
   }, 15000);
 

@@ -7,3 +7,4 @@ coverage/
 *.min.css
 database/init.sql
 database/migrations/
+docs/database/schema.md

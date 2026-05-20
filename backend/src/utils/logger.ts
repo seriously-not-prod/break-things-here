@@ -28,7 +28,12 @@ function write(record: LogRecord): void {
   }
 }
 
-function log(level: LogLevel, message: string, meta?: Record<string, unknown>, correlationId?: string): void {
+function log(
+  level: LogLevel,
+  message: string,
+  meta?: Record<string, unknown>,
+  correlationId?: string,
+): void {
   const record: LogRecord = {
     level,
     message,
@@ -38,7 +43,8 @@ function log(level: LogLevel, message: string, meta?: Record<string, unknown>, c
   };
 
   if (isDev) {
-    const prefix = { debug: '🔵', info: '🟢', warn: '🟡', error: '🔴' }[level] ?? level.toUpperCase();
+    const prefix =
+      { debug: '🔵', info: '🟢', warn: '🟡', error: '🔴' }[level] ?? level.toUpperCase();
     // Use structured write even in dev to avoid format-string injection risk (CodeQL)
     process.stdout.write(JSON.stringify({ ...record, _prefix: prefix }) + '\n');
     return;
@@ -73,14 +79,20 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
 
   res.on('finish', () => {
     const ms = Date.now() - start;
-    const level: LogLevel = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
-    log(level, `${req.method} ${req.path} ${res.statusCode} ${ms}ms`, {
-      method: req.method,
-      path: req.path,
-      status: res.statusCode,
-      latencyMs: ms,
-      userAgent: req.headers['user-agent'],
-    }, correlationId);
+    const level: LogLevel =
+      res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
+    log(
+      level,
+      `${req.method} ${req.path} ${res.statusCode} ${ms}ms`,
+      {
+        method: req.method,
+        path: req.path,
+        status: res.statusCode,
+        latencyMs: ms,
+        userAgent: req.headers['user-agent'],
+      },
+      correlationId,
+    );
   });
 
   next();

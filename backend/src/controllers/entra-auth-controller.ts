@@ -11,6 +11,7 @@ import { validateEntraIdToken } from '../utils/entra-token.js';
 import { getDatabase } from '../db/database.js';
 import { generateTokens } from '../middleware/auth.js';
 import { hashToken, encryptToken, hashPassword } from '../utils/auth-helpers.js';
+import { fetchGroupsWithCache, GraphGroupsStaleError } from '../services/graph-groups.js';
 
 interface UserRow {
   id: number;
@@ -44,7 +45,9 @@ async function fetchGroupIdsFromGraph(accessToken: string): Promise<string[]> {
 
     if (!graphRes.ok) {
       const detail = await graphRes.text().catch(() => '');
-      throw new Error(`Graph memberOf request failed (${graphRes.status}): ${detail.slice(0, 300)}`);
+      throw new Error(
+        `Graph memberOf request failed (${graphRes.status}): ${detail.slice(0, 300)}`,
+      );
     }
 
     const data = (await graphRes.json()) as {
@@ -123,7 +126,11 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
     return;
   }
 
-  const { code, state, id_token: directIdToken } = req.body as {
+  const {
+    code,
+    state,
+    id_token: directIdToken,
+  } = req.body as {
     code?: string;
     state?: string;
     id_token?: string;
@@ -150,7 +157,9 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
     }
 
     if (!codeVerifier) {
-      res.status(400).json({ error: 'Missing PKCE verifier cookie. Restart Entra sign-in and try again.' });
+      res
+        .status(400)
+        .json({ error: 'Missing PKCE verifier cookie. Restart Entra sign-in and try again.' });
       return;
     }
 
@@ -170,14 +179,14 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
     });
 
     if (!tokenRes.ok) {
-      const err = await tokenRes.json().catch(() => ({})) as Record<string, unknown>;
+      const err = (await tokenRes.json().catch(() => ({}))) as Record<string, unknown>;
       res.clearCookie('entra_state');
       res.clearCookie('entra_pkce_verifier');
       res.status(401).json({ error: 'Failed to exchange code for token.', details: err });
       return;
     }
 
-    const tokenData = await tokenRes.json() as { id_token?: string; access_token?: string };
+    const tokenData = (await tokenRes.json()) as { id_token?: string; access_token?: string };
     if (!tokenData.id_token) {
       res.clearCookie('entra_state');
       res.clearCookie('entra_pkce_verifier');
@@ -185,7 +194,8 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
       return;
     }
     idToken = tokenData.id_token;
-    accessTokenForGraph = typeof tokenData.access_token === 'string' ? tokenData.access_token : null;
+    accessTokenForGraph =
+      typeof tokenData.access_token === 'string' ? tokenData.access_token : null;
   }
 
   res.clearCookie('entra_state');
@@ -204,7 +214,9 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
   if (isMfaRequired()) {
     const amr: string[] = Array.isArray(claims.amr) ? (claims.amr as string[]) : [];
     if (!amr.includes('mfa')) {
-      res.status(401).json({ error: 'MFA is required. Please complete multi-factor authentication and try again.' });
+      res.status(401).json({
+        error: 'MFA is required. Please complete multi-factor authentication and try again.',
+      });
       return;
     }
   }
@@ -224,12 +236,29 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
 
   // FR-AUTH-003: When Entra token has group overage indicators, fetch groups via Graph.
   // This handles large group memberships where `groups` claim is omitted.
-  if (resolvedGroupIds.length === 0 && tokenHasGroupOverage(claims as unknown as Record<string, unknown>)) {
+  // #784 — uses cached graph-groups service with stale-data fallback.
+  if (
+    resolvedGroupIds.length === 0 &&
+    tokenHasGroupOverage(claims as unknown as Record<string, unknown>)
+  ) {
     if (accessTokenForGraph) {
+      const graphToken = accessTokenForGraph;
       try {
-        resolvedGroupIds = await fetchGroupIdsFromGraph(accessTokenForGraph);
+        resolvedGroupIds = await fetchGroupsWithCache(entraOid, () =>
+          fetchGroupIdsFromGraph(graphToken),
+        );
       } catch (error) {
-        console.warn('[Entra] Failed to resolve group overage via Graph; proceeding without group-derived role.', error);
+        if (error instanceof GraphGroupsStaleError) {
+          res.status(503).json({
+            error:
+              'Microsoft Graph is unavailable and cached data has expired. Please try again later.',
+          });
+          return;
+        }
+        console.warn(
+          '[Entra] Failed to resolve group overage via Graph; proceeding without group-derived role.',
+          error,
+        );
       }
     } else {
       console.warn('[Entra] Token indicates group overage but no Graph access token is available.');
@@ -239,7 +268,9 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
   const requestedRoleName = resolveRoleFromEntraGroups(resolvedGroupIds);
   let requestedRoleId: number | null = null;
   if (requestedRoleName) {
-    const role = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [requestedRoleName]);
+    const role = await db.get<{ id: number }>('SELECT id FROM roles WHERE name = $1', [
+      requestedRoleName,
+    ]);
     requestedRoleId = role?.id ?? null;
   }
 
@@ -297,13 +328,15 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
       return;
     }
 
-    user = await db.get<UserRow>(
-      'SELECT id, email, role_id, entra_oid FROM users WHERE id = $1',
-      [result.lastID],
-    );
+    user = await db.get<UserRow>('SELECT id, email, role_id, entra_oid FROM users WHERE id = $1', [
+      result.lastID,
+    ]);
 
     if (user && requestedRoleId !== null) {
-      await db.run('UPDATE users SET role_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [requestedRoleId, user.id]);
+      await db.run('UPDATE users SET role_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [
+        requestedRoleId,
+        user.id,
+      ]);
       user.role_id = requestedRoleId;
     }
   }
@@ -314,7 +347,12 @@ export async function handleEntraCallback(req: Request, res: Response): Promise<
   }
 
   const sessionId = crypto.randomBytes(16).toString('hex');
-  const { accessToken, refreshToken } = generateTokens(user.id, user.email, user.role_id, sessionId);
+  const { accessToken, refreshToken } = generateTokens(
+    user.id,
+    user.email,
+    user.role_id,
+    sessionId,
+  );
   const tokenHash = hashToken(sessionId);
   const refreshTokenHash = hashToken(refreshToken);
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();

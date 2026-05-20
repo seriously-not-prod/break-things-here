@@ -192,10 +192,7 @@ describe('photo permissions', () => {
       allow_download: true,
       allow_comments: true,
     });
-    const req = makeReq(
-      { eventId: '1', documentId: '1' },
-      { visibility: 'secret' },
-    );
+    const req = makeReq({ eventId: '1', documentId: '1' }, { visibility: 'secret' });
     const res = makeRes();
     await updatePhotoPermissions(req, res as unknown as import('express').Response);
     expect(res.statusCode).toBe(400);
@@ -209,10 +206,7 @@ describe('photo permissions', () => {
       allow_download: true,
       allow_comments: true,
     });
-    const req = makeReq(
-      { eventId: '1', documentId: '1' },
-      { visibility: 'public' },
-    );
+    const req = makeReq({ eventId: '1', documentId: '1' }, { visibility: 'public' });
     const res = makeRes();
     await updatePhotoPermissions(req, res as unknown as import('express').Response);
     expect(res.statusCode).toBe(400);

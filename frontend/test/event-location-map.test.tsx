@@ -14,9 +14,7 @@ import EventLocationMap from '../src/components/events/event-location-map';
 
 describe('EventLocationMap', () => {
   it('renders an iframe with marker when coordinates are valid', () => {
-    render(
-      <EventLocationMap latitude={37.7749} longitude={-122.4194} locationLabel="SF" />,
-    );
+    render(<EventLocationMap latitude={37.7749} longitude={-122.4194} locationLabel="SF" />);
     const iframe = screen.getByTestId('event-location-map-iframe') as HTMLIFrameElement;
     expect(iframe).toBeInTheDocument();
     expect(iframe.src).toContain('openstreetmap.org/export/embed.html');

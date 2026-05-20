@@ -1,7 +1,10 @@
 import { randomBytes } from 'node:crypto';
 
 /** Token lifetime in milliseconds (24 hours) */
-const TOKEN_TTL_MS = parseInt(process.env.CONFIRMATION_TOKEN_TTL_MS ?? String(24 * 60 * 60 * 1000), 10);
+const TOKEN_TTL_MS = parseInt(
+  process.env.CONFIRMATION_TOKEN_TTL_MS ?? String(24 * 60 * 60 * 1000),
+  10,
+);
 
 /** Minimum byte length for cryptographic security */
 const TOKEN_BYTES = 32;

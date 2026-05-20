@@ -40,8 +40,14 @@ function makeRes() {
   } = {
     statusCode: 200,
     body: null,
-    status(code) { this.statusCode = code; return this; },
-    json(data) { this.body = data; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -51,11 +57,13 @@ const OTHER_ORGANIZER = { id: 9, email: 'other@test.com', role_id: 2 };
 const ADMIN = { id: 1, email: 'admin@test.com', role_id: 3 };
 const VIEWER = { id: 7, email: 'viewer@test.com', role_id: 1 };
 
-function makeReq(opts: {
-  user?: typeof ORGANIZER | undefined;
-  params?: Record<string, string>;
-  body?: Record<string, unknown>;
-} = {}) {
+function makeReq(
+  opts: {
+    user?: typeof ORGANIZER | undefined;
+    params?: Record<string, string>;
+    body?: Record<string, unknown>;
+  } = {},
+) {
   return {
     user: opts.user,
     params: opts.params ?? {},
@@ -222,10 +230,10 @@ describe('applyTemplate', () => {
     const insertSql = mockDb.run.mock.calls[0][0] as string;
     expect(insertSql).toContain('INSERT INTO events');
     const params = mockDb.run.mock.calls[0][1] as unknown[];
-    expect(params).toContain('Wedding');   // default_title
-    expect(params).toContain('Hall');      // default_location
+    expect(params).toContain('Wedding'); // default_title
+    expect(params).toContain('Hall'); // default_location
     expect(params).toContain('2026-09-01');
-    expect(params).toContain(true);        // default_waitlist_enabled
+    expect(params).toContain(true); // default_waitlist_enabled
   });
 
   it('forbids organizer that does not own the template', async () => {

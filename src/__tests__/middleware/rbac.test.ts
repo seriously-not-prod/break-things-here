@@ -155,7 +155,12 @@ describe('Token version invalidation', () => {
     const staleVersion = getTokenVersion(user.id) - 1;
     const wrapped = requireRole(UserRole.Admin, handler);
     const req = createMockReq({
-      user: { id: user.id, email: 'admin@test.com', role: UserRole.Admin, tokenVersion: staleVersion },
+      user: {
+        id: user.id,
+        email: 'admin@test.com',
+        role: UserRole.Admin,
+        tokenVersion: staleVersion,
+      },
     });
     const res = createMockRes();
 
@@ -178,7 +183,12 @@ describe('Token version invalidation', () => {
     const currentVersion = getTokenVersion(user.id);
     const wrapped = requireRole(UserRole.Admin, handler);
     const req = createMockReq({
-      user: { id: user.id, email: 'admin@test.com', role: UserRole.Admin, tokenVersion: currentVersion },
+      user: {
+        id: user.id,
+        email: 'admin@test.com',
+        role: UserRole.Admin,
+        tokenVersion: currentVersion,
+      },
     });
     const res = createMockRes();
 

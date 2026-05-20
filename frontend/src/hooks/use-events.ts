@@ -52,8 +52,7 @@ export function useEvent(id: number) {
 export function useCreateEvent() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Partial<EventDetail>) =>
-      api.post<EventDetail>('/events', payload),
+    mutationFn: (payload: Partial<EventDetail>) => api.post<EventDetail>('/events', payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: EVENT_QUERY_KEYS.all });
     },
@@ -63,8 +62,7 @@ export function useCreateEvent() {
 export function useUpdateEvent(id: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Partial<EventDetail>) =>
-      api.patch<EventDetail>(`/events/${id}`, payload),
+    mutationFn: (payload: Partial<EventDetail>) => api.patch<EventDetail>(`/events/${id}`, payload),
     onSuccess: (updated) => {
       queryClient.setQueryData(EVENT_QUERY_KEYS.detail(id), updated);
       queryClient.invalidateQueries({ queryKey: EVENT_QUERY_KEYS.all });

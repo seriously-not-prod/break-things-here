@@ -23,7 +23,7 @@ const RSVPS: Rsvp[] = [
     name: 'Alice Smith',
     email: 'alice@test.com',
     guests: 1,
-    status: 'Going',
+    canonical_status: 'confirmed',
     notes: null,
     source: 'public',
     checked_in: false,
@@ -37,7 +37,7 @@ const RSVPS: Rsvp[] = [
     name: 'Bob Jones',
     email: 'bob@test.com',
     guests: 2,
-    status: 'Pending',
+    canonical_status: 'pending',
     notes: null,
     source: 'internal',
     checked_in: true,
@@ -76,8 +76,8 @@ describe('CheckInPage (#387)', () => {
 
     expect(screen.getByText('alice@test.com')).toBeInTheDocument();
     expect(screen.getByText('Bob Jones')).toBeInTheDocument();
-    expect(screen.getByText('Going')).toBeInTheDocument();
-    expect(screen.getByText('Pending')).toBeInTheDocument();
+    expect(screen.getByText('confirmed')).toBeInTheDocument();
+    expect(screen.getByText('pending')).toBeInTheDocument();
   });
 
   it('already-checked-in row has a disabled button', async () => {

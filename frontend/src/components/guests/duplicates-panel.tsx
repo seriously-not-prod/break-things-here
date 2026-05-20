@@ -24,11 +24,7 @@ import {
   Typography,
 } from '@mui/material';
 import { MergeTypeRounded, RefreshRounded } from '@mui/icons-material';
-import {
-  listDuplicates,
-  mergeRsvps,
-  type DuplicateCluster,
-} from '../../services/guest-service';
+import { listDuplicates, mergeRsvps, type DuplicateCluster } from '../../services/guest-service';
 
 interface Props {
   eventId: string | number;
@@ -114,9 +110,7 @@ export function DuplicatesPanel({ eventId, onChanged }: Props): JSX.Element {
         </Alert>
       )}
 
-      {clusters.length === 0 && (
-        <Alert severity="success">No duplicate guests detected.</Alert>
-      )}
+      {clusters.length === 0 && <Alert severity="success">No duplicate guests detected.</Alert>}
 
       {clusters.map((cluster, idx) => (
         <Paper key={idx} variant="outlined" sx={{ p: 2, mb: 2 }}>
@@ -146,9 +140,7 @@ export function DuplicatesPanel({ eventId, onChanged }: Props): JSX.Element {
                       <FormControl>
                         <Radio
                           checked={survivors[idx] === r.id}
-                          onChange={() =>
-                            setSurvivors((prev) => ({ ...prev, [idx]: r.id }))
-                          }
+                          onChange={() => setSurvivors((prev) => ({ ...prev, [idx]: r.id }))}
                           inputProps={{ 'aria-label': `Make ${r.name} the survivor` }}
                         />
                       </FormControl>

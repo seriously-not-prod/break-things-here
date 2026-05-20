@@ -40,18 +40,15 @@ export default function VendorPerformanceCard({ eventId, vendorId }: Props): JSX
   if (error) return <Alert severity="error">{error}</Alert>;
   if (!perf) return <></>;
 
-  const scoreColor = perf.performance_score >= 80 ? 'success' : perf.performance_score >= 50 ? 'warning' : 'error';
+  const scoreColor =
+    perf.performance_score >= 80 ? 'success' : perf.performance_score >= 50 ? 'warning' : 'error';
 
   return (
     <Box>
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
         <Typography variant="subtitle2">Performance — {perf.vendor_name}</Typography>
         <Tooltip title={`Performance score: ${perf.performance_score}/100`}>
-          <Chip
-            label={`Score: ${perf.performance_score}`}
-            color={scoreColor}
-            size="small"
-          />
+          <Chip label={`Score: ${perf.performance_score}`} color={scoreColor} size="small" />
         </Tooltip>
       </Stack>
 
@@ -65,45 +62,72 @@ export default function VendorPerformanceCard({ eventId, vendorId }: Props): JSX
 
       <Stack spacing={1}>
         <Stack direction="row" justifyContent="space-between">
-          <Typography variant="body2" color="text.secondary">Rating</Typography>
-          {perf.rating ? <Rating value={perf.rating} readOnly size="small" /> : <Typography variant="body2">—</Typography>}
+          <Typography variant="body2" color="text.secondary">
+            Rating
+          </Typography>
+          {perf.rating ? (
+            <Rating value={perf.rating} readOnly size="small" />
+          ) : (
+            <Typography variant="body2">—</Typography>
+          )}
         </Stack>
 
         <Stack direction="row" justifyContent="space-between">
-          <Typography variant="body2" color="text.secondary">Contract on File</Typography>
-          {perf.contract_on_file
-            ? <CheckCircleOutlineRounded fontSize="small" color="success" />
-            : <CancelOutlined fontSize="small" color="error" />}
+          <Typography variant="body2" color="text.secondary">
+            Contract on File
+          </Typography>
+          {perf.contract_on_file ? (
+            <CheckCircleOutlineRounded fontSize="small" color="success" />
+          ) : (
+            <CancelOutlined fontSize="small" color="error" />
+          )}
         </Stack>
 
         <Stack direction="row" justifyContent="space-between">
-          <Typography variant="body2" color="text.secondary">Communications</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Communications
+          </Typography>
           <Typography variant="body2">{perf.total_communications}</Typography>
         </Stack>
 
         <Stack direction="row" justifyContent="space-between">
-          <Typography variant="body2" color="text.secondary">Last Contact</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Last Contact
+          </Typography>
           <Typography variant="body2">
             {perf.last_contact_at ? new Date(perf.last_contact_at).toLocaleDateString() : '—'}
           </Typography>
         </Stack>
 
         <Stack direction="row" justifyContent="space-between">
-          <Typography variant="body2" color="text.secondary">Timeline Items</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Timeline Items
+          </Typography>
           <Typography variant="body2">{perf.timeline_items}</Typography>
         </Stack>
 
         <Stack direction="row" justifyContent="space-between">
-          <Typography variant="body2" color="text.secondary">Total Paid</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Total Paid
+          </Typography>
           <Typography variant="body2">
-            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(perf.total_paid)}
+            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+              perf.total_paid,
+            )}
           </Typography>
         </Stack>
 
         <Stack direction="row" justifyContent="space-between">
-          <Typography variant="body2" color="text.secondary">Outstanding</Typography>
-          <Typography variant="body2" color={perf.total_pending > 0 ? 'warning.main' : 'text.primary'}>
-            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(perf.total_pending)}
+          <Typography variant="body2" color="text.secondary">
+            Outstanding
+          </Typography>
+          <Typography
+            variant="body2"
+            color={perf.total_pending > 0 ? 'warning.main' : 'text.primary'}
+          >
+            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+              perf.total_pending,
+            )}
           </Typography>
         </Stack>
       </Stack>

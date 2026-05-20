@@ -17,6 +17,7 @@ import PublicRsvpPage from './components/events/public-rsvp-page';
 import ProfilePage from './components/profile/profile-page';
 import AdminPage from './components/admin/admin-page';
 import { AiAssistant } from './components/ai/ai-assistant';
+import { NotificationToast } from './components/nav/notification-toast';
 import { AnalyticsPage } from './components/analytics/analytics-page';
 import EventFormPage from './components/events/event-form-page';
 import VendorsPage from './components/vendors/vendors-page';
@@ -149,7 +150,13 @@ function AuthShell(): JSX.Element {
         </Box>
 
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h5" fontWeight={700} color="text.primary" sx={{ mb: 0.5 }}>
+          <Typography
+            variant="h5"
+            component="h2"
+            fontWeight={700}
+            color="text.primary"
+            sx={{ mb: 0.5 }}
+          >
             {VIEW_TITLES[view]}
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -539,6 +546,7 @@ function AppShell(): JSX.Element {
         </ErrorBoundary>
       </Box>
       <AiAssistant />
+      <NotificationToast />
       <GlobalShortcuts
         onToggleHelp={handleToggleHelp}
         onOpenHelp={handleOpenHelp}
@@ -583,7 +591,7 @@ function RootRouter(): JSX.Element {
 
 function App(): JSX.Element {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <ThemeModeProvider>
         <AuthProvider>
           <RootRouter />

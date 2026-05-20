@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DatabaseAdapter } from '../src/db/database.js';
-import {
-  AUDIT_ACTIONS,
-  logMutation,
-  type AuditTargetType,
-} from '../src/utils/audit-log.js';
+import { AUDIT_ACTIONS, logMutation, type AuditTargetType } from '../src/utils/audit-log.js';
 
 function buildMockDb(): { db: DatabaseAdapter; runMock: ReturnType<typeof vi.fn> } {
   const runMock = vi.fn().mockResolvedValue({ lastID: 1, changes: 1 });

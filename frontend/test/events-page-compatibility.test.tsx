@@ -18,9 +18,8 @@ vi.mock('../src/contexts/auth-context', async () => {
 });
 
 vi.mock('../src/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../src/lib/api-client')>(
-    '../src/lib/api-client',
-  );
+  const actual =
+    await vi.importActual<typeof import('../src/lib/api-client')>('../src/lib/api-client');
   return {
     ...actual,
     api: {
@@ -150,6 +149,22 @@ describe('EventsPage compatibility', () => {
     renderPage();
     await waitFor(() => expect(screen.getByText('Hard Cap')).toBeInTheDocument());
     expect(screen.getByText('102/100 · over by 2')).toBeInTheDocument();
+  });
+
+  it('shows all lifecycle statuses in the status filter', async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Sold Out Concert')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/i }));
+    const statusFilters = screen.getAllByLabelText('Status');
+    fireEvent.mouseDown(statusFilters[0]);
+
+    const expected = ['Any', 'Draft', 'Planning', 'Confirmed', 'Active', 'Completed', 'Cancelled'];
+    expected.forEach((label) => {
+      expect(screen.getByRole('option', { name: label })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('listbox')).toMatchSnapshot('events-status-filter-options');
   });
 
   it('exposes the bulk selection toolbar', async () => {

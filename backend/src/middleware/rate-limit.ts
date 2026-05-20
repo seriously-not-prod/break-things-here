@@ -14,6 +14,16 @@ export const healthLimiter = rateLimit({
   message: { error: 'Too many health check requests.' },
 });
 
+// #784 — dedicated limiter for the /metrics endpoint; Prometheus scrapers may
+// poll more aggressively than health checkers.
+export const metricsLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many metrics requests.' },
+});
+
 // Per-IP limit for unauthenticated, user-facing public surfaces:
 // /public/events, /public/gallery, /public/rsvp, /public/unsubscribe.
 // These represent per-human actions (one guest opening one RSVP page), so
@@ -62,10 +72,11 @@ export const csrfLimiter = rateLimit({
   message: { error: 'Too many CSRF token requests. Please try again later.' },
 });
 
-export const createAuthLimiter = () => rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 10 : 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many auth requests. Please try again later.' },
-});
+export const createAuthLimiter = () =>
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: process.env.NODE_ENV === 'production' ? 10 : 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many auth requests. Please try again later.' },
+  });

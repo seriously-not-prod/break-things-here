@@ -33,9 +33,13 @@ export async function globalSearch(req: Request, res: Response): Promise<Respons
   const limit = Math.min(Math.max(Number(req.query['limit']) || 10, 1), 50);
   const includeArchived = req.query['include_archived'] === 'true';
 
-  const requestedTypes = typeof req.query['types'] === 'string'
-    ? (req.query['types'] as string).split(',').map((t) => t.trim()).filter(Boolean)
-    : [...ALL_TYPES];
+  const requestedTypes =
+    typeof req.query['types'] === 'string'
+      ? (req.query['types'] as string)
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : [...ALL_TYPES];
   const types = requestedTypes.filter((t): t is SearchType =>
     (ALL_TYPES as readonly string[]).includes(t),
   );
@@ -95,7 +99,7 @@ export async function globalSearch(req: Request, res: Response): Promise<Respons
 
   if (types.includes('rsvps')) {
     const sql = `
-      SELECT r.id, r.event_id, r.name, r.email, r.status, e.title AS event_title,
+      SELECT r.id, r.event_id, r.name, r.email, r.canonical_status AS status, e.title AS event_title,
              'rsvp' AS kind
         FROM rsvps r
         JOIN events e ON e.id = r.event_id

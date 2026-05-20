@@ -50,10 +50,7 @@ function makeRes() {
   return res;
 }
 
-function makeReq(
-  params: Record<string, string>,
-  body: Record<string, unknown> = {},
-) {
+function makeReq(params: Record<string, string>, body: Record<string, unknown> = {}) {
   return {
     params,
     query: {},

@@ -3,6 +3,7 @@
 **Document Generated:** May 19, 2026
 
 ## Source Documents
+
 - Business Requirements Document (BRD) v2.0 | January 22, 2026
 - Functional Requirements Document (FRD) v1.0 | January 22, 2026
 - User Personas v1.0 | January 22, 2026
@@ -15,12 +16,13 @@
 
 ## 1.1 Executive Summary
 
-The Festival & Event Planner is a modern web application designed to streamline event planning and management. 
-The application serves dual purposes: providing a fully-functional event planning solution while demonstrating 
+The Festival & Event Planner is a modern web application designed to streamline event planning and management.
+The application serves dual purposes: providing a fully-functional event planning solution while demonstrating
 AI-assisted development practices and modern web technologies.
 
 ### Key Characteristics:
-- **Technology:** React, Next.js, Material-UI, PostgreSQL, PostgREST
+
+- **Technology:** React, Next.js, Material-UI, PostgreSQL, Express API
 - **Authentication:** Azure Entra ID with SSO and MFA
 - **Access Control:** Role-Based Access Control (RBAC) with 5 distinct user groups
 - **Deployment:** Docker-based containerized architecture
@@ -29,6 +31,7 @@ AI-assisted development practices and modern web technologies.
 ## 1.2 Business Goals & Objectives
 
 ### Primary Goals:
+
 1. Provide a comprehensive, production-ready event planning solution
 2. Demonstrate modern web application development best practices
 3. Serve as a hands-on learning platform for AI-assisted development
@@ -37,6 +40,7 @@ AI-assisted development practices and modern web technologies.
 6. Build a template for similar enterprise applications
 
 ### Business Objectives:
+
 1. Enable users to create and manage unlimited events with full lifecycle support
 2. Facilitate real-time collaboration among multiple event organizers
 3. Provide comprehensive budget tracking and expense management
@@ -49,18 +53,26 @@ AI-assisted development practices and modern web technologies.
 ## 1.3 Success Metrics
 
 ### Efficiency Metrics:
+
 - Create basic event in under 5 minutes
 - Create fully-planned event in under 30 minutes
 - Manage 50+ guest RSVPs in under 10 minutes
 - Budget accuracy within 5% of actual expenses
 
 ### Performance Metrics:
+
 - Page load time under 2 seconds
 - API response time under 500ms
 - Support 100+ concurrent users
 - Achieve 99% uptime for production deployment
 
 ## 1.4 MVP Scope - Feature Categories
+
+Schema reference alignment note (BRD v2.0 §1.4):
+
+- The canonical database schema reference is `docs/database/schema.md`.
+- The current live schema contains 60+ tables (currently 64 in the generated reference).
+- Any mention of an "11-table core" in legacy planning artifacts is historical context, not the current implementation baseline.
 
 ### Authentication & Security
 
@@ -161,7 +173,6 @@ AI-assisted development practices and modern web technologies.
 - Version history with rollback capability
 - Team member online/offline status indicators
 - Team chat/messaging integrated into events
-
 
 ---
 
@@ -350,11 +361,10 @@ AI-assisted development practices and modern web technologies.
 - Row Level Security policies enforce permissions at database level
 - Integration Requirements
 - Azure Entra ID provides authentication and authorization
-- PostgREST automatically generates RESTful API from database schema
+- Express provides the active REST API contract for frontend and integrations
 - All API calls include JWT token in Authorization header
 - CORS configured to allow requests from Next
 - js frontend
-
 
 ---
 
@@ -364,13 +374,11 @@ AI-assisted development practices and modern web technologies.
 
 ### Sarah Chen - Busy Event Organizer
 
-
 **Age:** 32 | **Occupation:** Marketing Manager & Community Volunteer
 
 **Background:** Sarah organizes multiple events per year including corporate gatherings, charity fundraisers, and personal celebrations. She juggles a full-time job with volunteer work and personal commitments. Curre...
 
 ### Marcus Rodriguez - Collaborative Planner
-
 
 **Age:** 45 | **Occupation:** High School Teacher & PTA Volunteer
 
@@ -378,18 +386,15 @@ AI-assisted development practices and modern web technologies.
 
 ### Emily Patel - Guest
 
-
 **Age:** 28 | **Occupation:** Software Developer
 
 **Background:** Emily receives invitations to various events including weddings, birthday parties, professional networking events, and community gatherings. She values her time and appreciates when event information ...
 
 ### David Kim - System Administrator
 
-
 **Age:** 38 | **Occupation:** IT Systems Administrator
 
 **Background:** David manages the organization's technology infrastructure and user access systems. He's responsible for integrating new applications with Azure Entra ID, managing security policies, and ensuring comp...
-
 
 ---
 
@@ -398,6 +403,7 @@ AI-assisted development practices and modern web technologies.
 ## 4.1 Technology Stack
 
 ### Frontend Layer
+
 - **Framework:** React 18 with TypeScript (strict mode)
 - **Meta-Framework:** Next.js 14 with App Router
 - **UI Components:** Material-UI (MUI) v5
@@ -406,49 +412,81 @@ AI-assisted development practices and modern web technologies.
 - **Forms:** React Hook Form with Zod validation
 
 ### Backend & Database
+
 - **Database:** PostgreSQL 14+
-- **API Layer:** PostgREST (automatic RESTful API generation)
+- **API Layer:** Express (versioned `/api` contract)
 - **Authentication:** Azure Entra ID with MSAL.js
 
 ### DevOps & Infrastructure
+
 - **Containerization:** Docker & Docker Compose
 - **Version Control:** Git with feature branch workflow
 
 ## 4.2 Database Schema Architecture
 
-### Core Tables (11-table PostgreSQL schema):
-- **users** - User profiles synced with Azure Entra ID
-- **events** - Event master data with ownership
-- **guests** - Guest information and relationships
-- **rsvps** - RSVP responses with history
-- **tasks** - Task management with assignments
-- **budget_categories** - Budget category definitions
-- **expenses** - Expense tracking with receipts
-- **shopping_lists** - Shopping list headers
-- **shopping_items** - Individual shopping list items
-- **vendors** - Vendor directory and ratings
-- **timeline_activities** - Event timeline and schedule
-- **photos** - Photo gallery and metadata
+### Current schema baseline (live PostgreSQL schema)
+
+- Canonical table inventory: `docs/database/schema.md` (generated from live metadata).
+- Current footprint: 60+ tables (currently 64) across event management, RSVP, auth/RBAC, analytics, communication, and operations domains.
+- The previously cited "11-table core" is retained only as historical planning context and is not used as the active architecture definition.
+
+### Representative foundational tables
+
+- **users** - User profiles and identity mapping
+- **events** - Event master records and lifecycle metadata
+- **guests** - First-class guest identity/profile records (linked from `rsvps.guest_id`)
+- **rsvps** - RSVP workflow records and status data
+- **tasks** - Work planning and execution tracking
+- **budget_categories** and **expenses** - Budget structure and spend tracking
+- **vendors** - Vendor lifecycle and service management
+- **timeline_activities** - Event timeline orchestration
+- **audit_log** and **activity_feed** - Operational traceability and activity visibility
+- **attendance_events** and communication-related tables - RSVP/attendance and outreach telemetry
 
 ### Table Features:
+
 - Audit columns on all tables: created_at, created_by, updated_at, updated_by
 - Row Level Security (RLS) policies for permission enforcement
 - Foreign key constraints ensuring referential integrity
 - Proper indexing for query optimization
 
+### UUID vs SERIAL Decision Record (Issue #774)
+
+- Spike analysis document: `docs/architecture/uuid-migration-spike.md`
+- Decision for current release cycle: **Defer UUID PK migration** and **ratify SERIAL/sequence-backed integer keys as the active implementation baseline**.
+- Rationale: the current 64-table live schema is heavily sequence/integer keyed, with broad cross-layer type impact. A safe UUID migration requires a dedicated multi-phase effort (dual-column cutover) outside current delivery scope.
+- Future direction: track UUID migration as a dedicated epic with phased DB, backend, and frontend rollout planning.
+
+### Review and Sign-Off
+
+- Reviewed by task assignee (`#774`): `@SmitRAmoliya`
+- Sign-off date: 2026-05-20
+
+### TRD Change Log
+
+| Date       | Section                          | Change                                                                                                                                                                                    | Reference |
+| ---------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| 2026-05-20 | 4.1 Technology Stack             | Updated backend API contract to Express `/api` and removed PostgREST as the active runtime API layer.                                                                                     | #775      |
+| 2026-05-20 | 4.3 Development Environment      | Replaced PostgREST service reference with Express backend container and documented freed port `3001` in default compose runtime.                                                          | #775      |
+| 2026-05-20 | 4.2 Database Schema Architecture | Replaced outdated "11-table core" wording with live-schema baseline and canonical reference to `docs/database/schema.md` (64 tables at generation time).                                  | #773      |
+| 2026-05-20 | 4.2 Database Schema Architecture | Added UUID migration spike outcome and decision to defer UUID cutover now, ratify SERIAL baseline, and track phased UUID migration as future work.                                        | #774      |
+| 2026-05-20 | 4.2 Database Schema Architecture | Recorded Task #771 decision to implement `guests` as a first-class table with `rsvps.guest_id` linkage; architecture decision documented in `docs/architecture/guests-table-decision.md`. | #771      |
+
 ## 4.3 Development Environment
 
 ### Docker Compose Services:
+
 - **PostgreSQL Container** - Database with persistent volumes
-- **PostgREST Container** - Automatic API generation (port 3001)
+- **Express Backend Container** - API contract served on backend port 4000 (`/api`)
 - **Next.js Dev Server** - Frontend with hot reload (port 3000)
+- **Freed Port** - `3001` (previous PostgREST mapping) is intentionally unassigned in the default compose runtime
 - **Environment Configuration** - Via .env files
 
 ### Development Tools:
+
 - Automated database migrations with Flyway
 - Seed data scripts for development
 - Pre-commit hooks for code quality
-
 
 ---
 
@@ -523,13 +561,12 @@ AI-assisted development practices and modern web technologies.
 - Automated linting (ESLint) and formatting (Prettier)
 - Pre-commit hooks for code quality checks
 - Version-controlled database migrations
-- Git workflow: main, develop, feature/* branches
+- Git workflow: main, develop, feature/\* branches
 - Pull request reviews required before merging
-
 
 ---
 
-# SECTION 6: CONSTRAINTS, ASSUMPTIONS  & OUT-OF-SCOPE
+# SECTION 6: CONSTRAINTS, ASSUMPTIONS & OUT-OF-SCOPE
 
 ## 6.1 Assumptions
 
@@ -575,7 +612,6 @@ AI-assisted development practices and modern web technologies.
 - Event website builder
 - Sponsor and exhibitor management
 
-
 ---
 
 # SECTION 7: COMPLIANCE CHECKLIST & BASELINE
@@ -585,6 +621,7 @@ AI-assisted development practices and modern web technologies.
 ### High-Priority Features for MVP
 
 #### Critical (Must Have)
+
 - [ ] Azure Entra ID authentication with JWT tokens
 - [ ] Event CRUD operations (Create, Read, Update, Delete)
 - [ ] Guest list management with RSVP tracking
@@ -593,9 +630,10 @@ AI-assisted development practices and modern web technologies.
 - [ ] Dashboard with key metrics
 - [ ] Real-time collaboration updates
 - [ ] PostgreSQL database with RLS policies
-- [ ] PostgREST API auto-generation
+- [ ] Express API contract coverage for required MVP workflows
 
 #### High-Priority (Should Have)
+
 - [ ] Timeline view with conflict detection
 - [ ] Vendor management system
 - [ ] Shopping list management
@@ -605,6 +643,7 @@ AI-assisted development practices and modern web technologies.
 - [ ] Advanced filtering and search
 
 #### Medium-Priority (Nice to Have)
+
 - [ ] Event templates and cloning
 - [ ] Advanced financial reporting
 - [ ] Integration with external services
@@ -613,21 +652,22 @@ AI-assisted development practices and modern web technologies.
 
 ## 7.2 Non-Functional Requirements Verification
 
-| Requirement | Target | Status |
-|---|---|---|
-| Page Load Time | <2 seconds | ⬜ |
-| API Response Time | <500ms | ⬜ |
-| Concurrent Users | 100+ | ⬜ |
-| Uptime | 99% | ⬜ |
-| Database Backups | Daily | ⬜ |
-| Security Compliance | TLS 1.3, RLS, MFA | ⬜ |
-| Accessibility | WCAG 2.1 AA | ⬜ |
-| Code Coverage | >80% | ⬜ |
-| Browser Support | Latest 2 versions | ⬜ |
+| Requirement         | Target            | Status |
+| ------------------- | ----------------- | ------ |
+| Page Load Time      | <2 seconds        | ⬜     |
+| API Response Time   | <500ms            | ⬜     |
+| Concurrent Users    | 100+              | ⬜     |
+| Uptime              | 99%               | ⬜     |
+| Database Backups    | Daily             | ⬜     |
+| Security Compliance | TLS 1.3, RLS, MFA | ⬜     |
+| Accessibility       | WCAG 2.1 AA       | ⬜     |
+| Code Coverage       | >80%              | ⬜     |
+| Browser Support     | Latest 2 versions | ⬜     |
 
 ## 7.3 Testing & Quality Assurance
 
 ### Test Coverage Targets
+
 - Unit Tests: >80% coverage on business logic
 - Integration Tests: All API endpoints
 - E2E Tests: Critical user flows (authentication, RSVP, budget)
@@ -636,15 +676,15 @@ AI-assisted development practices and modern web technologies.
 - Accessibility Tests: Automated axe-core testing + manual review
 
 ### Quality Gates
+
 - [ ] All unit tests passing
 - [ ] All integration tests passing
 - [ ] Zero critical/high security vulnerabilities
 - [ ] Code coverage >80%
-- [  ] ESLint/Prettier checks passing
+- [ ] ESLint/Prettier checks passing
 - [ ] TypeScript strict mode compilation
 - [ ] Lighthouse score >90 on mobile/desktop
 - [ ] WCAG AA accessibility audit passed
-
 
 ---
 

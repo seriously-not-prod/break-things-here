@@ -35,8 +35,14 @@ function makeRes() {
   } = {
     statusCode: 200,
     body: null,
-    status(code) { this.statusCode = code; return this; },
-    json(data) { this.body = data; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -45,20 +51,41 @@ function makeReq(
   query: Record<string, string> = {},
   user = { id: 5, email: 'user@test.com', role_id: 2 },
 ) {
-  return { params: {}, query, body: {}, user, ip: '127.0.0.1' } as unknown as import('express').Request;
+  return {
+    params: {},
+    query,
+    body: {},
+    user,
+    ip: '127.0.0.1',
+  } as unknown as import('express').Request;
 }
 
 const EVENT_A: Row = {
-  id: 1, title: 'Concert Night', date: '2026-07-10', location: 'Arena', status: 'Active',
-  tags: 'music,outdoor', created_by: 5,
+  id: 1,
+  title: 'Concert Night',
+  date: '2026-07-10',
+  location: 'Arena',
+  status: 'Active',
+  tags: 'music,outdoor',
+  created_by: 5,
 };
 const EVENT_B: Row = {
-  id: 2, title: 'Food Fair', date: '2026-08-15', location: 'Park', status: 'Draft',
-  tags: 'food,outdoor', created_by: 9,
+  id: 2,
+  title: 'Food Fair',
+  date: '2026-08-15',
+  location: 'Park',
+  status: 'Draft',
+  tags: 'food,outdoor',
+  created_by: 9,
 };
 const EVENT_C: Row = {
-  id: 3, title: 'Art Show', date: '2026-09-01', location: 'Gallery', status: 'Active',
-  tags: 'art', created_by: 5,
+  id: 3,
+  title: 'Art Show',
+  date: '2026-09-01',
+  location: 'Gallery',
+  status: 'Active',
+  tags: 'art',
+  created_by: 5,
 };
 
 describe('getAllEvents', () => {
@@ -109,7 +136,13 @@ describe('getAllEvents', () => {
   it('owner=me without an authenticated user does not add the filter', async () => {
     mockDb.all.mockResolvedValueOnce([EVENT_A, EVENT_B, EVENT_C]);
 
-    const req = { params: {}, query: { owner: 'me' }, body: {}, user: undefined, ip: '127.0.0.1' } as unknown as import('express').Request;
+    const req = {
+      params: {},
+      query: { owner: 'me' },
+      body: {},
+      user: undefined,
+      ip: '127.0.0.1',
+    } as unknown as import('express').Request;
     const res = makeRes();
 
     await getAllEvents(req, res as unknown as import('express').Response);

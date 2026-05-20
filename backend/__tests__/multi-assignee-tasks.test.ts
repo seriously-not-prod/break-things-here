@@ -88,17 +88,30 @@ beforeEach(async () => {
   }));
 
   const usersRows = await Promise.all([
-    testDb!.run(`INSERT INTO users (email, display_name) VALUES ('alice@example.com', 'Alice') RETURNING id`),
-    testDb!.run(`INSERT INTO users (email, display_name) VALUES ('bob@example.com', 'Bob') RETURNING id`),
-    testDb!.run(`INSERT INTO users (email, display_name) VALUES ('carol@example.com', 'Carol') RETURNING id`),
+    testDb!.run(
+      `INSERT INTO users (email, display_name) VALUES ('alice@example.com', 'Alice') RETURNING id`,
+    ),
+    testDb!.run(
+      `INSERT INTO users (email, display_name) VALUES ('bob@example.com', 'Bob') RETURNING id`,
+    ),
+    testDb!.run(
+      `INSERT INTO users (email, display_name) VALUES ('carol@example.com', 'Carol') RETURNING id`,
+    ),
   ]);
   alice = usersRows[0].lastID!;
   bob = usersRows[1].lastID!;
   carol = usersRows[2].lastID!;
-  const ev = await testDb!.run(`INSERT INTO events (title, created_by) VALUES ('Ev', $1) RETURNING id`, [alice]);
+  const ev = await testDb!.run(
+    `INSERT INTO events (title, created_by) VALUES ('Ev', $1) RETURNING id`,
+    [alice],
+  );
   eventId = ev.lastID!;
   for (const u of [alice, bob, carol]) {
-    await testDb!.run('INSERT INTO event_members (event_id, user_id, role) VALUES ($1,$2,$3)', [eventId, u, 'Member']);
+    await testDb!.run('INSERT INTO event_members (event_id, user_id, role) VALUES ($1,$2,$3)', [
+      eventId,
+      u,
+      'Member',
+    ]);
   }
 });
 
@@ -141,7 +154,9 @@ describe('multi-assignee tasks API (B1.2)', () => {
     );
     await createTask(req as unknown as Parameters<typeof createTask>[0], res);
     expect(res.statusCode).toBe(201);
-    const created = (res.body as { task: { id: number; assigned_user_id: number; assignees: unknown[] } }).task;
+    const created = (
+      res.body as { task: { id: number; assigned_user_id: number; assignees: unknown[] } }
+    ).task;
     expect(created.assigned_user_id).toBe(bob); // primary mirrored
     expect(created.assignees).toHaveLength(2);
 
@@ -158,7 +173,10 @@ describe('multi-assignee tasks API (B1.2)', () => {
     const { createTask } = await import('../src/controllers/tasks-controller.js');
     const res = makeRes();
     await createTask(
-      makeReq({ eventId: String(eventId) }, { title: 't', assigned_user_id: carol }) as unknown as Parameters<typeof createTask>[0],
+      makeReq(
+        { eventId: String(eventId) },
+        { title: 't', assigned_user_id: carol },
+      ) as unknown as Parameters<typeof createTask>[0],
       res,
     );
     expect(res.statusCode).toBe(201);
@@ -175,14 +193,20 @@ describe('multi-assignee tasks API (B1.2)', () => {
     const { createTask, updateTask } = await import('../src/controllers/tasks-controller.js');
     const createRes = makeRes();
     await createTask(
-      makeReq({ eventId: String(eventId) }, { title: 't', assignee_user_ids: [bob] }) as unknown as Parameters<typeof createTask>[0],
+      makeReq(
+        { eventId: String(eventId) },
+        { title: 't', assignee_user_ids: [bob] },
+      ) as unknown as Parameters<typeof createTask>[0],
       createRes,
     );
-    const taskId = ((createRes.body as { task: { id: number } }).task).id;
+    const taskId = (createRes.body as { task: { id: number } }).task.id;
 
     const updateRes = makeRes();
     await updateTask(
-      makeReq({ id: String(taskId), eventId: String(eventId) }, { assignee_user_ids: [carol, alice] }),
+      makeReq(
+        { id: String(taskId), eventId: String(eventId) },
+        { assignee_user_ids: [carol, alice] },
+      ),
       updateRes,
     );
     expect(updateRes.statusCode).toBe(200);
@@ -199,15 +223,55 @@ describe('multi-assignee tasks API (B1.2)', () => {
     expect(mirror?.assigned_user_id).toBe(carol);
   });
 
+  it('accepts Urgent priority on create and update task flows', async () => {
+    const { createTask, updateTask } = await import('../src/controllers/tasks-controller.js');
+
+    const createRes = makeRes();
+    await createTask(
+      makeReq(
+        { eventId: String(eventId) },
+        { title: 'critical path', priority: 'Urgent', assignee_user_ids: [bob] },
+      ) as unknown as Parameters<typeof createTask>[0],
+      createRes,
+    );
+
+    expect(createRes.statusCode).toBe(201);
+    const createdTask = (createRes.body as { task: { id: number; priority: string } }).task;
+    expect(createdTask.priority).toBe('Urgent');
+
+    const updateRes = makeRes();
+    await updateTask(
+      makeReq(
+        { id: String(createdTask.id), eventId: String(eventId) },
+        { priority: 'Urgent', assignee_user_ids: [carol] },
+      ),
+      updateRes,
+    );
+
+    expect(updateRes.statusCode).toBe(200);
+    expect((updateRes.body as { task: { priority: string } }).task.priority).toBe('Urgent');
+
+    const persisted = await testDb!.get<{ priority: string }>(
+      'SELECT priority FROM tasks WHERE id = $1',
+      [createdTask.id],
+    );
+    expect(persisted?.priority).toBe('Urgent');
+  });
+
   it('rejects assignee_user_ids containing a non-event-member', async () => {
     const { createTask } = await import('../src/controllers/tasks-controller.js');
     // Create a 4th user who is NOT a member of the event.
-    const stranger = (await testDb!.run(
-      `INSERT INTO users (email, display_name) VALUES ('mallory@example.com', 'Mallory') RETURNING id`,
-    )).lastID!;
+    const stranger = (
+      await testDb!.run(
+        `INSERT INTO users (email, display_name) VALUES ('mallory@example.com', 'Mallory') RETURNING id`,
+      )
+    ).lastID!;
     const res = makeRes();
     await createTask(
-      makeReq({ eventId: String(eventId) }, { title: 't', assignee_user_ids: [bob, stranger] }) as unknown as Parameters<typeof createTask>[0],
+      makeReq(
+        { eventId: String(eventId) },
+        { title: 't', assignee_user_ids: [bob, stranger] },
+      ) as unknown as Parameters<typeof createTask>[0],
       res,
     );
     expect(res.statusCode).toBe(400);
@@ -218,13 +282,17 @@ describe('multi-assignee tasks API (B1.2)', () => {
   });
 
   it('addAssignee + removeAssignee endpoints adjust the M:N set and promote next primary on primary removal', async () => {
-    const { createTask, addAssignee, removeAssignee } = await import('../src/controllers/tasks-controller.js');
+    const { createTask, addAssignee, removeAssignee } =
+      await import('../src/controllers/tasks-controller.js');
     const createRes = makeRes();
     await createTask(
-      makeReq({ eventId: String(eventId) }, { title: 't', assignee_user_ids: [alice] }) as unknown as Parameters<typeof createTask>[0],
+      makeReq(
+        { eventId: String(eventId) },
+        { title: 't', assignee_user_ids: [alice] },
+      ) as unknown as Parameters<typeof createTask>[0],
       createRes,
     );
-    const taskId = ((createRes.body as { task: { id: number } }).task).id;
+    const taskId = (createRes.body as { task: { id: number } }).task.id;
 
     // Add bob (secondary).
     const addRes = makeRes();

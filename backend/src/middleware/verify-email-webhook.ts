@@ -21,16 +21,10 @@ import { logger } from '../utils/logger.js';
  *   - Comparison is constant-time to defeat timing attacks.
  *   - rawBody must have been captured upstream (express.json verify hook).
  */
-export function verifyEmailWebhookSignature(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
+export function verifyEmailWebhookSignature(req: Request, res: Response, next: NextFunction): void {
   const secret = process.env.EMAIL_WEBHOOK_SECRET;
   if (!secret) {
-    logger.error(
-      '[Webhook] EMAIL_WEBHOOK_SECRET is not set — rejecting bounce webhook request',
-    );
+    logger.error('[Webhook] EMAIL_WEBHOOK_SECRET is not set — rejecting bounce webhook request');
     res.status(401).json({ error: 'Webhook signature verification not configured' });
     return;
   }

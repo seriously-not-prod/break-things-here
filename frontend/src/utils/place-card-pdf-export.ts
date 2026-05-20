@@ -37,7 +37,11 @@ const CARD_HEIGHT = (PAGE.height - MARGIN * 2 - CARD_GAP * (ROWS - 1)) / ROWS;
 const CARDS_PER_PAGE = COLUMNS * ROWS;
 
 function fileSegment(value: string): string {
-  const v = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const v = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
   return v || 'event';
 }
 
@@ -51,14 +55,19 @@ function drawCard(doc: jsPDF, guest: PlaceCardGuest, x: number, y: number): void
   if (guest.tableName) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.text(`TABLE  ${guest.tableName}`.toUpperCase(), x + CARD_WIDTH / 2, y + 12, { align: 'center' });
+    doc.text(`TABLE  ${guest.tableName}`.toUpperCase(), x + CARD_WIDTH / 2, y + 12, {
+      align: 'center',
+    });
   }
 
   // Name, center
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(28);
   const nameLines = doc.splitTextToSize(guest.name, CARD_WIDTH - 16);
-  doc.text(nameLines.slice(0, 2), x + CARD_WIDTH / 2, y + CARD_HEIGHT / 2, { align: 'center', baseline: 'middle' });
+  doc.text(nameLines.slice(0, 2), x + CARD_WIDTH / 2, y + CARD_HEIGHT / 2, {
+    align: 'center',
+    baseline: 'middle',
+  });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);

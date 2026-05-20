@@ -28,8 +28,14 @@ function makeRes() {
   } = {
     statusCode: 200,
     body: null,
-    status(code: number) { this.statusCode = code; return this; },
-    json(data: unknown) { this.body = data; return this; },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data: unknown) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -73,11 +79,9 @@ vi.mock('../src/db/database.js', () => ({
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
 function makeAccessToken(userId: number, email: string, roleId: number): string {
-  return jwt.sign(
-    { id: userId, email, role_id: roleId },
-    JWT_SECRET,
-    { expiresIn: '1h' } as jwt.SignOptions,
-  );
+  return jwt.sign({ id: userId, email, role_id: roleId }, JWT_SECRET, {
+    expiresIn: '1h',
+  } as jwt.SignOptions);
 }
 
 async function seedUser(email: string, password: string): Promise<number> {
@@ -138,6 +142,23 @@ beforeEach(async () => {
       expires_at TIMESTAMPTZ NOT NULL,
       last_activity TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
+    -- audit_log is included without FK on user_id so logAuditEvent() inserts
+    -- into the isolated test schema rather than public.audit_log (which would
+    -- fail with a FK violation because test users do not exist in public.users).
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER,
+      email       TEXT,
+      action      TEXT NOT NULL,
+      description TEXT,
+      ip_address  TEXT,
+      actor_id    INTEGER,
+      target_type TEXT,
+      target_id   TEXT,
+      context     JSONB,
+      severity    TEXT DEFAULT 'INFO',
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
     INSERT INTO roles (id, name) VALUES (1, 'Attendee'), (2, 'Organizer'), (3, 'Admin')
     ON CONFLICT (id) DO NOTHING;
   `);
@@ -151,7 +172,10 @@ afterEach(async () => {
 import { authenticateToken, SESSION_TIMEOUT_MS } from '../src/middleware/auth.js';
 import { sessionHeartbeat } from '../src/controllers/auth-controller.js';
 
-const apiRoutesSource = readFileSync(new URL('../src/routes/api-routes.ts', import.meta.url), 'utf8');
+const apiRoutesSource = readFileSync(
+  new URL('../src/routes/api-routes.ts', import.meta.url),
+  'utf8',
+);
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -173,7 +197,9 @@ describe('Session Timeout — Server-side Validation (#82)', () => {
     await authenticateToken(
       req,
       res as unknown as import('express').Response,
-      (() => { nextCalled = true; }) as unknown as import('express').NextFunction,
+      (() => {
+        nextCalled = true;
+      }) as unknown as import('express').NextFunction,
     );
 
     expect(nextCalled).toBe(true);
@@ -195,7 +221,9 @@ describe('Session Timeout — Server-side Validation (#82)', () => {
     await authenticateToken(
       req,
       res as unknown as import('express').Response,
-      (() => { nextCalled = true; }) as unknown as import('express').NextFunction,
+      (() => {
+        nextCalled = true;
+      }) as unknown as import('express').NextFunction,
     );
 
     expect(nextCalled).toBe(false);
@@ -290,7 +318,9 @@ describe('Session Timeout — Server-side Validation (#82)', () => {
     await authenticateToken(
       req,
       res as unknown as import('express').Response,
-      (() => { nextCalled = true; }) as unknown as import('express').NextFunction,
+      (() => {
+        nextCalled = true;
+      }) as unknown as import('express').NextFunction,
     );
 
     expect(nextCalled).toBe(false);

@@ -57,12 +57,12 @@ const EVENT_SELECT_COLUMNS = `
   (
     SELECT COALESCE(SUM(COALESCE(r.guests, 1)), 0)::int
       FROM rsvps r
-     WHERE r.event_id = e.id AND r.status = 'Going'
+     WHERE r.event_id = e.id AND r.canonical_status = 'confirmed'
   ) AS going_count,
   (
     SELECT COALESCE(SUM(COALESCE(r.guests, 1)), 0)::int
       FROM rsvps r
-     WHERE r.event_id = e.id AND r.status = 'Pending'
+     WHERE r.event_id = e.id AND r.canonical_status = 'pending'
   ) AS pending_count
 `;
 
@@ -180,6 +180,15 @@ export async function getAllEvents(req: Request, res: Response): Promise<void> {
       query += ' AND e.archived_at IS NOT NULL';
     } else if (archived !== 'true') {
       query += ' AND e.archived_at IS NULL';
+    }
+
+    // Event-based access control: non-admin users (role_id < 3) can only see
+    // events they created or are explicitly a member of.
+    const isAdmin = authReq.user && authReq.user.role_id >= 3;
+    if (!isAdmin && authReq.user?.id) {
+      query +=
+        ' AND (e.created_by = ? OR EXISTS (SELECT 1 FROM event_members em WHERE em.event_id = e.id AND em.user_id = ?))';
+      params.push(authReq.user.id, authReq.user.id);
     }
 
     if (owner === 'me' && authReq.user?.id) {

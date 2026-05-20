@@ -58,16 +58,7 @@ function csvEscape(value: unknown): string {
 }
 
 function toCsv(events: EventRow[]): string {
-  const headers = [
-    'id',
-    'title',
-    'date',
-    'location',
-    'capacity',
-    'status',
-    'event_type',
-    'tags',
-  ];
+  const headers = ['id', 'title', 'date', 'location', 'capacity', 'status', 'event_type', 'tags'];
   const rows = events.map((e) =>
     [e.id, e.title, e.date, e.location, e.capacity, e.status, e.event_type, e.tags]
       .map(csvEscape)
@@ -115,11 +106,7 @@ export async function bulkEventAction(req: Request, res: Response): Promise<void
     }
 
     const ids = Array.from(
-      new Set(
-        event_ids
-          .map((v) => Number(v))
-          .filter((v) => Number.isFinite(v) && v > 0),
-      ),
+      new Set(event_ids.map((v) => Number(v)).filter((v) => Number.isFinite(v) && v > 0)),
     );
     if (ids.length === 0) {
       res.status(400).json({ error: 'event_ids must contain at least one valid id' });

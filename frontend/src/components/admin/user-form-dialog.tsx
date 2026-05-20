@@ -14,12 +14,16 @@ import {
   Grid,
   IconButton,
   InputAdornment,
+  ListItemText,
   MenuItem,
+  OutlinedInput,
+  Select as MuiSelect,
   TextField,
   Typography,
 } from '@mui/material';
 import {
   CloseRounded,
+  EventRounded,
   PersonRounded,
   AdminPanelSettingsRounded,
   SecurityRounded,
@@ -42,6 +46,12 @@ export interface Role {
   name: string;
 }
 
+interface EventOption {
+  id: number;
+  title: string;
+  status: string;
+}
+
 interface UserFormDialogProps {
   open: boolean;
   /** When provided, the dialog edits this user; otherwise it creates a new one. */
@@ -60,6 +70,7 @@ interface FormState {
   role_id: number | '';
   email_verified: boolean;
   account_locked: boolean;
+  assignedEventIds: number[];
 }
 
 function emptyForm(roles: Role[]): FormState {
@@ -72,6 +83,7 @@ function emptyForm(roles: Role[]): FormState {
     role_id: defaultRole?.id ?? '',
     email_verified: false,
     account_locked: false,
+    assignedEventIds: [],
   };
 }
 
@@ -87,11 +99,24 @@ export function UserFormDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [allEvents, setAllEvents] = useState<EventOption[]>([]);
 
+  // Load all events and current assignments when the dialog opens
   useEffect(() => {
     if (!open) return;
     setError(null);
     setShowPassword(false);
+
+    api
+      .get<EventOption[] | { events: EventOption[] }>('/api/events')
+      .then((data) => {
+        const list = Array.isArray(data)
+          ? data
+          : ((data as { events: EventOption[] }).events ?? []);
+        setAllEvents(list);
+      })
+      .catch(() => setAllEvents([]));
+
     if (user) {
       setForm({
         email: user.email,
@@ -101,7 +126,20 @@ export function UserFormDialog({
         role_id: user.role_id,
         email_verified: Boolean(user.email_verified),
         account_locked: Boolean(user.account_locked),
+        assignedEventIds: [],
       });
+      // Fetch existing event assignments for this user
+      api
+        .get<{ events: { id: number }[] }>(`/api/admin/users/${user.id}/events`)
+        .then((data) => {
+          setForm((prev) => ({
+            ...prev,
+            assignedEventIds: (data.events ?? []).map((e) => e.id),
+          }));
+        })
+        .catch(() => {
+          /* silently fall back to empty */
+        });
     } else {
       setForm(emptyForm(roles));
     }
@@ -135,6 +173,7 @@ export function UserFormDialog({
     setSubmitting(true);
     setError(null);
     try {
+      let savedUserId = user?.id;
       if (isEdit && user) {
         const body: Record<string, unknown> = {
           email: form.email.trim(),
@@ -145,17 +184,25 @@ export function UserFormDialog({
         };
         if (form.password) body.password = form.password;
         await api.put(`/api/admin/users/${user.id}`, body);
-        onSaved('User updated successfully.');
       } else {
-        await api.post('/api/admin/users', {
+        const result = await api.post<{ userId: number }>('/api/admin/users', {
           email: form.email.trim(),
           display_name: form.display_name.trim(),
           password: form.password,
           role_id: Number(form.role_id),
           email_verified: form.email_verified,
         });
-        onSaved('User created successfully.');
+        savedUserId = result.userId;
       }
+
+      // Save event assignments for the user
+      if (savedUserId !== undefined) {
+        await api.put(`/api/admin/users/${savedUserId}/events`, {
+          event_ids: form.assignedEventIds,
+        });
+      }
+
+      onSaved(isEdit ? 'User updated successfully.' : 'User created successfully.');
       onClose();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to save user.');
@@ -222,7 +269,10 @@ export function UserFormDialog({
         </Grid>
 
         {/* Section 2 — Role & permissions */}
-        <SectionHeader icon={<AdminPanelSettingsRounded fontSize="small" />} title="Role & Access" />
+        <SectionHeader
+          icon={<AdminPanelSettingsRounded fontSize="small" />}
+          title="Role & Access"
+        />
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6}>
             <TextField
@@ -295,7 +345,11 @@ export function UserFormDialog({
                       onClick={() => setShowPassword((v) => !v)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
-                      {showPassword ? <VisibilityOffRounded fontSize="small" /> : <VisibilityRounded fontSize="small" />}
+                      {showPassword ? (
+                        <VisibilityOffRounded fontSize="small" />
+                      ) : (
+                        <VisibilityRounded fontSize="small" />
+                      )}
                     </IconButton>
                   </InputAdornment>
                 ),
@@ -315,12 +369,44 @@ export function UserFormDialog({
             />
           </Grid>
         </Grid>
+
+        {/* Section 4 — Event Access */}
+        <SectionHeader icon={<EventRounded fontSize="small" />} title="Event Access" />
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+          Select events this user can access. Admins can see all events regardless of assignment.
+        </Typography>
+        <MuiSelect
+          fullWidth
+          multiple
+          displayEmpty
+          value={form.assignedEventIds}
+          onChange={(e) => update('assignedEventIds', e.target.value as number[])}
+          input={<OutlinedInput />}
+          disabled={submitting}
+          renderValue={(selected) => {
+            const ids = selected as number[];
+            if (ids.length === 0) return <em style={{ color: '#9e9e9e' }}>No events assigned</em>;
+            return ids
+              .map((id) => allEvents.find((ev) => ev.id === id)?.title ?? `Event #${id}`)
+              .join(', ');
+          }}
+          inputProps={{ 'aria-label': 'Assign events' }}
+        >
+          {allEvents.length === 0 && (
+            <MenuItem disabled>
+              <em>No events available</em>
+            </MenuItem>
+          )}
+          {allEvents.map((ev) => (
+            <MenuItem key={ev.id} value={ev.id}>
+              <Checkbox checked={form.assignedEventIds.includes(ev.id)} />
+              <ListItemText primary={ev.title} secondary={ev.status} />
+            </MenuItem>
+          ))}
+        </MuiSelect>
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose} disabled={submitting}>
-          Cancel
-        </Button>
         <Button
           variant="contained"
           onClick={handleSubmit}

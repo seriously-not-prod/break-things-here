@@ -40,7 +40,13 @@ export async function listGroups(req: Request, res: Response): Promise<Response>
     `SELECT * FROM seating_groups WHERE event_id = $1 ORDER BY name ASC`,
     [eventId],
   );
-  const members = await db.all<{ seating_group_id: number; id: number; name: string; email: string; guests: number }>(
+  const members = await db.all<{
+    seating_group_id: number;
+    id: number;
+    name: string;
+    email: string;
+    guests: number;
+  }>(
     `SELECT seating_group_id, id, name, email, guests
      FROM rsvps WHERE event_id = $1 AND seating_group_id IS NOT NULL`,
     [eventId],
@@ -67,7 +73,10 @@ export async function createGroup(req: Request, res: Response): Promise<Response
   const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
   if (!event) return res as Response;
   const { name, seat_together, preferred_table_id, notes } = (req.body ?? {}) as {
-    name?: string; seat_together?: boolean; preferred_table_id?: number; notes?: string;
+    name?: string;
+    seat_together?: boolean;
+    preferred_table_id?: number;
+    notes?: string;
   };
   if (!name?.trim()) return res.status(400).json({ error: 'Group name is required.' });
   const db = getDatabase();
@@ -75,12 +84,17 @@ export async function createGroup(req: Request, res: Response): Promise<Response
     const result = await db.run(
       `INSERT INTO seating_groups (event_id, name, seat_together, preferred_table_id, notes)
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [eventId, name.trim(), seat_together !== false, preferred_table_id ?? null, notes?.trim() || null],
+      [
+        eventId,
+        name.trim(),
+        seat_together !== false,
+        preferred_table_id ?? null,
+        notes?.trim() || null,
+      ],
     );
-    const row = await db.get<SeatingGroupRow>(
-      `SELECT * FROM seating_groups WHERE id = $1`,
-      [result.lastID],
-    );
+    const row = await db.get<SeatingGroupRow>(`SELECT * FROM seating_groups WHERE id = $1`, [
+      result.lastID,
+    ]);
     return res.status(201).json({ group: row });
   } catch (err) {
     const m = err instanceof Error ? err.message : 'Insert failed';
@@ -97,13 +111,28 @@ export async function updateGroup(req: Request, res: Response): Promise<Response
   const { eventId, id } = req.params;
   const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
   if (!event) return res as Response;
-  const { name, seat_together, preferred_table_id, notes } = (req.body ?? {}) as Record<string, unknown>;
+  const { name, seat_together, preferred_table_id, notes } = (req.body ?? {}) as Record<
+    string,
+    unknown
+  >;
   const fields: string[] = [];
   const params: (string | number | boolean | null)[] = [];
-  if (typeof name === 'string') { fields.push('name = ?'); params.push(name.trim()); }
-  if (seat_together !== undefined) { fields.push('seat_together = ?'); params.push(Boolean(seat_together)); }
-  if (preferred_table_id !== undefined) { fields.push('preferred_table_id = $1'); params.push(preferred_table_id === null ? null : Number(preferred_table_id)); }
-  if (notes !== undefined) { fields.push('notes = ?'); params.push(notes ? String(notes).trim() : null); }
+  if (typeof name === 'string') {
+    fields.push('name = ?');
+    params.push(name.trim());
+  }
+  if (seat_together !== undefined) {
+    fields.push('seat_together = ?');
+    params.push(Boolean(seat_together));
+  }
+  if (preferred_table_id !== undefined) {
+    fields.push('preferred_table_id = $1');
+    params.push(preferred_table_id === null ? null : Number(preferred_table_id));
+  }
+  if (notes !== undefined) {
+    fields.push('notes = ?');
+    params.push(notes ? String(notes).trim() : null);
+  }
   if (fields.length === 0) return res.status(400).json({ error: 'No fields to update.' });
   fields.push('updated_at = CURRENT_TIMESTAMP');
   params.push(id, eventId);
@@ -220,10 +249,7 @@ export async function seatGroupAtTable(req: Request, res: Response): Promise<Res
 
   // Remove members from any other tables first; then assign to target table.
   for (const m of members) {
-    await db.run(
-      `DELETE FROM seating_assignments WHERE rsvp_id = $1`,
-      [m.id],
-    );
+    await db.run(`DELETE FROM seating_assignments WHERE rsvp_id = $1`, [m.id]);
     await db.run(
       `INSERT INTO seating_assignments (table_id, rsvp_id) VALUES ($1, $2)
        ON CONFLICT (table_id, rsvp_id) DO NOTHING`,

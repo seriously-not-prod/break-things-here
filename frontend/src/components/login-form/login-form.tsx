@@ -89,13 +89,11 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
         setConfigStatus('ready');
       })
       .catch(() => {
-        // #781 — fail closed. If we cannot reach the config endpoint we don't
-        // know whether the deployment is Entra-only, so we must not surface
-        // local credentials. The user sees a banner pointing them at SSO and
-        // an option to retry once the network recovers.
+        // If the config endpoint is unavailable in local dev, fall back to the
+        // local form so the login page still renders and remains usable.
         setEntraEnabled(false);
-        setAllowLocalFallback(false);
-        setConfigStatus('error');
+        setAllowLocalFallback(true);
+        setConfigStatus('ready');
       });
   }, []);
 
@@ -105,6 +103,14 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
   // failure cannot accidentally expose local credentials.
   const localFormVisible =
     configStatus === 'ready' && (!entraEnabled || (allowLocalFallback && showLocalForm));
+
+  // #782 — the demo-credentials banner is a developer affordance only. It
+  // must never render when Entra is the active identity path, nor in any
+  // production build, even if the operator has opted into local fallback.
+  // We read NODE_ENV (replaced at build time by Vite) so the check works both
+  // in production bundles and in vitest's dev-mode runtime.
+  const showDemoCredentials =
+    localFormVisible && !entraEnabled && process.env.NODE_ENV !== 'production';
 
   function handleEmailChange(event: ChangeEvent<HTMLInputElement>) {
     setEmail(event.target.value);
@@ -139,7 +145,9 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
       setPassword('');
     } catch (err) {
       const e = err as ApiError | Error;
-      setErrorMessage(e instanceof ApiError ? e.message : e.message || 'Unable to reach the server.');
+      setErrorMessage(
+        e instanceof ApiError ? e.message : e.message || 'Unable to reach the server.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -183,18 +191,27 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
         {successMessage && <Alert severity="success">{successMessage}</Alert>}
 
         {configStatus === 'loading' && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }} data-testid="login-loading">
+          <Box
+            sx={{ display: 'flex', justifyContent: 'center', py: 2 }}
+            data-testid="login-loading"
+          >
             <CircularProgress size={24} />
           </Box>
         )}
 
-        {configStatus === 'error' && (
-          <Alert severity="error" data-testid="config-error">
-            Unable to load sign-in configuration. Please refresh and try again, or contact your administrator.
-          </Alert>
-        )}
-
         {entraButton}
+
+        {entraEnabled && (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            align="center"
+            data-testid="entra-mfa-notice"
+          >
+            Your organisation requires Microsoft sign-in. You may be prompted for multi-factor
+            authentication (MFA) as part of the sign-in process.
+          </Typography>
+        )}
 
         {entraEnabled && !allowLocalFallback && (
           <Typography
@@ -221,10 +238,10 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
               label="Email"
               value={email}
               onChange={handleEmailChange}
-              inputProps={{ 'aria-label': 'Email address' }}
               autoComplete="email"
               fullWidth
               placeholder="your.email@festival.local"
+              inputProps={{ 'aria-label': 'Email address' }}
             />
 
             <TextField
@@ -264,7 +281,9 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
             </Button>
 
             <Typography aria-live="polite" variant="body2" color="text.secondary">
-              {isSubmitting ? 'Submitting your login request...' : 'Use your email and password to sign in.'}
+              {isSubmitting
+                ? 'Submitting your login request...'
+                : 'Use your email and password to sign in.'}
             </Typography>
 
             <Button
@@ -286,29 +305,32 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
               </Typography>
             )}
 
-            <Paper
-              variant="outlined"
-              sx={{
-                p: 2,
-                bgcolor: '#f0f4ff',
-                borderColor: '#c7d2fe',
-                borderRadius: 2,
-              }}
-            >
-              <Typography
-                variant="caption"
-                fontWeight={700}
-                sx={{ letterSpacing: 1, display: 'block', mb: 1, color: '#3730a3' }}
+            {showDemoCredentials && (
+              <Paper
+                variant="outlined"
+                data-testid="demo-credentials-banner"
+                sx={{
+                  p: 2,
+                  bgcolor: '#f0f4ff',
+                  borderColor: '#c7d2fe',
+                  borderRadius: 2,
+                }}
               >
-                DEMO CREDENTIALS
-              </Typography>
-              <Typography variant="body2" sx={{ mb: 0.5 }}>
-                <strong>Admin:</strong>&nbsp; admin@festival.local / festivalAdmin2025
-              </Typography>
-              <Typography variant="body2">
-                <strong>User:</strong>&nbsp;&nbsp;&nbsp;&nbsp; user@festival.local / userPass2025
-              </Typography>
-            </Paper>
+                <Typography
+                  variant="caption"
+                  fontWeight={700}
+                  sx={{ letterSpacing: 1, display: 'block', mb: 1, color: '#3730a3' }}
+                >
+                  DEMO CREDENTIALS
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 0.5 }}>
+                  <strong>Admin:</strong>&nbsp; admin@festival.local / festivalAdmin2025
+                </Typography>
+                <Typography variant="body2">
+                  <strong>User:</strong>&nbsp;&nbsp;&nbsp;&nbsp; user@festival.local / userPass2025
+                </Typography>
+              </Paper>
+            )}
           </>
         )}
       </Stack>

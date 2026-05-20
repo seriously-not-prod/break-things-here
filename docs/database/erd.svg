@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2500" height="938" viewBox="0 0 2500 938" role="img" aria-label="Public schema entity relationship diagram">
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+  </marker>
+</defs>
+<rect x="0" y="0" width="2500" height="938" fill="#f8fafc" />
+<line x1="165.0" y1="86" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="86" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="475.0" y1="86" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="475.0" y1="86" x2="2335.0" y2="504" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="475.0" y1="86" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="86" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="86" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="86" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="86" x2="1715.0" y2="40" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="86" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="86" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="86" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="202" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="202" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="475.0" y1="202" x2="2335.0" y2="40" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="202" x2="2025.0" y2="40" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="202" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="202" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="202" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="202" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="202" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="202" x2="475.0" y2="388" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="202" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="202" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="202" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="202" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="202" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="202" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="202" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="318" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="318" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="475.0" y1="318" x2="785.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="318" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="318" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="318" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="318" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="318" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="318" x2="165.0" y2="388" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="318" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="318" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="318" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="318" x2="1715.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="318" x2="165.0" y2="388" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="318" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="318" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="318" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="318" x2="165.0" y2="388" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="318" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="434" x2="1095.0" y2="40" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="434" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="434" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="434" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="434" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="434" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="434" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="475.0" y1="434" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="475.0" y1="434" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="434" x2="1405.0" y2="156" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="434" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="434" x2="785.0" y2="388" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="434" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="434" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="434" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="434" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="434" x2="475.0" y2="388" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="434" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="434" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="434" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="434" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="434" x2="2335.0" y2="504" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="434" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="434" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="550" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="550" x2="475.0" y2="504" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="550" x2="1095.0" y2="504" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="550" x2="2335.0" y2="504" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="550" x2="2025.0" y2="504" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="550" x2="2335.0" y2="504" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="550" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="550" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="666" x2="475.0" y2="620" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="475.0" y1="666" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="475.0" y1="666" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="475.0" y1="666" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="666" x2="2335.0" y2="504" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="666" x2="1405.0" y2="620" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="666" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="666" x2="1405.0" y2="620" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="666" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="666" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="666" x2="2335.0" y2="620" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="666" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="666" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="666" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="782" x2="1405.0" y2="156" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="782" x2="1405.0" y2="388" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="475.0" y1="782" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="475.0" y1="782" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="782" x2="2335.0" y2="736" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="785.0" y1="782" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="782" x2="2335.0" y2="736" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="782" x2="2335.0" y2="736" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="782" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="782" x2="2335.0" y2="736" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="782" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="782" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="782" x2="2335.0" y2="736" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="782" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="782" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="782" x2="1715.0" y2="736" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="782" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="782" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="898" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="898" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="165.0" y1="898" x2="2335.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="475.0" y1="898" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="898" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="898" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="898" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1095.0" y1="898" x2="2335.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="898" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="898" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1405.0" y1="898" x2="2335.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="898" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="898" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="1715.0" y1="898" x2="2335.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="898" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="898" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="898" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="898" x2="1095.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2025.0" y1="898" x2="2335.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="898" x2="1095.0" y2="272" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<line x1="2335.0" y1="898" x2="785.0" y2="852" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)" />
+<rect x="40" y="40" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="54" y="68" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">activity_feed</text>
+<rect x="350" y="40" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="364" y="68" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">attendance_events</text>
+<rect x="660" y="40" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="674" y="68" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">audit_log</text>
+<rect x="970" y="40" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="984" y="68" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">budget_categories</text>
+<rect x="1280" y="40" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1294" y="68" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">budget_template_items</text>
+<rect x="1590" y="40" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1604" y="68" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">budget_templates</text>
+<rect x="1900" y="40" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1914" y="68" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">categories</text>
+<rect x="2210" y="40" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="2224" y="68" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">communication_log</text>
+<rect x="40" y="156" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="54" y="184" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">communication_templates</text>
+<rect x="350" y="156" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="364" y="184" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">communication_tracking_events</text>
+<rect x="660" y="156" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="674" y="184" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">event_categories</text>
+<rect x="970" y="156" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="984" y="184" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">event_custom_fields</text>
+<rect x="1280" y="156" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1294" y="184" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">event_documents</text>
+<rect x="1590" y="156" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1604" y="184" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">event_filter_presets</text>
+<rect x="1900" y="156" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1914" y="184" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">event_meal_options</text>
+<rect x="2210" y="156" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="2224" y="184" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">event_members</text>
+<rect x="40" y="272" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="54" y="300" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">event_messages</text>
+<rect x="350" y="272" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="364" y="300" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">event_template_sections</text>
+<rect x="660" y="272" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="674" y="300" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">event_templates</text>
+<rect x="970" y="272" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="984" y="300" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">events</text>
+<rect x="1280" y="272" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1294" y="300" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">exchange_rates</text>
+<rect x="1590" y="272" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1604" y="300" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">expense_receipt_ocr</text>
+<rect x="1900" y="272" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1914" y="300" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">expense_reconciliation_logs</text>
+<rect x="2210" y="272" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="2224" y="300" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">expense_workflow_events</text>
+<rect x="40" y="388" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="54" y="416" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">expenses</text>
+<rect x="350" y="388" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="364" y="416" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">gallery_albums</text>
+<rect x="660" y="388" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="674" y="416" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">gallery_comments</text>
+<rect x="970" y="388" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="984" y="416" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">gallery_share_links</text>
+<rect x="1280" y="388" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1294" y="416" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">gallery_slideshows</text>
+<rect x="1590" y="388" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1604" y="416" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">guest_merge_audit</text>
+<rect x="1900" y="388" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1914" y="416" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">notifications</text>
+<rect x="2210" y="388" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="2224" y="416" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">password_reset_rate_limit</text>
+<rect x="40" y="504" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="54" y="532" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">password_reset_tokens</text>
+<rect x="350" y="504" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="364" y="532" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">permissions</text>
+<rect x="660" y="504" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="674" y="532" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">role_permissions</text>
+<rect x="970" y="504" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="984" y="532" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">roles</text>
+<rect x="1280" y="504" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1294" y="532" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">rsvp_access_tokens</text>
+<rect x="1590" y="504" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1604" y="532" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">rsvp_question_responses</text>
+<rect x="1900" y="504" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1914" y="532" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">rsvp_questions</text>
+<rect x="2210" y="504" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="2224" y="532" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">rsvps</text>
+<rect x="40" y="620" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="54" y="648" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">scheduled_report_deliveries</text>
+<rect x="350" y="620" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="364" y="648" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">scheduled_reports</text>
+<rect x="660" y="620" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="674" y="648" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">seating_assignments</text>
+<rect x="970" y="620" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="984" y="648" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">seating_groups</text>
+<rect x="1280" y="620" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1294" y="648" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">seating_tables</text>
+<rect x="1590" y="620" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1604" y="648" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">sessions</text>
+<rect x="1900" y="620" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1914" y="648" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">shopping_items</text>
+<rect x="2210" y="620" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="2224" y="648" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">shopping_lists</text>
+<rect x="40" y="736" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="54" y="764" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">slideshow_items</text>
+<rect x="350" y="736" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="364" y="764" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">store_suggestions</text>
+<rect x="660" y="736" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="674" y="764" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">task_comments</text>
+<rect x="970" y="736" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="984" y="764" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">task_dependencies</text>
+<rect x="1280" y="736" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1294" y="764" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">task_subtasks</text>
+<rect x="1590" y="736" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1604" y="764" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">task_templates</text>
+<rect x="1900" y="736" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1914" y="764" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">task_time_entries</text>
+<rect x="2210" y="736" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="2224" y="764" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">tasks</text>
+<rect x="40" y="852" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="54" y="880" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">timeline_activities</text>
+<rect x="350" y="852" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="364" y="880" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">user_profiles</text>
+<rect x="660" y="852" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="674" y="880" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">users</text>
+<rect x="970" y="852" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="984" y="880" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">vendor_bookings</text>
+<rect x="1280" y="852" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1294" y="880" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">vendor_communication_log</text>
+<rect x="1590" y="852" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1604" y="880" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">vendor_favorites</text>
+<rect x="1900" y="852" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="1914" y="880" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">vendor_payment_schedules</text>
+<rect x="2210" y="852" width="250" height="46" rx="8" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="1.2" />
+<text x="2224" y="880" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#0f172a">vendors</text>
+</svg>

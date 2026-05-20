@@ -26,5 +26,19 @@ export default defineConfig({
       TEST_DATABASE_URL: testDatabaseUrl,
       DATABASE_URL: testDatabaseUrl,
     },
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov', 'json-summary'],
+      reportsDirectory: './coverage',
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.d.ts', 'src/index.ts'],
+      // Regression-guard floor; target is ≥80% as coverage grows.
+      thresholds: {
+        lines: 25,
+        branches: 20,
+        functions: 20,
+        statements: 25,
+      },
+    },
   },
 });

@@ -92,9 +92,10 @@ function KpiCard({ label, value, sub, icon, color }: KpiCardProps): JSX.Element 
 export interface KpiCardsProps {
   data: DashboardData | null;
   loading: boolean;
+  totalBudget?: number | null;
 }
 
-export function KpiCards({ data, loading }: KpiCardsProps): JSX.Element {
+export function KpiCards({ data, loading, totalBudget }: KpiCardsProps): JSX.Element {
   if (loading) {
     return (
       <Grid container spacing={2}>
@@ -116,6 +117,20 @@ export function KpiCards({ data, loading }: KpiCardsProps): JSX.Element {
   const goingCount = rsvps.filter((r) => r.canonical_status === 'confirmed').length;
   const completedTasks = tasks.filter((t) => t.status === 'Complete').length;
   const pendingTasks = tasks.length - completedTasks;
+
+  const budgetDisplay =
+    totalBudget != null
+      ? new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          notation: 'compact',
+          maximumFractionDigits: 1,
+        }).format(totalBudget)
+      : '—';
+  const budgetSub =
+    totalBudget != null
+      ? 'total allocated across active events'
+      : 'Open an event to manage its budget';
 
   return (
     <Grid container spacing={2}>
@@ -149,8 +164,8 @@ export function KpiCards({ data, loading }: KpiCardsProps): JSX.Element {
       <Grid item xs={12} sm={6} lg={3}>
         <KpiCard
           label="Total Budget"
-          value="—"
-          sub="Open an event to manage its budget"
+          value={budgetDisplay}
+          sub={budgetSub}
           icon={<AttachMoneyIcon />}
           color="#06b6d4"
         />

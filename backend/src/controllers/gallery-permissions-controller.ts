@@ -49,31 +49,20 @@ export async function updatePhotoPermissions(req: Request, res: Response): Promi
   let nextVisibility = photo.visibility;
   if (visibility !== undefined) {
     if (typeof visibility !== 'string' || !(VISIBILITY as readonly string[]).includes(visibility)) {
-      return res
-        .status(400)
-        .json({ error: `visibility must be one of: ${VISIBILITY.join(', ')}` });
+      return res.status(400).json({ error: `visibility must be one of: ${VISIBILITY.join(', ')}` });
     }
     nextVisibility = visibility;
   }
 
-  const nextDownload =
-    allowDownload === undefined ? photo.allow_download : Boolean(allowDownload);
-  const nextComments =
-    allowComments === undefined ? photo.allow_comments : Boolean(allowComments);
+  const nextDownload = allowDownload === undefined ? photo.allow_download : Boolean(allowDownload);
+  const nextComments = allowComments === undefined ? photo.allow_comments : Boolean(allowComments);
 
   await db.run(
     `UPDATE event_documents
         SET visibility = $1, allow_download = $2, allow_comments = $3,
             updated_by = $4, updated_at = CURRENT_TIMESTAMP
       WHERE id = $5 AND event_id = $6`,
-    [
-      nextVisibility,
-      nextDownload,
-      nextComments,
-      authReq.user?.id ?? null,
-      documentId,
-      eventId,
-    ],
+    [nextVisibility, nextDownload, nextComments, authReq.user?.id ?? null, documentId, eventId],
   );
 
   return res.json({

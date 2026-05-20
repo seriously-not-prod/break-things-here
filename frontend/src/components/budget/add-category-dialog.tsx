@@ -136,7 +136,13 @@ export function AddCategoryDialog({
   }
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth aria-labelledby="add-category-dialog-title">
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="xs"
+      fullWidth
+      aria-labelledby="add-category-dialog-title"
+    >
       <form onSubmit={(e) => void handleSubmit(e)} noValidate>
         <DialogTitle id="add-category-dialog-title">
           {isEdit ? 'Edit Category' : 'Add Budget Category'}
@@ -185,7 +191,13 @@ export function AddCategoryDialog({
               <MenuItem key={c.value} value={c.value}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Box
-                    sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: c.value, flexShrink: 0 }}
+                    sx={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: '50%',
+                      bgcolor: c.value,
+                      flexShrink: 0,
+                    }}
                     aria-hidden="true"
                   />
                   {c.label}

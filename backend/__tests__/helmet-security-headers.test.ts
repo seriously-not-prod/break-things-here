@@ -63,7 +63,9 @@ describe('HTTP Security Headers — helmet middleware (#266)', () => {
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("frame-ancestors 'none'");
-    expect(csp).toContain("connect-src 'self' http://localhost:3000 http://localhost:4173 http://localhost:5173 http://localhost:5174");
+    expect(csp).toContain(
+      "connect-src 'self' http://localhost:3000 http://localhost:4173 http://localhost:5173 http://localhost:5174",
+    );
   });
 
   it('filters blank production origins out of CSP connect-src', async () => {
@@ -75,7 +77,7 @@ describe('HTTP Security Headers — helmet middleware (#266)', () => {
 
     expect(csp).toContain("connect-src 'self' https://one.example https://two.example");
     expect(csp).not.toContain("connect-src 'self'  ");
-    expect(csp).not.toContain(" ,");
+    expect(csp).not.toContain(' ,');
   });
 
   it('sets Strict-Transport-Security header', async () => {

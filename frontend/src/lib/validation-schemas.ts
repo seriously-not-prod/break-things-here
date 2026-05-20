@@ -8,29 +8,45 @@ export const loginSchema = z.object({
   rememberMe: z.boolean().optional(),
 });
 
-export const registerSchema = z.object({
-  displayName: z.string().min(2, 'Name must be at least 2 characters').max(100),
-  email: z.string().email('Enter a valid email address'),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Must include an uppercase letter')
-    .regex(/[0-9]/, 'Must include a number'),
-  confirmPassword: z.string(),
-}).refine((d) => d.password === d.confirmPassword, {
-  message: 'Passwords do not match',
-  path: ['confirmPassword'],
-});
+export const registerSchema = z
+  .object({
+    displayName: z.string().min(2, 'Name must be at least 2 characters').max(100),
+    email: z.string().email('Enter a valid email address'),
+    password: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .regex(/[A-Z]/, 'Must include an uppercase letter')
+      .regex(/[0-9]/, 'Must include a number'),
+    confirmPassword: z.string(),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
 
 // ── Event schemas ────────────────────────────────────────────────────────────
 
 const EVENT_TYPES = [
-  'Birthday', 'Wedding', 'Corporate', 'Concert', 'Conference',
-  'Festival', 'Sports', 'Charity', 'Music', 'Food', 'Other',
+  'Birthday',
+  'Wedding',
+  'Corporate',
+  'Concert',
+  'Conference',
+  'Festival',
+  'Sports',
+  'Charity',
+  'Music',
+  'Food',
+  'Other',
 ] as const;
 
 const EVENT_STATUSES = [
-  'Draft', 'Planning', 'Confirmed', 'Active', 'Completed', 'Cancelled',
+  'Draft',
+  'Planning',
+  'Confirmed',
+  'Active',
+  'Completed',
+  'Cancelled',
 ] as const;
 
 export const createEventSchema = z.object({

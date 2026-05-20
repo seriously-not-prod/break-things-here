@@ -27,7 +27,11 @@ interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
 }
 
-async function assertEventAccess(req: AuthRequest, res: Response, eventId: string): Promise<boolean> {
+async function assertEventAccess(
+  req: AuthRequest,
+  res: Response,
+  eventId: string,
+): Promise<boolean> {
   const event = await requireEventAccess(req, res, eventId, {
     allowMembers: true,
     forbiddenMessage: 'Not authorised to manage seating for this event.',
@@ -52,7 +56,7 @@ export async function listTables(req: Request, res: Response): Promise<Response>
   const result: SeatingTableWithGuests[] = await Promise.all(
     tables.map(async (table) => {
       const guests = await db.all<AssignedRsvp>(
-        `SELECT sa.rsvp_id, r.name, r.email, r.status
+        `SELECT sa.rsvp_id, r.name, r.email, r.canonical_status AS status
          FROM seating_assignments sa
          JOIN rsvps r ON r.id = sa.rsvp_id
          WHERE sa.table_id = $1`,
@@ -102,10 +106,9 @@ export async function createTable(req: Request, res: Response): Promise<Response
     [eventId, name.trim(), cap, layoutX, layoutY],
   );
 
-  const table = await db.get<SeatingTable>(
-    'SELECT * FROM seating_tables WHERE id = $1',
-    [result.lastID],
-  );
+  const table = await db.get<SeatingTable>('SELECT * FROM seating_tables WHERE id = $1', [
+    result.lastID,
+  ]);
 
   return res.status(201).json({ table });
 }
@@ -135,15 +138,15 @@ export async function updateTableLayout(req: Request, res: Response): Promise<Re
   );
   if (!table) return res.status(404).json({ error: 'Table not found.' });
 
-  await db.run(
-    'UPDATE seating_tables SET layout_x = $1, layout_y = $2 WHERE id = $3',
-    [Math.round(nextX), Math.round(nextY), tableId],
-  );
+  await db.run('UPDATE seating_tables SET layout_x = $1, layout_y = $2 WHERE id = $3', [
+    Math.round(nextX),
+    Math.round(nextY),
+    tableId,
+  ]);
 
-  const updatedTable = await db.get<SeatingTable>(
-    'SELECT * FROM seating_tables WHERE id = $1',
-    [tableId],
-  );
+  const updatedTable = await db.get<SeatingTable>('SELECT * FROM seating_tables WHERE id = $1', [
+    tableId,
+  ]);
 
   return res.json({ table: updatedTable });
 }
@@ -198,10 +201,7 @@ export async function assignGuest(req: Request, res: Response): Promise<Response
       return res.status(409).json({ error: 'Guest already assigned to this table.' });
     }
     // Remove from the previous table before reassigning
-    await db.run(
-      'DELETE FROM seating_assignments WHERE rsvp_id = $1',
-      [rsvpId],
-    );
+    await db.run('DELETE FROM seating_assignments WHERE rsvp_id = $1', [rsvpId]);
   }
 
   // Capacity check
@@ -213,10 +213,10 @@ export async function assignGuest(req: Request, res: Response): Promise<Response
     return res.status(409).json({ error: 'Table is at capacity.' });
   }
 
-  await db.run(
-    'INSERT INTO seating_assignments (table_id, rsvp_id) VALUES ($1, $2)',
-    [tableId, rsvpId],
-  );
+  await db.run('INSERT INTO seating_assignments (table_id, rsvp_id) VALUES ($1, $2)', [
+    tableId,
+    rsvpId,
+  ]);
 
   return res.status(201).json({ message: 'Guest assigned.' });
 }
@@ -236,10 +236,10 @@ export async function unassignGuest(req: Request, res: Response): Promise<Respon
   );
   if (!assignment) return res.status(404).json({ error: 'Assignment not found.' });
 
-  await db.run(
-    'DELETE FROM seating_assignments WHERE table_id = $1 AND rsvp_id = $2',
-    [tableId, rsvpId],
-  );
+  await db.run('DELETE FROM seating_assignments WHERE table_id = $1 AND rsvp_id = $2', [
+    tableId,
+    rsvpId,
+  ]);
 
   return res.json({ message: 'Guest unassigned.' });
 }

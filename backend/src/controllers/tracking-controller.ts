@@ -125,12 +125,6 @@ export async function recordClick(req: Request, res: Response): Promise<void> {
     res.status(404).send('Link not found.');
     return;
   }
-  await recordEvent(
-    verified.communicationLogId,
-    'click',
-    target,
-    clientIp(req),
-    clientUa(req),
-  );
+  await recordEvent(verified.communicationLogId, 'click', target, clientIp(req), clientUa(req));
   res.redirect(302, target);
 }

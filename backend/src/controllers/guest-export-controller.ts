@@ -56,7 +56,11 @@ interface GuestExportRow {
   created_at: string;
 }
 
-const EXPORT_COLUMNS: { key: keyof GuestExportRow; label: string; type: 'String' | 'Number' | 'DateTime' }[] = [
+const EXPORT_COLUMNS: {
+  key: keyof GuestExportRow;
+  label: string;
+  type: 'String' | 'Number' | 'DateTime';
+}[] = [
   { key: 'name', label: 'Name', type: 'String' },
   { key: 'email', label: 'Email', type: 'String' },
   { key: 'phone', label: 'Phone', type: 'String' },
@@ -132,11 +136,15 @@ function formatExcelCell(value: unknown, type: 'String' | 'Number' | 'DateTime')
 }
 
 function buildSpreadsheetMl(eventTitle: string, rows: GuestExportRow[]): string {
-  const headerCells = EXPORT_COLUMNS.map((c) => `<Cell><Data ss:Type="String">${xmlEscape(c.label)}</Data></Cell>`).join('');
-  const bodyRows = rows.map((row) => {
-    const cells = EXPORT_COLUMNS.map((c) => formatExcelCell(row[c.key], c.type)).join('');
-    return `<Row>${cells}</Row>`;
-  }).join('');
+  const headerCells = EXPORT_COLUMNS.map(
+    (c) => `<Cell><Data ss:Type="String">${xmlEscape(c.label)}</Data></Cell>`,
+  ).join('');
+  const bodyRows = rows
+    .map((row) => {
+      const cells = EXPORT_COLUMNS.map((c) => formatExcelCell(row[c.key], c.type)).join('');
+      return `<Row>${cells}</Row>`;
+    })
+    .join('');
   return `<?xml version="1.0"?>
 <?mso-application progid="Excel.Sheet"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
@@ -162,15 +170,14 @@ export async function exportRsvpsXlsx(req: Request, res: Response): Promise<Resp
   const rows = await loadRows(eventId);
   const enriched = rows.map((r) => ({
     ...r,
-    canonical_status: r.canonical_status ?? toCanonicalStatus(r.status, { waitlisted: false, checkedIn: r.checked_in }),
+    canonical_status:
+      r.canonical_status ??
+      toCanonicalStatus(r.status, { waitlisted: false, checkedIn: r.checked_in }),
     profile_completeness: r.profile_completeness ?? computeProfileCompleteness(r),
   }));
   const body = buildSpreadsheetMl(ev?.title ?? 'Guests', enriched);
   res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
-  res.setHeader(
-    'Content-Disposition',
-    `attachment; filename="event-${eventId}-guests.xls"`,
-  );
+  res.setHeader('Content-Disposition', `attachment; filename="event-${eventId}-guests.xls"`);
   return res.send(body);
 }
 
@@ -192,7 +199,9 @@ export async function exportRsvpsPdfData(req: Request, res: Response): Promise<R
     columns: EXPORT_COLUMNS.map((c) => ({ key: c.key, label: c.label })),
     rows: rows.map((r) => ({
       ...r,
-      canonical_status: r.canonical_status ?? toCanonicalStatus(r.status, { waitlisted: false, checkedIn: r.checked_in }),
+      canonical_status:
+        r.canonical_status ??
+        toCanonicalStatus(r.status, { waitlisted: false, checkedIn: r.checked_in }),
       profile_completeness: r.profile_completeness ?? computeProfileCompleteness(r),
     })),
   });

@@ -11,7 +11,7 @@ const VALID = {
 };
 
 async function fillForm(
-  overrides: Partial<typeof VALID> = {}
+  overrides: Partial<typeof VALID> = {},
 ): Promise<ReturnType<typeof userEvent.setup>> {
   const user = userEvent.setup();
   const values = { ...VALID, ...overrides };

@@ -10,8 +10,10 @@ describe('z-minimal2', () => {
   it('renders', () => {
     const { container } = render(
       <MemoryRouter initialEntries={['/events/1/checkin']}>
-        <Routes><Route path="/events/:id/checkin" element={<CheckInPage />} /></Routes>
-      </MemoryRouter>
+        <Routes>
+          <Route path="/events/:id/checkin" element={<CheckInPage />} />
+        </Routes>
+      </MemoryRouter>,
     );
     expect(container).toBeTruthy();
   });

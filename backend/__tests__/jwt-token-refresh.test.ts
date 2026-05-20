@@ -31,22 +31,30 @@ function makeRes() {
     statusCode: 200,
     body: null,
     cookies: {},
-    status(code: number) { this.statusCode = code; return this; },
-    json(data: unknown) { this.body = data; return this; },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data: unknown) {
+      this.body = data;
+      return this;
+    },
     cookie(name: string, value: string, opts?: unknown) {
       this.cookies[name] = { value, options: opts };
       return this;
     },
-    clearCookie(name: string) { delete this.cookies[name]; return this; },
+    clearCookie(name: string) {
+      delete this.cookies[name];
+      return this;
+    },
   };
   return res;
 }
 
-function makeReq(
-  body: Record<string, unknown> = {},
-  cookies: Record<string, string> = {},
-) {
-  const cookieHeader = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ');
+function makeReq(body: Record<string, unknown> = {}, cookies: Record<string, string> = {}) {
+  const cookieHeader = Object.entries(cookies)
+    .map(([k, v]) => `${k}=${v}`)
+    .join('; ');
   return {
     body,
     cookies,
@@ -81,11 +89,9 @@ vi.mock('../src/db/database.js', () => ({
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
 function makeRefreshToken(userId: number, email: string, roleId: number, expiresIn = '7d'): string {
-  return jwt.sign(
-    { id: userId, email, role_id: roleId, type: 'refresh' },
-    JWT_SECRET,
-    { expiresIn } as jwt.SignOptions,
-  );
+  return jwt.sign({ id: userId, email, role_id: roleId, type: 'refresh' }, JWT_SECRET, {
+    expiresIn,
+  } as jwt.SignOptions);
 }
 
 async function seedUser(email: string, password: string): Promise<number> {
@@ -99,7 +105,11 @@ async function seedUser(email: string, password: string): Promise<number> {
   return result.lastID!;
 }
 
-async function insertSession(userId: number, accessToken: string, refreshToken: string): Promise<number> {
+async function insertSession(
+  userId: number,
+  accessToken: string,
+  refreshToken: string,
+): Promise<number> {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const result = await testDb.run(
     `INSERT INTO sessions (user_id, token, refresh_token, expires_at)
@@ -139,6 +149,23 @@ beforeEach(async () => {
       refresh_token TEXT,
       expires_at TIMESTAMP NOT NULL,
       last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    -- audit_log is included without FK on user_id so logAuditEvent() inserts
+    -- into the isolated test schema rather than public.audit_log (which would
+    -- fail with a FK violation because test users do not exist in public.users).
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER,
+      email       TEXT,
+      action      TEXT NOT NULL,
+      description TEXT,
+      ip_address  TEXT,
+      actor_id    INTEGER,
+      target_type TEXT,
+      target_id   TEXT,
+      context     JSONB,
+      severity    TEXT DEFAULT 'INFO',
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     INSERT INTO roles (id, name) VALUES (1, 'Attendee'), (2, 'Organizer'), (3, 'Admin')
     ON CONFLICT (id) DO NOTHING;
@@ -219,10 +246,9 @@ describe('JWT Token Refresh (#81)', () => {
     expect(res.statusCode).toBe(200);
 
     // Old refresh token should no longer be in DB
-    const oldSession = await testDb.get(
-      'SELECT id FROM sessions WHERE refresh_token = ?',
-      [oldRefresh],
-    );
+    const oldSession = await testDb.get('SELECT id FROM sessions WHERE refresh_token = ?', [
+      oldRefresh,
+    ]);
     expect(oldSession).toBeUndefined();
 
     // New refresh token should be stored
@@ -292,12 +318,18 @@ describe('JWT Token Refresh (#81)', () => {
 
     // First refresh — success
     const res1 = makeRes();
-    await refreshTokenEndpoint(makeReq({}, { refreshToken: oldRefresh }), res1 as unknown as import('express').Response);
+    await refreshTokenEndpoint(
+      makeReq({}, { refreshToken: oldRefresh }),
+      res1 as unknown as import('express').Response,
+    );
     expect(res1.statusCode).toBe(200);
 
     // Try reusing the old token — should fail
     const res2 = makeRes();
-    await refreshTokenEndpoint(makeReq({}, { refreshToken: oldRefresh }), res2 as unknown as import('express').Response);
+    await refreshTokenEndpoint(
+      makeReq({}, { refreshToken: oldRefresh }),
+      res2 as unknown as import('express').Response,
+    );
     expect(res2.statusCode).toBe(403);
   });
 });

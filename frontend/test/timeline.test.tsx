@@ -154,7 +154,9 @@ describe('TimelinePage', () => {
     renderPage();
     await screen.findByText('Doors Open');
     await userEvent.click(screen.getByRole('tab', { name: /planned vs actual/i }));
-    expect(await screen.findByRole('table', { name: /planned vs actual timeline comparison/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('table', { name: /planned vs actual timeline comparison/i }),
+    ).toBeInTheDocument();
     expect(mockedTimeline.getTimelineComparison).toHaveBeenCalledWith(1);
   }, 15000);
 
@@ -184,4 +186,3 @@ describe('TimelinePage', () => {
     expect(screen.getByText(/completed: 1/i)).toBeInTheDocument();
   }, 15000);
 });
-

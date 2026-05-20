@@ -202,7 +202,10 @@ describe('SeatingPage (#386)', () => {
     fireEvent.click(screen.getByRole('button', { name: /save new table/i }));
 
     await waitFor(() => {
-      expect(mockedService.createTable).toHaveBeenCalledWith('10', { name: 'Table C', capacity: 8 });
+      expect(mockedService.createTable).toHaveBeenCalledWith('10', {
+        name: 'Table C',
+        capacity: 8,
+      });
     });
   }, 15000);
 
@@ -290,7 +293,9 @@ describe('SeatingPage (#386)', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /export seating name tags as pdf/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /export seating name tags as pdf/i }),
+      ).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: /export seating name tags as pdf/i }));

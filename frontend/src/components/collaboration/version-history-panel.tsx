@@ -26,12 +26,19 @@ export function VersionHistoryPanel({
   useEffect(() => {
     setLoading(true);
     listEntityVersions(eventId, entityId, entityType)
-      .then((v) => { setVersions(v); setLoading(false); })
-      .catch((err: Error) => { setError(err.message); setLoading(false); });
+      .then((v) => {
+        setVersions(v);
+        setLoading(false);
+      })
+      .catch((err: Error) => {
+        setError(err.message);
+        setLoading(false);
+      });
   }, [eventId, entityId, entityType]);
 
   const handleRollback = async (versionId: number) => {
-    if (!window.confirm('Roll back to this version? Current state will be saved as a new version.')) return;
+    if (!window.confirm('Roll back to this version? Current state will be saved as a new version.'))
+      return;
     setRolling(versionId);
     try {
       await rollbackEntityVersion(eventId, entityId, entityType, versionId);
@@ -43,15 +50,21 @@ export function VersionHistoryPanel({
     }
   };
 
-  if (loading) return <div className="p-4 text-sm text-muted-foreground">Loading version history…</div>;
+  if (loading)
+    return <div className="p-4 text-sm text-muted-foreground">Loading version history…</div>;
 
   return (
     <div className="p-4" aria-label="Version history">
       <h3 className="font-semibold mb-3">Version History</h3>
       {error && (
-        <div className="text-red-600 text-sm p-2 rounded bg-red-50 border border-red-200 mb-3" role="alert">
+        <div
+          className="text-red-600 text-sm p-2 rounded bg-red-50 border border-red-200 mb-3"
+          role="alert"
+        >
           {error}
-          <button className="ml-2 underline" onClick={() => setError(null)}>Dismiss</button>
+          <button className="ml-2 underline" onClick={() => setError(null)}>
+            Dismiss
+          </button>
         </div>
       )}
       {versions.length === 0 ? (
@@ -63,13 +76,18 @@ export function VersionHistoryPanel({
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <span className="font-medium">v{v.version}</span>
-                  {idx === 0 && <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Current</span>}
+                  {idx === 0 && (
+                    <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                      Current
+                    </span>
+                  )}
                   <span className="ml-2 text-muted-foreground">
-                    by {v.changed_by_name ?? 'Unknown'} —{' '}
-                    {new Date(v.created_at).toLocaleString()}
+                    by {v.changed_by_name ?? 'Unknown'} — {new Date(v.created_at).toLocaleString()}
                   </span>
                   {v.change_note && (
-                    <span className="ml-2 text-muted-foreground italic text-xs">{v.change_note}</span>
+                    <span className="ml-2 text-muted-foreground italic text-xs">
+                      {v.change_note}
+                    </span>
                   )}
                 </div>
                 {idx !== 0 && (

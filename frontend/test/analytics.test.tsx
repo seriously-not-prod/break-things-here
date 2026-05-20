@@ -13,9 +13,15 @@ import * as analyticsService from '../src/services/analytics-service';
 
 // recharts uses ResizeObserver which is not available in jsdom
 class ResizeObserver {
-  observe(): void { /* no-op */ }
-  unobserve(): void { /* no-op */ }
-  disconnect(): void { /* no-op */ }
+  observe(): void {
+    /* no-op */
+  }
+  unobserve(): void {
+    /* no-op */
+  }
+  disconnect(): void {
+    /* no-op */
+  }
 }
 window.ResizeObserver = ResizeObserver;
 
@@ -162,9 +168,7 @@ describe('AnalyticsPage', () => {
     });
     renderPage();
     await waitFor(() => {
-      expect(
-        screen.getByText(/Dietary restriction data is not available/i),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Dietary restriction data is not available/i)).toBeInTheDocument();
     });
   });
 

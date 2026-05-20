@@ -104,9 +104,7 @@ export async function createShareLink(req: Request, res: Response): Promise<Resp
   let passwordHash: string | null = null;
   if (typeof password === 'string' && password.length > 0) {
     if (password.length < 6 || password.length > 200) {
-      return res
-        .status(400)
-        .json({ error: 'password must be between 6 and 200 characters.' });
+      return res.status(400).json({ error: 'password must be between 6 and 200 characters.' });
     }
     passwordHash = await bcrypt.hash(password, 10);
   }
@@ -187,9 +185,7 @@ export async function resolveShareLink(req: Request, res: Response): Promise<Res
   // Passwords are only accepted in the request body, never the query string,
   // so they don't leak into access logs or browser history.
   const password =
-    req.method === 'POST'
-      ? (req.body as { password?: string } | undefined)?.password
-      : undefined;
+    req.method === 'POST' ? (req.body as { password?: string } | undefined)?.password : undefined;
 
   if (!token || token.length > 100) {
     return res.status(400).json({ error: 'Invalid token.' });

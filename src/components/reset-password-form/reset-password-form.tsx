@@ -62,7 +62,7 @@ export function ResetPasswordForm(): JSX.Element {
       valid = false;
     } else if (!PASSWORD_PATTERN.test(newPassword)) {
       setNewPasswordError(
-        `Password must be at least ${PASSWORD_MIN_LENGTH} characters and include uppercase, lowercase, number, and special character.`
+        `Password must be at least ${PASSWORD_MIN_LENGTH} characters and include uppercase, lowercase, number, and special character.`,
       );
       valid = false;
     }
@@ -98,20 +98,28 @@ export function ResetPasswordForm(): JSX.Element {
       });
 
       if (response.ok) {
-        setSuccessMessage('Your password has been reset successfully. You will be redirected to the login page.');
+        setSuccessMessage(
+          'Your password has been reset successfully. You will be redirected to the login page.',
+        );
         setTimeout(() => {
           window.location.href = '/login';
         }, 3000);
       } else {
-        const data = await response.json().catch(() => ({})) as { message?: string };
+        const data = (await response.json().catch(() => ({}))) as { message?: string };
         if (response.status === 400 && data.message?.includes('expired')) {
           setErrorMessage('Your reset link has expired. Please request a new password reset link.');
         } else if (response.status === 400 && data.message?.includes('used')) {
-          setErrorMessage('This reset link has already been used. Please request a new password reset link.');
+          setErrorMessage(
+            'This reset link has already been used. Please request a new password reset link.',
+          );
         } else if (response.status === 400) {
-          setErrorMessage(data.message ?? 'Invalid request. Please check your input and try again.');
+          setErrorMessage(
+            data.message ?? 'Invalid request. Please check your input and try again.',
+          );
         } else {
-          setErrorMessage('Unable to reset password. Please try again or request a new reset link.');
+          setErrorMessage(
+            'Unable to reset password. Please try again or request a new reset link.',
+          );
         }
       }
     } catch (error) {
@@ -163,7 +171,8 @@ export function ResetPasswordForm(): JSX.Element {
           disabled={isSubmitting}
         />
         <p id="password-requirements" aria-live="off">
-          Password must be at least {PASSWORD_MIN_LENGTH} characters with uppercase, lowercase, number, and special character.
+          Password must be at least {PASSWORD_MIN_LENGTH} characters with uppercase, lowercase,
+          number, and special character.
         </p>
         {newPassword && (
           <div

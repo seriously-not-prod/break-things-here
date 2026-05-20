@@ -124,10 +124,9 @@ export async function sendMessage(
   body: string,
   currentUserId: number,
 ): Promise<Message> {
-  const result = await api.post<{ message: unknown }>(
-    `/api/events/${conversationId}/messages`,
-    { body },
-  );
+  const result = await api.post<{ message: unknown }>(`/api/events/${conversationId}/messages`, {
+    body,
+  });
   if (!isBackendMessage(result?.message)) {
     throw new Error('Server returned an unexpected message payload.');
   }
@@ -157,11 +156,6 @@ export async function editMessage(
 /**
  * Soft-delete a message. The backend enforces sender/owner/admin authorization.
  */
-export async function deleteMessage(
-  conversationId: string,
-  messageId: string,
-): Promise<void> {
-  await api.delete<{ message: string }>(
-    `/api/events/${conversationId}/messages/${messageId}`,
-  );
+export async function deleteMessage(conversationId: string, messageId: string): Promise<void> {
+  await api.delete<{ message: string }>(`/api/events/${conversationId}/messages/${messageId}`);
 }

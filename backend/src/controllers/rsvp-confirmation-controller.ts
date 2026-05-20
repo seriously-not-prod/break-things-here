@@ -106,7 +106,7 @@ export async function sendRsvpConfirmation(req: Request, res: Response): Promise
   if (!eventRow) return res.status(404).json({ error: 'Event not found.' });
 
   const rsvp = await db.get<RsvpRow>(
-    'SELECT id, name, email, status, guests FROM rsvps WHERE id = $1 AND event_id = $2',
+    'SELECT id, name, email, canonical_status AS status, guests FROM rsvps WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!rsvp) return res.status(404).json({ error: 'RSVP not found.' });
@@ -160,7 +160,10 @@ export async function sendRsvpConfirmation(req: Request, res: Response): Promise
       ],
     });
     if (logResult.lastID) {
-      await db.run('UPDATE communication_log SET status = $1 WHERE id = $2', ['sent', logResult.lastID]);
+      await db.run('UPDATE communication_log SET status = $1 WHERE id = $2', [
+        'sent',
+        logResult.lastID,
+      ]);
     }
     return res.json({ sent: true, accessToken, rsvpLink });
   } catch (err) {
@@ -187,7 +190,7 @@ export async function downloadRsvpIcs(req: Request, res: Response): Promise<Resp
     [eventId],
   );
   const rsvp = await db.get<RsvpRow>(
-    'SELECT id, name, email, status, guests FROM rsvps WHERE id = $1 AND event_id = $2',
+    'SELECT id, name, email, canonical_status AS status, guests FROM rsvps WHERE id = $1 AND event_id = $2',
     [id, eventId],
   );
   if (!eventRow || !rsvp) return res.status(404).json({ error: 'Not found.' });
