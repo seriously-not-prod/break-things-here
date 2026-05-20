@@ -41,6 +41,25 @@ interface GuestWithRsvp extends GuestRow {
   canonical_status: string | null;
 }
 
+function isValidEmailAddress(raw: string): boolean {
+  const value = raw.trim();
+  if (value.length < 3 || value.length > 254) return false;
+  if (value.includes(' ')) return false;
+
+  const atIndex = value.indexOf('@');
+  if (atIndex <= 0 || atIndex !== value.lastIndexOf('@') || atIndex === value.length - 1) {
+    return false;
+  }
+
+  const localPart = value.slice(0, atIndex);
+  const domainPart = value.slice(atIndex + 1);
+  if (!localPart || domainPart.length < 3) return false;
+  if (domainPart.startsWith('.') || domainPart.endsWith('.')) return false;
+  if (!domainPart.includes('.') || domainPart.includes('..')) return false;
+
+  return true;
+}
+
 // ── GET /api/events/:eventId/guest-records ────────────────────────────────────
 export const listGuests: RequestHandler = async (req: AuthRequest, res: Response) => {
   const eventId = Number(req.params.eventId);
@@ -131,9 +150,7 @@ export const createGuest: RequestHandler = async (req: AuthRequest, res: Respons
     res.status(400).json({ error: 'email is required' });
     return;
   }
-  // Basic email format validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email.trim())) {
+  if (!isValidEmailAddress(email)) {
     res.status(400).json({ error: 'email must be a valid email address' });
     return;
   }
@@ -146,12 +163,10 @@ export const createGuest: RequestHandler = async (req: AuthRequest, res: Respons
     [eventId, email.trim()],
   );
   if (existing) {
-    res
-      .status(409)
-      .json({
-        error: 'A guest with this email already exists for this event',
-        existing_id: existing.id,
-      });
+    res.status(409).json({
+      error: 'A guest with this email already exists for this event',
+      existing_id: existing.id,
+    });
     return;
   }
 
@@ -209,8 +224,7 @@ export const updateGuest: RequestHandler = async (req: AuthRequest, res: Respons
     res.status(400).json({ error: 'email is required' });
     return;
   }
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email.trim())) {
+  if (!isValidEmailAddress(email)) {
     res.status(400).json({ error: 'email must be a valid email address' });
     return;
   }
@@ -223,12 +237,10 @@ export const updateGuest: RequestHandler = async (req: AuthRequest, res: Respons
     [eventId, email.trim(), id],
   );
   if (collision) {
-    res
-      .status(409)
-      .json({
-        error: 'Another guest with this email already exists for this event',
-        existing_id: collision.id,
-      });
+    res.status(409).json({
+      error: 'Another guest with this email already exists for this event',
+      existing_id: collision.id,
+    });
     return;
   }
 

@@ -3726,4 +3726,5 @@ async function seedTimelineTemplates(db: DatabaseAdapter): Promise<void> {
         ],
       );
     }
+  }
 }
