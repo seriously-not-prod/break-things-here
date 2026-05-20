@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Task #783 — Block local-auth fallback in production deployments**: When `NODE_ENV=production` and `ENTRA_AUTH_ENABLED=true`, `POST /api/auth/login` now returns `410 Gone` with `LOCAL_AUTH_DISABLED` error code unless `ENTRA_ALLOW_LOCAL_FALLBACK=true` is explicitly set. Startup emits a security warning when both Entra and local fallback are active in production. Integration tests in `backend/__tests__/auth-fallback.test.ts` cover all acceptance criteria (#783).
+
 ### Added (Track E — Performance & Observability)
 
 - **Task #817 — Load-test suite (k6) + nightly + PR smoke gate**: Added comprehensive k6 load test scenarios in `tests/load/k6/` covering login, dashboard, RSVP submission, event create, and guest import endpoints. Full run uses 100 VUs for 5 minutes with p95 < 500 ms and error rate < 1% thresholds. Smoke variant (10 VU, 30s) runs on every PR via `.github/workflows/load-smoke.yml`. Full variant runs nightly at 02:00 UTC via `.github/workflows/load-nightly.yml` (also manually dispatchable). Baseline performance numbers documented in `tests/load/baseline.md` (#817).

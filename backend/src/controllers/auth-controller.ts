@@ -6,6 +6,7 @@ import { verifyPassword, validateEmailFormat, hashPassword, generateVerification
 import { generateTokens, verifyToken, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
 import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
 import { sendVerificationEmail } from '../utils/mailer.js';
+import { isEntraEnabled, isLocalFallbackAllowed } from '../config/entra.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -35,6 +36,18 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
  * Returns 429 for locked accounts.
  */
 export async function login(req: Request, res: Response): Promise<Response> {
+  // Block local-auth fallback in production when Entra is the required auth provider (#783)
+  if (
+    process.env.NODE_ENV === 'production' &&
+    isEntraEnabled() &&
+    !isLocalFallbackAllowed()
+  ) {
+    return res.status(410).json({
+      error: 'Local authentication is disabled. Please use your organisation\'s single sign-on (Entra ID) to log in.',
+      code: 'LOCAL_AUTH_DISABLED',
+    });
+  }
+
   const { email, password } = req.body as { email?: string; password?: string };
 
   if (!email || !password) {
