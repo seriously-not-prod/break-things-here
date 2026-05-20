@@ -922,6 +922,20 @@ router.post(
 );
 router.get('/admin/roles', authenticateToken, authorizeRole(['Admin']), adminController.listRoles);
 
+// User-event assignment endpoints — issue #891
+router.get(
+  '/admin/users/:id/events',
+  authenticateToken,
+  authorizeRole(['Admin']),
+  adminController.getUserEvents,
+);
+router.put(
+  '/admin/users/:id/events',
+  authenticateToken,
+  authorizeRole(['Admin']),
+  adminController.setUserEvents,
+);
+
 // ============ ADMIN ROUTES — #665 #677 ============
 router.get(
   '/admin/audit-log',

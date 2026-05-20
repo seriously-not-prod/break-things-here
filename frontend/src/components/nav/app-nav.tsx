@@ -102,7 +102,7 @@ function buildNavGroups(eventId: string | null, onNeedEvent: (sub: string) => vo
         wsItem('Timeline', 'timeline', <TimelineRounded />),
         wsItem('Gallery', 'gallery', <ImageRounded />),
         wsItem('Shopping', 'shopping', <ShoppingCartRounded />),
-      ],
+      ].map((item) => ({ ...item, stableKey: `ws-${item.subPath ?? item.label}` })),
     },
   ];
 }
@@ -259,7 +259,7 @@ function NavGroupSection({
       <Collapse in={open} timeout="auto">
         <List dense disablePadding sx={{ pl: 0.5 }}>
           {visibleItems.map((item) => (
-            <NavItemRow key={item.to} item={item} collapsed={false} />
+            <NavItemRow key={(item as { stableKey?: string }).stableKey ?? item.to} item={item} collapsed={false} />
           ))}
         </List>
       </Collapse>

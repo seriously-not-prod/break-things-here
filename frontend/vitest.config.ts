@@ -7,7 +7,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./test/setup.ts'],
-    include: ['test/**/*.test.ts?(x)'],
+    include: ['test/**/*.test.ts?(x)', 'src/__tests__/**/*.test.ts?(x)'],
     exclude: [
       // Pre-existing broken tests — tracked separately for remediation.
       'test/timeline.test.tsx',
@@ -29,7 +29,7 @@ export default defineConfig({
         'src/vite-env.d.ts',
         'src/react-app-env.d.ts',
       ],
-      // Regression-guard floor; target is ≥80% as coverage grows.
+      // Regression-guard floor; target is >=80% as coverage grows.
       thresholds: {
         lines: 25,
         branches: 20,
