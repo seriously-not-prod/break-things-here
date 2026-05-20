@@ -1288,7 +1288,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       assigned_user_id INTEGER,
       due_date TEXT,
       status TEXT CHECK(status IN ('Pending', 'In Progress', 'Blocked', 'Complete')) DEFAULT 'Pending',
-      priority TEXT CHECK(priority IN ('Low', 'Medium', 'High')) DEFAULT 'Medium',
+      priority TEXT CHECK(priority IN ('Low', 'Medium', 'High', 'Urgent')) DEFAULT 'Medium',
       created_by INTEGER,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1568,6 +1568,10 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(
     `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
   );
+  await db.exec(`ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_priority_check`);
+  await db.exec(
+    `ALTER TABLE tasks ADD CONSTRAINT tasks_priority_check CHECK(priority IN ('Low', 'Medium', 'High', 'Urgent'))`,
+  );
 
   // ── Vendors schema drift fix ──────────────────────────────────────────────
   // Older DB had company_name/booking_status; current code expects name/status
@@ -1774,7 +1778,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       event_id        INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
       name            TEXT NOT NULL,
       description     TEXT,
-      priority        TEXT CHECK(priority IN ('Low','Medium','High')) DEFAULT 'Medium',
+      priority        TEXT CHECK(priority IN ('Low','Medium','High','Urgent')) DEFAULT 'Medium',
       estimated_hours NUMERIC(5,2),
       created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -1782,6 +1786,12 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   `);
   await db.exec(
     `CREATE INDEX IF NOT EXISTS idx_task_templates_event_id ON task_templates(event_id)`,
+  );
+  await db.exec(
+    `ALTER TABLE task_templates DROP CONSTRAINT IF EXISTS task_templates_priority_check`,
+  );
+  await db.exec(
+    `ALTER TABLE task_templates ADD CONSTRAINT task_templates_priority_check CHECK(priority IN ('Low', 'Medium', 'High', 'Urgent'))`,
   );
 
   await db.exec(`

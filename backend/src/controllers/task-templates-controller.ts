@@ -65,8 +65,8 @@ export async function createTaskTemplate(req: Request, res: Response): Promise<R
   };
 
   if (!name?.trim()) return res.status(400).json({ error: 'Template name is required.' });
-  if (priority && !['Low', 'Medium', 'High'].includes(priority)) {
-    return res.status(400).json({ error: 'Priority must be Low, Medium, or High.' });
+  if (priority && !['Low', 'Medium', 'High', 'Urgent'].includes(priority)) {
+    return res.status(400).json({ error: 'Priority must be Low, Medium, High, or Urgent.' });
   }
   if (estimated_hours !== undefined && estimated_hours <= 0) {
     return res.status(400).json({ error: 'Estimated hours must be positive.' });
@@ -79,13 +79,19 @@ export async function createTaskTemplate(req: Request, res: Response): Promise<R
   const result = await db.run(
     `INSERT INTO task_templates (event_id, name, description, priority, estimated_hours, created_by)
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-    [eventId, name.trim(), description?.trim() ?? null, priority ?? 'Medium', estimated_hours ?? null, authReq.user.id],
+    [
+      eventId,
+      name.trim(),
+      description?.trim() ?? null,
+      priority ?? 'Medium',
+      estimated_hours ?? null,
+      authReq.user.id,
+    ],
   );
 
-  const template = await db.get<TaskTemplate>(
-    `SELECT * FROM task_templates WHERE id = $1`,
-    [result.lastID],
-  );
+  const template = await db.get<TaskTemplate>(`SELECT * FROM task_templates WHERE id = $1`, [
+    result.lastID,
+  ]);
   return res.status(201).json({ template });
 }
 
@@ -222,7 +228,13 @@ export async function addTimeEntry(req: Request, res: Response): Promise<Respons
   const result = await db.run(
     `INSERT INTO task_time_entries (task_id, user_id, hours_spent, notes, logged_at)
      VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [taskId, authReq.user.id, hours_spent, notes?.trim() ?? null, logged_at ?? new Date().toISOString().slice(0, 10)],
+    [
+      taskId,
+      authReq.user.id,
+      hours_spent,
+      notes?.trim() ?? null,
+      logged_at ?? new Date().toISOString().slice(0, 10),
+    ],
   );
 
   const entry = await db.get(

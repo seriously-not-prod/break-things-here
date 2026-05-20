@@ -130,7 +130,7 @@ interface UserOption {
 }
 
 const TASK_STATUSES = ['Pending', 'In Progress', 'Blocked', 'Complete', 'Completed'];
-const TASK_PRIORITIES = ['Low', 'Medium', 'High'];
+const TASK_PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'] as const;
 const RSVP_STATUSES = ['Pending', 'Going', 'Maybe', 'Not Going', 'Declined'];
 const RSVP_EXPORT_FORMAT = 'csv';
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
@@ -1334,6 +1334,18 @@ export default function EventDetailPage(): JSX.Element {
               >
                 {TASK_PRIORITIES.map((priority) => (
                   <MenuItem key={priority} value={priority}>
+                    <Chip
+                      label={priority}
+                      size="small"
+                      color={
+                        priority === 'Low' ? 'success' : priority === 'Medium' ? 'warning' : 'error'
+                      }
+                      sx={
+                        priority === 'Urgent'
+                          ? { mr: 1, bgcolor: 'error.dark', color: 'common.white', fontWeight: 700 }
+                          : { mr: 1 }
+                      }
+                    />
                     {priority}
                   </MenuItem>
                 ))}

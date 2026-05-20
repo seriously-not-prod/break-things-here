@@ -242,7 +242,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   due_date         TEXT,
   status           TEXT CHECK(status IN ('Pending', 'In Progress', 'Blocked', 'Complete')) DEFAULT 'Pending',
-  priority         TEXT CHECK(priority IN ('Low', 'Medium', 'High')) DEFAULT 'Medium',
+  priority         TEXT CHECK(priority IN ('Low', 'Medium', 'High', 'Urgent')) DEFAULT 'Medium',
   created_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -687,7 +687,7 @@ CREATE TABLE IF NOT EXISTS task_templates (
   event_id        INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   name            TEXT NOT NULL,
   description     TEXT,
-  priority        TEXT CHECK(priority IN ('Low','Medium','High')) DEFAULT 'Medium',
+  priority        TEXT CHECK(priority IN ('Low','Medium','High','Urgent')) DEFAULT 'Medium',
   estimated_hours NUMERIC(5,2),
   created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
