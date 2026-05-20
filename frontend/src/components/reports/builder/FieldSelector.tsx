@@ -16,13 +16,16 @@ interface FieldSelectorProps {
   error?: string;
 }
 
-export function FieldSelector({ fields, selected, onChange, error }: FieldSelectorProps): React.JSX.Element {
+export function FieldSelector({
+  fields,
+  selected,
+  onChange,
+  error,
+}: FieldSelectorProps): React.JSX.Element {
   const selectedSet = new Set(selected);
 
   const toggle = (key: string): void => {
-    const next = selectedSet.has(key)
-      ? selected.filter((k) => k !== key)
-      : [...selected, key];
+    const next = selectedSet.has(key) ? selected.filter((k) => k !== key) : [...selected, key];
     onChange(next);
   };
 
@@ -37,8 +40,18 @@ export function FieldSelector({ fields, selected, onChange, error }: FieldSelect
         <button
           type="button"
           onClick={toggleAll}
-          aria-label={selectedSet.size === fields.length ? 'Deselect all fields' : 'Select all fields'}
-          style={{ fontSize: '0.75rem', marginLeft: '8px', cursor: 'pointer', background: 'none', border: 'none', color: '#2563eb', textDecoration: 'underline' }}
+          aria-label={
+            selectedSet.size === fields.length ? 'Deselect all fields' : 'Select all fields'
+          }
+          style={{
+            fontSize: '0.75rem',
+            marginLeft: '8px',
+            cursor: 'pointer',
+            background: 'none',
+            border: 'none',
+            color: '#2563eb',
+            textDecoration: 'underline',
+          }}
         >
           {selectedSet.size === fields.length ? 'Deselect all' : 'Select all'}
         </button>
@@ -51,13 +64,23 @@ export function FieldSelector({ fields, selected, onChange, error }: FieldSelect
       )}
 
       <div
-        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '6px' }}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+          gap: '6px',
+        }}
         role="group"
       >
         {fields.map((field) => (
           <label
             key={field.key}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.9rem' }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+            }}
           >
             <input
               type="checkbox"

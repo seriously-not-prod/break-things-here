@@ -32,6 +32,7 @@ import {
   EditRounded,
   EventSeatRounded,
   GroupsRounded,
+  HistoryRounded,
   InsightsRounded,
   HowToRegRounded,
   PhotoLibraryRounded,
@@ -49,6 +50,9 @@ import { canEditEvent, isAdmin } from '../../utils/roles';
 import { ActivityFeedPanel } from './activity-feed-panel';
 import EventLocationMap from './event-location-map';
 import EventCustomFieldsPanel from './event-custom-fields-panel';
+import VersionHistoryDrawer from '../collab/version-history-drawer';
+import { EventChatPanel } from '../collaboration/event-chat-panel';
+import { Badge } from '@mui/material';
 import { archiveEvent, unarchiveEvent } from '../../services/events-service';
 
 interface PlannerEvent {
@@ -157,14 +161,27 @@ export default function EventDetailPage(): JSX.Element {
   // Task dialog
   const [taskDialog, setTaskDialog] = useState(false);
   const [editTaskId, setEditTaskId] = useState<number | null>(null);
-  const [taskForm, setTaskForm] = useState({ title: '', notes: '', assigned_user_id: '', due_date: '', status: 'Pending', priority: 'Medium' });
+  const [taskForm, setTaskForm] = useState({
+    title: '',
+    notes: '',
+    assigned_user_id: '',
+    due_date: '',
+    status: 'Pending',
+    priority: 'Medium',
+  });
   const [taskSaving, setTaskSaving] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
 
   // RSVP dialog
   const [rsvpDialog, setRsvpDialog] = useState(false);
   const [editRsvpId, setEditRsvpId] = useState<number | null>(null);
-  const [rsvpForm, setRsvpForm] = useState({ name: '', email: '', guests: '1', status: 'Pending', notes: '' });
+  const [rsvpForm, setRsvpForm] = useState({
+    name: '',
+    email: '',
+    guests: '1',
+    status: 'Pending',
+    notes: '',
+  });
   const [rsvpSaving, setRsvpSaving] = useState(false);
   const [rsvpError, setRsvpError] = useState<string | null>(null);
   const [documentUploading, setDocumentUploading] = useState(false);
@@ -182,6 +199,11 @@ export default function EventDetailPage(): JSX.Element {
   const [memberSaving, setMemberSaving] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
 
+  // #807 — Version history drawer
+  const [versionDrawerOpen, setVersionDrawerOpen] = useState(false);
+  // #808 — chat unread badge
+  const [chatUnread, setChatUnread] = useState(0);
+
   const canEdit = user && canEditEvent(user.roleName);
   const goingHeadcount = rsvps.reduce(
     (sum, rsvp) => sum + (rsvp.status === 'Going' ? Number(rsvp.guests || 1) : 0),
@@ -192,9 +214,7 @@ export default function EventDetailPage(): JSX.Element {
       ? null
       : Math.max(event.capacity - goingHeadcount, 0);
   const waitlistOverflow =
-    event?.capacity == null
-      ? 0
-      : Math.max(goingHeadcount - event.capacity, 0);
+    event?.capacity == null ? 0 : Math.max(goingHeadcount - event.capacity, 0);
 
   const moduleLinks = [
     {
@@ -252,14 +272,22 @@ export default function EventDetailPage(): JSX.Element {
   async function load(): Promise<void> {
     setLoading(true);
     try {
-      const data = await api.get<{ event: PlannerEvent; tasks: Task[]; rsvps: Rsvp[]; members: EventMember[]; availableUsers: UserOption[] }>(`/api/events/${id}`);
+      const data = await api.get<{
+        event: PlannerEvent;
+        tasks: Task[];
+        rsvps: Rsvp[];
+        members: EventMember[];
+        availableUsers: UserOption[];
+      }>(`/api/events/${id}`);
       setEvent(normalizePlannerEvent(data.event));
       setTasks(data.tasks);
       setRsvps(data.rsvps);
       setMembers(data.members ?? []);
       setAvailableUsers(data.availableUsers ?? []);
-      const docs = await api.get<EventDocumentsResponse | EventDocument[]>(`/api/events/${id}/documents`);
-      setDocuments(Array.isArray(docs) ? docs : docs.documents ?? []);
+      const docs = await api.get<EventDocumentsResponse | EventDocument[]>(
+        `/api/events/${id}/documents`,
+      );
+      setDocuments(Array.isArray(docs) ? docs : (docs.documents ?? []));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load event.');
     } finally {
@@ -267,15 +295,26 @@ export default function EventDetailPage(): JSX.Element {
     }
   }
 
-  useEffect(() => { void load(); }, [id]);
+  useEffect(() => {
+    void load();
+  }, [id]);
 
   // Persist last-visited event id so sidebar workspace links resolve correctly
-  useEffect(() => { if (id) setLastEventId(id); }, [id]);
+  useEffect(() => {
+    if (id) setLastEventId(id);
+  }, [id]);
 
   // ---- Tasks ----
   function openAddTask(): void {
     setEditTaskId(null);
-    setTaskForm({ title: '', notes: '', assigned_user_id: '', due_date: '', status: 'Pending', priority: 'Medium' });
+    setTaskForm({
+      title: '',
+      notes: '',
+      assigned_user_id: '',
+      due_date: '',
+      status: 'Pending',
+      priority: 'Medium',
+    });
     setTaskError(null);
     setTaskDialog(true);
   }
@@ -336,7 +375,13 @@ export default function EventDetailPage(): JSX.Element {
 
   function openEditRsvp(r: Rsvp): void {
     setEditRsvpId(r.id);
-    setRsvpForm({ name: r.name, email: r.email, guests: String(r.guests ?? 1), status: r.status, notes: r.notes ?? '' });
+    setRsvpForm({
+      name: r.name,
+      email: r.email,
+      guests: String(r.guests ?? 1),
+      status: r.status,
+      notes: r.notes ?? '',
+    });
     setRsvpError(null);
     setRsvpDialog(true);
   }
@@ -369,13 +414,18 @@ export default function EventDetailPage(): JSX.Element {
 
   async function exportRsvpsCsv(): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE}/api/events/${id}/rsvps/export?format=${RSVP_EXPORT_FORMAT}`, {
-        method: 'GET',
-        headers: getAuthHeaders(),
-        credentials: 'include',
-      });
+      const response = await fetch(
+        `${API_BASE}/api/events/${id}/rsvps/export?format=${RSVP_EXPORT_FORMAT}`,
+        {
+          method: 'GET',
+          headers: getAuthHeaders(),
+          credentials: 'include',
+        },
+      );
       if (!response.ok) {
-        const body = await response.json().catch(() => ({ error: response.statusText })) as { error?: string };
+        const body = (await response.json().catch(() => ({ error: response.statusText }))) as {
+          error?: string;
+        };
         throw new Error(body.error ?? response.statusText);
       }
       const blob = await response.blob();
@@ -398,7 +448,10 @@ export default function EventDetailPage(): JSX.Element {
     setMemberSaving(true);
     setMemberError(null);
     try {
-      await api.post(`/api/events/${id}/members`, { user_id: Number(memberUserId), role: memberRole });
+      await api.post(`/api/events/${id}/members`, {
+        user_id: Number(memberUserId),
+        role: memberRole,
+      });
       setMemberUserId('');
       setMemberRole('Member');
       await load();
@@ -429,7 +482,9 @@ export default function EventDetailPage(): JSX.Element {
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string };
+        const body = (await res.json().catch(() => ({ error: res.statusText }))) as {
+          error?: string;
+        };
         throw new Error(body.error ?? res.statusText);
       }
 
@@ -451,7 +506,9 @@ export default function EventDetailPage(): JSX.Element {
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string };
+        const body = (await res.json().catch(() => ({ error: res.statusText }))) as {
+          error?: string;
+        };
         throw new Error(body.error ?? res.statusText);
       }
 
@@ -469,7 +526,9 @@ export default function EventDetailPage(): JSX.Element {
 
   async function deleteDocument(documentId: number): Promise<void> {
     if (!window.confirm('Delete this document?')) return;
-    await api.delete(`/api/events/${id}/documents/${documentId}`).catch((err) => setError(err.message));
+    await api
+      .delete(`/api/events/${id}/documents/${documentId}`)
+      .catch((err) => setError(err.message));
     await load();
   }
 
@@ -487,10 +546,12 @@ export default function EventDetailPage(): JSX.Element {
         body: formData,
       });
       if (!uploadRes.ok) {
-        const body = await uploadRes.json().catch(() => ({ error: uploadRes.statusText })) as { error?: string };
+        const body = (await uploadRes.json().catch(() => ({ error: uploadRes.statusText }))) as {
+          error?: string;
+        };
         throw new Error(body.error ?? uploadRes.statusText);
       }
-      const uploadData = await uploadRes.json() as { document?: { file_name?: string } };
+      const uploadData = (await uploadRes.json()) as { document?: { file_name?: string } };
       const fileName: string = uploadData.document?.file_name ?? '';
       if (!fileName) throw new Error('Upload did not return a file name.');
 
@@ -507,21 +568,36 @@ export default function EventDetailPage(): JSX.Element {
   }
 
   if (loading) {
-    return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
+        <CircularProgress />
+      </Box>
+    );
   }
 
   if (!event) {
-    return <Box sx={{ p: 4 }}><Alert severity="error">{error ?? 'Event not found.'}</Alert></Box>;
+    return (
+      <Box sx={{ p: 4 }}>
+        <Alert severity="error">{error ?? 'Event not found.'}</Alert>
+      </Box>
+    );
   }
 
   return (
     <PageLayout
       title={event.title}
-      subtitle={event.date ? `${new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}${event.event_time ? ` at ${event.event_time}` : ''}` : undefined}
+      subtitle={
+        event.date
+          ? `${new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}${event.event_time ? ` at ${event.event_time}` : ''}`
+          : undefined
+      }
       breadcrumbs={[{ label: 'Events', to: '/events' }, { label: event.title }]}
     >
-
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
 
       <Paper sx={{ p: 3, mb: 3 }}>
         {/* Cover image banner */}
@@ -559,8 +635,18 @@ export default function EventDetailPage(): JSX.Element {
                   color: '#fff',
                 }}
               >
-                {coverUploading ? <CircularProgress size={20} color="inherit" /> : <CameraAltRounded fontSize="small" />}
-                <input hidden type="file" accept="image/jpeg,image/png,image/webp" ref={coverInputRef} onChange={uploadCoverImage} />
+                {coverUploading ? (
+                  <CircularProgress size={20} color="inherit" />
+                ) : (
+                  <CameraAltRounded fontSize="small" />
+                )}
+                <input
+                  hidden
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  ref={coverInputRef}
+                  onChange={uploadCoverImage}
+                />
               </Box>
             )}
           </Box>
@@ -570,33 +656,65 @@ export default function EventDetailPage(): JSX.Element {
             <Button
               component="label"
               size="small"
-              startIcon={coverUploading ? <CircularProgress size={14} color="inherit" /> : <CameraAltRounded />}
+              startIcon={
+                coverUploading ? (
+                  <CircularProgress size={14} color="inherit" />
+                ) : (
+                  <CameraAltRounded />
+                )
+              }
               variant="outlined"
               disabled={coverUploading}
             >
               {coverUploading ? 'Uploading…' : 'Set Cover Image'}
-              <input hidden type="file" accept="image/jpeg,image/png,image/webp" ref={coverInputRef} onChange={uploadCoverImage} />
+              <input
+                hidden
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                ref={coverInputRef}
+                onChange={uploadCoverImage}
+              />
             </Button>
-            {coverError && <Typography variant="caption" color="error">{coverError}</Typography>}
+            {coverError && (
+              <Typography variant="caption" color="error">
+                {coverError}
+              </Typography>
+            )}
           </Box>
         )}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Box>
-            <Typography variant="h5" fontWeight={700}>{event.title}</Typography>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+            <Typography variant="h5" fontWeight={700}>
+              {event.title}
+            </Typography>
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              sx={{ mt: 0.5, flexWrap: 'wrap' }}
+            >
               {event.event_type && (
                 <Chip label={event.event_type} size="small" color="info" variant="outlined" />
               )}
               <Typography variant="body2" color="text.secondary">
-                {new Date(event.date).toLocaleDateString()} {event.event_time ? `at ${event.event_time}` : ''}{event.location ? ` · ${event.location}` : ''}
+                {new Date(event.date).toLocaleDateString()}{' '}
+                {event.event_time ? `at ${event.event_time}` : ''}
+                {event.location ? ` · ${event.location}` : ''}
               </Typography>
             </Stack>
             {event.capacity !== null && event.capacity !== undefined && (
-              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+              <Stack
+                direction="row"
+                spacing={0.5}
+                alignItems="center"
+                sx={{ mt: 0.5, flexWrap: 'wrap' }}
+              >
                 <Chip
                   label={`Capacity: ${goingHeadcount}/${event.capacity}`}
                   size="small"
-                  color={waitlistOverflow > 0 ? 'error' : remainingCapacity === 0 ? 'warning' : 'default'}
+                  color={
+                    waitlistOverflow > 0 ? 'error' : remainingCapacity === 0 ? 'warning' : 'default'
+                  }
                   variant="outlined"
                   data-testid="capacity-chip"
                 />
@@ -624,9 +742,23 @@ export default function EventDetailPage(): JSX.Element {
                 )}
               </Stack>
             )}
-            {event.description && <Typography variant="body1" sx={{ mt: 1 }}>{event.description}</Typography>}
+            {event.description && (
+              <Typography variant="body1" sx={{ mt: 1 }}>
+                {event.description}
+              </Typography>
+            )}
           </Box>
           <Stack direction="row" spacing={1} alignItems="center">
+            <Button
+              size="small"
+              variant="text"
+              startIcon={<HistoryRounded />}
+              onClick={() => setVersionDrawerOpen(true)}
+              aria-label="Open version history"
+              data-testid="event-version-history-open"
+            >
+              History
+            </Button>
             {event.archived_at && (
               <Chip
                 label="Archived"
@@ -641,12 +773,12 @@ export default function EventDetailPage(): JSX.Element {
                 event.status === 'Active'
                   ? 'primary'
                   : event.status === 'Completed'
-                  ? 'success'
-                  : event.status === 'Cancelled'
-                  ? 'error'
-                  : event.status === 'Planning' || event.status === 'Confirmed'
-                  ? 'warning'
-                  : 'default'
+                    ? 'success'
+                    : event.status === 'Cancelled'
+                      ? 'error'
+                      : event.status === 'Planning' || event.status === 'Confirmed'
+                        ? 'warning'
+                        : 'default'
               }
             />
             {user && (user.id === event.created_by || isAdmin(user.roleName)) && (
@@ -666,7 +798,9 @@ export default function EventDetailPage(): JSX.Element {
                       setEvent({ ...event, ...(updated as Partial<PlannerEvent>) });
                     }
                   } catch (err) {
-                    setError(err instanceof ApiError ? err.message : 'Failed to update archive state.');
+                    setError(
+                      err instanceof ApiError ? err.message : 'Failed to update archive state.',
+                    );
                   }
                 }}
               >
@@ -690,7 +824,8 @@ export default function EventDetailPage(): JSX.Element {
           Event Workspace
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Open every module for this event from one place. Seeded demo data is available in development so these screens are not empty.
+          Open every module for this event from one place. Seeded demo data is available in
+          development so these screens are not empty.
         </Typography>
         <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
           {moduleLinks.map((moduleLink) => (
@@ -721,6 +856,19 @@ export default function EventDetailPage(): JSX.Element {
         <Tab label={`Team (${members.length})`} />
         <Tab label={`Documents (${documents.length})`} />
         <Tab label="Activity" />
+        <Tab
+          label={
+            <Badge
+              color="error"
+              badgeContent={chatUnread}
+              max={99}
+              data-testid="event-chat-tab-badge"
+            >
+              <span>Chat</span>
+            </Badge>
+          }
+          data-testid="event-chat-tab"
+        />
       </Tabs>
       <Divider sx={{ mb: 2 }} />
 
@@ -742,18 +890,34 @@ export default function EventDetailPage(): JSX.Element {
             </Button>
           </Stack>
           {tasks.length === 0 ? (
-            <Paper sx={{ p: 3, textAlign: 'center' }}><Typography color="text.secondary">No tasks yet.</Typography></Paper>
+            <Paper sx={{ p: 3, textAlign: 'center' }}>
+              <Typography color="text.secondary">No tasks yet.</Typography>
+            </Paper>
           ) : (
             <TableContainer component={Paper}>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell><strong>Title</strong></TableCell>
-                    <TableCell><strong>Assignee</strong></TableCell>
-                    <TableCell><strong>Due Date</strong></TableCell>
-                    <TableCell><strong>Priority</strong></TableCell>
-                    <TableCell><strong>Status</strong></TableCell>
-                    {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
+                    <TableCell>
+                      <strong>Title</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Assignee</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Due Date</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Priority</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Status</strong>
+                    </TableCell>
+                    {canEdit && (
+                      <TableCell align="right">
+                        <strong>Actions</strong>
+                      </TableCell>
+                    )}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -761,16 +925,45 @@ export default function EventDetailPage(): JSX.Element {
                     <TableRow key={t.id} hover>
                       <TableCell>{t.title}</TableCell>
                       <TableCell>{t.assignee_name ?? '—'}</TableCell>
-                      <TableCell>{t.due_date ? new Date(t.due_date).toLocaleDateString() : '—'}</TableCell>
-                      <TableCell><Chip label={t.priority ?? 'Medium'} size="small" variant="outlined" /></TableCell>
                       <TableCell>
-                        <Chip label={t.status} size="small" color={t.status === 'Complete' || t.status === 'Completed' ? 'success' : t.status === 'In Progress' ? 'warning' : t.status === 'Blocked' ? 'error' : 'default'} />
+                        {t.due_date ? new Date(t.due_date).toLocaleDateString() : '—'}
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={t.priority ?? 'Medium'} size="small" variant="outlined" />
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={t.status}
+                          size="small"
+                          color={
+                            t.status === 'Complete' || t.status === 'Completed'
+                              ? 'success'
+                              : t.status === 'In Progress'
+                                ? 'warning'
+                                : t.status === 'Blocked'
+                                  ? 'error'
+                                  : 'default'
+                          }
+                        />
                       </TableCell>
                       {canEdit && (
                         <TableCell align="right">
                           <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                            <Button size="small" startIcon={<EditRounded />} onClick={() => openEditTask(t)}>Edit</Button>
-                            <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => deleteTask(t.id)}>Delete</Button>
+                            <Button
+                              size="small"
+                              startIcon={<EditRounded />}
+                              onClick={() => openEditTask(t)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="small"
+                              color="error"
+                              startIcon={<DeleteRounded />}
+                              onClick={() => deleteTask(t.id)}
+                            >
+                              Delete
+                            </Button>
                           </Stack>
                         </TableCell>
                       )}
@@ -803,20 +996,40 @@ export default function EventDetailPage(): JSX.Element {
               </Typography>
             )}
           </Stack>
-          {rsvpError && <Alert severity="error" sx={{ mb: 2 }}>{rsvpError}</Alert>}
+          {rsvpError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {rsvpError}
+            </Alert>
+          )}
           {rsvps.length === 0 ? (
-            <Paper sx={{ p: 3, textAlign: 'center' }}><Typography color="text.secondary">No RSVPs yet.</Typography></Paper>
+            <Paper sx={{ p: 3, textAlign: 'center' }}>
+              <Typography color="text.secondary">No RSVPs yet.</Typography>
+            </Paper>
           ) : (
             <TableContainer component={Paper}>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell><strong>Name</strong></TableCell>
-                    <TableCell><strong>Email</strong></TableCell>
-                    <TableCell><strong>Guests</strong></TableCell>
-                    <TableCell><strong>Status</strong></TableCell>
-                    <TableCell><strong>Source</strong></TableCell>
-                    {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
+                    <TableCell>
+                      <strong>Name</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Email</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Guests</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Status</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Source</strong>
+                    </TableCell>
+                    {canEdit && (
+                      <TableCell align="right">
+                        <strong>Actions</strong>
+                      </TableCell>
+                    )}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -826,14 +1039,41 @@ export default function EventDetailPage(): JSX.Element {
                       <TableCell>{r.email}</TableCell>
                       <TableCell>{r.guests ?? 1}</TableCell>
                       <TableCell>
-                        <Chip label={r.status} size="small" color={r.status === 'Going' ? 'success' : r.status === 'Maybe' ? 'warning' : r.status === 'Declined' || r.status === 'Not Going' ? 'default' : 'default'} />
+                        <Chip
+                          label={r.status}
+                          size="small"
+                          color={
+                            r.status === 'Going'
+                              ? 'success'
+                              : r.status === 'Maybe'
+                                ? 'warning'
+                                : r.status === 'Declined' || r.status === 'Not Going'
+                                  ? 'default'
+                                  : 'default'
+                          }
+                        />
                       </TableCell>
-                      <TableCell><Chip label={r.source} size="small" variant="outlined" /></TableCell>
+                      <TableCell>
+                        <Chip label={r.source} size="small" variant="outlined" />
+                      </TableCell>
                       {canEdit && (
                         <TableCell align="right">
                           <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                            <Button size="small" startIcon={<EditRounded />} onClick={() => openEditRsvp(r)}>Edit</Button>
-                            <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => deleteRsvp(r.id)}>Delete</Button>
+                            <Button
+                              size="small"
+                              startIcon={<EditRounded />}
+                              onClick={() => openEditRsvp(r)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="small"
+                              color="error"
+                              startIcon={<DeleteRounded />}
+                              onClick={() => deleteRsvp(r.id)}
+                            >
+                              Delete
+                            </Button>
                           </Stack>
                         </TableCell>
                       )}
@@ -860,7 +1100,9 @@ export default function EventDetailPage(): JSX.Element {
                   fullWidth
                 >
                   {availableUsers
-                    .filter((option) => !members.some((member) => member.user_id === option.user_id))
+                    .filter(
+                      (option) => !members.some((member) => member.user_id === option.user_id),
+                    )
                     .map((option) => (
                       <MenuItem key={option.user_id} value={option.user_id}>
                         {option.display_name} ({option.email})
@@ -877,21 +1119,39 @@ export default function EventDetailPage(): JSX.Element {
                   {memberSaving ? 'Adding…' : 'Invite'}
                 </Button>
               </Stack>
-              {memberError && <Alert severity="error" sx={{ mt: 2 }}>{memberError}</Alert>}
+              {memberError && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  {memberError}
+                </Alert>
+              )}
             </Paper>
           )}
           {members.length === 0 ? (
-            <Paper sx={{ p: 3, textAlign: 'center' }}><Typography color="text.secondary">No team members yet.</Typography></Paper>
+            <Paper sx={{ p: 3, textAlign: 'center' }}>
+              <Typography color="text.secondary">No team members yet.</Typography>
+            </Paper>
           ) : (
             <TableContainer component={Paper}>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell><strong>Name</strong></TableCell>
-                    <TableCell><strong>Email</strong></TableCell>
-                    <TableCell><strong>Role</strong></TableCell>
-                    <TableCell><strong>Joined</strong></TableCell>
-                    {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
+                    <TableCell>
+                      <strong>Name</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Email</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Role</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Joined</strong>
+                    </TableCell>
+                    {canEdit && (
+                      <TableCell align="right">
+                        <strong>Actions</strong>
+                      </TableCell>
+                    )}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -903,7 +1163,11 @@ export default function EventDetailPage(): JSX.Element {
                       <TableCell>{new Date(member.joined_at).toLocaleString()}</TableCell>
                       {canEdit && (
                         <TableCell align="right">
-                          <Button size="small" color="error" onClick={() => removeMember(member.user_id)}>
+                          <Button
+                            size="small"
+                            color="error"
+                            onClick={() => removeMember(member.user_id)}
+                          >
                             Remove
                           </Button>
                         </TableCell>
@@ -932,22 +1196,42 @@ export default function EventDetailPage(): JSX.Element {
                   onChange={uploadDocument}
                 />
               </Button>
-              <Typography variant="caption" color="text.secondary">PDF, JPEG, PNG, WebP · max 5 MB</Typography>
+              <Typography variant="caption" color="text.secondary">
+                PDF, JPEG, PNG, WebP · max 5 MB
+              </Typography>
             </Stack>
           )}
-          {documentError && <Alert severity="error" sx={{ mb: 2 }}>{documentError}</Alert>}
+          {documentError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {documentError}
+            </Alert>
+          )}
           {documents.length === 0 ? (
-            <Paper sx={{ p: 3, textAlign: 'center' }}><Typography color="text.secondary">No documents yet.</Typography></Paper>
+            <Paper sx={{ p: 3, textAlign: 'center' }}>
+              <Typography color="text.secondary">No documents yet.</Typography>
+            </Paper>
           ) : (
             <TableContainer component={Paper}>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell><strong>Name</strong></TableCell>
-                    <TableCell><strong>Type</strong></TableCell>
-                    <TableCell><strong>Size</strong></TableCell>
-                    <TableCell><strong>Uploaded</strong></TableCell>
-                    {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
+                    <TableCell>
+                      <strong>Name</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Type</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Size</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Uploaded</strong>
+                    </TableCell>
+                    {canEdit && (
+                      <TableCell align="right">
+                        <strong>Actions</strong>
+                      </TableCell>
+                    )}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -960,8 +1244,16 @@ export default function EventDetailPage(): JSX.Element {
                       {canEdit && (
                         <TableCell align="right">
                           <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                            <Button size="small" onClick={() => downloadDocument(doc)}>Download</Button>
-                            <Button size="small" color="error" onClick={() => deleteDocument(doc.id)}>Delete</Button>
+                            <Button size="small" onClick={() => downloadDocument(doc)}>
+                              Download
+                            </Button>
+                            <Button
+                              size="small"
+                              color="error"
+                              onClick={() => deleteDocument(doc.id)}
+                            >
+                              Delete
+                            </Button>
                           </Stack>
                         </TableCell>
                       )}
@@ -975,8 +1267,18 @@ export default function EventDetailPage(): JSX.Element {
       )}
 
       {/* Activity Tab */}
-      {tab === 4 && (
-        <ActivityFeedPanel eventId={id ?? ''} />
+      {tab === 4 && <ActivityFeedPanel eventId={id ?? ''} />}
+
+      {/* Chat Tab — #808 */}
+      {id && user && (
+        <Box sx={{ display: tab === 5 ? 'block' : 'none' }} data-testid="event-chat-tab-panel">
+          <EventChatPanel
+            eventId={Number(id)}
+            currentUserId={user.id}
+            hidden={tab !== 5}
+            onUnreadChange={setChatUnread}
+          />
+        </Box>
       )}
 
       {/* Task Dialog */}
@@ -986,12 +1288,22 @@ export default function EventDetailPage(): JSX.Element {
           <Box component="form" id="task-form" onSubmit={saveTask} noValidate>
             <Stack spacing={2} sx={{ mt: 1 }}>
               {taskError && <Alert severity="error">{taskError}</Alert>}
-              <TextField label="Title" value={taskForm.title} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, title: e.target.value }))} required fullWidth />
+              <TextField
+                label="Title"
+                value={taskForm.title}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setTaskForm((p) => ({ ...p, title: e.target.value }))
+                }
+                required
+                fullWidth
+              />
               <TextField
                 label="Assignee"
                 select
                 value={taskForm.assigned_user_id}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, assigned_user_id: e.target.value }))}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setTaskForm((p) => ({ ...p, assigned_user_id: e.target.value }))
+                }
                 fullWidth
               >
                 <MenuItem value="">Unassigned</MenuItem>
@@ -1001,21 +1313,68 @@ export default function EventDetailPage(): JSX.Element {
                   </MenuItem>
                 ))}
               </TextField>
-              <TextField label="Due Date" type="date" value={taskForm.due_date} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, due_date: e.target.value }))} fullWidth InputLabelProps={{ shrink: true }} />
-              <TextField label="Priority" select value={taskForm.priority} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, priority: e.target.value }))} fullWidth>
-                {TASK_PRIORITIES.map((priority) => <MenuItem key={priority} value={priority}>{priority}</MenuItem>)}
+              <TextField
+                label="Due Date"
+                type="date"
+                value={taskForm.due_date}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setTaskForm((p) => ({ ...p, due_date: e.target.value }))
+                }
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="Priority"
+                select
+                value={taskForm.priority}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setTaskForm((p) => ({ ...p, priority: e.target.value }))
+                }
+                fullWidth
+              >
+                {TASK_PRIORITIES.map((priority) => (
+                  <MenuItem key={priority} value={priority}>
+                    {priority}
+                  </MenuItem>
+                ))}
               </TextField>
-              <TextField label="Notes" value={taskForm.notes} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, notes: e.target.value }))} multiline rows={2} fullWidth />
-              <TextField label="Status" select value={taskForm.status} onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskForm((p) => ({ ...p, status: e.target.value }))} fullWidth>
-                {TASK_STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              <TextField
+                label="Notes"
+                value={taskForm.notes}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setTaskForm((p) => ({ ...p, notes: e.target.value }))
+                }
+                multiline
+                rows={2}
+                fullWidth
+              />
+              <TextField
+                label="Status"
+                select
+                value={taskForm.status}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setTaskForm((p) => ({ ...p, status: e.target.value }))
+                }
+                fullWidth
+              >
+                {TASK_STATUSES.map((s) => (
+                  <MenuItem key={s} value={s}>
+                    {s}
+                  </MenuItem>
+                ))}
               </TextField>
             </Stack>
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setTaskDialog(false)}>Cancel</Button>
-          <Button type="submit" form="task-form" variant="contained" disabled={taskSaving}
-            startIcon={taskSaving ? <CircularProgress size={16} color="inherit" /> : null}>
+          <Button
+            type="submit"
+            form="task-form"
+            variant="contained"
+            disabled={taskSaving}
+            startIcon={taskSaving ? <CircularProgress size={16} color="inherit" /> : null}
+          >
             {taskSaving ? 'Saving…' : 'Save'}
           </Button>
         </DialogActions>
@@ -1028,24 +1387,89 @@ export default function EventDetailPage(): JSX.Element {
           <Box component="form" id="rsvp-form" onSubmit={saveRsvp} noValidate>
             <Stack spacing={2} sx={{ mt: 1 }}>
               {rsvpError && <Alert severity="error">{rsvpError}</Alert>}
-              <TextField label="Name" value={rsvpForm.name} onChange={(e: ChangeEvent<HTMLInputElement>) => setRsvpForm((p) => ({ ...p, name: e.target.value }))} required fullWidth />
-              <TextField label="Email" type="email" value={rsvpForm.email} onChange={(e: ChangeEvent<HTMLInputElement>) => setRsvpForm((p) => ({ ...p, email: e.target.value }))} required fullWidth />
-              <TextField label="Guest Count" type="number" value={rsvpForm.guests} onChange={(e: ChangeEvent<HTMLInputElement>) => setRsvpForm((p) => ({ ...p, guests: e.target.value }))} inputProps={{ min: 1 }} fullWidth />
-              <TextField label="Status" select value={rsvpForm.status} onChange={(e: ChangeEvent<HTMLInputElement>) => setRsvpForm((p) => ({ ...p, status: e.target.value }))} fullWidth>
-                {RSVP_STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              <TextField
+                label="Name"
+                value={rsvpForm.name}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setRsvpForm((p) => ({ ...p, name: e.target.value }))
+                }
+                required
+                fullWidth
+              />
+              <TextField
+                label="Email"
+                type="email"
+                value={rsvpForm.email}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setRsvpForm((p) => ({ ...p, email: e.target.value }))
+                }
+                required
+                fullWidth
+              />
+              <TextField
+                label="Guest Count"
+                type="number"
+                value={rsvpForm.guests}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setRsvpForm((p) => ({ ...p, guests: e.target.value }))
+                }
+                inputProps={{ min: 1 }}
+                fullWidth
+              />
+              <TextField
+                label="Status"
+                select
+                value={rsvpForm.status}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setRsvpForm((p) => ({ ...p, status: e.target.value }))
+                }
+                fullWidth
+              >
+                {RSVP_STATUSES.map((s) => (
+                  <MenuItem key={s} value={s}>
+                    {s}
+                  </MenuItem>
+                ))}
               </TextField>
-              <TextField label="Notes" value={rsvpForm.notes} onChange={(e: ChangeEvent<HTMLInputElement>) => setRsvpForm((p) => ({ ...p, notes: e.target.value }))} multiline rows={2} fullWidth />
+              <TextField
+                label="Notes"
+                value={rsvpForm.notes}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setRsvpForm((p) => ({ ...p, notes: e.target.value }))
+                }
+                multiline
+                rows={2}
+                fullWidth
+              />
             </Stack>
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setRsvpDialog(false)}>Cancel</Button>
-          <Button type="submit" form="rsvp-form" variant="contained" disabled={rsvpSaving}
-            startIcon={rsvpSaving ? <CircularProgress size={16} color="inherit" /> : null}>
+          <Button
+            type="submit"
+            form="rsvp-form"
+            variant="contained"
+            disabled={rsvpSaving}
+            startIcon={rsvpSaving ? <CircularProgress size={16} color="inherit" /> : null}
+          >
             {rsvpSaving ? 'Saving…' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* #807 — Version history rollback drawer (event scope). */}
+      {id && event && (
+        <VersionHistoryDrawer
+          open={versionDrawerOpen}
+          eventId={Number(id)}
+          entityType="event"
+          entityId={Number(id)}
+          title={event.title}
+          onClose={() => setVersionDrawerOpen(false)}
+          onRolledBack={() => void load()}
+        />
+      )}
     </PageLayout>
   );
 }

@@ -48,7 +48,9 @@ vi.mock('exceljs', () => {
   };
   return {
     default: class {
-      addWorksheet() { return mockSheet; }
+      addWorksheet() {
+        return mockSheet;
+      }
       xlsx = { write: vi.fn().mockResolvedValue(undefined) };
     },
   };
@@ -59,7 +61,11 @@ import {
   getDomainFieldMeta,
   getAllDomains,
 } from '../src/services/reports/build-report.js';
-import { getDomains, runReport, saveReport } from '../src/controllers/reports-builder-controller.js';
+import {
+  getDomains,
+  runReport,
+  saveReport,
+} from '../src/controllers/reports-builder-controller.js';
 import type { Request, Response } from 'express';
 
 // ---------------------------------------------------------------------------
@@ -70,11 +76,25 @@ function makeRes() {
     statusCode: 200,
     body: null as unknown,
     headers: {} as Record<string, string>,
-    status(code: number) { this.statusCode = code; return this; },
-    json(body: unknown) { this.body = body; return this; },
-    send(body: unknown) { this.body = body; return this; },
-    setHeader(k: string, v: string) { this.headers[k] = v; return this; },
-    end() { return this; },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body: unknown) {
+      this.body = body;
+      return this;
+    },
+    send(body: unknown) {
+      this.body = body;
+      return this;
+    },
+    setHeader(k: string, v: string) {
+      this.headers[k] = v;
+      return this;
+    },
+    end() {
+      return this;
+    },
     write: vi.fn(),
   };
   return res;
@@ -111,7 +131,11 @@ describe('build-report service (#812)', () => {
     it('returns correct shape for guests domain', () => {
       const fields = getDomainFieldMeta('guests');
       expect(fields.length).toBeGreaterThan(0);
-      expect(fields[0]).toMatchObject({ key: expect.any(String), label: expect.any(String), filterable: expect.any(Boolean) });
+      expect(fields[0]).toMatchObject({
+        key: expect.any(String),
+        label: expect.any(String),
+        filterable: expect.any(Boolean),
+      });
     });
 
     it('returns filterable=true for status field in guests', () => {
@@ -130,7 +154,7 @@ describe('build-report service (#812)', () => {
     it('queries db.all with event scoped WHERE clause', async () => {
       const rows = [
         { guest_name: 'Alice', email: 'alice@ex.com', status: 'Going' },
-        { guest_name: 'Bob',   email: 'bob@ex.com',   status: 'Going' },
+        { guest_name: 'Bob', email: 'bob@ex.com', status: 'Going' },
       ];
       mockAll.mockResolvedValue(rows);
 
@@ -159,7 +183,7 @@ describe('build-report service (#812)', () => {
       });
 
       const [sql, params] = mockAll.mock.calls[0] as [string, unknown[]];
-      expect(sql).toContain("r.status = $");
+      expect(sql).toContain('r.status = $');
       expect(params).toContain('Going');
     });
 
@@ -199,7 +223,9 @@ describe('build-report service (#812)', () => {
         domain: 'guests',
         eventId: 1,
         fields: ['status'],
-        filters: [{ field: 'status', operator: 'INJECT' as never, value: "'; DROP TABLE users; --" }],
+        filters: [
+          { field: 'status', operator: 'INJECT' as never, value: "'; DROP TABLE users; --" },
+        ],
       });
 
       const [sql] = mockAll.mock.calls[0] as [string, unknown[]];
@@ -297,7 +323,10 @@ describe('reports-builder-controller (#812)', () => {
 
   describe('saveReport', () => {
     it('returns 400 when name is missing', async () => {
-      const req = makeReq({ params: { eventId: '1' }, body: { domain: 'guests', frequency: 'one_off' } });
+      const req = makeReq({
+        params: { eventId: '1' },
+        body: { domain: 'guests', frequency: 'one_off' },
+      });
       const res = makeRes();
       await saveReport(req, res as unknown as Response);
       expect(res.statusCode).toBe(400);
@@ -305,7 +334,10 @@ describe('reports-builder-controller (#812)', () => {
     });
 
     it('returns 400 when domain is invalid', async () => {
-      const req = makeReq({ params: { eventId: '1' }, body: { name: 'Test', domain: 'bogus', frequency: 'one_off' } });
+      const req = makeReq({
+        params: { eventId: '1' },
+        body: { name: 'Test', domain: 'bogus', frequency: 'one_off' },
+      });
       const res = makeRes();
       await saveReport(req, res as unknown as Response);
       expect(res.statusCode).toBe(400);
@@ -325,7 +357,12 @@ describe('reports-builder-controller (#812)', () => {
       mockGet.mockResolvedValue({ id: 99, report_type: 'custom_builder', frequency: 'one_off' });
       const req = makeReq({
         params: { eventId: '1' },
-        body: { name: 'Quick Report', domain: 'guests', frequency: 'one_off', fields: ['guest_name'] },
+        body: {
+          name: 'Quick Report',
+          domain: 'guests',
+          frequency: 'one_off',
+          fields: ['guest_name'],
+        },
       });
       const res = makeRes();
       await saveReport(req, res as unknown as Response);

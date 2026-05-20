@@ -34,9 +34,16 @@ export function FilterEditor({ filterableFields }: FilterEditorProps): React.JSX
         </h3>
         <button
           type="button"
-          onClick={() => append({ field: filterableFields[0]?.key ?? '', operator: '=', value: '' })}
+          onClick={() =>
+            append({ field: filterableFields[0]?.key ?? '', operator: '=', value: '' })
+          }
           aria-label="Add filter"
-          style={{ fontSize: '0.8rem', cursor: 'pointer', padding: '2px 10px', borderRadius: '4px' }}
+          style={{
+            fontSize: '0.8rem',
+            cursor: 'pointer',
+            padding: '2px 10px',
+            borderRadius: '4px',
+          }}
         >
           + Add filter
         </button>
@@ -46,13 +53,25 @@ export function FilterEditor({ filterableFields }: FilterEditorProps): React.JSX
         <p style={{ fontSize: '0.85rem', color: '#6b7280' }}>No filters applied.</p>
       )}
 
-      <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <ol
+        style={{
+          listStyle: 'none',
+          padding: 0,
+          margin: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}
+      >
         {fields.map((field, index) => {
           const operator = watchedFilters?.[index]?.operator;
           const needsValue = !NULL_OPERATORS.has(operator ?? '');
 
           return (
-            <li key={field.id} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+            <li
+              key={field.id}
+              style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}
+            >
               {/* Field */}
               <select
                 {...register(`filters.${index}.field`)}
@@ -86,7 +105,12 @@ export function FilterEditor({ filterableFields }: FilterEditorProps): React.JSX
                   type="text"
                   aria-label={`Filter ${index + 1} value`}
                   placeholder="value"
-                  style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #d1d5db', minWidth: '120px' }}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    border: '1px solid #d1d5db',
+                    minWidth: '120px',
+                  }}
                 />
               )}
 
@@ -94,7 +118,14 @@ export function FilterEditor({ filterableFields }: FilterEditorProps): React.JSX
                 type="button"
                 onClick={() => remove(index)}
                 aria-label={`Remove filter ${index + 1}`}
-                style={{ padding: '2px 8px', cursor: 'pointer', color: '#dc2626', background: 'none', border: 'none', fontSize: '1.1rem' }}
+                style={{
+                  padding: '2px 8px',
+                  cursor: 'pointer',
+                  color: '#dc2626',
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.1rem',
+                }}
               >
                 ×
               </button>

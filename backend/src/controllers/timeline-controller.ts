@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
+import {
+  detectTimelineConflicts,
+  validateReorder,
+  type TimelineActivitySnapshot,
+} from '../services/timeline-conflict.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -30,7 +35,11 @@ interface TimelineActivityRow {
   updated_at: string;
 }
 
-async function assertEventAccess(req: AuthRequest, res: Response, eventId: string): Promise<boolean> {
+async function assertEventAccess(
+  req: AuthRequest,
+  res: Response,
+  eventId: string,
+): Promise<boolean> {
   const event = await requireEventAccess(req, res, eventId, {
     allowMembers: true,
     forbiddenMessage: 'Not authorised to manage the timeline for this event.',
@@ -176,7 +185,7 @@ export async function updateActivity(req: Request, res: Response): Promise<Respo
   const parsedStatus: ActivityStatus =
     status && (VALID_STATUSES as string[]).includes(status)
       ? (status as ActivityStatus)
-      : existing.status ?? 'planned';
+      : (existing.status ?? 'planned');
   const parsedVendorId =
     vendor_id !== undefined ? (vendor_id !== '' ? Number(vendor_id) : null) : existing.vendor_id;
   const parsedSortOrder =
@@ -192,15 +201,15 @@ export async function updateActivity(req: Request, res: Response): Promise<Respo
      WHERE id = $13 AND event_id = $14`,
     [
       title?.trim() ?? existing.title,
-      description !== undefined ? (description.trim() || null) : existing.description,
-      start_time !== undefined ? (start_time || null) : existing.start_time,
-      end_time !== undefined ? (end_time || null) : existing.end_time,
-      planned_start_time !== undefined ? (planned_start_time || null) : existing.planned_start_time,
-      planned_end_time !== undefined ? (planned_end_time || null) : existing.planned_end_time,
-      actual_start_time !== undefined ? (actual_start_time || null) : existing.actual_start_time,
-      actual_end_time !== undefined ? (actual_end_time || null) : existing.actual_end_time,
+      description !== undefined ? description.trim() || null : existing.description,
+      start_time !== undefined ? start_time || null : existing.start_time,
+      end_time !== undefined ? end_time || null : existing.end_time,
+      planned_start_time !== undefined ? planned_start_time || null : existing.planned_start_time,
+      planned_end_time !== undefined ? planned_end_time || null : existing.planned_end_time,
+      actual_start_time !== undefined ? actual_start_time || null : existing.actual_start_time,
+      actual_end_time !== undefined ? actual_end_time || null : existing.actual_end_time,
       parsedStatus,
-      location !== undefined ? (location.trim() || null) : existing.location,
+      location !== undefined ? location.trim() || null : existing.location,
       parsedVendorId,
       parsedSortOrder,
       id,
@@ -223,7 +232,10 @@ export async function deleteActivity(req: Request, res: Response): Promise<Respo
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const existing = await db.get<{ id: number }>('SELECT id FROM timeline_activities WHERE id = $1 AND event_id = $2', [id, eventId]);
+  const existing = await db.get<{ id: number }>(
+    'SELECT id FROM timeline_activities WHERE id = $1 AND event_id = $2',
+    [id, eventId],
+  );
   if (!existing) return res.status(404).json({ error: 'Timeline activity not found.' });
 
   await db.run('DELETE FROM timeline_activities WHERE id = $1 AND event_id = $2', [id, eventId]);
@@ -283,6 +295,55 @@ export async function detectConflicts(req: Request, res: Response): Promise<Resp
 }
 
 /**
+ * POST /api/events/:eventId/timeline/validate — #804
+ *
+ * Validates either (a) the current timeline as a whole or (b) a proposed
+ * reorder. The body may include `order: Array<{ id, sort_order }>`; when
+ * provided we evaluate the resulting state without persisting any changes.
+ * Returns the conflict list so the frontend can highlight and (when in a
+ * drag flow) roll back the optimistic update.
+ */
+export async function validateTimeline(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  const { eventId } = req.params;
+  const ok = await assertEventAccess(authReq, res, eventId);
+  if (!ok) return res as Response;
+
+  const db = getDatabase();
+  const activities = await db.all<TimelineActivitySnapshot>(
+    `SELECT id, title, start_time, end_time, planned_start_time, planned_end_time,
+            sort_order, vendor_id, location,
+            COALESCE(buffer_before_mins, 0) AS buffer_before_mins,
+            COALESCE(buffer_after_mins, 0) AS buffer_after_mins
+       FROM timeline_activities
+      WHERE event_id = $1
+      ORDER BY sort_order ASC`,
+    [eventId],
+  );
+
+  const body = req.body as { order?: Array<{ id: number | string; sort_order: number | string }> };
+  if (Array.isArray(body?.order) && body.order.length > 0) {
+    const proposed = body.order
+      .map((entry) => ({ id: Number(entry.id), sort_order: Number(entry.sort_order) }))
+      .filter((entry) => Number.isInteger(entry.id) && Number.isFinite(entry.sort_order));
+    const { violations, sortDependencyViolations } = validateReorder(activities, proposed);
+    const valid = violations.length === 0 && sortDependencyViolations.length === 0;
+    return res.json({
+      valid,
+      conflicts: violations,
+      sort_dependency_violations: sortDependencyViolations,
+    });
+  }
+
+  const conflicts = detectTimelineConflicts(activities);
+  return res.json({
+    valid: conflicts.length === 0,
+    conflicts,
+    sort_dependency_violations: [],
+  });
+}
+
+/**
  * GET /api/events/:eventId/timeline/comparison (#460)
  * Returns all activities with their planned and actual times side-by-side,
  * including a computed variance in minutes and a summary of status counts.
@@ -299,7 +360,7 @@ export async function getTimelineComparison(req: Request, res: Response): Promis
     [eventId],
   );
 
-  const comparisonItems = activities.map(a => {
+  const comparisonItems = activities.map((a) => {
     const plannedStart = a.planned_start_time ? new Date(a.planned_start_time).getTime() : null;
     const plannedEnd = a.planned_end_time ? new Date(a.planned_end_time).getTime() : null;
     const actualStart = a.actual_start_time ? new Date(a.actual_start_time).getTime() : null;
@@ -342,10 +403,10 @@ export async function getTimelineComparison(req: Request, res: Response): Promis
 
   const summary = {
     total: activities.length,
-    planned: activities.filter(a => (a.status ?? 'planned') === 'planned').length,
-    in_progress: activities.filter(a => a.status === 'in-progress').length,
-    completed: activities.filter(a => a.status === 'completed').length,
-    skipped: activities.filter(a => a.status === 'skipped').length,
+    planned: activities.filter((a) => (a.status ?? 'planned') === 'planned').length,
+    in_progress: activities.filter((a) => a.status === 'in-progress').length,
+    completed: activities.filter((a) => a.status === 'completed').length,
+    skipped: activities.filter((a) => a.status === 'skipped').length,
   };
 
   return res.json({ comparison: comparisonItems, summary });

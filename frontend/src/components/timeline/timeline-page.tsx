@@ -40,6 +40,7 @@ import {
 } from '@mui/lab';
 import AddRounded from '@mui/icons-material/AddRounded';
 import AssessmentRounded from '@mui/icons-material/AssessmentRounded';
+import AutoAwesomeMosaicRounded from '@mui/icons-material/AutoAwesomeMosaicRounded';
 import DeleteRounded from '@mui/icons-material/DeleteRounded';
 import DragIndicatorRounded from '@mui/icons-material/DragIndicatorRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
@@ -70,12 +71,20 @@ import {
   type TimelineActivity,
   type TimelineComparisonItem,
   type TimelineComparisonSummary,
+  type TimelineConflict,
+  type TimelineTemplate,
+  type TimelineValidateResult,
+  applyTimelineTemplate,
   createActivity,
   deleteActivity,
   getTimelineComparison,
   listActivities,
+  listTimelineTemplates,
+  reorderTimeline,
   updateActivity,
+  validateTimeline,
 } from '../../services/timeline-service';
+import { ApiError } from '../../lib/api-client';
 import { type Vendor, listVendors } from '../../services/vendors-service';
 
 function formatTime(isoString: string | null): string {
@@ -107,12 +116,18 @@ function formatVariance(minutes: number | null): string {
   return `${sign}${Math.floor(abs / 60)}h ${abs % 60}m`;
 }
 
-function statusColor(status: ActivityStatus): 'default' | 'primary' | 'success' | 'warning' | 'error' {
+function statusColor(
+  status: ActivityStatus,
+): 'default' | 'primary' | 'success' | 'warning' | 'error' {
   switch (status) {
-    case 'completed': return 'success';
-    case 'in-progress': return 'primary';
-    case 'skipped': return 'error';
-    default: return 'default';
+    case 'completed':
+      return 'success';
+    case 'in-progress':
+      return 'primary';
+    case 'skipped':
+      return 'error';
+    default:
+      return 'default';
   }
 }
 
@@ -147,21 +162,29 @@ function computeConflicts(activities: TimelineActivity[]): Set<number> {
 interface SortableTimelineItemProps {
   activity: TimelineActivity;
   isConflict: boolean;
+  conflictMessages: string[];
+  isFocused: boolean;
   vendorMap: Map<number, string>;
   onEdit: (a: TimelineActivity) => void;
   onDelete: (a: TimelineActivity) => void;
+  onFocus: (id: number) => void;
   isLast: boolean;
 }
 
 function SortableTimelineItem({
   activity,
   isConflict,
+  conflictMessages,
+  isFocused,
   vendorMap,
   onEdit,
   onDelete,
+  onFocus,
   isLast,
 }: SortableTimelineItemProps): JSX.Element {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: activity.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: activity.id,
+  });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -189,12 +212,19 @@ function SortableTimelineItem({
 
       <TimelineContent sx={{ py: '12px', px: 2 }}>
         <Box
+          tabIndex={0}
+          onFocus={() => onFocus(activity.id)}
+          data-testid={`timeline-item-${activity.id}`}
           sx={{
             p: 1.5,
             borderRadius: 1,
             border: '1px solid',
-            borderColor: isConflict ? 'warning.main' : 'divider',
-            bgcolor: isConflict ? 'warning.50' : 'background.paper',
+            borderColor: isConflict ? 'error.main' : isFocused ? 'primary.main' : 'divider',
+            bgcolor: isConflict ? 'error.50' : isFocused ? 'action.selected' : 'background.paper',
+            outline: 'none',
+            '&:focus-visible': {
+              boxShadow: '0 0 0 2px rgba(25,118,210,0.4)',
+            },
           }}
         >
           <Stack direction="row" alignItems="flex-start" spacing={1}>
@@ -210,8 +240,18 @@ function SortableTimelineItem({
               <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
                 <Typography variant="subtitle2">{activity.title}</Typography>
                 {isConflict && (
-                  <Tooltip title="Time conflict with another activity">
-                    <WarningAmberRounded fontSize="small" color="warning" />
+                  <Tooltip
+                    title={
+                      conflictMessages.length > 0
+                        ? conflictMessages.join(' · ')
+                        : 'Time conflict with another activity'
+                    }
+                  >
+                    <WarningAmberRounded
+                      fontSize="small"
+                      color="error"
+                      data-testid={`timeline-conflict-${activity.id}`}
+                    />
                   </Tooltip>
                 )}
                 <Chip
@@ -242,10 +282,18 @@ function SortableTimelineItem({
               )}
             </Box>
             <Stack direction="row" spacing={0.5} flexShrink={0}>
-              <IconButton size="small" aria-label={`Edit ${activity.title}`} onClick={() => onEdit(activity)}>
+              <IconButton
+                size="small"
+                aria-label={`Edit ${activity.title}`}
+                onClick={() => onEdit(activity)}
+              >
                 <EditRounded fontSize="small" />
               </IconButton>
-              <IconButton size="small" aria-label={`Delete ${activity.title}`} onClick={() => onDelete(activity)}>
+              <IconButton
+                size="small"
+                aria-label={`Delete ${activity.title}`}
+                onClick={() => onDelete(activity)}
+              >
                 <DeleteRounded fontSize="small" />
               </IconButton>
             </Stack>
@@ -282,7 +330,9 @@ export default function TimelinePage(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   const [comparisonItems, setComparisonItems] = useState<TimelineComparisonItem[]>([]);
-  const [comparisonSummary, setComparisonSummary] = useState<TimelineComparisonSummary | null>(null);
+  const [comparisonSummary, setComparisonSummary] = useState<TimelineComparisonSummary | null>(
+    null,
+  );
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
 
@@ -295,13 +345,23 @@ export default function TimelinePage(): JSX.Element {
   const [deleteTarget, setDeleteTarget] = useState<TimelineActivity | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // #804 — server-validated conflicts; used to render red highlights with tooltips.
+  const [serverConflicts, setServerConflicts] = useState<TimelineConflict[]>([]);
+  // #803 — focused row id for keyboard reorder (Up/Down to select, Enter to swap).
+  const [focusedId, setFocusedId] = useState<number | null>(null);
+
+  // #805 — Apply-template flow.
+  const [templates, setTemplates] = useState<TimelineTemplate[]>([]);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [applyingTemplateId, setApplyingTemplateId] = useState<number | null>(null);
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   useEffect(() => {
-    void Promise.all([loadActivities(), loadVendors()]);
+    void Promise.all([loadActivities(), loadVendors(), loadTemplates()]);
   }, [eventId]);
 
   useEffect(() => {
@@ -313,6 +373,12 @@ export default function TimelinePage(): JSX.Element {
     try {
       const data = await listActivities(eventId);
       setActivities(data);
+      try {
+        const validation: TimelineValidateResult = await validateTimeline(eventId);
+        setServerConflicts([...validation.conflicts, ...validation.sort_dependency_violations]);
+      } catch {
+        setServerConflicts([]);
+      }
     } catch {
       setError('Failed to load timeline.');
     } finally {
@@ -326,6 +392,29 @@ export default function TimelinePage(): JSX.Element {
       setVendors(data);
     } catch {
       // Non-critical — proceed without vendor links
+    }
+  }
+
+  async function loadTemplates(): Promise<void> {
+    try {
+      const data = await listTimelineTemplates();
+      setTemplates(data);
+    } catch {
+      setTemplates([]);
+    }
+  }
+
+  async function handleApplyTemplate(templateId: number): Promise<void> {
+    setApplyingTemplateId(templateId);
+    setError(null);
+    try {
+      await applyTimelineTemplate(eventId, templateId);
+      setTemplateDialogOpen(false);
+      await loadActivities();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to apply template.');
+    } finally {
+      setApplyingTemplateId(null);
     }
   }
 
@@ -343,8 +432,22 @@ export default function TimelinePage(): JSX.Element {
     }
   }
 
-  const vendorMap = new Map(vendors.map(v => [v.id, v.name]));
+  const vendorMap = new Map(vendors.map((v) => [v.id, v.name]));
+  // Combine cheap client-side overlap detection with server-validated conflicts so
+  // the UI highlights remain responsive while the drag is in flight.
   const conflictIds = computeConflicts(activities);
+  serverConflicts.forEach((c) => {
+    conflictIds.add(c.activity_a_id);
+    conflictIds.add(c.activity_b_id);
+  });
+  const conflictMessages = new Map<number, string[]>();
+  serverConflicts.forEach((c) => {
+    [c.activity_a_id, c.activity_b_id].forEach((id) => {
+      const arr = conflictMessages.get(id) ?? [];
+      arr.push(c.message);
+      conflictMessages.set(id, arr);
+    });
+  });
 
   function openAddDialog(): void {
     setEditingActivity(null);
@@ -375,22 +478,25 @@ export default function TimelinePage(): JSX.Element {
 
   function handleTextField(field: keyof CreateActivityInput) {
     return (e: ChangeEvent<HTMLInputElement>): void => {
-      setForm(prev => ({ ...prev, [field]: e.target.value }));
+      setForm((prev) => ({ ...prev, [field]: e.target.value }));
     };
   }
 
   function handleVendorChange(e: SelectChangeEvent): void {
     const val = e.target.value;
-    setForm(prev => ({ ...prev, vendor_id: val ? Number(val) : undefined }));
+    setForm((prev) => ({ ...prev, vendor_id: val ? Number(val) : undefined }));
   }
 
   function handleStatusChange(e: SelectChangeEvent): void {
-    setForm(prev => ({ ...prev, status: e.target.value as ActivityStatus }));
+    setForm((prev) => ({ ...prev, status: e.target.value as ActivityStatus }));
   }
 
   async function handleSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
-    if (!form.title.trim()) { setFormError('Title is required.'); return; }
+    if (!form.title.trim()) {
+      setFormError('Title is required.');
+      return;
+    }
     setSaving(true);
     setFormError(null);
     try {
@@ -411,17 +517,24 @@ export default function TimelinePage(): JSX.Element {
 
       if (editingActivity) {
         const updated = await updateActivity(eventId, editingActivity.id, payload);
-        setActivities(prev => prev.map(a => (a.id === updated.id ? updated : a))
-          .sort((a, b) => {
-            if (a.start_time && b.start_time) return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
-            return a.sort_order - b.sort_order;
-          }));
+        setActivities((prev) =>
+          prev
+            .map((a) => (a.id === updated.id ? updated : a))
+            .sort((a, b) => {
+              if (a.start_time && b.start_time)
+                return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+              return a.sort_order - b.sort_order;
+            }),
+        );
       } else {
         const created = await createActivity(eventId, payload);
-        setActivities(prev => [...prev, created].sort((a, b) => {
-          if (a.start_time && b.start_time) return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
-          return a.sort_order - b.sort_order;
-        }));
+        setActivities((prev) =>
+          [...prev, created].sort((a, b) => {
+            if (a.start_time && b.start_time)
+              return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+            return a.sort_order - b.sort_order;
+          }),
+        );
       }
       setDialogOpen(false);
     } catch (err) {
@@ -436,7 +549,7 @@ export default function TimelinePage(): JSX.Element {
     setDeleting(true);
     try {
       await deleteActivity(eventId, deleteTarget.id);
-      setActivities(prev => prev.filter(a => a.id !== deleteTarget.id));
+      setActivities((prev) => prev.filter((a) => a.id !== deleteTarget.id));
       setDeleteTarget(null);
     } catch {
       setError('Failed to delete activity.');
@@ -445,24 +558,73 @@ export default function TimelinePage(): JSX.Element {
     }
   }
 
+  async function persistReorder(
+    reordered: TimelineActivity[],
+    previous: TimelineActivity[],
+  ): Promise<void> {
+    // Optimistically applied by caller before invocation; here we persist.
+    const order = reordered.map((activity, index) => ({ id: activity.id, sort_order: index }));
+    try {
+      const result = await reorderTimeline(eventId, order);
+      setActivities(result.activities);
+      setServerConflicts([...result.conflicts, ...result.sort_dependency_violations]);
+      if (!result.valid) {
+        setError('Reorder accepted with conflicts — see highlighted activities.');
+      }
+    } catch (err) {
+      // 409 indicates server rejected the move; rollback to the previous order.
+      setActivities(previous);
+      if (err instanceof ApiError && err.status === 409) {
+        setError('Reorder rejected — would create timeline conflicts.');
+        // Re-validate so the highlighted conflicts reflect the current state.
+        try {
+          const validation = await validateTimeline(eventId);
+          setServerConflicts([...validation.conflicts, ...validation.sort_dependency_violations]);
+        } catch {
+          // ignore — conflicts stay as-is
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to reorder timeline.');
+      }
+    }
+  }
+
   async function handleDragEnd(event: DragEndEvent): Promise<void> {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = activities.findIndex(a => a.id === active.id);
-    const newIndex = activities.findIndex(a => a.id === over.id);
+    const previous = [...activities];
+    const oldIndex = activities.findIndex((a) => a.id === active.id);
+    const newIndex = activities.findIndex((a) => a.id === over.id);
     const reordered = arrayMove(activities, oldIndex, newIndex);
-
     setActivities(reordered);
+    await persistReorder(reordered, previous);
+  }
 
-    // Persist sort_order changes
-    await Promise.all(
-      reordered.map((activity, index) =>
-        activity.sort_order !== index
-          ? updateActivity(eventId, activity.id, { sort_order: index }).catch(() => undefined)
-          : Promise.resolve(),
-      ),
-    );
+  /**
+   * Keyboard reorder fallback (#803). When the timeline list has keyboard
+   * focus, Up/Down moves focus across rows and Enter swaps the focused row
+   * with the next one. The same persistReorder path applies, so conflicts
+   * roll back identically.
+   */
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>): void {
+    if (activities.length === 0) return;
+    const currentIdx = focusedId === null ? -1 : activities.findIndex((a) => a.id === focusedId);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const delta = e.key === 'ArrowDown' ? 1 : -1;
+      const nextIdx =
+        currentIdx === -1 ? 0 : Math.max(0, Math.min(activities.length - 1, currentIdx + delta));
+      setFocusedId(activities[nextIdx].id);
+    } else if (e.key === 'Enter' && currentIdx >= 0) {
+      e.preventDefault();
+      // Swap with the row below; ignore if already at the bottom.
+      if (currentIdx >= activities.length - 1) return;
+      const previous = [...activities];
+      const reordered = arrayMove(activities, currentIdx, currentIdx + 1);
+      setActivities(reordered);
+      void persistReorder(reordered, previous);
+    }
   }
 
   return (
@@ -480,50 +642,102 @@ export default function TimelinePage(): JSX.Element {
             />
           )}
           {activeTab === 0 && (
-            <Button variant="contained" startIcon={<AddRounded />} onClick={openAddDialog}>
-              Add Activity
-            </Button>
+            <>
+              <Button
+                variant="outlined"
+                startIcon={<AutoAwesomeMosaicRounded />}
+                onClick={() => setTemplateDialogOpen(true)}
+                data-testid="timeline-apply-template-button"
+              >
+                Apply Template
+              </Button>
+              <Button variant="contained" startIcon={<AddRounded />} onClick={openAddDialog}>
+                Add Activity
+              </Button>
+            </>
           )}
         </Stack>
       }
     >
-
       <Tabs
         value={activeTab}
         onChange={(_e, v: number) => setActiveTab(v)}
         sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
         aria-label="Timeline view tabs"
       >
-        <Tab icon={<ListAltRounded />} iconPosition="start" label="Timeline" id="tab-timeline" aria-controls="tabpanel-timeline" />
-        <Tab icon={<AssessmentRounded />} iconPosition="start" label="Planned vs Actual" id="tab-comparison" aria-controls="tabpanel-comparison" />
+        <Tab
+          icon={<ListAltRounded />}
+          iconPosition="start"
+          label="Timeline"
+          id="tab-timeline"
+          aria-controls="tabpanel-timeline"
+        />
+        <Tab
+          icon={<AssessmentRounded />}
+          iconPosition="start"
+          label="Planned vs Actual"
+          id="tab-comparison"
+          aria-controls="tabpanel-comparison"
+        />
       </Tabs>
 
       {/* ── Timeline Tab ─────────────────────────────────────────────────── */}
-      <Box role="tabpanel" id="tabpanel-timeline" aria-labelledby="tab-timeline" hidden={activeTab !== 0}>
+      <Box
+        role="tabpanel"
+        id="tabpanel-timeline"
+        aria-labelledby="tab-timeline"
+        hidden={activeTab !== 0}
+      >
         {activeTab === 0 && (
           <>
-            {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                {error}
+              </Alert>
+            )}
 
             {loading ? (
-              <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+              <Box display="flex" justifyContent="center" py={6}>
+                <CircularProgress />
+              </Box>
             ) : activities.length === 0 ? (
-              <Typography color="text.secondary">No activities scheduled. Add one to get started.</Typography>
+              <Typography color="text.secondary">
+                No activities scheduled. Add one to get started.
+              </Typography>
             ) : (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={activities.map(a => a.id)} strategy={verticalListSortingStrategy}>
-                  <Timeline position="right" sx={{ px: 0 }}>
-                    {activities.map((activity, index) => (
-                      <SortableTimelineItem
-                        key={activity.id}
-                        activity={activity}
-                        isConflict={conflictIds.has(activity.id)}
-                        vendorMap={vendorMap}
-                        onEdit={openEditDialog}
-                        onDelete={a => setDeleteTarget(a)}
-                        isLast={index === activities.length - 1}
-                      />
-                    ))}
-                  </Timeline>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={activities.map((a) => a.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <Box
+                    onKeyDown={handleKeyDown}
+                    role="list"
+                    aria-label="Timeline activities. Use Up and Down arrows to focus, Enter to swap order."
+                    data-testid="timeline-list"
+                    tabIndex={-1}
+                  >
+                    <Timeline position="right" sx={{ px: 0 }}>
+                      {activities.map((activity, index) => (
+                        <SortableTimelineItem
+                          key={activity.id}
+                          activity={activity}
+                          isConflict={conflictIds.has(activity.id)}
+                          conflictMessages={conflictMessages.get(activity.id) ?? []}
+                          isFocused={focusedId === activity.id}
+                          vendorMap={vendorMap}
+                          onEdit={openEditDialog}
+                          onDelete={(a) => setDeleteTarget(a)}
+                          onFocus={(id) => setFocusedId(id)}
+                          isLast={index === activities.length - 1}
+                        />
+                      ))}
+                    </Timeline>
+                  </Box>
                 </SortableContext>
               </DndContext>
             )}
@@ -532,47 +746,90 @@ export default function TimelinePage(): JSX.Element {
       </Box>
 
       {/* ── Comparison Tab ───────────────────────────────────────────────── */}
-      <Box role="tabpanel" id="tabpanel-comparison" aria-labelledby="tab-comparison" hidden={activeTab !== 1}>
+      <Box
+        role="tabpanel"
+        id="tabpanel-comparison"
+        aria-labelledby="tab-comparison"
+        hidden={activeTab !== 1}
+      >
         {activeTab === 1 && (
           <>
             {comparisonError && (
-              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setComparisonError(null)}>{comparisonError}</Alert>
+              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setComparisonError(null)}>
+                {comparisonError}
+              </Alert>
             )}
 
             {comparisonLoading ? (
-              <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+              <Box display="flex" justifyContent="center" py={6}>
+                <CircularProgress />
+              </Box>
             ) : (
               <>
                 {/* Summary chips */}
                 {comparisonSummary && (
                   <Stack direction="row" spacing={1} flexWrap="wrap" mb={2}>
                     <Chip label={`Total: ${comparisonSummary.total}`} size="small" />
-                    <Chip label={`Planned: ${comparisonSummary.planned}`} size="small" color="default" />
-                    <Chip label={`In Progress: ${comparisonSummary.in_progress}`} size="small" color="primary" />
-                    <Chip label={`Completed: ${comparisonSummary.completed}`} size="small" color="success" />
-                    <Chip label={`Skipped: ${comparisonSummary.skipped}`} size="small" color="error" />
+                    <Chip
+                      label={`Planned: ${comparisonSummary.planned}`}
+                      size="small"
+                      color="default"
+                    />
+                    <Chip
+                      label={`In Progress: ${comparisonSummary.in_progress}`}
+                      size="small"
+                      color="primary"
+                    />
+                    <Chip
+                      label={`Completed: ${comparisonSummary.completed}`}
+                      size="small"
+                      color="success"
+                    />
+                    <Chip
+                      label={`Skipped: ${comparisonSummary.skipped}`}
+                      size="small"
+                      color="error"
+                    />
                   </Stack>
                 )}
 
                 {comparisonItems.length === 0 ? (
-                  <Typography color="text.secondary">No activities to compare. Add activities on the Timeline tab.</Typography>
+                  <Typography color="text.secondary">
+                    No activities to compare. Add activities on the Timeline tab.
+                  </Typography>
                 ) : (
                   <TableContainer component={Paper} variant="outlined">
                     <Table size="small" aria-label="Planned vs actual timeline comparison">
                       <TableHead>
                         <TableRow>
-                          <TableCell><strong>Activity</strong></TableCell>
-                          <TableCell><strong>Status</strong></TableCell>
-                          <TableCell><strong>Planned Start</strong></TableCell>
-                          <TableCell><strong>Actual Start</strong></TableCell>
-                          <TableCell><strong>Start Variance</strong></TableCell>
-                          <TableCell><strong>End Variance</strong></TableCell>
-                          <TableCell><strong>Planned Duration</strong></TableCell>
-                          <TableCell><strong>Actual Duration</strong></TableCell>
+                          <TableCell>
+                            <strong>Activity</strong>
+                          </TableCell>
+                          <TableCell>
+                            <strong>Status</strong>
+                          </TableCell>
+                          <TableCell>
+                            <strong>Planned Start</strong>
+                          </TableCell>
+                          <TableCell>
+                            <strong>Actual Start</strong>
+                          </TableCell>
+                          <TableCell>
+                            <strong>Start Variance</strong>
+                          </TableCell>
+                          <TableCell>
+                            <strong>End Variance</strong>
+                          </TableCell>
+                          <TableCell>
+                            <strong>Planned Duration</strong>
+                          </TableCell>
+                          <TableCell>
+                            <strong>Actual Duration</strong>
+                          </TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {comparisonItems.map(item => (
+                        {comparisonItems.map((item) => (
                           <TableRow key={item.id} hover>
                             <TableCell>{item.title}</TableCell>
                             <TableCell>
@@ -592,7 +849,10 @@ export default function TimelinePage(): JSX.Element {
                             <TableCell>
                               <Typography
                                 variant="body2"
-                                sx={{ color: varianceColor(item.start_variance_minutes), fontWeight: item.start_variance_minutes !== null ? 600 : 400 }}
+                                sx={{
+                                  color: varianceColor(item.start_variance_minutes),
+                                  fontWeight: item.start_variance_minutes !== null ? 600 : 400,
+                                }}
                               >
                                 {formatVariance(item.start_variance_minutes)}
                               </Typography>
@@ -600,16 +860,23 @@ export default function TimelinePage(): JSX.Element {
                             <TableCell>
                               <Typography
                                 variant="body2"
-                                sx={{ color: varianceColor(item.end_variance_minutes), fontWeight: item.end_variance_minutes !== null ? 600 : 400 }}
+                                sx={{
+                                  color: varianceColor(item.end_variance_minutes),
+                                  fontWeight: item.end_variance_minutes !== null ? 600 : 400,
+                                }}
                               >
                                 {formatVariance(item.end_variance_minutes)}
                               </Typography>
                             </TableCell>
                             <TableCell>
-                              {item.planned_duration_minutes !== null ? `${item.planned_duration_minutes}m` : '—'}
+                              {item.planned_duration_minutes !== null
+                                ? `${item.planned_duration_minutes}m`
+                                : '—'}
                             </TableCell>
                             <TableCell>
-                              {item.actual_duration_minutes !== null ? `${item.actual_duration_minutes}m` : '—'}
+                              {item.actual_duration_minutes !== null
+                                ? `${item.actual_duration_minutes}m`
+                                : '—'}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -735,8 +1002,10 @@ export default function TimelinePage(): JSX.Element {
                     onChange={handleVendorChange}
                   >
                     <MenuItem value="">None</MenuItem>
-                    {vendors.map(v => (
-                      <MenuItem key={v.id} value={String(v.id)}>{v.name}</MenuItem>
+                    {vendors.map((v) => (
+                      <MenuItem key={v.id} value={String(v.id)}>
+                        {v.name}
+                      </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
@@ -753,10 +1022,66 @@ export default function TimelinePage(): JSX.Element {
           <DialogActions>
             <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button type="submit" variant="contained" disabled={saving}>
-              {saving ? <CircularProgress size={20} /> : (editingActivity ? 'Save' : 'Add')}
+              {saving ? <CircularProgress size={20} /> : editingActivity ? 'Save' : 'Add'}
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      {/* Apply Template Dialog — #805 */}
+      <Dialog
+        open={templateDialogOpen}
+        onClose={() => setTemplateDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Apply Timeline Template</DialogTitle>
+        <DialogContent>
+          {templates.length === 0 ? (
+            <Typography color="text.secondary">No templates available.</Typography>
+          ) : (
+            <Stack spacing={1.5} mt={1}>
+              <Typography variant="body2" color="text.secondary">
+                Applying a template adds its activities to this event. Re-applying the same template
+                is safe — it will not duplicate rows.
+              </Typography>
+              {templates.map((tpl) => (
+                <Paper
+                  key={tpl.id}
+                  variant="outlined"
+                  sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 2 }}
+                  data-testid={`timeline-template-row-${tpl.id}`}
+                >
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle2" fontWeight={600}>
+                      {tpl.name}
+                      {tpl.event_type && (
+                        <Chip label={tpl.event_type} size="small" sx={{ ml: 1 }} />
+                      )}
+                    </Typography>
+                    {tpl.description && (
+                      <Typography variant="caption" color="text.secondary">
+                        {tpl.description}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    onClick={() => void handleApplyTemplate(tpl.id)}
+                    disabled={applyingTemplateId !== null}
+                    data-testid={`timeline-template-apply-${tpl.id}`}
+                  >
+                    {applyingTemplateId === tpl.id ? <CircularProgress size={16} /> : 'Apply'}
+                  </Button>
+                </Paper>
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTemplateDialogOpen(false)}>Close</Button>
+        </DialogActions>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}

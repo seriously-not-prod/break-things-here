@@ -11,9 +11,40 @@ interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
 }
 
+const COMPLAINT_KEYWORDS = ['complaint', 'complain', 'issue', 'problem', 'dispute', 'late'];
+const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+function mean(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+interface WindowFilter {
+  label: '90d' | 'lifetime';
+  sinceIso: string | null;
+}
+
+function resolveWindow(value: unknown): WindowFilter {
+  if (typeof value === 'string' && (value === '90d' || value === '90' || value === 'last_90d')) {
+    return { label: '90d', sinceIso: new Date(Date.now() - NINETY_DAYS_MS).toISOString() };
+  }
+  return { label: 'lifetime', sinceIso: null };
+}
+
 /**
  * GET /api/events/:eventId/vendors/:vendorId/performance
  * Returns aggregated performance data for a single vendor.
+ *
+ * Query params:
+ *   - window: 'lifetime' (default) | '90d' — restricts comms / timeline counts
+ *             to the last 90 days when set to '90d'.
  */
 export async function getVendorPerformance(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
@@ -23,6 +54,7 @@ export async function getVendorPerformance(req: Request, res: Response): Promise
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
 
+  const windowFilter = resolveWindow(req.query.window);
   const db = getDatabase();
 
   const vendor = await db.get<{
@@ -41,16 +73,73 @@ export async function getVendorPerformance(req: Request, res: Response): Promise
   );
   if (!vendor) return res.status(404).json({ error: 'Vendor not found in this event.' });
 
-  // Communication responsiveness: count and days since last contact
-  const commStats = await db.get<{
-    total_communications: number;
-    last_contact_at: string | null;
+  // Communication responsiveness — fetch logs over the requested window for
+  // mean/median response intervals, plus a complaint count derived from subject/body keywords.
+  const commParams: Array<string | number> = [vendorId, eventId];
+  let commWindowSql = '';
+  if (windowFilter.sinceIso) {
+    commParams.push(windowFilter.sinceIso);
+    commWindowSql = ` AND created_at >= $${commParams.length}`;
+  }
+  const commRows = await db.all<{
+    created_at: string;
+    subject: string | null;
+    body: string | null;
   }>(
-    `SELECT COUNT(*)::int AS total_communications, MAX(created_at) AS last_contact_at
-     FROM vendor_communication_log
-     WHERE vendor_id = $1 AND event_id = $2`,
-    [vendorId, eventId],
+    `SELECT created_at, subject, body
+       FROM vendor_communication_log
+      WHERE vendor_id = $1 AND event_id = $2 ${commWindowSql}
+      ORDER BY created_at ASC`,
+    commParams,
   );
+
+  const commTimestamps = commRows
+    .map((r) => new Date(r.created_at).getTime())
+    .filter(Number.isFinite);
+  const intervals: number[] = [];
+  for (let i = 1; i < commTimestamps.length; i++) {
+    const gapHours = (commTimestamps[i] - commTimestamps[i - 1]) / (1000 * 60 * 60);
+    if (gapHours >= 0) intervals.push(gapHours);
+  }
+  const meanResponseHours = mean(intervals);
+  const medianResponseHours = median(intervals);
+
+  const complaintCount = commRows.reduce((acc, row) => {
+    const haystack = `${row.subject ?? ''} ${row.body ?? ''}`.toLowerCase();
+    return acc + (COMPLAINT_KEYWORDS.some((kw) => haystack.includes(kw)) ? 1 : 0);
+  }, 0);
+
+  const commStats = {
+    total_communications: commRows.length,
+    last_contact_at: commRows.length > 0 ? commRows[commRows.length - 1].created_at : null,
+  };
+
+  // On-time delivery rate from timeline_activities completed in the window.
+  const tlParams: Array<string | number> = [vendorId, eventId];
+  let tlWindowSql = '';
+  if (windowFilter.sinceIso) {
+    tlParams.push(windowFilter.sinceIso);
+    tlWindowSql = ` AND actual_end_time >= $${tlParams.length}`;
+  }
+  const delivery = await db.get<{
+    completed: number;
+    on_time: number;
+  }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE status = 'completed' AND actual_end_time IS NOT NULL)::int AS completed,
+       COUNT(*) FILTER (
+         WHERE status = 'completed'
+           AND actual_end_time IS NOT NULL
+           AND planned_end_time IS NOT NULL
+           AND actual_end_time <= planned_end_time
+       )::int AS on_time
+     FROM timeline_activities
+     WHERE vendor_id = $1 AND event_id = $2 ${tlWindowSql}`,
+    tlParams,
+  );
+  const completedCount = delivery?.completed ?? 0;
+  const onTimeCount = delivery?.on_time ?? 0;
+  const onTimeRate = completedCount > 0 ? onTimeCount / completedCount : null;
 
   // Expenses associated with this vendor
   const expenseStats = await db.get<{
@@ -89,12 +178,19 @@ export async function getVendorPerformance(req: Request, res: Response): Promise
     contract_on_file: Boolean(vendor.contract_file),
     quoted_amount: vendor.quoted_amount,
     days_active: daysActive,
-    total_communications: commStats?.total_communications ?? 0,
-    last_contact_at: commStats?.last_contact_at ?? null,
+    total_communications: commStats.total_communications,
+    last_contact_at: commStats.last_contact_at,
+    mean_response_hours: meanResponseHours,
+    median_response_hours: medianResponseHours,
+    on_time_completed: onTimeCount,
+    on_time_total_completed: completedCount,
+    on_time_rate: onTimeRate,
+    complaint_count: complaintCount,
     total_expenses: expenseStats?.total_expenses ?? 0,
     total_paid: expenseStats?.total_paid ?? 0,
     total_pending: expenseStats?.total_pending ?? 0,
     timeline_items: timelineCount?.timeline_items ?? 0,
+    window: windowFilter.label,
     /** Simple score: rating * 20 + (comms > 0 ? 10 : 0) + (contract ? 20 : 0) */
     performance_score: Math.min(
       100,
@@ -159,9 +255,7 @@ export async function listVendorPerformance(req: Request, res: Response): Promis
     contract_on_file: Boolean(v.contract_file),
     performance_score: Math.min(
       100,
-      (v.rating ?? 0) * 20 +
-        (v.total_communications > 0 ? 10 : 0) +
-        (v.contract_file ? 20 : 0),
+      (v.rating ?? 0) * 20 + (v.total_communications > 0 ? 10 : 0) + (v.contract_file ? 20 : 0),
     ),
   }));
 

@@ -119,10 +119,7 @@ describe('User Presence Service (#811)', () => {
 
       await recordLeave(7);
 
-      expect(mockRun).toHaveBeenCalledWith(
-        expect.stringContaining("status = 'offline'"),
-        [7],
-      );
+      expect(mockRun).toHaveBeenCalledWith(expect.stringContaining("status = 'offline'"), [7]);
 
       expect(publishSpy).toHaveBeenCalledWith(
         expect.objectContaining({

@@ -95,3 +95,55 @@ export async function syncItemToBudget(req: Request, res: Response): Promise<Res
   const expense = await db.get(`SELECT * FROM expenses WHERE id = $1`, [result.lastID]);
   return res.status(201).json({ expense, synced: true, updated: false });
 }
+
+const UNDO_GRACE_WINDOW_MS = 60 * 1000;
+
+/**
+ * DELETE /api/events/:eventId/shopping-lists/:listId/items/:itemId/sync-to-budget — #800
+ *
+ * Reverses the expense row created (or updated) by a recent sync. Allowed only
+ * within a 60-second grace window starting at the expense's `created_at`.
+ * Outside the window the request is rejected so users don't accidentally
+ * wipe long-lived budget rows.
+ */
+export async function unsyncItemFromBudget(req: Request, res: Response): Promise<Response> {
+  const authReq = req as AuthRequest;
+  if (!authReq.user) return res.status(401).json({ error: 'Authentication required.' });
+
+  const { eventId, listId, itemId } = req.params;
+  const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
+  if (!event) return res as Response;
+
+  const db = getDatabase();
+
+  // Confirm item belongs to this list/event.
+  const item = await db.get<{ id: number }>(
+    `SELECT si.id
+       FROM shopping_items si
+       JOIN shopping_lists sl ON sl.id = si.list_id
+      WHERE si.id = $1 AND si.list_id = $2 AND sl.event_id = $3`,
+    [itemId, listId, eventId],
+  );
+  if (!item) return res.status(404).json({ error: 'Shopping item not found in this event.' });
+
+  const sourceTag = `shopping_item:${itemId}`;
+  const expense = await db.get<{ id: number; created_at: string }>(
+    `SELECT id, created_at FROM expenses WHERE event_id = $1 AND notes LIKE $2`,
+    [eventId, `%${sourceTag}%`],
+  );
+  if (!expense) {
+    return res.status(404).json({ error: 'No synced expense found for this item.' });
+  }
+
+  const ageMs = Date.now() - new Date(expense.created_at).getTime();
+  if (ageMs > UNDO_GRACE_WINDOW_MS) {
+    return res.status(409).json({
+      error: 'Undo window expired. Delete the expense manually from the budget page.',
+      grace_window_ms: UNDO_GRACE_WINDOW_MS,
+      synced_at: expense.created_at,
+    });
+  }
+
+  await db.run(`DELETE FROM expenses WHERE id = $1`, [expense.id]);
+  return res.json({ unsynced: true, expense_id: expense.id });
+}

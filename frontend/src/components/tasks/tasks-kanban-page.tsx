@@ -7,10 +7,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import AddIcon from '@mui/icons-material/Add';
 import {
   Box,
@@ -43,6 +40,7 @@ import {
 } from '../../services/tasks-service';
 import { TaskCard } from './task-card';
 import { TaskDetailDrawer } from './task-detail-drawer';
+import VersionHistoryDrawer from '../collab/version-history-drawer';
 
 const COLUMNS: { status: TaskStatus; label: string }[] = [
   { status: 'Pending', label: 'Pending' },
@@ -75,10 +73,20 @@ interface AddTaskDialogProps {
   open: boolean;
   defaultStatus: TaskStatus;
   onClose: () => void;
-  onSubmit: (payload: { title: string; priority: TaskPriority; due_date: string; status: TaskStatus }) => Promise<void>;
+  onSubmit: (payload: {
+    title: string;
+    priority: TaskPriority;
+    due_date: string;
+    status: TaskStatus;
+  }) => Promise<void>;
 }
 
-function AddTaskDialog({ open, defaultStatus, onClose, onSubmit }: AddTaskDialogProps): JSX.Element {
+function AddTaskDialog({
+  open,
+  defaultStatus,
+  onClose,
+  onSubmit,
+}: AddTaskDialogProps): JSX.Element {
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('Medium');
   const [dueDate, setDueDate] = useState('');
@@ -185,11 +193,12 @@ export default function TasksKanbanPage(): JSX.Element {
   const [drawerTask, setDrawerTask] = useState<Task | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // #807 — version history drawer scoped to the currently selected task.
+  const [historyTask, setHistoryTask] = useState<Task | null>(null);
+
   const [activeId, setActiveId] = useState<number | null>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   useEffect(() => {
     if (!eventId) return;
@@ -255,9 +264,7 @@ export default function TasksKanbanPage(): JSX.Element {
       if (!task || task.status === targetStatus) return;
 
       // Optimistic update
-      setTasks((prev) =>
-        prev.map((t) => (t.id === task.id ? { ...t, status: targetStatus } : t)),
-      );
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: targetStatus } : t)));
 
       if (eventId) {
         updateTask(eventId, task.id, { status: targetStatus }).catch(() => {
@@ -293,7 +300,6 @@ export default function TasksKanbanPage(): JSX.Element {
       title="Tasks Board"
       breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Tasks' }]}
     >
-
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -411,7 +417,25 @@ export default function TasksKanbanPage(): JSX.Element {
         onClose={() => setDrawerOpen(false)}
         onTaskUpdated={handleTaskUpdated}
         onTaskDeleted={handleTaskDeleted}
+        onOpenHistory={(task) => setHistoryTask(task)}
       />
+
+      {historyTask && eventId && (
+        <VersionHistoryDrawer
+          open={historyTask !== null}
+          eventId={eventId}
+          entityType="task"
+          entityId={historyTask.id}
+          title={historyTask.title}
+          onClose={() => setHistoryTask(null)}
+          onRolledBack={() => {
+            if (!eventId) return;
+            void listTasks(eventId)
+              .then(setTasks)
+              .catch(() => undefined);
+          }}
+        />
+      )}
     </PageLayout>
   );
 }

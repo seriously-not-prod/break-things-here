@@ -103,8 +103,14 @@ export async function listActivities(eventId: number): Promise<TimelineActivity[
   return data.activities ?? [];
 }
 
-export async function createActivity(eventId: number, input: CreateActivityInput): Promise<TimelineActivity> {
-  const data = await api.post<{ activity: TimelineActivity }>(`/api/events/${eventId}/timeline`, input);
+export async function createActivity(
+  eventId: number,
+  input: CreateActivityInput,
+): Promise<TimelineActivity> {
+  const data = await api.post<{ activity: TimelineActivity }>(
+    `/api/events/${eventId}/timeline`,
+    input,
+  );
   return data.activity;
 }
 
@@ -128,17 +134,60 @@ export async function getTimelineComparison(eventId: number): Promise<TimelineCo
   return api.get<TimelineComparisonResponse>(`/api/events/${eventId}/timeline/comparison`);
 }
 
-// ── #612: Drag-and-drop reorder ───────────────────────────────────────────────
+// ── #612 / #803 / #804: Drag-and-drop reorder + validation ───────────────────
+
+export interface TimelineConflict {
+  activity_a_id: number;
+  activity_a_title: string;
+  activity_b_id: number;
+  activity_b_title: string;
+  reason: 'overlap' | 'adjacent_no_buffer' | 'resource_double_book' | 'sort_dependency';
+  message: string;
+}
+
+export interface ReorderResult {
+  activities: TimelineActivity[];
+  valid: boolean;
+  conflicts: TimelineConflict[];
+  sort_dependency_violations: TimelineConflict[];
+}
+
+export class TimelineReorderConflictError extends Error {
+  conflicts: TimelineConflict[];
+  sortDependencyViolations: TimelineConflict[];
+  constructor(message: string, conflicts: TimelineConflict[], sortViolations: TimelineConflict[]) {
+    super(message);
+    this.name = 'TimelineReorderConflictError';
+    this.conflicts = conflicts;
+    this.sortDependencyViolations = sortViolations;
+  }
+}
 
 export async function reorderTimeline(
   eventId: number,
   order: Array<{ id: number; sort_order: number }>,
-): Promise<TimelineActivity[]> {
-  const data = await api.patch<{ activities: TimelineActivity[] }>(
-    `/api/events/${eventId}/timeline/reorder`,
-    { order },
+  options?: { force?: boolean },
+): Promise<ReorderResult> {
+  return api.patch<ReorderResult>(`/api/events/${eventId}/timeline/reorder`, {
+    order,
+    force: options?.force ?? false,
+  });
+}
+
+export interface TimelineValidateResult {
+  valid: boolean;
+  conflicts: TimelineConflict[];
+  sort_dependency_violations: TimelineConflict[];
+}
+
+export async function validateTimeline(
+  eventId: number,
+  order?: Array<{ id: number; sort_order: number }>,
+): Promise<TimelineValidateResult> {
+  return api.post<TimelineValidateResult>(
+    `/api/events/${eventId}/timeline/validate`,
+    order ? { order } : {},
   );
-  return data.activities;
 }
 
 // ── #613: Timeline templates ──────────────────────────────────────────────────

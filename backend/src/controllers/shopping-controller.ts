@@ -29,7 +29,11 @@ interface ShoppingItemRow {
   created_at: string;
 }
 
-async function assertEventAccess(req: AuthRequest, res: Response, eventId: string): Promise<boolean> {
+async function assertEventAccess(
+  req: AuthRequest,
+  res: Response,
+  eventId: string,
+): Promise<boolean> {
   const event = await requireEventAccess(req, res, eventId, {
     allowMembers: true,
     forbiddenMessage: 'Not authorised to manage shopping lists for this event.',
@@ -68,7 +72,9 @@ export async function createList(req: Request, res: Response): Promise<Response>
     [eventId, name.trim(), authReq.user!.id],
   );
 
-  const list = await db.get<ShoppingListRow>('SELECT * FROM shopping_lists WHERE id = $1', [result.lastID]);
+  const list = await db.get<ShoppingListRow>('SELECT * FROM shopping_lists WHERE id = $1', [
+    result.lastID,
+  ]);
   return res.status(201).json({ list });
 }
 
@@ -80,7 +86,10 @@ export async function deleteList(req: Request, res: Response): Promise<Response>
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const existing = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
+  const existing = await db.get<{ id: number }>(
+    'SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2',
+    [listId, eventId],
+  );
   if (!existing) return res.status(404).json({ error: 'Shopping list not found.' });
 
   await db.run('DELETE FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
@@ -95,12 +104,25 @@ export async function listItems(req: Request, res: Response): Promise<Response> 
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
+  const list = await db.get<{ id: number }>(
+    'SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2',
+    [listId, eventId],
+  );
   if (!list) return res.status(404).json({ error: 'Shopping list not found.' });
 
-  const items = await db.all<ShoppingItemRow>(
-    `SELECT * FROM shopping_items WHERE list_id = $1 ORDER BY created_at ASC`,
-    [listId],
+  const items = await db.all<
+    ShoppingItemRow & { synced_expense_id: number | null; synced_at: string | null }
+  >(
+    `SELECT si.*,
+            e.id          AS synced_expense_id,
+            e.created_at  AS synced_at
+       FROM shopping_items si
+       LEFT JOIN expenses e
+              ON e.event_id = $2
+             AND e.notes LIKE '%[shopping_item:' || si.id || ']%'
+      WHERE si.list_id = $1
+      ORDER BY si.created_at ASC`,
+    [listId, eventId],
   );
   return res.json({ items });
 }
@@ -113,7 +135,10 @@ export async function createItem(req: Request, res: Response): Promise<Response>
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
+  const list = await db.get<{ id: number }>(
+    'SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2',
+    [listId, eventId],
+  );
   if (!list) return res.status(404).json({ error: 'Shopping list not found.' });
 
   const { name, quantity, unit, estimated_cost, notes } = req.body as {
@@ -131,7 +156,8 @@ export async function createItem(req: Request, res: Response): Promise<Response>
     return res.status(400).json({ error: 'Quantity must be a positive integer.' });
   }
 
-  const parsedCost = estimated_cost !== undefined && estimated_cost !== '' ? Number(estimated_cost) : null;
+  const parsedCost =
+    estimated_cost !== undefined && estimated_cost !== '' ? Number(estimated_cost) : null;
   if (parsedCost !== null && isNaN(parsedCost)) {
     return res.status(400).json({ error: 'Estimated cost must be a valid number.' });
   }
@@ -143,12 +169,21 @@ export async function createItem(req: Request, res: Response): Promise<Response>
     [listId, name.trim(), parsedQty, unit?.trim() || null, parsedCost, notes?.trim() || null],
   );
 
-  const item = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = $1', [result.lastID]);
+  const item = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = $1', [
+    result.lastID,
+  ]);
   if (result.lastID !== undefined) {
-    await logMutation(db, authReq, AUDIT_ACTIONS.SHOPPING_ITEM_CREATE, 'shopping_item', result.lastID, {
-      eventId,
-      listId,
-    });
+    await logMutation(
+      db,
+      authReq,
+      AUDIT_ACTIONS.SHOPPING_ITEM_CREATE,
+      'shopping_item',
+      result.lastID,
+      {
+        eventId,
+        listId,
+      },
+    );
   }
   return res.status(201).json({ item });
 }
@@ -161,32 +196,45 @@ export async function updateItem(req: Request, res: Response): Promise<Response>
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
+  const list = await db.get<{ id: number }>(
+    'SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2',
+    [listId, eventId],
+  );
   if (!list) return res.status(404).json({ error: 'Shopping list not found.' });
 
-  const existing = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = $1 AND list_id = $2', [itemId, listId]);
+  const existing = await db.get<ShoppingItemRow>(
+    'SELECT * FROM shopping_items WHERE id = $1 AND list_id = $2',
+    [itemId, listId],
+  );
   if (!existing) return res.status(404).json({ error: 'Shopping item not found.' });
 
-  const { status, actual_cost, assigned_to, name, quantity, unit, estimated_cost, notes } = req.body as {
-    status?: string;
-    actual_cost?: number | string;
-    assigned_to?: number | string;
-    name?: string;
-    quantity?: number | string;
-    unit?: string;
-    estimated_cost?: number | string;
-    notes?: string;
-  };
+  const { status, actual_cost, assigned_to, name, quantity, unit, estimated_cost, notes } =
+    req.body as {
+      status?: string;
+      actual_cost?: number | string;
+      assigned_to?: number | string;
+      name?: string;
+      quantity?: number | string;
+      unit?: string;
+      estimated_cost?: number | string;
+      notes?: string;
+    };
 
   const validStatuses = ['Needed', 'Purchased', 'Not Available', 'Ordered'];
   if (status && !validStatuses.includes(status)) {
     return res.status(400).json({ error: `Status must be one of: ${validStatuses.join(', ')}.` });
   }
 
-  const parsedActualCost = actual_cost !== undefined && actual_cost !== '' ? Number(actual_cost) : existing.actual_cost;
-  const parsedEstCost = estimated_cost !== undefined && estimated_cost !== '' ? Number(estimated_cost) : existing.estimated_cost;
-  const parsedQty = quantity !== undefined && quantity !== '' ? Number(quantity) : existing.quantity;
-  const parsedAssigned = assigned_to !== undefined && assigned_to !== '' ? Number(assigned_to) : existing.assigned_to;
+  const parsedActualCost =
+    actual_cost !== undefined && actual_cost !== '' ? Number(actual_cost) : existing.actual_cost;
+  const parsedEstCost =
+    estimated_cost !== undefined && estimated_cost !== ''
+      ? Number(estimated_cost)
+      : existing.estimated_cost;
+  const parsedQty =
+    quantity !== undefined && quantity !== '' ? Number(quantity) : existing.quantity;
+  const parsedAssigned =
+    assigned_to !== undefined && assigned_to !== '' ? Number(assigned_to) : existing.assigned_to;
 
   await db.run(
     `UPDATE shopping_items SET
@@ -196,23 +244,74 @@ export async function updateItem(req: Request, res: Response): Promise<Response>
     [
       name?.trim() ?? existing.name,
       parsedQty,
-      unit !== undefined ? (unit.trim() || null) : existing.unit,
+      unit !== undefined ? unit.trim() || null : existing.unit,
       parsedEstCost,
       parsedActualCost,
       status ?? existing.status,
       parsedAssigned ?? null,
-      notes !== undefined ? (notes.trim() || null) : existing.notes,
+      notes !== undefined ? notes.trim() || null : existing.notes,
       itemId,
       listId,
     ],
   );
 
-  const item = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = $1', [itemId]);
+  const item = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = $1', [
+    itemId,
+  ]);
   await logMutation(db, authReq, AUDIT_ACTIONS.SHOPPING_ITEM_UPDATE, 'shopping_item', itemId, {
     eventId,
     listId,
   });
-  return res.json({ item });
+
+  // #800 — Auto-sync to budget when an item flips to "Purchased" with a cost.
+  // This is best-effort: any failure (no cost, no category, etc.) is swallowed
+  // so the user's primary mutation still succeeds.
+  let syncedExpense: { id: number; created_at: string } | null = null;
+  const becamePurchased = item && item.status === 'Purchased' && existing.status !== 'Purchased';
+  const cost = Number(item?.actual_cost ?? item?.estimated_cost ?? 0);
+  if (becamePurchased && cost > 0) {
+    try {
+      const sourceTag = `shopping_item:${itemId}`;
+      const existingExpense = await db.get<{ id: number; amount: number; created_at: string }>(
+        `SELECT id, amount, created_at FROM expenses WHERE event_id = $1 AND notes LIKE $2`,
+        [eventId, `%${sourceTag}%`],
+      );
+      if (existingExpense) {
+        if (Number(existingExpense.amount) !== cost) {
+          await db.run(
+            `UPDATE expenses SET amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+            [cost, existingExpense.id],
+          );
+        }
+        syncedExpense = { id: existingExpense.id, created_at: existingExpense.created_at };
+      } else {
+        const notesTag = `Synced from shopping list item "${item!.name}". [${sourceTag}]`;
+        const inserted = await db.run(
+          `INSERT INTO expenses (event_id, category_id, title, amount, payment_status, notes, created_by)
+           VALUES ($1, $2, $3, $4, 'Paid', $5, $6) RETURNING id, created_at`,
+          [eventId, null, item!.name, cost, notesTag, authReq.user?.id ?? null],
+        );
+        const inserted_id = inserted.lastID;
+        if (inserted_id !== undefined) {
+          const fresh = await db.get<{ id: number; created_at: string }>(
+            `SELECT id, created_at FROM expenses WHERE id = $1`,
+            [inserted_id],
+          );
+          if (fresh) syncedExpense = fresh;
+        }
+      }
+    } catch (err) {
+      // Auto-sync is opportunistic; log + continue so users still see the
+      // primary status update reflected in the UI.
+      console.warn('shopping auto-sync to budget failed:', err);
+    }
+  }
+
+  return res.json({
+    item,
+    synced_expense_id: syncedExpense?.id ?? null,
+    synced_at: syncedExpense?.created_at ?? null,
+  });
 }
 
 /** DELETE /api/events/:eventId/shopping-lists/:listId/items/:itemId */
@@ -223,10 +322,16 @@ export async function deleteItem(req: Request, res: Response): Promise<Response>
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
+  const list = await db.get<{ id: number }>(
+    'SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2',
+    [listId, eventId],
+  );
   if (!list) return res.status(404).json({ error: 'Shopping list not found.' });
 
-  const existing = await db.get<{ id: number }>('SELECT id FROM shopping_items WHERE id = $1 AND list_id = $2', [itemId, listId]);
+  const existing = await db.get<{ id: number }>(
+    'SELECT id FROM shopping_items WHERE id = $1 AND list_id = $2',
+    [itemId, listId],
+  );
   if (!existing) return res.status(404).json({ error: 'Shopping item not found.' });
 
   await db.run('DELETE FROM shopping_items WHERE id = $1 AND list_id = $2', [itemId, listId]);
@@ -251,18 +356,25 @@ export async function updateItemPriceData(req: Request, res: Response): Promise<
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const list = await db.get<{ id: number }>('SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
+  const list = await db.get<{ id: number }>(
+    'SELECT id FROM shopping_lists WHERE id = $1 AND event_id = $2',
+    [listId, eventId],
+  );
   if (!list) return res.status(404).json({ error: 'Shopping list not found.' });
 
-  const existing = await db.get<ShoppingItemRow>('SELECT * FROM shopping_items WHERE id = $1 AND list_id = $2', [itemId, listId]);
+  const existing = await db.get<ShoppingItemRow>(
+    'SELECT * FROM shopping_items WHERE id = $1 AND list_id = $2',
+    [itemId, listId],
+  );
   if (!existing) return res.status(404).json({ error: 'Shopping item not found.' });
 
-  const { source_store_name, source_store_url, compared_price_low, compared_price_high } = req.body as {
-    source_store_name?: string;
-    source_store_url?: string;
-    compared_price_low?: number | string;
-    compared_price_high?: number | string;
-  };
+  const { source_store_name, source_store_url, compared_price_low, compared_price_high } =
+    req.body as {
+      source_store_name?: string;
+      source_store_url?: string;
+      compared_price_low?: number | string;
+      compared_price_high?: number | string;
+    };
 
   // Validate URL: must be a valid http/https URL to prevent javascript:/data: injection
   if (source_store_url?.trim()) {
@@ -277,8 +389,10 @@ export async function updateItemPriceData(req: Request, res: Response): Promise<
   }
 
   // Trim string inputs before conversion so whitespace-only strings become null, not 0
-  const rawLow = typeof compared_price_low === 'string' ? compared_price_low.trim() : compared_price_low;
-  const rawHigh = typeof compared_price_high === 'string' ? compared_price_high.trim() : compared_price_high;
+  const rawLow =
+    typeof compared_price_low === 'string' ? compared_price_low.trim() : compared_price_low;
+  const rawHigh =
+    typeof compared_price_high === 'string' ? compared_price_high.trim() : compared_price_high;
 
   const priceLow = rawLow !== undefined && rawLow !== '' ? Number(rawLow) : null;
   const priceHigh = rawHigh !== undefined && rawHigh !== '' ? Number(rawHigh) : null;
@@ -312,13 +426,15 @@ export async function updateItemPriceData(req: Request, res: Response): Promise<
     ],
   );
 
-  const item = await db.get<ShoppingItemRow & {
-    source_store_name: string | null;
-    source_store_url: string | null;
-    compared_price_low: number | null;
-    compared_price_high: number | null;
-    price_checked_at: string | null;
-  }>('SELECT * FROM shopping_items WHERE id = $1', [itemId]);
+  const item = await db.get<
+    ShoppingItemRow & {
+      source_store_name: string | null;
+      source_store_url: string | null;
+      compared_price_low: number | null;
+      compared_price_high: number | null;
+      price_checked_at: string | null;
+    }
+  >('SELECT * FROM shopping_items WHERE id = $1', [itemId]);
   return res.json({ item });
 }
 
@@ -337,7 +453,10 @@ export async function getListPriceComparison(req: Request, res: Response): Promi
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const list = await db.get<ShoppingListRow>('SELECT * FROM shopping_lists WHERE id = $1 AND event_id = $2', [listId, eventId]);
+  const list = await db.get<ShoppingListRow>(
+    'SELECT * FROM shopping_lists WHERE id = $1 AND event_id = $2',
+    [listId, eventId],
+  );
   if (!list) return res.status(404).json({ error: 'Shopping list not found.' });
 
   const items = await db.all<{
@@ -381,9 +500,10 @@ export async function getListPriceComparison(req: Request, res: Response): Promi
     }
 
     const variance = est !== null && act !== null ? act - est : null;
-    const variancePct = est !== null && est !== 0 && act !== null
-      ? Math.round(((act - est) / est) * 10000) / 100
-      : null;
+    const variancePct =
+      est !== null && est !== 0 && act !== null
+        ? Math.round(((act - est) / est) * 10000) / 100
+        : null;
 
     return {
       id: item.id,
@@ -398,7 +518,8 @@ export async function getListPriceComparison(req: Request, res: Response): Promi
       source_store_name: item.source_store_name,
       source_store_url: item.source_store_url,
       compared_price_low: item.compared_price_low !== null ? Number(item.compared_price_low) : null,
-      compared_price_high: item.compared_price_high !== null ? Number(item.compared_price_high) : null,
+      compared_price_high:
+        item.compared_price_high !== null ? Number(item.compared_price_high) : null,
       price_checked_at: item.price_checked_at,
     };
   });
