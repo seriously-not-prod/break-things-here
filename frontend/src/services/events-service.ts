@@ -7,13 +7,7 @@
 import { api } from '../lib/api-client';
 
 // BRD v2 (#575) — full event lifecycle status set.
-export type EventStatus =
-  | 'Draft'
-  | 'Planning'
-  | 'Confirmed'
-  | 'Active'
-  | 'Completed'
-  | 'Cancelled';
+export type EventStatus = 'Draft' | 'Planning' | 'Confirmed' | 'Active' | 'Completed' | 'Cancelled';
 
 export const EVENT_STATUSES: readonly EventStatus[] = [
   'Draft',
@@ -152,7 +146,7 @@ export function buildEventQuery(filters?: EventListFilters): string {
 export async function listEvents(filters?: EventListFilters): Promise<Event[]> {
   const qs = buildEventQuery(filters);
   const data = await api.get<EventApiRecord[] | { events: EventApiRecord[] }>(`/api/events${qs}`);
-  const events = Array.isArray(data) ? data : data.events ?? [];
+  const events = Array.isArray(data) ? data : (data.events ?? []);
   return events.map(normalizeEvent);
 }
 
@@ -182,12 +176,31 @@ export async function deleteEvent(id: number | string): Promise<void> {
   await api.delete<void>(`/api/events/${id}`);
 }
 
+export interface GeocodeResponse {
+  latitude: number;
+  longitude: number;
+  display_name: string;
+  provider: string;
+  persisted: boolean;
+}
+
+/** #806 — Geocode a free-text address for an event. */
+export async function geocodeEventLocation(
+  id: number | string,
+  address: string,
+  persist = false,
+): Promise<GeocodeResponse> {
+  return api.post<GeocodeResponse>(`/api/events/${id}/geocode`, { address, persist });
+}
+
+/** #806 — Stateless geocoding helper (used during event creation). */
+export async function geocodeAddress(address: string): Promise<GeocodeResponse> {
+  return api.post<GeocodeResponse>('/api/geocode', { address });
+}
+
 // ── Event Enhancements ────────────────────────────────────────────────────────
 
-export async function cloneEvent(
-  id: number | string,
-  includeTasks = false,
-): Promise<Event> {
+export async function cloneEvent(id: number | string, includeTasks = false): Promise<Event> {
   const qs = includeTasks ? '?includeTasks=true' : '';
   const data = await api.post<EventApiRecord>(`/api/events/${id}/clone${qs}`);
   return normalizeEvent(data);
@@ -206,18 +219,13 @@ export async function setCoverImage(
 // ── Activity Feed ─────────────────────────────────────────────────────────────
 
 export async function listFeed(eventId: number | string): Promise<ActivityFeedEntry[]> {
-  const data = await api.get<{ feed: ActivityFeedEntry[] }>(
-    `/api/events/${eventId}/feed`,
-  );
+  const data = await api.get<{ feed: ActivityFeedEntry[] }>(`/api/events/${eventId}/feed`);
   return data.feed;
 }
 
 // ── BRD v2 archive workflow (#540, #578) ──────────────────────────────────────
 
-export async function archiveEvent(
-  id: number | string,
-  reason?: string,
-): Promise<Event> {
+export async function archiveEvent(id: number | string, reason?: string): Promise<Event> {
   const data = await api.post<EventApiRecord>(`/api/events/${id}/archive`, { reason });
   return normalizeEvent(data);
 }
@@ -243,9 +251,7 @@ export interface EventCustomField {
   updated_at: string;
 }
 
-export async function listCustomFields(
-  eventId: number | string,
-): Promise<EventCustomField[]> {
+export async function listCustomFields(eventId: number | string): Promise<EventCustomField[]> {
   const data = await api.get<{ fields: EventCustomField[] }>(
     `/api/events/${eventId}/custom-fields`,
   );
@@ -264,16 +270,10 @@ export async function updateCustomField(
   fieldId: number,
   payload: Partial<EventCustomField>,
 ): Promise<EventCustomField> {
-  return api.patch<EventCustomField>(
-    `/api/events/${eventId}/custom-fields/${fieldId}`,
-    payload,
-  );
+  return api.patch<EventCustomField>(`/api/events/${eventId}/custom-fields/${fieldId}`, payload);
 }
 
-export async function deleteCustomField(
-  eventId: number | string,
-  fieldId: number,
-): Promise<void> {
+export async function deleteCustomField(eventId: number | string, fieldId: number): Promise<void> {
   await api.delete<void>(`/api/events/${eventId}/custom-fields/${fieldId}`);
 }
 

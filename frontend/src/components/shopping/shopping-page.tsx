@@ -7,6 +7,7 @@ import {
   Box,
   Button,
   Checkbox,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -44,7 +45,8 @@ import {
   listShoppingItems,
   listShoppingLists,
   syncItemToBudget,
-  updateShoppingItem,
+  unsyncItemFromBudget,
+  updateShoppingItemFull,
 } from '../../services/shopping-service';
 
 interface ListWithItems {
@@ -53,7 +55,13 @@ interface ListWithItems {
   loadingItems: boolean;
 }
 
-const emptyItemForm: CreateItemInput = { name: '', quantity: 1, unit: '', estimated_cost: undefined, notes: '' };
+const emptyItemForm: CreateItemInput = {
+  name: '',
+  quantity: 1,
+  unit: '',
+  estimated_cost: undefined,
+  notes: '',
+};
 
 export default function ShoppingPage(): JSX.Element {
   const { id: eventIdStr } = useParams<{ id: string }>();
@@ -78,9 +86,16 @@ export default function ShoppingPage(): JSX.Element {
   const [deleting, setDeleting] = useState(false);
 
   const [syncingItemId, setSyncingItemId] = useState<number | null>(null);
-  const [syncSnackbar, setSyncSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
-    { open: false, message: '', severity: 'success' },
-  );
+  const [undoInfo, setUndoInfo] = useState<{
+    listId: number;
+    itemId: number;
+    itemName: string;
+  } | null>(null);
+  const [syncSnackbar, setSyncSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
     void loadAll();
@@ -92,7 +107,7 @@ export default function ShoppingPage(): JSX.Element {
     try {
       const lists = await listShoppingLists(eventId);
       const withItems = await Promise.all(
-        lists.map(async list => {
+        lists.map(async (list) => {
           const items = await listShoppingItems(eventId, list.id);
           return { list, items, loadingItems: false };
         }),
@@ -107,13 +122,16 @@ export default function ShoppingPage(): JSX.Element {
 
   async function handleAddList(e: FormEvent): Promise<void> {
     e.preventDefault();
-    if (!newListName.trim()) { setListFormError('List name is required.'); return; }
+    if (!newListName.trim()) {
+      setListFormError('List name is required.');
+      return;
+    }
     setSavingList(true);
     setListFormError(null);
     try {
       const input: CreateListInput = { name: newListName.trim() };
       const created = await createShoppingList(eventId, input);
-      setData(prev => [...prev, { list: created, items: [], loadingItems: false }]);
+      setData((prev) => [...prev, { list: created, items: [], loadingItems: false }]);
       setAddListOpen(false);
       setNewListName('');
     } catch (err) {
@@ -128,7 +146,7 @@ export default function ShoppingPage(): JSX.Element {
     setDeleting(true);
     try {
       await deleteShoppingList(eventId, deleteListTarget.id);
-      setData(prev => prev.filter(d => d.list.id !== deleteListTarget.id));
+      setData((prev) => prev.filter((d) => d.list.id !== deleteListTarget.id));
       setDeleteListTarget(null);
     } catch {
       setError('Failed to delete list.');
@@ -156,29 +174,71 @@ export default function ShoppingPage(): JSX.Element {
   async function handleTogglePurchased(listId: number, item: ShoppingItem): Promise<void> {
     const newStatus = item.status === 'Purchased' ? 'Needed' : 'Purchased';
     try {
-      const updated = await updateShoppingItem(eventId, listId, item.id, { status: newStatus });
-      setData(prev =>
-        prev.map(d =>
+      const result = await updateShoppingItemFull(eventId, listId, item.id, { status: newStatus });
+      const updated = result.item;
+      setData((prev) =>
+        prev.map((d) =>
           d.list.id === listId
-            ? { ...d, items: d.items.map(i => (i.id === updated.id ? updated : i)) }
+            ? { ...d, items: d.items.map((i) => (i.id === updated.id ? updated : i)) }
             : d,
         ),
       );
+      if (result.synced_expense_id && newStatus === 'Purchased') {
+        setUndoInfo({ listId, itemId: item.id, itemName: item.name });
+        setSyncSnackbar({
+          open: true,
+          message: `"${item.name}" auto-synced to budget. Undo within 60s.`,
+          severity: 'success',
+        });
+      }
     } catch {
       setError('Failed to update item status.');
     }
   }
 
+  async function handleUndoSync(): Promise<void> {
+    if (!undoInfo) return;
+    const { listId, itemId, itemName } = undoInfo;
+    try {
+      await unsyncItemFromBudget(eventId, listId, itemId);
+      setData((prev) =>
+        prev.map((d) =>
+          d.list.id === listId
+            ? {
+                ...d,
+                items: d.items.map((i) =>
+                  i.id === itemId ? { ...i, synced_expense_id: null, synced_at: null } : i,
+                ),
+              }
+            : d,
+        ),
+      );
+      setSyncSnackbar({
+        open: true,
+        message: `Reverted "${itemName}" — expense removed from budget.`,
+        severity: 'success',
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Undo failed.';
+      setSyncSnackbar({ open: true, message: msg, severity: 'error' });
+    } finally {
+      setUndoInfo(null);
+    }
+  }
+
   function handleItemTextField(field: keyof CreateItemInput) {
     return (e: ChangeEvent<HTMLInputElement>): void => {
-      setItemForm(prev => ({ ...prev, [field]: e.target.value }));
+      setItemForm((prev) => ({ ...prev, [field]: e.target.value }));
     };
   }
 
   async function handleAddItem(e: FormEvent): Promise<void> {
     e.preventDefault();
     if (!addItemListId) return;
-    if (!itemForm.name.trim()) { setItemFormError('Item name is required.'); return; }
+    if (!itemForm.name.trim()) {
+      setItemFormError('Item name is required.');
+      return;
+    }
     setSavingItem(true);
     setItemFormError(null);
     try {
@@ -186,16 +246,15 @@ export default function ShoppingPage(): JSX.Element {
         name: itemForm.name.trim(),
         quantity: itemForm.quantity ? Number(itemForm.quantity) : 1,
         unit: itemForm.unit ?? undefined,
-        estimated_cost: itemForm.estimated_cost !== undefined && itemForm.estimated_cost !== ('' as unknown) ? Number(itemForm.estimated_cost) : undefined,
+        estimated_cost:
+          itemForm.estimated_cost !== undefined && itemForm.estimated_cost !== ('' as unknown)
+            ? Number(itemForm.estimated_cost)
+            : undefined,
         notes: itemForm.notes ?? undefined,
       };
       const created = await createShoppingItem(eventId, addItemListId, payload);
-      setData(prev =>
-        prev.map(d =>
-          d.list.id === addItemListId
-            ? { ...d, items: [...d.items, created] }
-            : d,
-        ),
+      setData((prev) =>
+        prev.map((d) => (d.list.id === addItemListId ? { ...d, items: [...d.items, created] } : d)),
       );
       setAddItemListId(null);
       setItemForm(emptyItemForm);
@@ -209,11 +268,9 @@ export default function ShoppingPage(): JSX.Element {
   async function handleDeleteItem(listId: number, item: ShoppingItem): Promise<void> {
     try {
       await deleteShoppingItem(eventId, listId, item.id);
-      setData(prev =>
-        prev.map(d =>
-          d.list.id === listId
-            ? { ...d, items: d.items.filter(i => i.id !== item.id) }
-            : d,
+      setData((prev) =>
+        prev.map((d) =>
+          d.list.id === listId ? { ...d, items: d.items.filter((i) => i.id !== item.id) } : d,
         ),
       );
     } catch {
@@ -221,7 +278,11 @@ export default function ShoppingPage(): JSX.Element {
     }
   }
 
-  function computeSummary(items: ShoppingItem[]): { totalEst: number; totalActual: number; remaining: number } {
+  function computeSummary(items: ShoppingItem[]): {
+    totalEst: number;
+    totalActual: number;
+    remaining: number;
+  } {
     return items.reduce(
       (acc, item) => ({
         totalEst: acc.totalEst + (Number(item.estimated_cost) || 0) * item.quantity,
@@ -238,19 +299,29 @@ export default function ShoppingPage(): JSX.Element {
         <IconButton onClick={() => navigate(`/events/${eventId}`)} aria-label="Back to event">
           <ArrowBackRounded />
         </IconButton>
-        <Typography variant="h5" component="h1">Shopping Lists</Typography>
+        <Typography variant="h5" component="h1">
+          Shopping Lists
+        </Typography>
         <Box flex={1} />
         <Button variant="contained" startIcon={<AddRounded />} onClick={() => setAddListOpen(true)}>
           Add List
         </Button>
       </Stack>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
 
       {loading ? (
-        <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+        <Box display="flex" justifyContent="center" py={6}>
+          <CircularProgress />
+        </Box>
       ) : data.length === 0 ? (
-        <Typography color="text.secondary">No shopping lists yet. Add one to get started.</Typography>
+        <Typography color="text.secondary">
+          No shopping lists yet. Add one to get started.
+        </Typography>
       ) : (
         data.map(({ list, items }) => {
           const { totalEst, totalActual, remaining } = computeSummary(items);
@@ -271,7 +342,10 @@ export default function ShoppingPage(): JSX.Element {
                     <IconButton
                       size="small"
                       aria-label={`Delete list ${list.name}`}
-                      onClick={(e) => { e.stopPropagation(); setDeleteListTarget(list); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteListTarget(list);
+                      }}
                     >
                       <DeleteRounded fontSize="small" />
                     </IconButton>
@@ -293,7 +367,7 @@ export default function ShoppingPage(): JSX.Element {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {items.map(item => (
+                      {items.map((item) => (
                         <TableRow
                           key={item.id}
                           sx={{ opacity: item.status === 'Purchased' ? 0.5 : 1 }}
@@ -307,23 +381,47 @@ export default function ShoppingPage(): JSX.Element {
                             />
                           </TableCell>
                           <TableCell>
-                            <Typography
-                              variant="body2"
-                              sx={{ textDecoration: item.status === 'Purchased' ? 'line-through' : 'none' }}
-                            >
-                              {item.name}
-                            </Typography>
+                            <Stack direction="row" alignItems="center" spacing={0.75}>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  textDecoration:
+                                    item.status === 'Purchased' ? 'line-through' : 'none',
+                                }}
+                              >
+                                {item.name}
+                              </Typography>
+                              {item.synced_expense_id ? (
+                                <Tooltip
+                                  title={`Linked to budget expense #${item.synced_expense_id}`}
+                                >
+                                  <Chip
+                                    label="Synced to budget"
+                                    color="success"
+                                    size="small"
+                                    variant="outlined"
+                                    data-testid={`shopping-synced-badge-${item.id}`}
+                                  />
+                                </Tooltip>
+                              ) : null}
+                            </Stack>
                             {item.notes && (
-                              <Typography variant="caption" color="text.secondary">{item.notes}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {item.notes}
+                              </Typography>
                             )}
                           </TableCell>
                           <TableCell align="right">{item.quantity}</TableCell>
                           <TableCell>{item.unit ?? '—'}</TableCell>
                           <TableCell align="right">
-                            {item.estimated_cost !== null ? `$${Number(item.estimated_cost).toFixed(2)}` : '—'}
+                            {item.estimated_cost !== null
+                              ? `$${Number(item.estimated_cost).toFixed(2)}`
+                              : '—'}
                           </TableCell>
                           <TableCell align="right">
-                            {item.actual_cost !== null ? `$${Number(item.actual_cost).toFixed(2)}` : '—'}
+                            {item.actual_cost !== null
+                              ? `$${Number(item.actual_cost).toFixed(2)}`
+                              : '—'}
                           </TableCell>
                           <TableCell align="right" padding="none" sx={{ whiteSpace: 'nowrap' }}>
                             <Tooltip
@@ -346,9 +444,11 @@ export default function ShoppingPage(): JSX.Element {
                                   }
                                   onClick={() => void handleSyncToBudget(list.id, item)}
                                 >
-                                  {syncingItemId === item.id
-                                    ? <CircularProgress size={16} />
-                                    : <SyncAltRounded fontSize="small" />}
+                                  {syncingItemId === item.id ? (
+                                    <CircularProgress size={16} />
+                                  ) : (
+                                    <SyncAltRounded fontSize="small" />
+                                  )}
                                 </IconButton>
                               </span>
                             </Tooltip>
@@ -368,7 +468,12 @@ export default function ShoppingPage(): JSX.Element {
 
                 <Divider />
                 {/* Summary footer */}
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} p={2} alignItems="center">
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={2}
+                  p={2}
+                  alignItems="center"
+                >
                   <Typography variant="body2">
                     <strong>Est. Total:</strong> ${totalEst.toFixed(2)}
                   </Typography>
@@ -382,7 +487,11 @@ export default function ShoppingPage(): JSX.Element {
                   <Button
                     size="small"
                     startIcon={<AddRounded />}
-                    onClick={() => { setAddItemListId(list.id); setItemForm(emptyItemForm); setItemFormError(null); }}
+                    onClick={() => {
+                      setAddItemListId(list.id);
+                      setItemForm(emptyItemForm);
+                      setItemFormError(null);
+                    }}
                   >
                     Add Item
                   </Button>
@@ -403,7 +512,7 @@ export default function ShoppingPage(): JSX.Element {
               <TextField
                 label="List Name"
                 value={newListName}
-                onChange={e => setNewListName(e.target.value)}
+                onChange={(e) => setNewListName(e.target.value)}
                 required
                 autoFocus
                 inputProps={{ 'aria-required': 'true' }}
@@ -420,7 +529,12 @@ export default function ShoppingPage(): JSX.Element {
       </Dialog>
 
       {/* Add Item Dialog */}
-      <Dialog open={addItemListId !== null} onClose={() => setAddItemListId(null)} maxWidth="xs" fullWidth>
+      <Dialog
+        open={addItemListId !== null}
+        onClose={() => setAddItemListId(null)}
+        maxWidth="xs"
+        fullWidth
+      >
         <form onSubmit={handleAddItem} noValidate>
           <DialogTitle>Add Item</DialogTitle>
           <DialogContent>
@@ -480,7 +594,8 @@ export default function ShoppingPage(): JSX.Element {
         <DialogTitle>Delete List</DialogTitle>
         <DialogContent>
           <Typography>
-            Delete <strong>{deleteListTarget?.name}</strong> and all its items? This cannot be undone.
+            Delete <strong>{deleteListTarget?.name}</strong> and all its items? This cannot be
+            undone.
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -491,17 +606,36 @@ export default function ShoppingPage(): JSX.Element {
         </DialogActions>
       </Dialog>
 
-      {/* Sync feedback */}
+      {/* Sync feedback — includes the 60s Undo path (#800) */}
       <Snackbar
         open={syncSnackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSyncSnackbar(prev => ({ ...prev, open: false }))}
+        autoHideDuration={undoInfo ? 60_000 : 4000}
+        onClose={() => {
+          setSyncSnackbar((prev) => ({ ...prev, open: false }));
+          setUndoInfo(null);
+        }}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        data-testid="shopping-sync-snackbar"
       >
         <Alert
           severity={syncSnackbar.severity}
-          onClose={() => setSyncSnackbar(prev => ({ ...prev, open: false }))}
+          onClose={() => {
+            setSyncSnackbar((prev) => ({ ...prev, open: false }));
+            setUndoInfo(null);
+          }}
           sx={{ width: '100%' }}
+          action={
+            undoInfo ? (
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => void handleUndoSync()}
+                data-testid="shopping-undo-sync"
+              >
+                UNDO
+              </Button>
+            ) : undefined
+          }
         >
           {syncSnackbar.message}
         </Alert>

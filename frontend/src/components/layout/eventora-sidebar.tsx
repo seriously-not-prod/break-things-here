@@ -109,7 +109,11 @@ export const EventoraSidebar: FC<SidebarProps> = ({
       {/* Upgrade Box */}
       <div className="upgrade-box">
         <div className="crown">👑</div>
-        <p>Upgrade to Pro<br /><small>Unlock advanced features</small></p>
+        <p>
+          Upgrade to Pro
+          <br />
+          <small>Unlock advanced features</small>
+        </p>
         <button>Upgrade Now</button>
       </div>
 

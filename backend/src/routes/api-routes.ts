@@ -674,6 +674,8 @@ router.delete('/events/:id', authenticateToken, eventController.deleteEvent);
 router.post('/events/:id/clone', authenticateToken, eventController.cloneEvent);
 router.patch('/events/:id/cover', authenticateToken, eventController.setCoverImage);
 router.post('/events/:id/restore', authenticateToken, eventController.restoreEvent);
+router.post('/events/:id/geocode', authenticateToken, eventController.geocodeEventLocation);
+router.post('/geocode', authenticateToken, eventController.geocodeAddressOnly);
 // BRD v2 (#540, #578) — true archive workflow distinct from soft-delete
 router.post('/events/:id/archive', authenticateToken, eventController.archiveEvent);
 router.post('/events/:id/unarchive', authenticateToken, eventController.unarchiveEvent);
@@ -1134,6 +1136,11 @@ router.get(
   authenticateToken,
   timelineController.detectConflicts,
 );
+router.post(
+  '/events/:eventId/timeline/validate',
+  authenticateToken,
+  timelineController.validateTimeline,
+);
 router.get(
   '/events/:eventId/timeline/comparison',
   authenticateToken,
@@ -1203,6 +1210,21 @@ router.delete(
   '/events/:eventId/budget/categories/:id',
   authenticateToken,
   budgetController.deleteCategory,
+);
+router.patch(
+  '/events/:eventId/budget/categories/:id/selected-vendor',
+  authenticateToken,
+  budgetController.setSelectedVendor,
+);
+router.get(
+  '/events/:eventId/budget/overspend-threshold',
+  authenticateToken,
+  budgetController.getOverspendThreshold,
+);
+router.patch(
+  '/events/:eventId/budget/overspend-threshold',
+  authenticateToken,
+  budgetController.setOverspendThreshold,
 );
 router.get('/events/:eventId/expenses', authenticateToken, budgetController.listExpenses);
 router.get(
@@ -1307,11 +1329,16 @@ router.delete(
 // ============ WORKLOAD DASHBOARD — #451 ============
 router.get('/events/:eventId/workload', authenticateToken, workloadController.getWorkload);
 
-// ============ SHOPPING → BUDGET SYNC — #439 ============
+// ============ SHOPPING → BUDGET SYNC — #439 / #800 ============
 router.post(
   '/events/:eventId/shopping-lists/:listId/items/:itemId/sync-to-budget',
   authenticateToken,
   shoppingBudgetSyncController.syncItemToBudget,
+);
+router.delete(
+  '/events/:eventId/shopping-lists/:listId/items/:itemId/sync-to-budget',
+  authenticateToken,
+  shoppingBudgetSyncController.unsyncItemFromBudget,
 );
 
 // ============ VENDOR COMMUNICATION LOG & COMPARE — #452 (registered in vendor section above)
@@ -1390,8 +1417,16 @@ router.get(
 
 // ── #812: Custom report builder ───────────────────────────────────────────────────────────
 router.get('/reports/builder/domains', authenticateToken, reportBuilderController.getDomains);
-router.post('/events/:eventId/reports/builder/run', authenticateToken, reportBuilderController.runReport);
-router.post('/events/:eventId/reports/builder/save', authenticateToken, reportBuilderController.saveReport);
+router.post(
+  '/events/:eventId/reports/builder/run',
+  authenticateToken,
+  reportBuilderController.runReport,
+);
+router.post(
+  '/events/:eventId/reports/builder/save',
+  authenticateToken,
+  reportBuilderController.saveReport,
+);
 
 // ============ POWER-USER GLOBAL SEARCH — #581 ============
 router.get('/search', authenticateToken, globalSearchController.globalSearch);
@@ -1514,11 +1549,7 @@ router.get(
 // ── #809: Unified multiplexed SSE stream ─────────────────────────────────────────────────
 // SSE — EventSource cannot set Authorization headers; auth flows through the
 // HttpOnly `accessToken` cookie already supported by `authenticateToken`.
-router.get(
-  '/realtime/stream',
-  authenticateToken,
-  realtimeController.streamRealtime,
-);
+router.get('/realtime/stream', authenticateToken, realtimeController.streamRealtime);
 
 // ── #811: User presence (online/offline/idle) ─────────────────────────────────────────────
 router.post('/user-presence/heartbeat', authenticateToken, presenceController.heartbeat);

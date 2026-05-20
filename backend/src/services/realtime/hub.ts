@@ -94,7 +94,9 @@ export class RealtimeHub {
     } catch (err) {
       // Cross-replica sync is best-effort: log the failure but keep serving
       // local subscribers normally.
-      logger.warn('[hub] PG NOTIFY failed — continuing without cross-replica sync', { err: String(err) });
+      logger.warn('[hub] PG NOTIFY failed — continuing without cross-replica sync', {
+        err: String(err),
+      });
     }
   }
 

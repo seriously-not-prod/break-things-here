@@ -70,82 +70,102 @@ type DomainFields = Record<string, FieldDef>;
 
 const DOMAIN_FIELDS: Record<ReportDomain, DomainFields> = {
   events: {
-    id:         { expr: 'e.id',          label: 'ID',           filterable: true },
-    name:       { expr: 'e.name',        label: 'Name',         filterable: true },
-    event_date: { expr: 'e.event_date',  label: 'Date',         filterable: true },
-    location:   { expr: 'e.location',    label: 'Location',     filterable: true },
-    status:     { expr: 'e.status',      label: 'Status',       filterable: true },
-    capacity:   { expr: 'e.capacity',    label: 'Capacity',     filterable: true },
-    created_at: { expr: 'e.created_at',  label: 'Created At',   filterable: true },
+    id: { expr: 'e.id', label: 'ID', filterable: true },
+    name: { expr: 'e.name', label: 'Name', filterable: true },
+    event_date: { expr: 'e.event_date', label: 'Date', filterable: true },
+    location: { expr: 'e.location', label: 'Location', filterable: true },
+    status: { expr: 'e.status', label: 'Status', filterable: true },
+    capacity: { expr: 'e.capacity', label: 'Capacity', filterable: true },
+    created_at: { expr: 'e.created_at', label: 'Created At', filterable: true },
   },
   guests: {
-    id:                    { expr: 'r.id',                    label: 'ID',            filterable: true },
-    guest_name:            { expr: 'r.guest_name',            label: 'Guest Name',    filterable: true },
-    email:                 { expr: 'r.email',                 label: 'Email',         filterable: true },
-    status:                { expr: 'r.status',                label: 'RSVP Status',   filterable: true },
-    checked_in:            { expr: 'r.checked_in',            label: 'Checked In',    filterable: true },
-    dietary_requirements:  { expr: 'r.dietary_requirements',  label: 'Dietary',       filterable: true },
-    created_at:            { expr: 'r.created_at',            label: 'Submitted At',  filterable: true },
+    id: { expr: 'r.id', label: 'ID', filterable: true },
+    guest_name: { expr: 'r.guest_name', label: 'Guest Name', filterable: true },
+    email: { expr: 'r.email', label: 'Email', filterable: true },
+    status: { expr: 'r.status', label: 'RSVP Status', filterable: true },
+    checked_in: { expr: 'r.checked_in', label: 'Checked In', filterable: true },
+    dietary_requirements: { expr: 'r.dietary_requirements', label: 'Dietary', filterable: true },
+    created_at: { expr: 'r.created_at', label: 'Submitted At', filterable: true },
   },
   budget: {
-    category_name:      { expr: 'bc.name',                                      label: 'Category',        filterable: true },
-    allocated_amount:   { expr: 'bc.allocated_amount::numeric',                 label: 'Allocated ($)',   filterable: true },
-    spent:              { expr: 'COALESCE(SUM(ex.amount), 0)::numeric',         label: 'Spent ($)',       filterable: false },
-    remaining:          { expr: '(bc.allocated_amount - COALESCE(SUM(ex.amount), 0))::numeric', label: 'Remaining ($)', filterable: false },
-    expense_count:      { expr: 'COUNT(ex.id)::int',                            label: 'Expenses',        filterable: false },
+    category_name: { expr: 'bc.name', label: 'Category', filterable: true },
+    allocated_amount: {
+      expr: 'bc.allocated_amount::numeric',
+      label: 'Allocated ($)',
+      filterable: true,
+    },
+    spent: { expr: 'COALESCE(SUM(ex.amount), 0)::numeric', label: 'Spent ($)', filterable: false },
+    remaining: {
+      expr: '(bc.allocated_amount - COALESCE(SUM(ex.amount), 0))::numeric',
+      label: 'Remaining ($)',
+      filterable: false,
+    },
+    expense_count: { expr: 'COUNT(ex.id)::int', label: 'Expenses', filterable: false },
   },
   tasks: {
-    id:           { expr: 't.id',           label: 'ID',          filterable: true },
-    title:        { expr: 't.title',        label: 'Title',       filterable: true },
-    status:       { expr: 't.status',       label: 'Status',      filterable: true },
-    priority:     { expr: 't.priority',     label: 'Priority',    filterable: true },
-    due_date:     { expr: 't.due_date',     label: 'Due Date',    filterable: true },
-    assigned_to:  { expr: 't.assigned_to',  label: 'Assigned To', filterable: true },
-    created_at:   { expr: 't.created_at',   label: 'Created At',  filterable: true },
+    id: { expr: 't.id', label: 'ID', filterable: true },
+    title: { expr: 't.title', label: 'Title', filterable: true },
+    status: { expr: 't.status', label: 'Status', filterable: true },
+    priority: { expr: 't.priority', label: 'Priority', filterable: true },
+    due_date: { expr: 't.due_date', label: 'Due Date', filterable: true },
+    assigned_to: { expr: 't.assigned_to', label: 'Assigned To', filterable: true },
+    created_at: { expr: 't.created_at', label: 'Created At', filterable: true },
   },
   vendors: {
-    id:         { expr: 'v.id',        label: 'ID',       filterable: true },
-    name:       { expr: 'v.name',      label: 'Name',     filterable: true },
-    category:   { expr: 'v.category',  label: 'Category', filterable: true },
-    status:     { expr: 'v.status',    label: 'Status',   filterable: true },
-    email:      { expr: 'v.email',     label: 'Email',    filterable: true },
-    phone:      { expr: 'v.phone',     label: 'Phone',    filterable: true },
+    id: { expr: 'v.id', label: 'ID', filterable: true },
+    name: { expr: 'v.name', label: 'Name', filterable: true },
+    category: { expr: 'v.category', label: 'Category', filterable: true },
+    status: { expr: 'v.status', label: 'Status', filterable: true },
+    email: { expr: 'v.email', label: 'Email', filterable: true },
+    phone: { expr: 'v.phone', label: 'Phone', filterable: true },
     created_at: { expr: 'v.created_at', label: 'Created At', filterable: true },
   },
 };
 
 /** FROM clause + any joins needed per domain */
-const DOMAIN_FROM: Record<ReportDomain, (eventId: number) => { from: string; baseParam: number[] }> = {
+const DOMAIN_FROM: Record<
+  ReportDomain,
+  (eventId: number) => { from: string; baseParam: number[] }
+> = {
   events: (eid) => ({ from: 'FROM events e', baseParam: [eid] }),
   guests: (eid) => ({ from: 'FROM rsvps r', baseParam: [eid] }),
   budget: (eid) => ({
     from: 'FROM budget_categories bc LEFT JOIN expenses ex ON ex.budget_category_id = bc.id AND ex.event_id = bc.event_id',
     baseParam: [eid],
   }),
-  tasks:   (eid) => ({ from: 'FROM tasks t',   baseParam: [eid] }),
+  tasks: (eid) => ({ from: 'FROM tasks t', baseParam: [eid] }),
   vendors: (eid) => ({ from: 'FROM vendors v', baseParam: [eid] }),
 };
 
 /** WHERE clause applied before user filters */
 const DOMAIN_BASE_WHERE: Record<ReportDomain, string> = {
-  events:  'e.id = $1',
-  guests:  'r.event_id = $1',
-  budget:  'bc.event_id = $1',
-  tasks:   't.event_id = $1',
+  events: 'e.id = $1',
+  guests: 'r.event_id = $1',
+  budget: 'bc.event_id = $1',
+  tasks: 't.event_id = $1',
   vendors: 'v.event_id = $1',
 };
 
 /** GROUP BY is required for budget aggregates */
 const DOMAIN_REQUIRES_GROUP: Record<ReportDomain, string | null> = {
-  events:  null,
-  guests:  null,
-  budget:  'bc.id, bc.name, bc.allocated_amount',
-  tasks:   null,
+  events: null,
+  guests: null,
+  budget: 'bc.id, bc.name, bc.allocated_amount',
+  tasks: null,
   vendors: null,
 };
 
 const VALID_OPERATORS = new Set<FilterOperator>([
-  '=', '!=', '>', '<', '>=', '<=', 'contains', 'starts_with', 'is_null', 'is_not_null',
+  '=',
+  '!=',
+  '>',
+  '<',
+  '>=',
+  '<=',
+  'contains',
+  'starts_with',
+  'is_null',
+  'is_not_null',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -163,15 +183,12 @@ export async function buildReport(config: BuildReportConfig): Promise<ReportResu
   if (!domainFields) throw new Error(`Unknown domain: ${domain}`);
 
   // Resolve requested fields against the allowlist
-  const resolvedFields = fields.length > 0
-    ? fields.filter((f) => f in domainFields)
-    : Object.keys(domainFields);
+  const resolvedFields =
+    fields.length > 0 ? fields.filter((f) => f in domainFields) : Object.keys(domainFields);
 
   if (resolvedFields.length === 0) throw new Error('No valid fields selected.');
 
-  const selectClauses = resolvedFields.map(
-    (f) => `${domainFields[f].expr} AS ${quoteIdent(f)}`,
-  );
+  const selectClauses = resolvedFields.map((f) => `${domainFields[f].expr} AS ${quoteIdent(f)}`);
 
   const { from, baseParam } = DOMAIN_DOMAIN_FROM(domain, eventId);
 
@@ -222,7 +239,9 @@ export async function buildReport(config: BuildReportConfig): Promise<ReportResu
 /**
  * List available fields for a domain (for the UI picker).
  */
-export function getDomainFieldMeta(domain: ReportDomain): Array<{ key: string; label: string; filterable: boolean }> {
+export function getDomainFieldMeta(
+  domain: ReportDomain,
+): Array<{ key: string; label: string; filterable: boolean }> {
   const fields = DOMAIN_FIELDS[domain];
   if (!fields) return [];
   return Object.entries(fields).map(([key, def]) => ({
@@ -242,23 +261,36 @@ export function getAllDomains(): ReportDomain[] {
 // ---------------------------------------------------------------------------
 
 /** Resolve domain FROM clause via explicit switch — avoids dynamic dispatch on user-controlled key. */
-function DOMAIN_DOMAIN_FROM(domain: ReportDomain, eventId: number): { from: string; baseParam: number[] } {
+function DOMAIN_DOMAIN_FROM(
+  domain: ReportDomain,
+  eventId: number,
+): { from: string; baseParam: number[] } {
   switch (domain) {
-    case 'events':  return DOMAIN_FROM.events(eventId);
-    case 'guests':  return DOMAIN_FROM.guests(eventId);
-    case 'budget':  return DOMAIN_FROM.budget(eventId);
-    case 'tasks':   return DOMAIN_FROM.tasks(eventId);
-    case 'vendors': return DOMAIN_FROM.vendors(eventId);
+    case 'events':
+      return DOMAIN_FROM.events(eventId);
+    case 'guests':
+      return DOMAIN_FROM.guests(eventId);
+    case 'budget':
+      return DOMAIN_FROM.budget(eventId);
+    case 'tasks':
+      return DOMAIN_FROM.tasks(eventId);
+    case 'vendors':
+      return DOMAIN_FROM.vendors(eventId);
   }
 }
 
-function resolveGroupBy(domain: ReportDomain, userGroupBy: string | undefined, fields: DomainFields): string {
+function resolveGroupBy(
+  domain: ReportDomain,
+  userGroupBy: string | undefined,
+  fields: DomainFields,
+): string {
   const required = DOMAIN_REQUIRES_GROUP[domain];
   if (required) return required; // budget always groups
   // For non-budget domains, user-defined GROUP BY would require every SELECT field
   // to be aggregated or in the GROUP BY clause, which we cannot guarantee here.
   // User groupBy is intentionally ignored for non-budget domains.
-  void userGroupBy; void fields;
+  void userGroupBy;
+  void fields;
   return '';
 }
 
@@ -266,11 +298,7 @@ function resolveGroupBy(domain: ReportDomain, userGroupBy: string | undefined, f
  * Build a single WHERE clause fragment for a filter.
  * Pushes parameter values into `params` and returns `$N`-parameterised SQL.
  */
-function buildFilterClause(
-  expr: string,
-  filter: ReportFilter,
-  params: unknown[],
-): string {
+function buildFilterClause(expr: string, filter: ReportFilter, params: unknown[]): string {
   const { operator, value } = filter;
 
   if (operator === 'is_null') return `${expr} IS NULL`;

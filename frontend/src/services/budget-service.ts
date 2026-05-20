@@ -23,6 +23,7 @@ export interface BudgetCategory {
   color: string | null;
   created_at: string;
   spent: number;
+  selected_vendor_id?: number | null;
 }
 
 export interface Expense {
@@ -152,8 +153,10 @@ export function computeSummary(categories: BudgetCategory[]): BudgetSummary {
   const totalSpent = categories.reduce((sum, c) => sum + c.spent, 0);
   const remaining = totalAllocated - totalSpent;
   const plannedRemaining = totalPlanned - totalSpent;
-  const percentUsed = totalAllocated > 0 ? Math.min(100, Math.round((totalSpent / totalAllocated) * 100)) : 0;
-  const plannedPercentUsed = totalPlanned > 0 ? Math.min(100, Math.round((totalSpent / totalPlanned) * 100)) : 0;
+  const percentUsed =
+    totalAllocated > 0 ? Math.min(100, Math.round((totalSpent / totalAllocated) * 100)) : 0;
+  const plannedPercentUsed =
+    totalPlanned > 0 ? Math.min(100, Math.round((totalSpent / totalPlanned) * 100)) : 0;
   return {
     totalAllocated,
     totalPlanned,
@@ -206,11 +209,46 @@ export async function updateCategory(
   return data.category;
 }
 
-export async function deleteCategory(
+export async function deleteCategory(eventId: number | string, categoryId: number): Promise<void> {
+  await api.delete<void>(`/api/events/${eventId}/budget/categories/${categoryId}`);
+}
+
+/**
+ * GET — read per-event overspend alert threshold (percent of allocated). — #802
+ */
+export async function getOverspendThreshold(eventId: number | string): Promise<number> {
+  const data = await api.get<{ threshold_percent: number }>(
+    `/api/events/${eventId}/budget/overspend-threshold`,
+  );
+  return data.threshold_percent;
+}
+
+/** PATCH — update the threshold; must be 0 < value <= 200. — #802 */
+export async function setOverspendThreshold(
+  eventId: number | string,
+  percent: number,
+): Promise<number> {
+  const data = await api.patch<{ threshold_percent: number }>(
+    `/api/events/${eventId}/budget/overspend-threshold`,
+    { threshold_percent: percent },
+  );
+  return data.threshold_percent;
+}
+
+/**
+ * Stamps (or clears, when vendorId === null) the budget category's selected vendor.
+ * Used by the vendor compare "Pick this vendor" CTA — #797.
+ */
+export async function setCategorySelectedVendor(
   eventId: number | string,
   categoryId: number,
-): Promise<void> {
-  await api.delete<void>(`/api/events/${eventId}/budget/categories/${categoryId}`);
+  vendorId: number | null,
+): Promise<BudgetCategory> {
+  const data = await api.patch<{ category: BudgetCategory }>(
+    `/api/events/${eventId}/budget/categories/${categoryId}/selected-vendor`,
+    { vendor_id: vendorId },
+  );
+  return data.category;
 }
 
 // ─── Expense API ───────────────────────────────────────────────────────────────
@@ -223,7 +261,9 @@ export async function listExpenses(eventId: number | string): Promise<Expense[]>
 export async function getExpenseWorkflowSummary(
   eventId: number | string,
 ): Promise<ExpenseWorkflowSummary> {
-  const data = await api.get<{ summary: ExpenseWorkflowSummary }>(`/api/events/${eventId}/expenses/workflow-summary`);
+  const data = await api.get<{ summary: ExpenseWorkflowSummary }>(
+    `/api/events/${eventId}/expenses/workflow-summary`,
+  );
   return data.summary;
 }
 
@@ -305,10 +345,11 @@ export async function extractExpenseReceiptOcr(
   expenseId: number,
   receiptText: string,
 ): Promise<{ ocr: ExpenseOcrResult; extracted: ExpenseOcrExtractedFields; can_apply: boolean }> {
-  return api.post<{ ocr: ExpenseOcrResult; extracted: ExpenseOcrExtractedFields; can_apply: boolean }>(
-    `/api/events/${eventId}/expenses/${expenseId}/ocr/extract`,
-    { receipt_text: receiptText },
-  );
+  return api.post<{
+    ocr: ExpenseOcrResult;
+    extracted: ExpenseOcrExtractedFields;
+    can_apply: boolean;
+  }>(`/api/events/${eventId}/expenses/${expenseId}/ocr/extract`, { receipt_text: receiptText });
 }
 
 export async function applyExpenseReceiptOcr(
@@ -322,11 +363,14 @@ export async function applyExpenseReceiptOcr(
     notes?: string;
     override_reason?: string;
   },
-): Promise<{ expense: Expense; reconciliation: { ocr_id: number; overrides: string[]; overrides_count: number } }> {
-  return api.post<{ expense: Expense; reconciliation: { ocr_id: number; overrides: string[]; overrides_count: number } }>(
-    `/api/events/${eventId}/expenses/${expenseId}/ocr/${ocrId}/apply`,
-    payload,
-  );
+): Promise<{
+  expense: Expense;
+  reconciliation: { ocr_id: number; overrides: string[]; overrides_count: number };
+}> {
+  return api.post<{
+    expense: Expense;
+    reconciliation: { ocr_id: number; overrides: string[]; overrides_count: number };
+  }>(`/api/events/${eventId}/expenses/${expenseId}/ocr/${ocrId}/apply`, payload);
 }
 
 export async function uploadExpenseReceiptDocument(
@@ -344,17 +388,17 @@ export async function uploadExpenseReceiptDocument(
   });
 
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ error: response.statusText })) as { error?: string; code?: string };
+    const body = (await response.json().catch(() => ({ error: response.statusText }))) as {
+      error?: string;
+      code?: string;
+    };
     throw new ApiError(body.error ?? response.statusText, response.status, body.code);
   }
 
-  const payload = await response.json() as { document: UploadedExpenseReceiptDocument };
+  const payload = (await response.json()) as { document: UploadedExpenseReceiptDocument };
   return payload.document;
 }
 
-export async function deleteExpense(
-  eventId: number | string,
-  expenseId: number,
-): Promise<void> {
+export async function deleteExpense(eventId: number | string, expenseId: number): Promise<void> {
   await api.delete<void>(`/api/events/${eventId}/expenses/${expenseId}`);
 }

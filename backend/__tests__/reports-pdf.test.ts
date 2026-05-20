@@ -49,14 +49,30 @@ vi.mock('pdfkit', () => {
       super();
     }
 
-    fontSize() { return this; }
-    font() { return this; }
-    fillColor() { return this; }
-    save() { return this; }
-    restore() { return this; }
-    rect() { return this; }
-    fill() { return this; }
-    stroke() { return this; }
+    fontSize() {
+      return this;
+    }
+    font() {
+      return this;
+    }
+    fillColor() {
+      return this;
+    }
+    save() {
+      return this;
+    }
+    restore() {
+      return this;
+    }
+    rect() {
+      return this;
+    }
+    fill() {
+      return this;
+    }
+    stroke() {
+      return this;
+    }
 
     text(content: string, _x?: number, _y?: number, _opts?: unknown) {
       this._textContent.push(content);
@@ -87,7 +103,9 @@ vi.mock('pdfkit', () => {
       this.emit('end');
     }
 
-    pipe() { return this; }
+    pipe() {
+      return this;
+    }
     on(event: string, handler: (...args: unknown[]) => void) {
       super.on(event, handler);
       return this;
@@ -115,9 +133,27 @@ const TEST_EVENT = {
 };
 
 const TEST_GUESTS = [
-  { guest_name: 'Alice Johnson', email: 'alice@example.com', status: 'Going', dietary_requirements: 'Vegetarian', checked_in: true },
-  { guest_name: 'Bob Smith', email: 'bob@example.com', status: 'Maybe', dietary_requirements: null, checked_in: false },
-  { guest_name: 'Carol White', email: 'carol@example.com', status: 'Going', dietary_requirements: 'Gluten-free', checked_in: true },
+  {
+    guest_name: 'Alice Johnson',
+    email: 'alice@example.com',
+    status: 'Going',
+    dietary_requirements: 'Vegetarian',
+    checked_in: true,
+  },
+  {
+    guest_name: 'Bob Smith',
+    email: 'bob@example.com',
+    status: 'Maybe',
+    dietary_requirements: null,
+    checked_in: false,
+  },
+  {
+    guest_name: 'Carol White',
+    email: 'carol@example.com',
+    status: 'Going',
+    dietary_requirements: 'Gluten-free',
+    checked_in: true,
+  },
 ];
 
 const TEST_BUDGET = [
@@ -127,10 +163,34 @@ const TEST_BUDGET = [
 ];
 
 const TEST_EXPENSES = [
-  { category: 'Venue', description: 'Hall rental deposit', amount: 2000, date: '2026-06-01', vendor: 'City Hall Events' },
-  { category: 'Venue', description: 'AV equipment', amount: 2500, date: '2026-06-15', vendor: 'SoundTech Pro' },
-  { category: 'Catering', description: 'Menu tasting', amount: 300, date: '2026-06-10', vendor: 'Fine Dine Co' },
-  { category: 'Catering', description: 'Bulk food order', amount: 2500, date: '2026-07-01', vendor: null },
+  {
+    category: 'Venue',
+    description: 'Hall rental deposit',
+    amount: 2000,
+    date: '2026-06-01',
+    vendor: 'City Hall Events',
+  },
+  {
+    category: 'Venue',
+    description: 'AV equipment',
+    amount: 2500,
+    date: '2026-06-15',
+    vendor: 'SoundTech Pro',
+  },
+  {
+    category: 'Catering',
+    description: 'Menu tasting',
+    amount: 300,
+    date: '2026-06-10',
+    vendor: 'Fine Dine Co',
+  },
+  {
+    category: 'Catering',
+    description: 'Bulk food order',
+    amount: 2500,
+    date: '2026-07-01',
+    vendor: null,
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -227,7 +287,10 @@ describe('PDF Report Renderer (#813)', () => {
     });
 
     it('should return valid Buffer with budget metadata', async () => {
-      const { buffer, meta } = await generatePdfReport({ eventId: 1, reportType: 'budget_summary' });
+      const { buffer, meta } = await generatePdfReport({
+        eventId: 1,
+        reportType: 'budget_summary',
+      });
 
       expect(buffer).toBeInstanceOf(Buffer);
       expect(meta.reportType).toBe('budget_summary');
@@ -257,7 +320,10 @@ describe('PDF Report Renderer (#813)', () => {
     });
 
     it('should return valid Buffer with expense metadata', async () => {
-      const { buffer, meta } = await generatePdfReport({ eventId: 1, reportType: 'expense_detail' });
+      const { buffer, meta } = await generatePdfReport({
+        eventId: 1,
+        reportType: 'expense_detail',
+      });
 
       expect(buffer).toBeInstanceOf(Buffer);
       expect(meta.reportType).toBe('expense_detail');
@@ -291,9 +357,9 @@ describe('PDF Report Renderer (#813)', () => {
     it('should throw when event is not found', async () => {
       mockGet.mockResolvedValue(null);
 
-      await expect(
-        generatePdfReport({ eventId: 999, reportType: 'guest_list' }),
-      ).rejects.toThrow('Event not found: 999');
+      await expect(generatePdfReport({ eventId: 999, reportType: 'guest_list' })).rejects.toThrow(
+        'Event not found: 999',
+      );
     });
   });
 

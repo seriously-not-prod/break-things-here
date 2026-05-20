@@ -131,10 +131,14 @@ export async function saveReport(req: Request, res: Response): Promise<Response>
     return res.status(400).json({ error: 'name is required.' });
   }
   if (!domain || !VALID_DOMAINS.has(domain as ReportDomain)) {
-    return res.status(400).json({ error: `domain must be one of: ${[...VALID_DOMAINS].join(', ')}` });
+    return res
+      .status(400)
+      .json({ error: `domain must be one of: ${[...VALID_DOMAINS].join(', ')}` });
   }
   if (!frequency || !VALID_FREQUENCIES.has(frequency as string)) {
-    return res.status(400).json({ error: `frequency must be one of: ${[...VALID_FREQUENCIES].join(', ')}` });
+    return res
+      .status(400)
+      .json({ error: `frequency must be one of: ${[...VALID_FREQUENCIES].join(', ')}` });
   }
 
   // Validate recipient emails — use string operations to avoid ReDoS-prone regex
@@ -148,7 +152,9 @@ export async function saveReport(req: Request, res: Response): Promise<Response>
   if (Array.isArray(recipients) && recipients.length > 0) {
     const invalid = recipients.filter((r) => !isValidEmail(r));
     if (invalid.length > 0) {
-      return res.status(400).json({ error: `Invalid email(s): ${(invalid as string[]).join(', ')}` });
+      return res
+        .status(400)
+        .json({ error: `Invalid email(s): ${(invalid as string[]).join(', ')}` });
     }
   }
 

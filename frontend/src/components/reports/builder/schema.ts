@@ -8,7 +8,16 @@ export const REPORT_DOMAINS = ['events', 'guests', 'budget', 'tasks', 'vendors']
 export type ReportDomain = (typeof REPORT_DOMAINS)[number];
 
 export const FILTER_OPERATORS = [
-  '=', '!=', '>', '<', '>=', '<=', 'contains', 'starts_with', 'is_null', 'is_not_null',
+  '=',
+  '!=',
+  '>',
+  '<',
+  '>=',
+  '<=',
+  'contains',
+  'starts_with',
+  'is_null',
+  'is_not_null',
 ] as const;
 
 export const FREQUENCIES = ['one_off', 'daily', 'weekly', 'monthly'] as const;

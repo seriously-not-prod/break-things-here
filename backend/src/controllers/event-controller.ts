@@ -16,6 +16,7 @@ import {
 } from '../utils/event-lifecycle.js';
 import { buildCoverRenditionUrls, materialiseRenditions } from '../utils/image-processing.js';
 import { publishRealtimeEvent } from '../utils/realtime-bus.js';
+import { geocodeAddress } from '../services/geocoding/index.js';
 
 export interface EventData {
   title: string;
@@ -1195,5 +1196,111 @@ export async function restoreEvent(req: Request, res: Response): Promise<void> {
   } catch (error) {
     console.error('Error restoring event:', error);
     res.status(500).json({ error: 'Failed to restore event' });
+  }
+}
+
+/**
+ * POST /api/geocode — task #806 (no event context)
+ *
+ * Stateless geocoding helper used by the create-event form. Returns the
+ * top match without persisting anything. Returns 422 when nothing matches.
+ */
+export async function geocodeAddressOnly(req: Request, res: Response): Promise<void> {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user?.id) {
+      res.status(401).json({ error: 'Authentication required.' });
+      return;
+    }
+    const { address } = req.body as { address?: string };
+    const trimmed = typeof address === 'string' ? address.trim() : '';
+    if (!trimmed) {
+      res.status(400).json({ error: 'address is required.' });
+      return;
+    }
+    const result = await geocodeAddress(trimmed);
+    if (!result) {
+      res.status(422).json({
+        error: 'No geocoding match for the supplied address.',
+        address: trimmed,
+        provider: null,
+      });
+      return;
+    }
+    res.json({
+      latitude: result.latitude,
+      longitude: result.longitude,
+      display_name: result.display_name,
+      provider: result.provider,
+      persisted: false,
+    });
+  } catch (error) {
+    console.error('Error geocoding address:', error);
+    res.status(500).json({ error: 'Failed to geocode address.' });
+  }
+}
+
+/**
+ * POST /api/events/:id/geocode — task #806
+ *
+ * Accepts `{ address, persist? }`. Resolves the address via the configured
+ * geocoding adapter chain (default: Nominatim). When `persist === true`,
+ * stores the coords on the event record. Falls through to a 422 response
+ * when no provider can match — callers display the plain address text.
+ */
+export async function geocodeEventLocation(req: Request, res: Response): Promise<void> {
+  try {
+    const db = getDatabase();
+    const { id } = req.params;
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Authentication required.' });
+      return;
+    }
+
+    const { address, persist } = req.body as { address?: string; persist?: boolean };
+    const trimmed = typeof address === 'string' ? address.trim() : '';
+    if (!trimmed) {
+      res.status(400).json({ error: 'address is required.' });
+      return;
+    }
+
+    const event = await db.get<{ id: number; created_by: number }>(
+      `SELECT id, created_by FROM events WHERE id = $1 AND deleted_at IS NULL`,
+      [id],
+    );
+    if (!event) {
+      res.status(404).json({ error: 'Event not found.' });
+      return;
+    }
+
+    const result = await geocodeAddress(trimmed);
+    if (!result) {
+      res.status(422).json({
+        error: 'No geocoding match for the supplied address.',
+        address: trimmed,
+        provider: null,
+      });
+      return;
+    }
+
+    if (persist) {
+      await db.run(
+        `UPDATE events SET latitude = $1, longitude = $2, updated_at = CURRENT_TIMESTAMP, updated_by = $3 WHERE id = $4`,
+        [result.latitude, result.longitude, userId, id],
+      );
+    }
+
+    res.json({
+      latitude: result.latitude,
+      longitude: result.longitude,
+      display_name: result.display_name,
+      provider: result.provider,
+      persisted: Boolean(persist),
+    });
+  } catch (error) {
+    console.error('Error geocoding event location:', error);
+    res.status(500).json({ error: 'Failed to geocode address.' });
   }
 }

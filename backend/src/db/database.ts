@@ -3122,6 +3122,28 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_timeline_template_items_template ON timeline_template_items(template_id)`,
   );
 
+  // Parallel `timeline_template_activities` table (richer per-item schema used
+  // by the v3 migration + applyTimelineTemplate controller). Created here so
+  // bootstrap-from-runtime environments (without v3 migration applied) still
+  // satisfy the timeline-templates controller queries.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS timeline_template_activities (
+      id                  SERIAL PRIMARY KEY,
+      template_id         INTEGER NOT NULL REFERENCES timeline_templates(id) ON DELETE CASCADE,
+      title               TEXT NOT NULL,
+      description         TEXT,
+      offset_minutes      INTEGER NOT NULL DEFAULT 0,
+      duration_minutes    INTEGER NOT NULL DEFAULT 60,
+      buffer_before_mins  INTEGER NOT NULL DEFAULT 0,
+      buffer_after_mins   INTEGER NOT NULL DEFAULT 0,
+      location            TEXT,
+      sort_order          INTEGER DEFAULT 0
+    )
+  `);
+  await db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_tt_activities_template_id ON timeline_template_activities(template_id)`,
+  );
+
   // Buffer-time on the existing timeline_activities table — adds a slack
   // window after each activity. Default 0 keeps existing data unchanged.
   await db.exec(
@@ -3421,4 +3443,180 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     ALTER TABLE scheduled_reports
       ADD COLUMN IF NOT EXISTS builder_config JSONB;
   `);
+
+  // v15 — Story #765 (Frontend Feature Gap Closure) additive columns. Placed
+  // after the audit-column sweep so the universal triggers fire on inserts.
+  // #797: selected_vendor_id on budget_categories so "Pick this vendor" can stamp.
+  await db.exec(
+    `ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS selected_vendor_id INTEGER`,
+  );
+  await db.exec(`
+    DO $$ BEGIN
+      ALTER TABLE budget_categories
+        ADD CONSTRAINT budget_categories_selected_vendor_fk
+        FOREIGN KEY (selected_vendor_id) REFERENCES vendors(id) ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_budget_categories_selected_vendor
+      ON budget_categories(selected_vendor_id)
+      WHERE selected_vendor_id IS NOT NULL
+  `);
+
+  // #802: per-event overspend threshold (percent, default 80%).
+  await db.exec(
+    `ALTER TABLE events ADD COLUMN IF NOT EXISTS overspend_threshold_percent NUMERIC(5,2) DEFAULT 80`,
+  );
+  await db.exec(`
+    DO $$ BEGIN
+      ALTER TABLE events
+        ADD CONSTRAINT events_overspend_threshold_range_chk
+        CHECK (overspend_threshold_percent IS NULL OR (overspend_threshold_percent > 0 AND overspend_threshold_percent <= 200));
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+
+  // #805: source template tracking on timeline_activities for idempotent re-apply.
+  await db.exec(
+    `ALTER TABLE timeline_activities ADD COLUMN IF NOT EXISTS applied_template_id INTEGER`,
+  );
+  await db.exec(`
+    DO $$ BEGIN
+      ALTER TABLE timeline_activities
+        ADD CONSTRAINT timeline_activities_template_fk
+        FOREIGN KEY (applied_template_id) REFERENCES timeline_templates(id) ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_timeline_activities_template
+      ON timeline_activities(applied_template_id)
+      WHERE applied_template_id IS NOT NULL
+  `);
+
+  // #805: reconcile the timeline_templates schema between the v3 migration
+  // (is_global) and the v10 runtime (is_public). Both flags now coexist as
+  // additive columns so the controller (SELECT … is_global) and the seed
+  // function below can both succeed regardless of which schema was created
+  // first. Existing rows keep their original flag value.
+  await db.exec(
+    `ALTER TABLE timeline_templates ADD COLUMN IF NOT EXISTS is_global BOOLEAN NOT NULL DEFAULT FALSE`,
+  );
+  await db.exec(
+    `ALTER TABLE timeline_templates ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT FALSE`,
+  );
+
+  // #805: seed the four canonical templates if missing.
+  await seedTimelineTemplates(db);
+}
+
+async function seedTimelineTemplates(db: DatabaseAdapter): Promise<void> {
+  const seeds: Array<{
+    name: string;
+    event_type: string;
+    description: string;
+    activities: Array<{
+      title: string;
+      offset: number;
+      duration: number;
+      sort_order: number;
+      location?: string;
+    }>;
+  }> = [
+    {
+      name: 'Birthday Party',
+      event_type: 'Birthday',
+      description: 'Standard birthday party run-of-show.',
+      activities: [
+        { title: 'Setup & decorations', offset: -120, duration: 90, sort_order: 0 },
+        { title: 'Guests arrive', offset: 0, duration: 30, sort_order: 1 },
+        { title: 'Cake & gifts', offset: 60, duration: 30, sort_order: 2 },
+        { title: 'Activities / games', offset: 90, duration: 60, sort_order: 3 },
+        { title: 'Wrap-up & cleanup', offset: 180, duration: 60, sort_order: 4 },
+      ],
+    },
+    {
+      name: 'Wedding',
+      event_type: 'Wedding',
+      description: 'Ceremony + reception template.',
+      activities: [
+        { title: 'Hair & makeup', offset: -240, duration: 120, sort_order: 0 },
+        { title: 'First look photos', offset: -60, duration: 45, sort_order: 1 },
+        { title: 'Ceremony', offset: 0, duration: 45, sort_order: 2 },
+        { title: 'Cocktail hour', offset: 60, duration: 60, sort_order: 3 },
+        { title: 'Reception & dinner', offset: 120, duration: 120, sort_order: 4 },
+        { title: 'Dancing', offset: 240, duration: 180, sort_order: 5 },
+      ],
+    },
+    {
+      name: 'Corporate Event',
+      event_type: 'Corporate',
+      description: 'Standard corporate offsite / town-hall format.',
+      activities: [
+        { title: 'Registration & breakfast', offset: -30, duration: 30, sort_order: 0 },
+        { title: 'Opening keynote', offset: 0, duration: 45, sort_order: 1 },
+        { title: 'Breakout sessions', offset: 60, duration: 90, sort_order: 2 },
+        { title: 'Networking lunch', offset: 180, duration: 60, sort_order: 3 },
+        { title: 'Workshop track', offset: 240, duration: 120, sort_order: 4 },
+        { title: 'Closing remarks', offset: 360, duration: 30, sort_order: 5 },
+      ],
+    },
+    {
+      name: 'Conference',
+      event_type: 'Conference',
+      description: 'Multi-track day-one conference template.',
+      activities: [
+        { title: 'Doors open / check-in', offset: -60, duration: 60, sort_order: 0 },
+        { title: 'Opening keynote', offset: 0, duration: 60, sort_order: 1 },
+        { title: 'Morning track A', offset: 75, duration: 90, sort_order: 2 },
+        { title: 'Coffee break', offset: 165, duration: 30, sort_order: 3 },
+        { title: 'Lunch', offset: 195, duration: 60, sort_order: 4 },
+        { title: 'Afternoon track', offset: 255, duration: 120, sort_order: 5 },
+        { title: 'Closing panel', offset: 375, duration: 60, sort_order: 6 },
+      ],
+    },
+  ];
+
+  for (const seed of seeds) {
+    const existing = await db.get<{ id: number }>(
+      `SELECT id FROM timeline_templates WHERE name = $1 AND event_type = $2 LIMIT 1`,
+      [seed.name, seed.event_type],
+    );
+    let templateId = existing?.id;
+    if (!templateId) {
+      // Insert with both flags TRUE so SELECT queries gated on either column
+      // (controller uses is_global; v10 runtime uses is_public) can find the row.
+      const inserted = await db.run(
+        `INSERT INTO timeline_templates (name, description, event_type, is_global, is_public)
+         VALUES ($1, $2, $3, TRUE, TRUE) RETURNING id`,
+        [seed.name, seed.description, seed.event_type],
+      );
+      templateId = inserted.lastID as number | undefined;
+      if (templateId === undefined) continue;
+    }
+    // Only seed activities if the template currently has none — leave any
+    // organizer-tweaked seeds alone.
+    const itemCount = await db.get<{ count: number }>(
+      `SELECT COUNT(*)::int AS count FROM timeline_template_activities WHERE template_id = $1`,
+      [templateId],
+    );
+    if ((itemCount?.count ?? 0) > 0) continue;
+    for (const item of seed.activities) {
+      await db.run(
+        `INSERT INTO timeline_template_activities
+           (template_id, title, description, offset_minutes, duration_minutes,
+            buffer_before_mins, buffer_after_mins, location, sort_order)
+         VALUES ($1, $2, NULL, $3, $4, 0, 0, $5, $6)`,
+        [
+          templateId,
+          item.title,
+          item.offset,
+          item.duration,
+          item.location ?? null,
+          item.sort_order,
+        ],
+      );
+    }
+  }
 }

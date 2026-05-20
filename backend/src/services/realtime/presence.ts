@@ -173,7 +173,9 @@ export async function hydrateFromDb(): Promise<void> {
       });
     }
   } catch (err) {
-    logger.warn('[presence] hydrate from DB failed — starting with empty map', { err: String(err) });
+    logger.warn('[presence] hydrate from DB failed — starting with empty map', {
+      err: String(err),
+    });
   }
 }
 
@@ -206,10 +208,7 @@ async function runSweep(): Promise<void> {
     presenceMap.delete(userId);
     try {
       const db = getDatabase();
-      await db.run(
-        `UPDATE user_presence SET status = 'offline' WHERE user_id = $1`,
-        [userId],
-      );
+      await db.run(`UPDATE user_presence SET status = 'offline' WHERE user_id = $1`, [userId]);
     } catch {
       /* best-effort */
     }

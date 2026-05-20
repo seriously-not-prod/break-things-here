@@ -75,7 +75,7 @@ async function connect(): Promise<void> {
       }
     });
   } catch (err) {
-      logger.error('[pg-bridge] Connection failed — scheduling reconnect', { err: String(err) });
+    logger.error('[pg-bridge] Connection failed — scheduling reconnect', { err: String(err) });
     try {
       await client.end();
     } catch {

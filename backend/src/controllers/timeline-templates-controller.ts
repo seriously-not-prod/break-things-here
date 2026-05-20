@@ -8,6 +8,7 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
+import { validateReorder, type TimelineActivitySnapshot } from '../services/timeline-conflict.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -83,7 +84,13 @@ export async function createTimelineTemplate(req: Request, res: Response): Promi
   const result = await db.run(
     `INSERT INTO timeline_templates (name, description, event_type, is_global, created_by)
      VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [name.trim(), description?.trim() || null, event_type?.trim() || null, is_global ?? false, authReq.user.id],
+    [
+      name.trim(),
+      description?.trim() || null,
+      event_type?.trim() || null,
+      is_global ?? false,
+      authReq.user.id,
+    ],
   );
   const templateId = result.lastID;
 
@@ -160,6 +167,23 @@ export async function applyTimelineTemplate(req: Request, res: Response): Promis
     [template_id],
   );
 
+  // #805 — Idempotency: if this template has already been applied to this
+  // event (rows tagged with applied_template_id), short-circuit and return
+  // the existing rows instead of duplicating them.
+  const alreadyApplied = await db.all(
+    `SELECT * FROM timeline_activities
+      WHERE event_id = $1 AND applied_template_id = $2
+      ORDER BY sort_order ASC`,
+    [eventId, template_id],
+  );
+  if (alreadyApplied.length > 0) {
+    return res.status(200).json({
+      activities: alreadyApplied,
+      applied_template: template,
+      idempotent: true,
+    });
+  }
+
   const baseTime = event_start_time
     ? new Date(event_start_time)
     : (event as unknown as Record<string, unknown>)['start_date']
@@ -187,8 +211,8 @@ export async function applyTimelineTemplate(req: Request, res: Response): Promis
          (event_id, title, description, start_time, end_time,
           planned_start_time, planned_end_time,
           buffer_before_mins, buffer_after_mins,
-          status, location, sort_order, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'planned', $10, $11, $12)
+          status, location, sort_order, applied_template_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'planned', $10, $11, $12, $13)
        RETURNING id`,
       [
         eventId,
@@ -202,14 +226,19 @@ export async function applyTimelineTemplate(req: Request, res: Response): Promis
         ta.buffer_after_mins,
         ta.location,
         ta.sort_order,
+        template_id,
         authReq.user?.id ?? null,
       ],
     );
-    const activity = await db.get('SELECT * FROM timeline_activities WHERE id = $1', [result.lastID]);
+    const activity = await db.get('SELECT * FROM timeline_activities WHERE id = $1', [
+      result.lastID,
+    ]);
     created.push(activity);
   }
 
-  return res.status(201).json({ activities: created, applied_template: template });
+  return res
+    .status(201)
+    .json({ activities: created, applied_template: template, idempotent: false });
 }
 
 // ── #612: Drag-and-drop reorder ───────────────────────────────────────────────
@@ -218,7 +247,10 @@ export async function applyTimelineTemplate(req: Request, res: Response): Promis
 export async function reorderTimeline(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
   const { eventId } = req.params;
-  const { order } = req.body as { order?: Array<{ id: number; sort_order: number }> };
+  const { order, force } = req.body as {
+    order?: Array<{ id: number; sort_order: number }>;
+    force?: boolean;
+  };
 
   if (!Array.isArray(order) || order.length === 0) {
     return res.status(400).json({ error: 'order array is required.' });
@@ -229,14 +261,38 @@ export async function reorderTimeline(req: Request, res: Response): Promise<Resp
 
   const db = getDatabase();
 
-  for (const item of order) {
-    const id = Number(item.id);
-    const sortOrder = Number(item.sort_order);
-    if (!Number.isInteger(id) || id <= 0) continue;
+  // #803/#804 — pre-validate the proposed order. Reject (rollback) unless
+  // the caller explicitly forces (e.g. admin override after acknowledging
+  // the conflict).
+  const current = await db.all<TimelineActivitySnapshot>(
+    `SELECT id, title, start_time, end_time, planned_start_time, planned_end_time,
+            sort_order, vendor_id, location,
+            COALESCE(buffer_before_mins, 0) AS buffer_before_mins,
+            COALESCE(buffer_after_mins, 0) AS buffer_after_mins
+       FROM timeline_activities
+      WHERE event_id = $1`,
+    [eventId],
+  );
+  const proposed = order
+    .map((entry) => ({ id: Number(entry.id), sort_order: Number(entry.sort_order) }))
+    .filter((entry) => Number.isInteger(entry.id) && Number.isFinite(entry.sort_order));
+  const { violations, sortDependencyViolations } = validateReorder(current, proposed);
+  const hasViolation = violations.length > 0 || sortDependencyViolations.length > 0;
+  if (hasViolation && !force) {
+    return res.status(409).json({
+      error: 'Reorder would create timeline conflicts.',
+      valid: false,
+      conflicts: violations,
+      sort_dependency_violations: sortDependencyViolations,
+    });
+  }
+
+  for (const item of proposed) {
+    if (!Number.isInteger(item.id) || item.id <= 0) continue;
     await db.run(
       `UPDATE timeline_activities SET sort_order = $1, updated_at = CURRENT_TIMESTAMP
        WHERE id = $2 AND event_id = $3`,
-      [sortOrder, id, eventId],
+      [item.sort_order, item.id, eventId],
     );
   }
 
@@ -244,7 +300,12 @@ export async function reorderTimeline(req: Request, res: Response): Promise<Resp
     `SELECT * FROM timeline_activities WHERE event_id = $1 ORDER BY sort_order ASC`,
     [eventId],
   );
-  return res.json({ activities });
+  return res.json({
+    activities,
+    valid: !hasViolation,
+    conflicts: violations,
+    sort_dependency_violations: sortDependencyViolations,
+  });
 }
 
 // ── #614: Buffer-time configuration ──────────────────────────────────────────
@@ -277,8 +338,14 @@ export async function updateActivityBuffer(req: Request, res: Response): Promise
 
   const fields: string[] = ['updated_at = CURRENT_TIMESTAMP'];
   const params: (number | string)[] = [];
-  if (buffer_before_mins !== undefined) { fields.unshift('buffer_before_mins = ?'); params.push(buffer_before_mins); }
-  if (buffer_after_mins !== undefined) { fields.unshift('buffer_after_mins = ?'); params.push(buffer_after_mins); }
+  if (buffer_before_mins !== undefined) {
+    fields.unshift('buffer_before_mins = ?');
+    params.push(buffer_before_mins);
+  }
+  if (buffer_after_mins !== undefined) {
+    fields.unshift('buffer_after_mins = ?');
+    params.push(buffer_after_mins);
+  }
   params.push(id);
 
   await db.run(`UPDATE timeline_activities SET ${fields.join(', ')} WHERE id = $1`, params);
@@ -315,9 +382,18 @@ export async function updateExecutionStatus(req: Request, res: Response): Promis
 
   const fields: string[] = ['updated_at = CURRENT_TIMESTAMP'];
   const params: (string | null)[] = [];
-  if (status) { fields.unshift('status = ?'); params.push(status); }
-  if (actual_start_time !== undefined) { fields.unshift('actual_start_time = ?'); params.push(actual_start_time || null); }
-  if (actual_end_time !== undefined) { fields.unshift('actual_end_time = ?'); params.push(actual_end_time || null); }
+  if (status) {
+    fields.unshift('status = ?');
+    params.push(status);
+  }
+  if (actual_start_time !== undefined) {
+    fields.unshift('actual_start_time = ?');
+    params.push(actual_start_time || null);
+  }
+  if (actual_end_time !== undefined) {
+    fields.unshift('actual_end_time = ?');
+    params.push(actual_end_time || null);
+  }
   params.push(id);
 
   await db.run(`UPDATE timeline_activities SET ${fields.join(', ')} WHERE id = $1`, params);
