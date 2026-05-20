@@ -204,6 +204,18 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
 
         {entraButton}
 
+        {entraEnabled && (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            align="center"
+            data-testid="entra-mfa-notice"
+          >
+            Your organisation requires Microsoft sign-in. You may be prompted for
+            multi-factor authentication (MFA) as part of the sign-in process.
+          </Typography>
+        )}
+
         {entraEnabled && !allowLocalFallback && (
           <Typography
             variant="body2"
