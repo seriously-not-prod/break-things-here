@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Track C — Auth & Identity)
+
+- **Task #785 — End-to-end Entra login flow Playwright test (mocked OIDC)**: Added `e2e/entra-auth.spec.ts` with five tests that drive the full Microsoft sign-in → Azure redirect → callback → dashboard flow using Playwright route interception as a mocked OIDC issuer. Added `e2e/fixtures/oidc-mock.ts` providing reusable `setupOidcMock()` helper with pre-configured test users and well-known group IDs for role-mapping assertions (Admin, Organizer, Viewer, no-groups default). Added `.github/workflows/e2e.yml` CI workflow that builds the frontend, starts a preview server, installs Playwright Chromium, and runs the e2e suite. No live Azure tenant required (#785).
+
 ### Documentation
 
 - **Task #794 — Document TLS termination ownership**: Added `docs/security/tls.md` documenting where TLS terminates (reverse proxy / ingress), required cipher suites (TLS 1.3 only), certificate source and renewal procedure, HSTS policy values (`max-age=31536000; includeSubDomains; preload`), database TLS requirements, and on-call ownership matrix. Linked from `SECURITY.md` and `README.md`. HSTS header values verified to match Helmet configuration in `backend/src/index.ts` (#794).
