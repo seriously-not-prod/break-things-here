@@ -1,8 +1,7 @@
 /**
- * /reports/builder page entry point (#812).
+ * Report Builder page entry point (#812).
  *
- * Reads the current event from URL params (or context).
- * Falls back to a "no event selected" prompt if no eventId is available.
+ * Accepts an optional eventId prop. Renders a prompt if no event is selected.
  */
 import React from 'react';
 import { ReportBuilderForm } from './ReportBuilderForm';

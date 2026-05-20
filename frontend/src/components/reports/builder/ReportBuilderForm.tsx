@@ -39,6 +39,11 @@ export function ReportBuilderForm({ eventId }: ReportBuilderFormProps): React.JS
   const [isRunning, setIsRunning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  /** Strip empty sort.field so the optional sortSchema min(1) doesn't block submission. */
+  function prepareValues(values: ReportBuilderValues): ReportBuilderValues {
+    return { ...values, sort: values.sort?.field ? values.sort : undefined };
+  }
+
   const methods = useForm<ReportBuilderValues>({
     resolver: zodResolver(reportBuilderSchema) as Resolver<ReportBuilderValues>,
     defaultValues: {
@@ -83,13 +88,14 @@ export function ReportBuilderForm({ eventId }: ReportBuilderFormProps): React.JS
       setStatusMsg('');
       setRunResult(null);
       try {
-        if (values.format === 'csv' || values.format === 'xlsx') {
+        const prepared = prepareValues(values);
+        if (prepared.format === 'csv' || prepared.format === 'xlsx') {
           // Trigger file download
           const res = await fetch(`/api/events/${eventId}/reports/builder/run`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(values),
+            body: JSON.stringify(prepared),
           });
           if (!res.ok) {
             const err = await res.json().catch(() => ({ error: res.statusText })) as { error: string };
@@ -100,14 +106,15 @@ export function ReportBuilderForm({ eventId }: ReportBuilderFormProps): React.JS
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `report-${values.domain}.${values.format}`;
+          a.download = `report-${prepared.domain}.${prepared.format}`;
           a.click();
-          URL.revokeObjectURL(url);
+          // Revoke after a short delay to ensure the browser starts the download
+          setTimeout(() => URL.revokeObjectURL(url), 100);
           setStatusMsg('Download started.');
         } else {
           const data = await api.post<{ columns: string[]; rows: Record<string, unknown>[] }>(
             `/api/events/${eventId}/reports/builder/run`,
-            values,
+            prepared,
           );
           setRunResult(data);
           setStatusMsg(`${data.rows.length} row(s) returned.`);
@@ -126,7 +133,7 @@ export function ReportBuilderForm({ eventId }: ReportBuilderFormProps): React.JS
       setIsSaving(true);
       setStatusMsg('');
       try {
-        await api.post(`/api/events/${eventId}/reports/builder/save`, values);
+        await api.post(`/api/events/${eventId}/reports/builder/save`, prepareValues(values));
         setStatusMsg('Report saved successfully.');
       } catch (err) {
         setStatusMsg(err instanceof Error ? err.message : 'Save failed.');
@@ -209,26 +216,9 @@ export function ReportBuilderForm({ eventId }: ReportBuilderFormProps): React.JS
             </section>
           )}
 
-          {/* Group by */}
-          {currentDomain && currentDomain.domain !== 'budget' && (
-            <section aria-labelledby="groupby-heading" style={{ marginBottom: '20px' }}>
-              <label htmlFor="report-groupby" id="groupby-heading" style={{ display: 'block', fontWeight: 600, marginBottom: '4px' }}>
-                Group By
-              </label>
-              <select
-                id="report-groupby"
-                {...register('groupBy')}
-                style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #d1d5db', minWidth: '180px' }}
-              >
-                <option value="">— none —</option>
-                {currentDomain.fields.filter((f) => f.filterable).map((f) => (
-                  <option key={f.key} value={f.key}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-            </section>
-          )}
+          {/* Group by — hidden: non-budget groupBy would produce invalid SQL (non-aggregated
+              fields in SELECT must also appear in GROUP BY). Budget groupBy is always
+              applied automatically by the service. */}
 
           {/* Sort */}
           {currentDomain && (
@@ -313,6 +303,7 @@ export function ReportBuilderForm({ eventId }: ReportBuilderFormProps): React.JS
                     id="recipients"
                     type="text"
                     placeholder="alice@example.com, bob@example.com"
+                    aria-describedby={errors.recipients ? 'recipients-error' : undefined}
                     onBlur={(e) => {
                       const emails = e.target.value
                         .split(',')
@@ -320,8 +311,15 @@ export function ReportBuilderForm({ eventId }: ReportBuilderFormProps): React.JS
                         .filter(Boolean);
                       setValue('recipients', emails, { shouldValidate: true });
                     }}
-                    style={{ width: '100%', padding: '6px 10px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                    style={{ width: '100%', padding: '6px 10px', borderRadius: '4px', border: `1px solid ${errors.recipients ? '#dc2626' : '#d1d5db'}` }}
                   />
+                  {errors.recipients && (
+                    <p id="recipients-error" role="alert" style={{ color: '#dc2626', fontSize: '0.85rem', marginTop: '4px' }}>
+                      {Array.isArray(errors.recipients)
+                        ? (errors.recipients as Array<{message?: string} | undefined>).filter(Boolean).map((e) => e?.message).filter(Boolean).join(', ') || 'Invalid email address.'
+                        : 'Invalid email address.'}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

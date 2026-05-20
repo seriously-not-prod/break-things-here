@@ -118,6 +118,12 @@ export async function saveReport(req: Request, res: Response): Promise<Response>
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
 
+  // Parse and validate eventId (req.params values are strings)
+  const parsedEventId = parseInt(eventId, 10);
+  if (isNaN(parsedEventId) || parsedEventId <= 0) {
+    return res.status(400).json({ error: 'Invalid eventId.' });
+  }
+
   const body = (req.body ?? {}) as Record<string, unknown>;
   const { name, domain, frequency, recipients } = body;
 
@@ -131,12 +137,23 @@ export async function saveReport(req: Request, res: Response): Promise<Response>
     return res.status(400).json({ error: `frequency must be one of: ${[...VALID_FREQUENCIES].join(', ')}` });
   }
 
+  // Validate recipient emails
+  const isValidEmail = (e: unknown): e is string =>
+    typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+  if (Array.isArray(recipients) && recipients.length > 0) {
+    const invalid = recipients.filter((r) => !isValidEmail(r));
+    if (invalid.length > 0) {
+      return res.status(400).json({ error: `Invalid email(s): ${(invalid as string[]).join(', ')}` });
+    }
+  }
+
   // For scheduled frequencies, recipients are required
   if (frequency !== 'one_off' && (!Array.isArray(recipients) || recipients.length === 0)) {
     return res.status(400).json({ error: 'recipients is required for scheduled reports.' });
   }
 
   const builderConfig = {
+    name: (name as string).trim(),
     domain,
     fields: Array.isArray(body.fields) ? body.fields : [],
     filters: Array.isArray(body.filters) ? body.filters : [],
@@ -151,7 +168,7 @@ export async function saveReport(req: Request, res: Response): Promise<Response>
      VALUES ($1, 'custom_builder', $2, $3::jsonb, $4::jsonb, $5::jsonb, $6, $7, $8)
      RETURNING id`,
     [
-      eventId,
+      parsedEventId,
       frequency,
       JSON.stringify(Array.isArray(recipients) ? recipients : []),
       JSON.stringify(builderConfig.filters),
@@ -191,6 +208,16 @@ function isSort(val: unknown): val is { field: string; direction: 'asc' | 'desc'
   return typeof v.field === 'string' && (v.direction === 'asc' || v.direction === 'desc');
 }
 
+/**
+ * Neutralize spreadsheet formula injection: prefix cells that start with
+ * a formula-trigger character ('=', '+', '-', '@', TAB, CR) with a single
+ * quote so spreadsheet applications treat the value as literal text.
+ */
+function sanitizeForSpreadsheet(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 function sendCsv(
   res: Response,
   columns: string[],
@@ -198,7 +225,8 @@ function sendCsv(
   filename: string,
 ): void {
   const escape = (v: unknown): string => {
-    const s = v == null ? '' : String(v);
+    const safe = sanitizeForSpreadsheet(v);
+    const s = safe == null ? '' : String(safe);
     // Wrap in double quotes if value contains comma, newline, or double quote
     if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
     return s;
@@ -228,9 +256,9 @@ async function sendXlsx(
   sheet.addRow(columns);
   sheet.getRow(1).font = { bold: true };
 
-  // Data rows
+  // Data rows — sanitize string values to prevent formula injection
   for (const row of rows) {
-    sheet.addRow(Object.values(row));
+    sheet.addRow(Object.values(row).map(sanitizeForSpreadsheet));
   }
 
   // Auto-fit columns

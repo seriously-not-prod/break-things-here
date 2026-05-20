@@ -255,8 +255,11 @@ function DOMAIN_DOMAIN_FROM(domain: ReportDomain, eventId: number): { from: stri
 function resolveGroupBy(domain: ReportDomain, userGroupBy: string | undefined, fields: DomainFields): string {
   const required = DOMAIN_REQUIRES_GROUP[domain];
   if (required) return required; // budget always groups
-  if (!userGroupBy || !(userGroupBy in fields)) return '';
-  return fields[userGroupBy].expr;
+  // For non-budget domains, user-defined GROUP BY would require every SELECT field
+  // to be aggregated or in the GROUP BY clause, which we cannot guarantee here.
+  // User groupBy is intentionally ignored for non-budget domains.
+  void userGroupBy; void fields;
+  return '';
 }
 
 /**
