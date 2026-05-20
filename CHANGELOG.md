@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **Task #794 — Document TLS termination ownership**: Added `docs/security/tls.md` documenting where TLS terminates (reverse proxy / ingress), required cipher suites (TLS 1.3 only), certificate source and renewal procedure, HSTS policy values (`max-age=31536000; includeSubDomains; preload`), database TLS requirements, and on-call ownership matrix. Linked from `SECURITY.md` and `README.md`. HSTS header values verified to match Helmet configuration in `backend/src/index.ts` (#794).
+
+- **Task #791 — Document Entra rollout matrix and local-fallback policy**: Added environment rollout matrix table to `docs/entra-auth-rollout.md` documenting Entra on/off, local-fallback on/off, and signing keys source for production, staging, development, and test tiers. Created operations runbook `docs/operations/entra-outage.md` with step-by-step procedure for temporarily enabling local-credential fallback during an Azure Entra ID outage, including verification, communication, and restoration steps. Added Security & Identity documentation section to README linking to the rollout matrix and outage runbook (#791).
+
 ### Added (Track B — Notifications)
 
 - **Task #786 — Notification preferences — backend model and endpoints**: Added normalised `notification_preferences` table with `(user_id, channel, category, enabled)` schema (migration `v22-notification-preferences-matrix.sql`), replacing the legacy per-type boolean columns. Migration seeds default-enabled rows for every existing user × channel × category combination. Added `GET /api/users/me/notification-preferences` returning the full channel × category matrix and `PATCH /api/users/me/notification-preferences` accepting bulk updates. Created `backend/src/services/notifications/dispatch-guard.ts` with `isChannelEnabled()` helper. Outbound dispatchers (`createBatchedNotification`, `createBudgetAlert`, `createRsvpNotification`, `createTaskDueAlert`) now consult the preference matrix before sending. Integration tests in `backend/__tests__/notification-preferences.test.ts` verify endpoints, validation, and dispatch suppression (#786).
