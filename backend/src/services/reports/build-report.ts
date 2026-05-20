@@ -116,14 +116,14 @@ const DOMAIN_FIELDS: Record<ReportDomain, DomainFields> = {
 
 /** FROM clause + any joins needed per domain */
 const DOMAIN_FROM: Record<ReportDomain, (eventId: number) => { from: string; baseParam: number[] }> = {
-  events: () => ({ from: 'FROM events e', baseParam: [] }),
+  events: (eid) => ({ from: 'FROM events e', baseParam: [eid] }),
   guests: (eid) => ({ from: 'FROM rsvps r', baseParam: [eid] }),
   budget: (eid) => ({
     from: 'FROM budget_categories bc LEFT JOIN expenses ex ON ex.budget_category_id = bc.id AND ex.event_id = bc.event_id',
     baseParam: [eid],
   }),
-  tasks: () => ({ from: 'FROM tasks t', baseParam: [] }),
-  vendors: () => ({ from: 'FROM vendors v', baseParam: [] }),
+  tasks:   (eid) => ({ from: 'FROM tasks t',   baseParam: [eid] }),
+  vendors: (eid) => ({ from: 'FROM vendors v', baseParam: [eid] }),
 };
 
 /** WHERE clause applied before user filters */
