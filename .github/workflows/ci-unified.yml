@@ -144,6 +144,18 @@ jobs:
         working-directory: frontend
         run: npx tsc --noEmit
 
+      - name: Run frontend tests with coverage
+        working-directory: frontend
+        run: npm run test:coverage
+
+      - name: Upload frontend coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-frontend
+          path: frontend/coverage/
+          retention-days: 14
+
   build-check:
     name: Build Check
     runs-on: ubuntu-latest
