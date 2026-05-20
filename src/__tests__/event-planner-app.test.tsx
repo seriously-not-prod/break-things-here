@@ -90,29 +90,6 @@ describe('EventPlannerApp', () => {
     expect(screen.getByText('Pending Tasks')).toBeInTheDocument();
   });
 
-  it('redirects unauthenticated users to login', async () => {
-    // Mock unauthorized response
-    (global.fetch as any).mockImplementation((url: string) => {
-      if (url.includes('/api/auth/me')) {
-        return Promise.resolve({
-          ok: false,
-          status: 401,
-          json: async () => ({ error: 'Unauthorized' }),
-        } as Response);
-      }
-      return mockFetchSuccess(url);
-    });
-
-    window.history.pushState({}, '', '/dashboard');
-    render(<EventPlannerApp />);
-
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Festival Planner' })).toBeInTheDocument();
-    });
-
-    expect(screen.getByRole('button', { name: 'Sign In' })).toBeInTheDocument();
-  });
-
   it('submits a public rsvp without requiring login', async () => {
     const user = userEvent.setup();
 

@@ -87,6 +87,19 @@ jobs:
     needs: lint-and-typecheck
     permissions:
       contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: festival_planner_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d festival_planner_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -104,6 +117,8 @@ jobs:
       - name: Run backend tests
         working-directory: backend
         run: npm test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/festival_planner_test
 
   test-frontend:
     name: Test - Frontend (Vite)
@@ -156,122 +171,12 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-  ci-complete:
-    name: CI Complete
-    runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, test-root, test-backend, test-frontend, build-check]
-    if: always()
-    steps:
-      - name: Check all jobs passed
-        run: |
-          if [[ "${{ needs.lint-and-typecheck.result }}" != "success" || \
-                "${{ needs.test-root.result }}" != "success" || \
-                "${{ needs.test-backend.result }}" != "success" || \
-                "${{ needs.test-frontend.result }}" != "success" || \
-                "${{ needs.build-check.result }}" != "success" ]]; then
-            echo "❌ One or more CI jobs failed"
-            exit 1
-          fi
-          echo "✅ All CI checks passed"
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: TypeScript type check (root)
-        run: npx tsc --noEmit
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: TypeScript type check (backend)
-        working-directory: backend
-        run: npx tsc --noEmit
-  test-root:
-    name: Test - Root (Vitest)
+  security-audit:
+    name: Security Audit
     runs-on: ubuntu-latest
     needs: lint-and-typecheck
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests with coverage
-        run: npm test -- --coverage --reporter=verbose
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-root
-          path: coverage/
-          retention-days: 7
-
-  test-backend:
-    name: Test - Backend (Vitest)
-    runs-on: ubuntu-latest
-    needs: lint-and-typecheck
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: Run backend tests
-        working-directory: backend
-        run: npm test
-
-  test-frontend:
-    name: Test - Frontend (Vite)
-    runs-on: ubuntu-latest
-    needs: lint-and-typecheck
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: TypeScript type check (frontend)
-        working-directory: frontend
-        run: npx tsc --noEmit
-
-  build-check:
-    name: Build Check
-    runs-on: ubuntu-latest
-    needs: [test-root, test-backend, test-frontend]
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -285,28 +190,91 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
 
-      - name: Build frontend
+      # High-severity advisories block the merge. `--audit-level=high` ignores
+      # informational/moderate findings so the gate is enforceable without
+      # noise. Run in every workspace so each lock file is covered.
+      - name: npm audit (root)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (backend)
+        working-directory: backend
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (frontend)
         working-directory: frontend
-        run: npm run build
+        run: npm audit --omit=dev --audit-level=high
+
+  schema-doc-drift:
+    name: Schema Doc Drift (Warning)
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: festival_planner
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d festival_planner"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Load schema
+        run: psql "postgresql://postgres:postgres@localhost:5432/festival_planner" -v ON_ERROR_STOP=1 -f database/init.sql
+
+      - name: Regenerate ERD and schema docs
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/festival_planner
+        run: ./scripts/generate-erd.sh
+
+      - name: Warn if generated docs drift
+        run: |
+          if ! git diff --quiet -- docs/database; then
+            echo "::warning title=Database documentation drift detected::Run ./scripts/generate-erd.sh and commit updated docs/database artifacts."
+            git --no-pager diff -- docs/database | head -n 200
+          else
+            echo "No schema documentation drift detected."
+          fi
 
   ci-complete:
+    # NOTE: This is the job to mark as a Required status check in branch
+    # protection for `develop` / `test` / `stage` / `main`. It fails fast
+    # whenever any upstream job fails, so requiring `ci-complete` is enough
+    # to gate merges on the entire pipeline (tests, lint, build, audit).
     name: CI Complete
     runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, test-root, test-backend, test-frontend, build-check]
+    needs: [lint-and-typecheck, test-root, test-backend, test-frontend, build-check, security-audit]
     if: always()
     steps:
       - name: Check all jobs passed
         run: |
-          if [[ "${{ needs.lint-and-typecheck.result }}" != "success" || \
-                "${{ needs.test-root.result }}" != "success" || \
-                "${{ needs.test-backend.result }}" != "success" || \
-                "${{ needs.test-frontend.result }}" != "success" || \
-                "${{ needs.build-check.result }}" != "success" ]]; then
+          if [[ "${{ needs['lint-and-typecheck'].result }}" != "success" || \
+                "${{ needs['test-root'].result }}" != "success" || \
+                "${{ needs['test-backend'].result }}" != "success" || \
+                "${{ needs['test-frontend'].result }}" != "success" || \
+                "${{ needs['build-check'].result }}" != "success" || \
+                "${{ needs['security-audit'].result }}" != "success" ]]; then
             echo "❌ One or more CI jobs failed"
             exit 1
           fi
           echo "✅ All CI checks passed"
+

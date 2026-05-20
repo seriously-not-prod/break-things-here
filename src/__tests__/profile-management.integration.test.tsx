@@ -28,7 +28,10 @@ const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(
   vi.fn() as unknown as typeof fetch,
 );
 
-beforeEach(() => fetchSpy.mockReset());
+beforeEach(() => {
+  fetchSpy.mockReset();
+  document.cookie = 'XSRF-TOKEN=test-csrf-token';
+});
 
 /**
  * Wrappers that satisfy the `() => Promise<void>` prop contract while
@@ -69,8 +72,13 @@ describe('Profile management — integration', () => {
         expect.objectContaining({
           method: 'PATCH',
           body: expect.stringContaining('Updated Name'),
+          headers: expect.any(Headers),
         }),
       );
+
+      const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      const headers = options.headers as Headers;
+      expect(headers.get('X-XSRF-TOKEN')).toBe('test-csrf-token');
     });
   });
 
@@ -95,9 +103,17 @@ describe('Profile management — integration', () => {
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
-        expect.stringContaining('/users/me/photo'),
-        expect.objectContaining({ method: 'POST' }),
+        expect.stringContaining('/profile/photo'),
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.any(Headers),
+        }),
       );
+
+      const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      const headers = options.headers as Headers;
+      expect(headers.get('X-XSRF-TOKEN')).toBe('test-csrf-token');
+      expect(headers.has('Content-Type')).toBe(false);
     });
   });
 
