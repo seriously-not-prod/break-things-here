@@ -1,7 +1,6 @@
 import { ChangeEvent, FormEvent, useState } from 'react';
 import { Alert, Box, Button, Stack, TextField, Typography } from '@mui/material';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+import { apiFetch } from '../../lib/api-client';
 
 interface ForgotPasswordFormProps {
   onBackToLogin?: () => void;
@@ -31,9 +30,8 @@ export function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordFormProps): 
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+      const response = await apiFetch('/api/auth/forgot-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmedEmail }),
       });
 

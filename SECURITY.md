@@ -46,6 +46,48 @@ When contributing to this project:
 - Validate all user inputs
 - Implement proper authentication and authorization
 
+## Mandatory Production Security Flags
+
+For production/staging deployments, backend startup now fails closed unless all
+of these values are explicitly set:
+
+- `ENFORCE_HTTPS=true`
+- `EDGE_TLS_MIN_VERSION=TLSv1.3`
+- `DB_SSL_REQUIRED=true`
+- `DB_ENCRYPTION_AT_REST_VERIFIED=true`
+- `VIRUS_SCAN_ENABLED=true`
+- `VIRUS_SCAN_BLOCK_ON_ERROR=true`
+
+Additionally, `DATABASE_URL` must use PostgreSQL with strict SSL verification:
+
+- `sslmode=verify-ca` or `sslmode=verify-full`
+
+This ensures the 3.1.3 Data Security controls are enforced as hard startup
+requirements, not optional runtime behavior.
+
+## TLS & HTTPS
+
+TLS is terminated at the reverse-proxy / ingress layer with TLS 1.3 enforced.
+HSTS is applied by the backend via Helmet (`max-age=31536000; includeSubDomains; preload`).
+
+For full details on TLS termination, cipher suites, certificate management,
+renewal procedures, and on-call ownership, see:
+
+- **[docs/security/tls.md](docs/security/tls.md)** — TLS termination ownership and HTTPS enforcement
+
+## Secret Management
+
+The backend uses three server-side secrets for token security. See the dedicated guide for generation, rotation, and emergency revocation procedures:
+
+- **[docs/security/jwt-secrets.md](docs/security/jwt-secrets.md)** — JWT_SECRET, TOKEN_HASH_SECRET, REFRESH_TOKEN_ENC_KEY lifecycle, rotation, and revocation
+- **[PASSWORD_HASHING.md](PASSWORD_HASHING.md)** — bcrypt configuration for password storage
+
+For emergency session revocation, use `scripts/revoke-all-sessions.sql` against your PostgreSQL instance:
+
+```bash
+psql "$DATABASE_URL" -f scripts/revoke-all-sessions.sql
+```
+
 ## Disclosure Policy
 
 We follow responsible disclosure practices. Please allow us time to address the vulnerability before publicly disclosing it.

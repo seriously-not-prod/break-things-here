@@ -1,25 +1,23 @@
 #!/usr/bin/env node
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
 import bcrypt from 'bcrypt';
+import pg from 'pg';
 
 async function testPassword() {
-  const db = await open({
-    filename: './database/dev.sqlite',
-    driver: sqlite3.Database,
-  });
+  const connectionString = process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/festival_planner';
+  const pool = new pg.Pool({ connectionString });
 
   const email = 'admin@festival.local';
   const password = 'festivalAdmin2025';
 
-  const user = await db.get(
-    'SELECT id, email, password_hash, display_name, email_verified, account_locked FROM users WHERE email = ?',
-    [email]
+  const result = await pool.query(
+    'SELECT id, email, password_hash, display_name, email_verified, account_locked FROM users WHERE email = $1',
+    [email],
   );
+  const user = result.rows[0];
 
   if (!user) {
     console.log('❌ User not found!');
-    await db.close();
+    await pool.end();
     return;
   }
 
@@ -34,7 +32,7 @@ async function testPassword() {
   const isMatch = await bcrypt.compare(password, user.password_hash);
   console.log(`🔐 Password Test for "${password}":`, isMatch ? '✅ MATCH' : '❌ NO MATCH\n');
 
-  await db.close();
+  await pool.end();
 }
 
 testPassword().catch(console.error);
