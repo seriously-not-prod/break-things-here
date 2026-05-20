@@ -5,6 +5,10 @@
  * handlers so the suite runs without provisioning a real Azure tenant.
  * Each helper configures a {@link BrowserContext} with deterministic
  * responses that mirror the backend's Entra callback contract.
+ *
+ * Group-to-role resolution mirrors the backend logic in
+ * `backend/src/config/entra.ts → resolveRoleFromEntraGroups()` so
+ * that tests exercise the mapping without hard-coding expected roles.
  */
 import { BrowserContext, Route } from '@playwright/test';
 
@@ -25,10 +29,6 @@ export interface OidcMockUser {
 export interface OidcMockOptions {
   /** The mock user that "authenticates" through the OIDC flow. */
   user: OidcMockUser;
-  /** Application role name the callback should return (e.g. 'Admin'). */
-  roleName: string;
-  /** Numeric role ID matching the `roles` table. */
-  roleId: number;
   /** Whether Entra auth is enabled. @default true */
   enabled?: boolean;
   /** Whether local-credential fallback is allowed. @default false */
@@ -82,6 +82,57 @@ export const MOCK_USERS = {
 } satisfies Record<string, OidcMockUser>;
 
 /* ------------------------------------------------------------------ */
+/*  Group → role resolution (mirrors backend/src/config/entra.ts)      */
+/* ------------------------------------------------------------------ */
+
+interface ResolvedRole {
+  roleName: string;
+  roleId: number;
+}
+
+const DEFAULT_ROLE: ResolvedRole = { roleName: 'Attendee', roleId: 1 };
+
+const ROLE_PRECEDENCE: readonly { groupId: string; role: ResolvedRole }[] = [
+  { groupId: MOCK_GROUPS.admins, role: { roleName: 'Admin', roleId: 3 } },
+  {
+    groupId: MOCK_GROUPS.organizers,
+    role: { roleName: 'Organizer', roleId: 2 },
+  },
+  {
+    groupId: MOCK_GROUPS.collaborators,
+    role: { roleName: 'Collaborator', roleId: 4 },
+  },
+  { groupId: MOCK_GROUPS.guests, role: { roleName: 'Guest', roleId: 5 } },
+  { groupId: MOCK_GROUPS.viewers, role: { roleName: 'Viewer', roleId: 6 } },
+];
+
+/**
+ * Resolves the application role from Entra group IDs using the same
+ * precedence as the backend: Admin > Organizer > Collaborator > Guest > Viewer.
+ * Returns DEFAULT_ROLE when no groups match.
+ */
+export function resolveRoleFromGroups(groupIds: string[]): ResolvedRole {
+  if (!groupIds.length) return DEFAULT_ROLE;
+  const userGroups = new Set(groupIds);
+  for (const entry of ROLE_PRECEDENCE) {
+    if (userGroups.has(entry.groupId)) return entry.role;
+  }
+  return DEFAULT_ROLE;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Cookie domain helper                                               */
+/* ------------------------------------------------------------------ */
+
+function extractDomain(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).hostname;
+  } catch {
+    return 'localhost';
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Setup helper                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -89,19 +140,34 @@ export const MOCK_USERS = {
  * Registers Playwright route handlers on {@link context} that simulate
  * a complete Entra OIDC sign-in flow:
  *
- * 1. `GET  /api/auth/entra/config`   → feature-flag response
- * 2. `GET  /api/csrf-token`          → deterministic CSRF token
- * 3. `GET  /api/auth/entra/login`    → 302 redirect to callback with code
- * 4. `POST /api/auth/entra/callback` → session creation + cookies
- * 5. `GET  /api/auth/me`             → authenticated user profile
- * 6. `POST /api/auth/refresh`        → token refresh
+ * 1. `GET  /api/auth/entra/config`      → feature-flag response
+ * 2. `GET  /api/csrf-token`             → deterministic CSRF token
+ * 3. `GET  /api/auth/entra/login`       → redirect to callback with code
+ * 4. `POST /api/auth/entra/callback`    → session creation + cookies
+ * 5. `GET  /api/auth/me`               → authenticated user profile
+ * 6. `POST /api/auth/refresh`           → token refresh
  * 7. `POST /api/auth/session/heartbeat` → session keep-alive
+ *
+ * Endpoints 5, 6, and 7 return 401 until the callback (step 4) has
+ * been triggered, preventing the auth context from considering the
+ * user already authenticated on initial page load.
+ *
+ * The role returned by endpoints 4 and 5 is derived from
+ * `user.groups` via {@link resolveRoleFromGroups}, mirroring the
+ * backend's `resolveRoleFromEntraGroups()` precedence.
  */
 export async function setupOidcMock(
   context: BrowserContext,
   options: OidcMockOptions,
+  baseUrl: string = process.env['PLAYWRIGHT_BASE_URL'] ?? 'http://localhost:5173',
 ): Promise<void> {
-  const { user, roleName, roleId, enabled = true, allowLocalFallback = false } = options;
+  const { user, enabled = true, allowLocalFallback = false } = options;
+  const { roleName, roleId } = resolveRoleFromGroups(user.groups);
+  const cookieDomain = extractDomain(baseUrl);
+
+  // Gate session endpoints behind the callback flow so the auth context
+  // does not consider the user already authenticated on initial page load.
+  let authenticated = false;
 
   // 1. Entra feature-flag endpoint
   await context.route('**/api/auth/entra/config', (route: Route) =>
@@ -139,12 +205,15 @@ export async function setupOidcMock(
 
   // 4. Entra callback — exchanges mock code for session.
   await context.route('**/api/auth/entra/callback', async (route: Route) => {
+    // Mark session as authenticated so subsequent /me calls succeed.
+    authenticated = true;
+
     // Simulate the httpOnly session cookies the real backend sets.
     await context.addCookies([
       {
         name: 'accessToken',
         value: 'mock-encrypted-access',
-        domain: 'localhost',
+        domain: cookieDomain,
         path: '/',
         httpOnly: true,
         sameSite: 'Strict',
@@ -152,7 +221,7 @@ export async function setupOidcMock(
       {
         name: 'refreshToken',
         value: 'mock-encrypted-refresh',
-        domain: 'localhost',
+        domain: cookieDomain,
         path: '/',
         httpOnly: true,
         sameSite: 'Strict',
@@ -170,14 +239,23 @@ export async function setupOidcMock(
           email: user.email,
           displayName: user.displayName,
           roleId,
+          groups: user.groups,
         },
       }),
     });
   });
 
-  // 5. Authenticated user profile
-  await context.route('**/api/auth/me', (route: Route) =>
-    route.fulfill({
+  // 5. Authenticated user profile — returns 401 before callback so the
+  //    auth context does not redirect away from the login page.
+  await context.route('**/api/auth/me', (route: Route) => {
+    if (!authenticated) {
+      return route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Not authenticated' }),
+      });
+    }
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
@@ -186,25 +264,35 @@ export async function setupOidcMock(
         display_name: user.displayName,
         role_id: roleId,
         role_name: roleName,
+        groups: user.groups,
       }),
-    }),
-  );
+    });
+  });
 
-  // 6. Token refresh
+  // 6. Token refresh — always returns 401 because the mock does not issue
+  //    real refresh tokens. The access token is set via setToken() in the
+  //    callback page, so the refresh endpoint is never needed during tests.
   await context.route('**/api/auth/refresh', (route: Route) =>
     route.fulfill({
-      status: 200,
+      status: 401,
       contentType: 'application/json',
-      body: JSON.stringify({ accessToken: MOCK_ACCESS_TOKEN }),
+      body: JSON.stringify({ error: 'No refresh token' }),
     }),
   );
 
-  // 7. Session heartbeat
-  await context.route('**/api/auth/session/heartbeat', (route: Route) =>
-    route.fulfill({
+  // 7. Session heartbeat — returns 401 before callback.
+  await context.route('**/api/auth/session/heartbeat', (route: Route) => {
+    if (!authenticated) {
+      return route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Not authenticated' }),
+      });
+    }
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ ok: true }),
-    }),
-  );
+    });
+  });
 }

@@ -50,7 +50,7 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
-        run: npm run build
+        run: npx vite build
 
       - name: Start preview server
         working-directory: frontend
@@ -60,8 +60,10 @@ jobs:
         run: |
           timeout 30 bash -c 'until curl -sf http://localhost:5173 > /dev/null; do sleep 1; done'
 
+      # Scope to mocked-OIDC tests only — the remaining e2e specs require
+      # a live backend + database and are covered by other CI workflows.
       - name: Run E2E tests
-        run: npx playwright test --project=chromium
+        run: npx playwright test e2e/entra-auth.spec.ts --project=chromium
         env:
           CI: true
           PLAYWRIGHT_BASE_URL: http://localhost:5173
