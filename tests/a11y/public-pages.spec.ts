@@ -21,11 +21,12 @@ test.describe('Accessibility — Public pages', () => {
   });
 
   test('RSVP portal has no critical or serious a11y violations', async ({ page }) => {
-    const { blocking } = await runAxeAudit(page, '/rsvp');
+    // RSVP portal requires an event ID in the route
+    const { blocking } = await runAxeAudit(page, '/rsvp/1');
 
     expect(
       blocking,
-      `Accessibility violations on /rsvp:\n${formatViolations(blocking, '/rsvp')}`,
+      `Accessibility violations on /rsvp/1:\n${formatViolations(blocking, '/rsvp/1')}`,
     ).toHaveLength(0);
   });
 });

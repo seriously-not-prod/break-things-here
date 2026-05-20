@@ -6,8 +6,8 @@
 > currently allowlisted in the axe-core CI workflow (`.github/workflows/a11y.yml`).
 > Each entry has a follow-up issue to track remediation.
 >
-> Violations listed here will NOT block PR merges but will emit warnings in
-> the CI output. Remove entries as they are fixed.
+> Violations listed here will NOT block PR merges but will be logged as
+> warnings in the CI output for visibility. Remove entries as they are fixed.
 
 ## How to use
 
@@ -24,8 +24,8 @@ entry:
 
 | Rule ID | Description | Impact | Pages Affected | Follow-up Issue |
 |---------|-------------|--------|----------------|-----------------|
-| `color-contrast` | Elements must meet minimum colour contrast ratio requirements | serious | /login, /events | #TBD |
-| `landmark-one-main` | Page must have one main landmark | serious | /rsvp | #TBD |
+| `color-contrast` | Elements must meet minimum colour contrast ratio requirements | serious | /login, /events | To be filed |
+| `landmark-one-main` | Page must have one main landmark | serious | /rsvp | To be filed |
 
 ## Graduated (Fixed) Entries
 

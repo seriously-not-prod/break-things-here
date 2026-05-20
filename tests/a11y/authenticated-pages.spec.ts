@@ -43,84 +43,32 @@ test.describe('Accessibility — Authenticated pages', () => {
   });
 
   test('event detail page has no critical or serious a11y violations', async ({ page }) => {
-    // Navigate to events list then click the first event
-    await page.goto('/events');
-    const firstEvent = page.locator('a[href*="/events/"], [data-testid="event-card"]').first();
-
-    // If no event links found, try navigating to /events/1 directly
-    if ((await firstEvent.count()) > 0) {
-      await firstEvent.click();
-      await page.waitForLoadState('networkidle');
-    } else {
-      await page.goto('/events/1');
-    }
-
-    const currentUrl = page.url();
-    const { blocking } = await runAxeAudit(page, currentUrl);
+    // Navigate directly to first event detail page
+    const { blocking } = await runAxeAudit(page, '/events/1');
 
     expect(
       blocking,
-      `Accessibility violations on event detail:\n${formatViolations(blocking, currentUrl)}`,
+      `Accessibility violations on /events/1:\n${formatViolations(blocking, '/events/1')}`,
     ).toHaveLength(0);
   });
 
   test('guest list page has no critical or serious a11y violations', async ({ page }) => {
-    // Navigate to the guest list (typically under an event)
-    await page.goto('/events');
-    const firstEvent = page.locator('a[href*="/events/"], [data-testid="event-card"]').first();
-
-    if ((await firstEvent.count()) > 0) {
-      await firstEvent.click();
-      await page.waitForLoadState('networkidle');
-    } else {
-      await page.goto('/events/1');
-    }
-
-    // Look for guest list navigation
-    const guestLink = page.locator('a[href*="guest"], [data-testid="guest-list-tab"]').first();
-    if ((await guestLink.count()) > 0) {
-      await guestLink.click();
-      await page.waitForLoadState('networkidle');
-    } else {
-      await page.goto('/events/1/guests');
-    }
-
-    const currentUrl = page.url();
-    const { blocking } = await runAxeAudit(page, currentUrl);
+    // Navigate directly to guest list for first event
+    const { blocking } = await runAxeAudit(page, '/events/1/guests');
 
     expect(
       blocking,
-      `Accessibility violations on guest list:\n${formatViolations(blocking, currentUrl)}`,
+      `Accessibility violations on /events/1/guests:\n${formatViolations(blocking, '/events/1/guests')}`,
     ).toHaveLength(0);
   });
 
   test('budget page has no critical or serious a11y violations', async ({ page }) => {
-    // Navigate to budget (typically under an event)
-    await page.goto('/events');
-    const firstEvent = page.locator('a[href*="/events/"], [data-testid="event-card"]').first();
-
-    if ((await firstEvent.count()) > 0) {
-      await firstEvent.click();
-      await page.waitForLoadState('networkidle');
-    } else {
-      await page.goto('/events/1');
-    }
-
-    // Look for budget navigation
-    const budgetLink = page.locator('a[href*="budget"], [data-testid="budget-tab"]').first();
-    if ((await budgetLink.count()) > 0) {
-      await budgetLink.click();
-      await page.waitForLoadState('networkidle');
-    } else {
-      await page.goto('/events/1/budget');
-    }
-
-    const currentUrl = page.url();
-    const { blocking } = await runAxeAudit(page, currentUrl);
+    // Navigate directly to budget for first event
+    const { blocking } = await runAxeAudit(page, '/events/1/budget');
 
     expect(
       blocking,
-      `Accessibility violations on budget:\n${formatViolations(blocking, currentUrl)}`,
+      `Accessibility violations on /events/1/budget:\n${formatViolations(blocking, '/events/1/budget')}`,
     ).toHaveLength(0);
   });
 });

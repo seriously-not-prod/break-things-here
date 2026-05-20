@@ -17,6 +17,9 @@ concurrency:
   group: a11y-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   axe-audit:
     name: Axe-core WCAG 2.1 AA Audit
@@ -82,7 +85,7 @@ jobs:
           npx wait-on http://localhost:4000/api/health http://localhost:5173 --timeout 60000 || echo "::warning::Services did not start in time — tests may fail"
 
       - name: Run axe-core accessibility tests
-        run: npx playwright test tests/a11y/ --project=chromium --reporter=list,junit
+        run: npx playwright test tests/a11y/ --config tests/a11y/playwright.config.ts --project=chromium --reporter=list,junit
         env:
           PLAYWRIGHT_JUNIT_OUTPUT_NAME: a11y-results.xml
 

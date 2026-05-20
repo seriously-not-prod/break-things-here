@@ -58,7 +58,8 @@ export interface AuditResult {
 
 /**
  * Run an axe-core audit on the current page and return filtered results.
- * Violations in the baseline allowlist are excluded from blocking results.
+ * Violations in the baseline allowlist are excluded from blocking results
+ * but logged as warnings for visibility.
  */
 export async function runAxeAudit(page: Page, pageUrl: string): Promise<AuditResult> {
   await page.goto(pageUrl, { waitUntil: 'networkidle' });
@@ -68,6 +69,15 @@ export async function runAxeAudit(page: Page, pageUrl: string): Promise<AuditRes
     .analyze();
 
   const allowlist = loadBaselineAllowlist();
+
+  // Log allowlisted violations as warnings so they remain visible in CI
+  const allowlisted = results.violations.filter((v) => allowlist.has(v.id));
+  if (allowlisted.length > 0) {
+    console.warn(
+      `[a11y] ${allowlisted.length} allowlisted violation(s) on ${pageUrl}: ` +
+        allowlisted.map((v) => `${v.id} (${v.impact})`).join(', '),
+    );
+  }
 
   const blocking = results.violations
     .filter(
