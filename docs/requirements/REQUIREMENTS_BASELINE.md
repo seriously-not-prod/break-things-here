@@ -434,6 +434,7 @@ Schema reference alignment note (BRD v2.0 §1.4):
 
 - **users** - User profiles and identity mapping
 - **events** - Event master records and lifecycle metadata
+- **guests** - First-class guest identity/profile records (linked from `rsvps.guest_id`)
 - **rsvps** - RSVP workflow records and status data
 - **tasks** - Work planning and execution tracking
 - **budget_categories** and **expenses** - Budget structure and spend tracking
@@ -463,12 +464,13 @@ Schema reference alignment note (BRD v2.0 §1.4):
 
 ### TRD Change Log
 
-| Date       | Section                          | Change                                                                                                                                                   | Reference |
-| ---------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| 2026-05-20 | 4.1 Technology Stack             | Updated backend API contract to Express `/api` and removed PostgREST as the active runtime API layer.                                                    | #775      |
-| 2026-05-20 | 4.3 Development Environment      | Replaced PostgREST service reference with Express backend container and documented freed port `3001` in default compose runtime.                         | #775      |
-| 2026-05-20 | 4.2 Database Schema Architecture | Replaced outdated "11-table core" wording with live-schema baseline and canonical reference to `docs/database/schema.md` (64 tables at generation time). | #773      |
-| 2026-05-20 | 4.2 Database Schema Architecture | Added UUID migration spike outcome and decision to defer UUID cutover now, ratify SERIAL baseline, and track phased UUID migration as future work.       | #774      |
+| Date       | Section                          | Change                                                                                                                                                                                    | Reference |
+| ---------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| 2026-05-20 | 4.1 Technology Stack             | Updated backend API contract to Express `/api` and removed PostgREST as the active runtime API layer.                                                                                     | #775      |
+| 2026-05-20 | 4.3 Development Environment      | Replaced PostgREST service reference with Express backend container and documented freed port `3001` in default compose runtime.                                                          | #775      |
+| 2026-05-20 | 4.2 Database Schema Architecture | Replaced outdated "11-table core" wording with live-schema baseline and canonical reference to `docs/database/schema.md` (64 tables at generation time).                                  | #773      |
+| 2026-05-20 | 4.2 Database Schema Architecture | Added UUID migration spike outcome and decision to defer UUID cutover now, ratify SERIAL baseline, and track phased UUID migration as future work.                                        | #774      |
+| 2026-05-20 | 4.2 Database Schema Architecture | Recorded Task #771 decision to implement `guests` as a first-class table with `rsvps.guest_id` linkage; architecture decision documented in `docs/architecture/guests-table-decision.md`. | #771      |
 
 ## 4.3 Development Environment
 

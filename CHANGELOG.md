@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Track A — Core Data Model)
+
+- **Task #771 — Guests first-class table model**: Added migration `database/migrations/v24-guests-table-771.sql` to replace the legacy `guests` view with a real `guests` table, add `rsvps.guest_id` FK linkage, backfill guest records for existing RSVP rows, and enforce a no-orphan validation guard. Updated fresh schema bootstrap in `database/init.sql` and runtime migration runner in `backend/src/db/database.ts` with idempotent behavior. Added guest-record CRUD controller `backend/src/controllers/guests-controller.ts` and routes under `/api/events/:eventId/guest-records*`. Added architecture decision record `docs/architecture/guests-table-decision.md` and updated TRD baseline notes in `docs/requirements/REQUIREMENTS_BASELINE.md` (#771).
+
 ### Added (Track D — Quality & Testing)
 
 - **Task #824 — Disaster Recovery runbook**: Created `docs/operations/dr-runbook.md` covering: detection signals and commands, on-call escalation matrix with timeline, RTO/RPO targets (1-hour RPO / 4-hour RTO for the database), step-by-step restore procedure (evidence preservation → recovery point selection → service shutdown → PITR restore → migration replay → file-upload restore → restart/verify), initial/update/resolution communications templates, and a post-incident review template. References `docs/operations/pitr.md` (Story 1 task 11) throughout. Linked from `README.md` (Database Documentation section) and `SECURITY.md` (new Incident Response & Disaster Recovery section). Review date 2026-05-20 (#824).
