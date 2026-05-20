@@ -184,6 +184,12 @@ export function createApp(): express.Express {
   // - API GET/HEAD responses: 5-minute private cache
   // - vary on auth credentials to prevent cross-user cache bleed
   app.use('/api', (req, res, next) => {
+    // Keep /api/health behavior aligned with canonical /health endpoint.
+    if (req.path === '/health') {
+      next();
+      return;
+    }
+
     if (req.method === 'GET' || req.method === 'HEAD') {
       res.setHeader('Cache-Control', 'private, max-age=300, stale-while-revalidate=60');
       res.setHeader('Vary', 'Authorization, Cookie');
@@ -219,8 +225,11 @@ export function createApp(): express.Express {
       const { getPool } = await import('./db/database.js');
       const pool = getPool();
       const client = await pool.connect();
-      await client.query('SELECT 1');
-      client.release();
+      try {
+        await client.query('SELECT 1');
+      } finally {
+        client.release();
+      }
       checks.database = 'ok';
     } catch (err) {
       const msg = String(err);
@@ -326,6 +335,11 @@ export function createApp(): express.Express {
                 'Returns service health and database connectivity status. ' +
                 'Canonical health endpoint for runtime probes.',
               tags: ['Health'],
+              security: [],
+              servers: [
+                { url: `http://localhost:${port}`, description: 'Development (root)' },
+                { url: 'https://api.festivalplanner.example', description: 'Production (root)' },
+              ],
               responses: {
                 200: {
                   description: 'Service is healthy',
@@ -341,6 +355,11 @@ export function createApp(): express.Express {
               summary: 'Service health check (alias)',
               description: 'Alias of /health that returns the same payload and status code.',
               tags: ['Health'],
+              security: [],
+              servers: [
+                { url: `http://localhost:${port}`, description: 'Development (root)' },
+                { url: 'https://api.festivalplanner.example', description: 'Production (root)' },
+              ],
               responses: {
                 200: {
                   description: 'Service is healthy',

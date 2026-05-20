@@ -11,6 +11,7 @@ describe('health endpoint aliases (#776)', () => {
 
     expect(canonical.status).toBe(200);
     expect(alias.status).toBe(200);
+    expect(alias.headers['cache-control']).toBe(canonical.headers['cache-control']);
   });
 
   it('returns an identical payload shape from both endpoints', async () => {
