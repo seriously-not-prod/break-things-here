@@ -12,16 +12,19 @@
  *   - Waitlist promotion (every 10 min) — #667
  *   - GDPR data-retention purge (daily at midnight UTC) — #680
  *   - Deleted events purge (daily at midnight UTC) — #778
+ *   - Task reminders + escalation (every 30 min) — #793
  */
 import { getDatabase } from '../db/database.js';
 import { logger } from './logger.js';
 import { sendReportEmail } from '../services/reports/send-email.js';
 import { purgeDeletedEvents } from '../jobs/purge-deleted-events.js';
+import { runTaskReminderJob } from '../jobs/task-reminders.js';
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 const FIVE_MINUTES = 5 * 60 * 1000;
 const FOUR_HOURS = 4 * 60 * 60 * 1000;
 const TEN_MINUTES = 10 * 60 * 1000;
+const THIRTY_MINUTES = 30 * 60 * 1000;
 const ONE_DAY = 24 * 60 * 60 * 1000;
 
 let schedulerStarted = false;
@@ -165,6 +168,7 @@ export function startJobScheduler(): void {
   setInterval(guard('ReportDispatch', dispatchScheduledReports), FIVE_MINUTES);
   setInterval(guard('PaymentReminders', sendPaymentMilestoneReminders), FOUR_HOURS);
   setInterval(guard('WaitlistPromotion', promoteWaitlist), TEN_MINUTES);
+  setInterval(guard('TaskReminders', runTaskReminderJob), THIRTY_MINUTES);
 
   // Daily GDPR purge and deleted events purge at next midnight UTC
   const now = new Date();
@@ -189,6 +193,7 @@ export function startJobScheduler(): void {
       'ReportDispatch',
       'PaymentReminders',
       'WaitlistPromotion',
+      'TaskReminders',
       'GdprPurge',
       'DeletedEventsPurge',
     ],
