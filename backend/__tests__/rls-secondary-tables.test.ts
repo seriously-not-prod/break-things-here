@@ -247,10 +247,10 @@ beforeAll(async () => {
 
   await exec(`
     CREATE TABLE "${schema}".rsvps (
-      id         SERIAL PRIMARY KEY,
-      event_id   INTEGER NOT NULL REFERENCES "${schema}".events(id),
-      guest_name TEXT NOT NULL,
-      status     TEXT NOT NULL DEFAULT 'Pending'
+      id               SERIAL PRIMARY KEY,
+      event_id         INTEGER NOT NULL REFERENCES "${schema}".events(id),
+      name             TEXT NOT NULL,
+      canonical_status TEXT NOT NULL DEFAULT 'pending'
     )
   `);
 

@@ -134,7 +134,7 @@ async function seedRsvp(
     `INSERT INTO rsvps (event_id, name, email, guests, status)
       VALUES (?, ?, ?, ?, ?) RETURNING id
       ON CONFLICT DO NOTHING`,
-    [eventId, `Guest ${i}`, `guest${i}@test.com`, 1, 'confirmed'],
+    [eventId, name, email, 1, 'confirmed'],
   );
   return result.lastID as number;
 }

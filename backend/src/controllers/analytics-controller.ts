@@ -32,6 +32,10 @@ export async function getEventSummary(req: AuthRequest, res: Response): Promise<
     const db = getDatabase();
 
     // ── RSVPs ──────────────────────────────────────────────────────────────────
+    // Source of truth is `canonical_status` (post-#770 / migration v21). A
+    // checked-in guest is implicitly confirmed for the purposes of these
+    // aggregates so the dashboard's "confirmed" count does not drop on
+    // arrival day.
     const rsvpStats = await db.get<{
       total_rsvps: string;
       confirmed_rsvps: string;
@@ -40,11 +44,11 @@ export async function getEventSummary(req: AuthRequest, res: Response): Promise<
       checked_in_count: string;
     }>(
       `SELECT
-         COUNT(*)                                                      AS total_rsvps,
-         COUNT(*) FILTER (WHERE status = 'Going')                     AS confirmed_rsvps,
-         COUNT(*) FILTER (WHERE status IN ('Declined', 'Not Going'))  AS declined_rsvps,
-         COUNT(*) FILTER (WHERE status = 'Pending')                   AS pending_rsvps,
-         COUNT(*) FILTER (WHERE checked_in = TRUE)                    AS checked_in_count
+         COUNT(*)                                                                  AS total_rsvps,
+         COUNT(*) FILTER (WHERE canonical_status IN ('confirmed', 'checked_in'))  AS confirmed_rsvps,
+         COUNT(*) FILTER (WHERE canonical_status = 'declined')                    AS declined_rsvps,
+         COUNT(*) FILTER (WHERE canonical_status = 'pending')                     AS pending_rsvps,
+         COUNT(*) FILTER (WHERE checked_in = TRUE)                                AS checked_in_count
        FROM rsvps
        WHERE event_id = $1`,
       [eventId],
