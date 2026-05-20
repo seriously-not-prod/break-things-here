@@ -449,11 +449,24 @@ Schema reference alignment note (BRD v2.0 §1.4):
 - Foreign key constraints ensuring referential integrity
 - Proper indexing for query optimization
 
+### UUID vs SERIAL Decision Record (Issue #774)
+
+- Spike analysis document: `docs/architecture/uuid-migration-spike.md`
+- Decision for current release cycle: **Defer UUID PK migration** and **ratify SERIAL/sequence-backed integer keys as the active implementation baseline**.
+- Rationale: the current 64-table live schema is heavily sequence/integer keyed, with broad cross-layer type impact. A safe UUID migration requires a dedicated multi-phase effort (dual-column cutover) outside current delivery scope.
+- Future direction: track UUID migration as a dedicated epic with phased DB, backend, and frontend rollout planning.
+
+### Review and Sign-Off
+
+- Reviewed by task assignee (`#774`): `@SmitRAmoliya`
+- Sign-off date: 2026-05-20
+
 ### TRD Change Log
 
 | Date       | Section                          | Change                                                                                                                                                   | Reference |
 | ---------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
 | 2026-05-20 | 4.2 Database Schema Architecture | Replaced outdated "11-table core" wording with live-schema baseline and canonical reference to `docs/database/schema.md` (64 tables at generation time). | #773      |
+| 2026-05-20 | 4.2 Database Schema Architecture | Added UUID migration spike outcome and decision to defer UUID cutover now, ratify SERIAL baseline, and track phased UUID migration as future work.       | #774      |
 
 ## 4.3 Development Environment
 

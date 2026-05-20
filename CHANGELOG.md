@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **Task #774 — SERIAL to UUID primary-key migration spike**: Added `docs/architecture/uuid-migration-spike.md` with migration option analysis (dual-column phased cutover vs in-place ALTER), data-migration script outline, FK rewrite plan, frontend type-change footprint, backward-compatibility risks, and effort estimates. Recorded decision in `docs/requirements/REQUIREMENTS_BASELINE.md` TRD section 4.2 to defer UUID cutover for the current cycle and ratify SERIAL/sequence-backed keys as the active baseline while tracking UUID migration as future phased work (#774).
+
 ### Added (Track E — Performance & Observability)
 
 - **Task #784 — Microsoft Graph group fetch — cache and failure-mode hardening**: Added `backend/src/services/graph-groups.ts` implementing an in-memory TTL cache keyed by user OID (default 10 min, configurable via `GRAPH_GROUPS_CACHE_TTL_MS`). On Graph API failure, requests are authorised using last-known cached role for up to 24 hours (`GRAPH_GROUPS_MAX_STALE_MS`); beyond that ceiling, login is refused with HTTP 503. Counter metrics `graph_groups_cache_hit_total`, `graph_groups_cache_miss_total`, `graph_groups_failure_total` exposed via `GET /metrics` in Prometheus text format. `backend/src/controllers/entra-auth-controller.ts` updated to route group-overage fetches through the cache. Unit tests in `backend/__tests__/graph-groups.test.ts` cover happy path, cache hit, stale fallback within ceiling, stale refusal past ceiling, and metric counters (#784).
