@@ -1,10 +1,12 @@
 name: Auto Create Draft PR
 
+# Disabled: the previous `push` trigger caused auto-created PRs to be authored
+# by `github-actions[bot]` instead of the engineer pushing the branch. The
+# workflow is retained for reference and can still be invoked manually via the
+# Actions tab. To re-enable automatic draft-PR creation, restore the `push`
+# trigger and supply a user-scoped PAT so PRs are attributed to a person.
 on:
-  push:
-    branches:
-      - 'feature/**'
-      - 'bugfix/**'
+  workflow_dispatch:
 
 permissions:
   pull-requests: write
