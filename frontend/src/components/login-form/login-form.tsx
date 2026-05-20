@@ -241,6 +241,7 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
               autoComplete="email"
               fullWidth
               placeholder="your.email@festival.local"
+              inputProps={{ 'aria-label': 'Email address' }}
             />
 
             <TextField
