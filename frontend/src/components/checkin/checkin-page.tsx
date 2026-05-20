@@ -47,9 +47,9 @@ const STATUS_COLORS: Record<string, 'default' | 'primary' | 'success' | 'warning
   maybe: 'primary',
   declined: 'error',
   cancelled: 'error',
+  no_show: 'error',
   waitlist: 'default',
   checked_in: 'success',
-  no_show: 'error',
 };
 
 const RSVP_FILTER_OPTIONS = [
@@ -58,8 +58,10 @@ const RSVP_FILTER_OPTIONS = [
   'pending',
   'maybe',
   'declined',
-  'cancelled',
   'waitlist',
+  'cancelled',
+  'checked_in',
+  'no_show',
 ];
 
 /** Returns true when the browser natively supports BarcodeDetector. */

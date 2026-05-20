@@ -208,14 +208,14 @@ async function promoteWaitlist(): Promise<void> {
     const events = await db.all<{ id: number; capacity: number; going_count: number }>(
       `SELECT e.id,
               e.capacity,
-              COUNT(r.id) FILTER (WHERE r.status = 'Going' AND r.waitlist_position IS NULL) AS going_count
+              COUNT(r.id) FILTER (WHERE r.canonical_status = 'confirmed' AND r.waitlist_position IS NULL) AS going_count
        FROM events e
        JOIN rsvps r ON r.event_id = e.id
        WHERE e.capacity IS NOT NULL
          AND e.waitlist_enabled = true
          AND e.deleted_at IS NULL
        GROUP BY e.id, e.capacity
-       HAVING COUNT(r.id) FILTER (WHERE r.status = 'Going' AND r.waitlist_position IS NULL) < e.capacity
+       HAVING COUNT(r.id) FILTER (WHERE r.canonical_status = 'confirmed' AND r.waitlist_position IS NULL) < e.capacity
           AND COUNT(r.id) FILTER (WHERE r.waitlist_position IS NOT NULL) > 0`,
     );
     for (const event of events) {

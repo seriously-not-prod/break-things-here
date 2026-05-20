@@ -150,6 +150,23 @@ beforeEach(async () => {
       expires_at TIMESTAMP NOT NULL,
       last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+    -- audit_log is included without FK on user_id so logAuditEvent() inserts
+    -- into the isolated test schema rather than public.audit_log (which would
+    -- fail with a FK violation because test users do not exist in public.users).
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER,
+      email       TEXT,
+      action      TEXT NOT NULL,
+      description TEXT,
+      ip_address  TEXT,
+      actor_id    INTEGER,
+      target_type TEXT,
+      target_id   TEXT,
+      context     JSONB,
+      severity    TEXT DEFAULT 'INFO',
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
     INSERT INTO roles (id, name) VALUES (1, 'Attendee'), (2, 'Organizer'), (3, 'Admin')
     ON CONFLICT (id) DO NOTHING;
   `);

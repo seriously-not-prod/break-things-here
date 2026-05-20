@@ -72,9 +72,9 @@ const STATUS_COLOUR: Record<
   maybe: 'info',
   declined: 'error',
   cancelled: 'error',
+  no_show: 'error',
   waitlist: 'default',
   checked_in: 'success',
-  no_show: 'error',
 };
 
 const ALL_STATUSES: CanonicalRsvpStatus[] = [
@@ -82,8 +82,10 @@ const ALL_STATUSES: CanonicalRsvpStatus[] = [
   'confirmed',
   'maybe',
   'declined',
-  'cancelled',
   'waitlist',
+  'cancelled',
+  'checked_in',
+  'no_show',
 ];
 const ALL_GROUPS: GuestGroup[] = ['Family', 'Friends', 'Colleagues', 'VIPs', 'Custom'];
 

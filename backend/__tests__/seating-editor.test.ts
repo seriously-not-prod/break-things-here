@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS rsvps (
   email       TEXT NOT NULL,
   guests      INTEGER DEFAULT 1,
   status      TEXT DEFAULT 'Pending',
+  canonical_status TEXT DEFAULT 'pending',
   notes       TEXT,
   source      TEXT DEFAULT 'public',
   checked_in  BOOLEAN DEFAULT FALSE,
@@ -131,11 +132,11 @@ async function seedRsvp(
   name: string,
 ): Promise<number> {
   const result = await db.run(
-    `INSERT INTO rsvps (event_id, name, email, guests, status)
-      VALUES (?, ?, ?, ?, ?)
+    `INSERT INTO rsvps (event_id, name, email, guests, status, canonical_status)
+      VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT DO NOTHING
       RETURNING id`,
-    [eventId, name, email, 1, 'confirmed'],
+    [eventId, name, email, 1, 'confirmed', 'confirmed'],
   );
   return result.lastID as number;
 }

@@ -37,7 +37,7 @@ export async function exportPersonalData(req: AuthRequest, res: Response): Promi
       [userId],
     ),
     db.all(
-      `SELECT r.id, r.status, r.waitlist_position, r.checked_in, r.created_at,
+      `SELECT r.id, r.canonical_status AS status, r.waitlist_position, r.checked_in, r.created_at,
               e.title AS event_title, e.date AS event_date
        FROM rsvps r
        JOIN events e ON e.id = r.event_id

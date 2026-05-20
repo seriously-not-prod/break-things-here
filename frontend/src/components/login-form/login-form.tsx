@@ -238,10 +238,10 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
               label="Email"
               value={email}
               onChange={handleEmailChange}
-              inputProps={{ 'aria-label': 'Email address' }}
               autoComplete="email"
               fullWidth
               placeholder="your.email@festival.local"
+              inputProps={{ 'aria-label': 'Email address' }}
             />
 
             <TextField

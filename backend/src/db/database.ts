@@ -616,11 +616,11 @@ async function seedDevelopmentDemoWorkspace(db: DatabaseAdapter): Promise<void> 
   );
   if (Number(rsvpCount?.count ?? '0') === 0) {
     await db.run(
-      `INSERT INTO rsvps (event_id, name, email, guests, status, notes, source, checked_in)
+      `INSERT INTO rsvps (event_id, name, email, guests, canonical_status, notes, source, checked_in)
        VALUES
-       ($1, 'Alice', 'alice@email.com', 2, 'Going', 'VIP guest with one plus-one.', 'dashboard', TRUE),
-       ($2, 'Marcus Lee', 'marcus@example.com', 1, 'Pending', 'Waiting on travel approval.', 'public', FALSE),
-       ($3, 'Sofia Patel', 'sofia@example.com', 3, 'Maybe', 'Needs accessible seating.', 'admin', FALSE)`,
+       ($1, 'Alice', 'alice@email.com', 2, 'confirmed', 'VIP guest with one plus-one.', 'dashboard', TRUE),
+       ($2, 'Marcus Lee', 'marcus@example.com', 1, 'pending', 'Waiting on travel approval.', 'public', FALSE),
+       ($3, 'Sofia Patel', 'sofia@example.com', 3, 'maybe', 'Needs accessible seating.', 'admin', FALSE)`,
       [event.id, event.id, event.id],
     );
   }
