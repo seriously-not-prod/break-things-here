@@ -46,6 +46,7 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
   const [entraEnabled, setEntraEnabled] = useState(false);
   const [allowLocalFallback, setAllowLocalFallback] = useState(true);
   const [showLocalForm, setShowLocalForm] = useState(false);
+  const [configStatus, setConfigStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const { login } = useAuth();
 
   useEffect(() => {
@@ -85,16 +86,25 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
         // When Entra is disabled, local credentials are always available — fall
         // back to the legacy form regardless of what the API echoes back.
         setAllowLocalFallback(data.enabled ? Boolean(data.allowLocalFallback) : true);
+        setConfigStatus('ready');
       })
       .catch(() => {
+        // #781 — fail closed. If we cannot reach the config endpoint we don't
+        // know whether the deployment is Entra-only, so we must not surface
+        // local credentials. The user sees a banner pointing them at SSO and
+        // an option to retry once the network recovers.
         setEntraEnabled(false);
-        setAllowLocalFallback(true);
+        setAllowLocalFallback(false);
+        setConfigStatus('error');
       });
   }, []);
 
   // #781 — when Entra is enabled, the local form starts collapsed. It only
-  // becomes reachable if the operator opted into fallback via the env var.
-  const localFormVisible = !entraEnabled || (allowLocalFallback && showLocalForm);
+  // becomes reachable if the operator opted into fallback via the env var. We
+  // also gate the form on the config request having succeeded so a transport
+  // failure cannot accidentally expose local credentials.
+  const localFormVisible =
+    configStatus === 'ready' && (!entraEnabled || (allowLocalFallback && showLocalForm));
 
   function handleEmailChange(event: ChangeEvent<HTMLInputElement>) {
     setEmail(event.target.value);
@@ -171,6 +181,18 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
         {lockoutText && <Alert severity="warning">{lockoutText}</Alert>}
         {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
         {successMessage && <Alert severity="success">{successMessage}</Alert>}
+
+        {configStatus === 'loading' && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }} data-testid="login-loading">
+            <CircularProgress size={24} />
+          </Box>
+        )}
+
+        {configStatus === 'error' && (
+          <Alert severity="error" data-testid="config-error">
+            Unable to load sign-in configuration. Please refresh and try again, or contact your administrator.
+          </Alert>
+        )}
 
         {entraButton}
 
