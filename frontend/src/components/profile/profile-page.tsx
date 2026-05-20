@@ -9,14 +9,17 @@ import {
   IconButton,
   Paper,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
-import { CameraAltRounded, DeleteRounded, SaveRounded } from '@mui/icons-material';
+import { CameraAltRounded, DeleteRounded, NotificationsRounded, PersonRounded, SaveRounded } from '@mui/icons-material';
 import { api, apiFetch, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../contexts/auth-context';
 import { PageLayout } from '../layout/page-layout';
+import { NotificationPreferencesTab } from './notification-preferences-tab';
 
 interface ProfileData {
   bio: string | null;
@@ -30,6 +33,7 @@ interface ProfileData {
 }
 export default function ProfilePage(): JSX.Element {
   const { user } = useAuth();
+  const [tab, setTab] = useState(0);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [form, setForm] = useState({ bio: '', phone_number: '', address: '', city: '', state: '', zip_code: '', country: '' });
   const [displayName, setDisplayName] = useState('');
@@ -133,6 +137,35 @@ export default function ProfilePage(): JSX.Element {
       subtitle="Manage your account information and preferences"
       breadcrumbs={[{ label: 'Profile' }]}
     >
+      <Tabs
+        value={tab}
+        onChange={(_, v: number) => setTab(v)}
+        sx={{ mb: 2 }}
+        aria-label="Profile tabs"
+      >
+        <Tab
+          icon={<PersonRounded />}
+          iconPosition="start"
+          label="General Info"
+          id="profile-tab-0"
+          aria-controls="profile-tabpanel-0"
+        />
+        <Tab
+          icon={<NotificationsRounded />}
+          iconPosition="start"
+          label="Notifications"
+          id="profile-tab-1"
+          aria-controls="profile-tabpanel-1"
+        />
+      </Tabs>
+
+      <Box
+        role="tabpanel"
+        id="profile-tabpanel-0"
+        aria-labelledby="profile-tab-0"
+        hidden={tab !== 0}
+      >
+        {tab === 0 && (
       <Paper elevation={1} sx={{ p: 3, maxWidth: 680 }}>
         {/* Avatar */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, mb: 3 }}>
@@ -203,6 +236,21 @@ export default function ProfilePage(): JSX.Element {
           </Stack>
         </Box>
       </Paper>
+        )}
+      </Box>
+
+      <Box
+        role="tabpanel"
+        id="profile-tabpanel-1"
+        aria-labelledby="profile-tab-1"
+        hidden={tab !== 1}
+      >
+        {tab === 1 && (
+          <Paper elevation={1} sx={{ p: 3, maxWidth: 680 }}>
+            <NotificationPreferencesTab />
+          </Paper>
+        )}
+      </Box>
     </PageLayout>
   );
 }
