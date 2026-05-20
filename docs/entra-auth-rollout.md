@@ -122,3 +122,23 @@ Tests in `backend/__tests__/entra-auth.test.ts`:
 - New users are provisioned from Entra claims
 - Existing users are linked by email
 - OID lookup takes priority on repeat logins
+
+---
+
+## Persona Review — Entra-First Login Copy (#790)
+
+The FRD defines four primary personas whose journeys presume enterprise SSO:
+
+| Persona | Role | SSO Expectation |
+|---|---|---|
+| **Sarah** | Event Organiser | Signs in via corporate Microsoft account; expects seamless MFA |
+| **Marcus** | Volunteer Coordinator | Uses shared department credentials; relies on Entra group membership |
+| **Emily** | Attendee / External Guest | May use a personal Microsoft account; needs clear MFA guidance |
+| **David** | Platform Administrator | Manages Entra App Registration; expects local fallback for break-glass |
+
+**Login copy changes applied (Task #790):**
+
+1. **Primary CTA** — reads "Sign in with Microsoft" for all personas when Entra is enabled.
+2. **MFA help text** — a notice below the CTA explains that multi-factor authentication may be required, setting expectations for Sarah, Marcus, and Emily who encounter MFA prompts.
+3. **Local-fallback gating** — forgot-password and create-account links are hidden when Entra is the sole identity path, surfacing only when the operator has explicitly opted into `ALLOW_LOCAL_FALLBACK`. This matches David's break-glass scenario without confusing SSO-first users.
+4. **Snapshot tests** — Entra-on (entra-only), Entra-on (with fallback), and Entra-off (local-only) variants are covered by snapshot tests in `frontend/test/login-form.test.tsx`.
