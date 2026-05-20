@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Track C — Auth & Identity)
+
+- **Task #787 — Notification preferences profile UI tab**: Added `frontend/src/components/profile/notification-preferences-tab.tsx` — a new Material-UI tab on the profile page that renders a category × channel matrix for notification preferences (In-App, Email, Push). Uses React Hook Form + Zod for form state, optimistic toggle saves via PUT endpoint with rollback on failure, and full keyboard/aria-label accessibility. Converted the profile page from a flat form to a tabbed layout (General Info + Notifications). Added 9 component tests in `frontend/test/notification-preferences-tab.test.tsx` covering initial load, toggle save, error rollback, accessibility, and table rendering (#787).
+
+- **Task #785 — End-to-end Entra login flow Playwright test (mocked OIDC)**: Added `e2e/entra-auth.spec.ts` with five tests that drive the full Microsoft sign-in → Azure redirect → callback → dashboard flow using Playwright route interception as a mocked OIDC issuer. Added `e2e/fixtures/oidc-mock.ts` providing reusable `setupOidcMock()` helper with pre-configured test users and well-known group IDs for role-mapping assertions (Admin, Organizer, Viewer, no-groups default). Added `.github/workflows/e2e.yml` CI workflow that builds the frontend, starts a preview server, installs Playwright Chromium, and runs the e2e suite. No live Azure tenant required (#785).
+
 ### Documentation
 
 - **Task #775 — PostgREST runtime decision and contract cleanup**: Removed the unused `postgrest` service from `docker-compose.yml`, recorded the "remove" decision and freed port `3001` in `docs/postgrest-pilot.md`, and updated TRD references in `docs/requirements/REQUIREMENTS_BASELINE.md` to declare Express `/api` as the active API contract (#775).
