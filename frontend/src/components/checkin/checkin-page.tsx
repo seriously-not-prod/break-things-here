@@ -52,7 +52,17 @@ const STATUS_COLORS: Record<string, 'default' | 'primary' | 'success' | 'warning
   checked_in: 'success',
 };
 
-const RSVP_FILTER_OPTIONS = ['All', 'confirmed', 'pending', 'maybe', 'declined', 'waitlist', 'cancelled', 'checked_in', 'no_show'];
+const RSVP_FILTER_OPTIONS = [
+  'All',
+  'confirmed',
+  'pending',
+  'maybe',
+  'declined',
+  'waitlist',
+  'cancelled',
+  'checked_in',
+  'no_show',
+];
 
 /** Returns true when the browser natively supports BarcodeDetector. */
 function hasBarcodeDetector(): boolean {

@@ -202,7 +202,9 @@ export async function getEventStats(_req: Request, res: Response): Promise<Respo
     "SELECT COUNT(*) AS count FROM tasks WHERE status = 'Pending'",
   );
   const totalRsvps = await db.get<{ count: number }>('SELECT COUNT(*) AS count FROM rsvps');
-  const goingRsvps = await db.get<{ count: number }>("SELECT COUNT(*) AS count FROM rsvps WHERE canonical_status = 'confirmed'");
+  const goingRsvps = await db.get<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM rsvps WHERE canonical_status = 'confirmed'",
+  );
 
   return res.json({
     totalEvents: totalEvents?.count ?? 0,

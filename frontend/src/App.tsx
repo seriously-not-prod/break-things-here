@@ -150,7 +150,13 @@ function AuthShell(): JSX.Element {
         </Box>
 
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h5" component="h2" fontWeight={700} color="text.primary" sx={{ mb: 0.5 }}>
+          <Typography
+            variant="h5"
+            component="h2"
+            fontWeight={700}
+            color="text.primary"
+            sx={{ mb: 0.5 }}
+          >
             {VIEW_TITLES[view]}
           </Typography>
           <Typography variant="body2" color="text.secondary">

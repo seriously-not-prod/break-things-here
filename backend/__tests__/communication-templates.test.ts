@@ -89,8 +89,14 @@ function makeRes() {
   } = {
     statusCode: 200,
     body: null,
-    status(code: number) { this.statusCode = code; return this; },
-    json(data: unknown) { this.body = data; return this; },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data: unknown) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -171,10 +177,10 @@ beforeEach(async () => {
   eventId = eventResult.lastID!;
 
   // Add memberId as event member
-  await testDb.run(
-    `INSERT INTO event_members (event_id, user_id) VALUES ($1, $2)`,
-    [eventId, memberId],
-  );
+  await testDb.run(`INSERT INTO event_members (event_id, user_id) VALUES ($1, $2)`, [
+    eventId,
+    memberId,
+  ]);
 
   // Default: requireEventAccess returns the event (authorised)
   mockRequireEventAccess.mockResolvedValue({ id: eventId, created_by: ownerId, deleted_at: null });
@@ -241,7 +247,12 @@ describe('communication-templates controller (#590)', () => {
     it('creates a template and returns 201 with the row', async () => {
       const req = makeReq(
         { eventId: String(eventId) },
-        { slug: 'reminder', name: 'Reminder', subject: 'Reminder: {event_title}', body: 'Hi {name}' },
+        {
+          slug: 'reminder',
+          name: 'Reminder',
+          subject: 'Reminder: {event_title}',
+          body: 'Hi {name}',
+        },
         { id: ownerId, email: 'owner@test.com', role_id: 2 },
       );
       const res = makeRes();
@@ -451,10 +462,9 @@ describe('communication-templates controller (#590)', () => {
       expect((res.body as { deleted: boolean }).deleted).toBe(true);
 
       // Verify row is gone from DB
-      const row = await testDb.get(
-        'SELECT id FROM communication_templates WHERE id = $1',
-        [templateId],
-      );
+      const row = await testDb.get('SELECT id FROM communication_templates WHERE id = $1', [
+        templateId,
+      ]);
       expect(row).toBeUndefined();
     });
 

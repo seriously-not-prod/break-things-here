@@ -116,7 +116,9 @@ let testDb: TestDatabase;
 vi.mock('../src/db/database.js', () => ({
   getDatabase: () => testDb,
   initializeDatabase: async () => testDb,
-  closeDatabase: async () => { /* no-op — testDb.close() handles cleanup */ },
+  closeDatabase: async () => {
+    /* no-op — testDb.close() handles cleanup */
+  },
 }));
 
 // Import service AFTER all mocks are registered
@@ -207,7 +209,11 @@ describe('sendReportEmail', () => {
     );
 
     // Verify delivery row was created
-    const delivery = await testDb.get<{ report_id: number; status: string; error_message: string | null }>(
+    const delivery = await testDb.get<{
+      report_id: number;
+      status: string;
+      error_message: string | null;
+    }>(
       `SELECT report_id, status, error_message FROM scheduled_report_deliveries WHERE report_id = $1`,
       [reportId],
     );
