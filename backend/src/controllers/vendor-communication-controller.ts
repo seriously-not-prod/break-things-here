@@ -127,7 +127,9 @@ export async function deleteVendorCommunication(req: Request, res: Response): Pr
   const isAuthor = log.sent_by === authReq.user.id;
   const isOwner = event.created_by === authReq.user.id;
   if (!isAuthor && !isOwner) {
-    return res.status(403).json({ error: 'Not authorised to delete this communication log entry.' });
+    return res
+      .status(403)
+      .json({ error: 'Not authorised to delete this communication log entry.' });
   }
 
   await db.run(`DELETE FROM vendor_communication_log WHERE id = $1`, [logId]);
@@ -147,7 +149,10 @@ export async function compareVendors(req: Request, res: Response): Promise<Respo
   const { eventId } = req.params;
   const { ids } = req.query as { ids?: string };
 
-  if (!ids) return res.status(400).json({ error: 'ids query param is required (comma-separated vendor IDs).' });
+  if (!ids)
+    return res
+      .status(400)
+      .json({ error: 'ids query param is required (comma-separated vendor IDs).' });
 
   const vendorIds = ids
     .split(',')

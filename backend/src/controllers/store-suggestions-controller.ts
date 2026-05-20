@@ -99,7 +99,9 @@ export async function createStoreSuggestion(req: Request, res: Response): Promis
     [eventId, name.trim()],
   );
   if (duplicate) {
-    return res.status(409).json({ error: 'A store suggestion with this name already exists for this event.' });
+    return res
+      .status(409)
+      .json({ error: 'A store suggestion with this name already exists for this event.' });
   }
 
   const result = await db.run(
@@ -159,10 +161,9 @@ export async function updateStoreSuggestionStatus(req: Request, res: Response): 
     [status, id],
   );
 
-  const updated = await db.get<StoreSuggestion>(
-    `SELECT * FROM store_suggestions WHERE id = $1`,
-    [id],
-  );
+  const updated = await db.get<StoreSuggestion>(`SELECT * FROM store_suggestions WHERE id = $1`, [
+    id,
+  ]);
   return res.json({ suggestion: updated });
 }
 
@@ -207,12 +208,19 @@ export async function deleteStoreSuggestion(req: Request, res: Response): Promis
  *
  * Ranking: approved first, then by usage_count DESC, then by last_used_at DESC (most recently used first, nulls last).
  */
-export async function getStoreSuggestionRecommendations(req: Request, res: Response): Promise<Response> {
+export async function getStoreSuggestionRecommendations(
+  req: Request,
+  res: Response,
+): Promise<Response> {
   const authReq = req as AuthRequest;
   if (!authReq.user) return res.status(401).json({ error: 'Authentication required.' });
 
   const { eventId } = req.params;
-  const { category, query, limit } = req.query as { category?: string; query?: string; limit?: string };
+  const { category, query, limit } = req.query as {
+    category?: string;
+    query?: string;
+    limit?: string;
+  };
 
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
@@ -241,7 +249,9 @@ export async function getStoreSuggestionRecommendations(req: Request, res: Respo
 
   const whereClause = conditions.join(' AND ');
 
-  const suggestions = await db.all<StoreSuggestion & { suggester_name: string | null; rank_score: number }>(
+  const suggestions = await db.all<
+    StoreSuggestion & { suggester_name: string | null; rank_score: number }
+  >(
     `SELECT
        ss.*,
        u.display_name AS suggester_name,
@@ -299,10 +309,9 @@ export async function selectStoreSuggestion(req: Request, res: Response): Promis
     [id],
   );
 
-  const updated = await db.get<StoreSuggestion>(
-    `SELECT * FROM store_suggestions WHERE id = $1`,
-    [id],
-  );
+  const updated = await db.get<StoreSuggestion>(`SELECT * FROM store_suggestions WHERE id = $1`, [
+    id,
+  ]);
   return res.json({ suggestion: updated });
 }
 
@@ -311,7 +320,10 @@ export async function selectStoreSuggestion(req: Request, res: Response): Promis
  * Returns distinct categories used across all suggestions for the event.
  * Useful for populating filter dropdowns in the UI.
  */
-export async function listStoreSuggestionCategories(req: Request, res: Response): Promise<Response> {
+export async function listStoreSuggestionCategories(
+  req: Request,
+  res: Response,
+): Promise<Response> {
   const authReq = req as AuthRequest;
   if (!authReq.user) return res.status(401).json({ error: 'Authentication required.' });
 

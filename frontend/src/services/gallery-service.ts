@@ -241,16 +241,10 @@ export async function createShareLink(
     expiresAt?: string | null;
   },
 ): Promise<GalleryShareLink> {
-  return api.post<GalleryShareLink>(
-    `/api/events/${eventId}/gallery/share-links`,
-    payload,
-  );
+  return api.post<GalleryShareLink>(`/api/events/${eventId}/gallery/share-links`, payload);
 }
 
-export async function revokeShareLink(
-  eventId: string,
-  shareLinkId: number,
-): Promise<void> {
+export async function revokeShareLink(eventId: string, shareLinkId: number): Promise<void> {
   await api.delete(`/api/events/${eventId}/gallery/share-links/${shareLinkId}`);
 }
 
@@ -272,10 +266,7 @@ export interface PhotoComment {
   updatedAt: string;
 }
 
-export async function listComments(
-  eventId: string,
-  documentId: number,
-): Promise<PhotoComment[]> {
+export async function listComments(eventId: string, documentId: number): Promise<PhotoComment[]> {
   const result = await api.get<{ comments: PhotoComment[] }>(
     `/api/events/${eventId}/gallery/${documentId}/comments`,
   );
@@ -288,10 +279,10 @@ export async function addComment(
   body: string,
   parentId?: number | null,
 ): Promise<PhotoComment> {
-  return api.post<PhotoComment>(
-    `/api/events/${eventId}/gallery/${documentId}/comments`,
-    { body, parentId },
-  );
+  return api.post<PhotoComment>(`/api/events/${eventId}/gallery/${documentId}/comments`, {
+    body,
+    parentId,
+  });
 }
 
 export async function hideComment(
@@ -305,10 +296,7 @@ export async function hideComment(
   );
 }
 
-export async function deleteComment(
-  eventId: string,
-  commentId: number,
-): Promise<void> {
+export async function deleteComment(eventId: string, commentId: number): Promise<void> {
   await api.delete(`/api/events/${eventId}/gallery/comments/${commentId}`);
 }
 
@@ -334,9 +322,7 @@ export interface DownloadManifest {
   archive: { kind: string; hint?: string };
 }
 
-export async function getEventDownloadManifest(
-  eventId: string,
-): Promise<DownloadManifest> {
+export async function getEventDownloadManifest(eventId: string): Promise<DownloadManifest> {
   return api.get<DownloadManifest>(`/api/events/${eventId}/gallery/download`);
 }
 
@@ -344,9 +330,7 @@ export async function getAlbumDownloadManifest(
   eventId: string,
   albumId: number,
 ): Promise<DownloadManifest> {
-  return api.get<DownloadManifest>(
-    `/api/events/${eventId}/gallery/albums/${albumId}/download`,
-  );
+  return api.get<DownloadManifest>(`/api/events/${eventId}/gallery/albums/${albumId}/download`);
 }
 
 // ─── BRD v2 (#622) storage quota ──────────────────────────────────────────────
@@ -361,10 +345,6 @@ export interface GalleryStorageUsage {
   pendingConversions: number;
 }
 
-export async function getStorageUsage(
-  eventId: string,
-): Promise<GalleryStorageUsage> {
-  return api.get<GalleryStorageUsage>(
-    `/api/events/${eventId}/gallery/storage`,
-  );
+export async function getStorageUsage(eventId: string): Promise<GalleryStorageUsage> {
+  return api.get<GalleryStorageUsage>(`/api/events/${eventId}/gallery/storage`);
 }

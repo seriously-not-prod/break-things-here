@@ -77,12 +77,16 @@ function makeReq(overrides: Record<string, unknown> = {}) {
 }
 
 // Helper that builds a multer-style req.file object
-function makeFile(opts: { mimetype?: string; size?: number; filename?: string; path?: string } = {}) {
+function makeFile(
+  opts: { mimetype?: string; size?: number; filename?: string; path?: string } = {},
+) {
   return {
     mimetype: opts.mimetype ?? 'image/jpeg',
     size: opts.size ?? 1024 * 500, // 500 KB default
     filename: opts.filename ?? 'profile-123.jpg',
-    path: opts.path ?? path.join(process.cwd(), 'uploads', 'profile-photos', opts.filename ?? 'profile-123.jpg'),
+    path:
+      opts.path ??
+      path.join(process.cwd(), 'uploads', 'profile-photos', opts.filename ?? 'profile-123.jpg'),
   };
 }
 

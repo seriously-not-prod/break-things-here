@@ -49,15 +49,15 @@ export function isAdmin(roleName?: string | null): boolean {
 
 /** Is the user an organizer or above? */
 export function isOrganizerOrAbove(roleName?: string | null): boolean {
-  return (
-    roleName === ROLES.ORGANIZER ||
-    roleName === ROLES.ADMIN
-  );
+  return roleName === ROLES.ORGANIZER || roleName === ROLES.ADMIN;
 }
 
 /** Can the user perform check-in operations? */
 export function canCheckIn(roleName?: string | null): boolean {
-  return !!roleName && ([ROLES.ORGANIZER, ROLES.ADMIN, ROLES.COLLABORATOR] as string[]).includes(roleName);
+  return (
+    !!roleName &&
+    ([ROLES.ORGANIZER, ROLES.ADMIN, ROLES.COLLABORATOR] as string[]).includes(roleName)
+  );
 }
 
 /** Can the user view-only (Viewer or Guest)? */

@@ -61,11 +61,21 @@ function buildRow(label, current, base) {
   if (!current) return '| ' + label + ' | *no data* | – | – | – |\n';
   const b = base || {};
   return (
-    '| ' + label + ' ' +
-    '| ' + fmt(pct(current.lines), pct(b.lines)) + ' ' +
-    '| ' + fmt(pct(current.statements), pct(b.statements)) + ' ' +
-    '| ' + fmt(pct(current.branches), pct(b.branches)) + ' ' +
-    '| ' + fmt(pct(current.functions), pct(b.functions)) + ' |\n'
+    '| ' +
+    label +
+    ' ' +
+    '| ' +
+    fmt(pct(current.lines), pct(b.lines)) +
+    ' ' +
+    '| ' +
+    fmt(pct(current.statements), pct(b.statements)) +
+    ' ' +
+    '| ' +
+    fmt(pct(current.branches), pct(b.branches)) +
+    ' ' +
+    '| ' +
+    fmt(pct(current.functions), pct(b.functions)) +
+    ' |\n'
   );
 }
 
@@ -76,9 +86,11 @@ function buildComment(frontendCurrent, backendCurrent, frontendBase, backendBase
     : 'No base-branch coverage available for delta comparison.';
 
   return (
-    COMMENT_MARKER + '\n' +
+    COMMENT_MARKER +
+    '\n' +
     '## 📊 Coverage Report\n\n' +
-    deltaNote + '\n\n' +
+    deltaNote +
+    '\n\n' +
     '| Workspace | Lines | Statements | Branches | Functions |\n' +
     '|-----------|-------|------------|----------|----------|\n' +
     buildRow('Frontend', frontendCurrent, frontendBase) +
@@ -120,21 +132,30 @@ async function main() {
   const body = buildComment(frontendCurrent, backendCurrent, frontendBase, backendBase);
 
   // Find existing coverage comment on this PR (update in-place to avoid spam)
-  const comments = await githubRequest('GET', '/repos/' + repo + '/issues/' + prNumber + '/comments?per_page=100');
+  const comments = await githubRequest(
+    'GET',
+    '/repos/' + repo + '/issues/' + prNumber + '/comments?per_page=100',
+  );
   const existing = Array.isArray(comments)
-    ? comments.find(function(c) { return c.body && c.body.includes(COMMENT_MARKER); })
+    ? comments.find(function (c) {
+        return c.body && c.body.includes(COMMENT_MARKER);
+      })
     : null;
 
   if (existing) {
     await githubRequest('PATCH', '/repos/' + repo + '/issues/comments/' + existing.id, { body });
     console.log('Updated coverage comment #' + existing.id);
   } else {
-    const created = await githubRequest('POST', '/repos/' + repo + '/issues/' + prNumber + '/comments', { body });
+    const created = await githubRequest(
+      'POST',
+      '/repos/' + repo + '/issues/' + prNumber + '/comments',
+      { body },
+    );
     console.log('Created coverage comment #' + created.id);
   }
 }
 
-main().catch(function(err) {
+main().catch(function (err) {
   console.error(err);
   process.exit(1);
 });

@@ -7,7 +7,9 @@ import { useAuth } from '../../contexts/auth-context';
 export function EntraCallbackPage(): JSX.Element {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { loadCurrentUser } = useAuth() as ReturnType<typeof useAuth> & { loadCurrentUser?: () => Promise<void> };
+  const { loadCurrentUser } = useAuth() as ReturnType<typeof useAuth> & {
+    loadCurrentUser?: () => Promise<void>;
+  };
   const [error, setError] = useState<string | null>(null);
   const called = useRef(false);
 

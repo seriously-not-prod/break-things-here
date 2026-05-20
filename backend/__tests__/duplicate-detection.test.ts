@@ -77,9 +77,7 @@ describe('detectDuplicateClusters', () => {
   });
 
   it('does not return clusters with fewer than 2 entries', () => {
-    const rows = [
-      { id: 1, name: 'Solo', email: 'solo@x.com', phone: '555-1111', ...baseRow },
-    ];
+    const rows = [{ id: 1, name: 'Solo', email: 'solo@x.com', phone: '555-1111', ...baseRow }];
     expect(detectDuplicateClusters(rows)).toEqual([]);
   });
 

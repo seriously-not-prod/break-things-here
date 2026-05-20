@@ -5,7 +5,15 @@ import {
   sendVerificationEmail,
 } from '../src/utils/mailer.js';
 
-const ENV_KEYS = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_SECURE', 'APP_BASE_URL'];
+const ENV_KEYS = [
+  'SMTP_HOST',
+  'SMTP_PORT',
+  'SMTP_USER',
+  'SMTP_PASS',
+  'SMTP_FROM',
+  'SMTP_SECURE',
+  'APP_BASE_URL',
+];
 
 describe('mailer utility', () => {
   const saved: Record<string, string | undefined> = {};

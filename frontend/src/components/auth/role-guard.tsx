@@ -30,7 +30,9 @@ export function RoleGuard({
     <Box sx={{ p: 3 }}>
       <Paper sx={{ p: 3, maxWidth: 720 }} elevation={1}>
         <Stack spacing={2}>
-          <Typography variant="h5" fontWeight={700}>{title}</Typography>
+          <Typography variant="h5" fontWeight={700}>
+            {title}
+          </Typography>
           <Alert severity="warning">{message}</Alert>
           <Typography color="text.secondary">
             If this seems incorrect, contact an administrator to verify your role assignment.

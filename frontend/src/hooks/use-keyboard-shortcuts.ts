@@ -65,10 +65,7 @@ export function useKeyboardShortcuts(shortcuts: ShortcutDefinition[]): void {
         const firstKey = pendingChordKey.current;
         clearChord();
         const match = shortcutsRef.current.find(
-          (s) =>
-            Array.isArray(s.keys) &&
-            s.keys[0] === firstKey &&
-            s.keys[1] === key,
+          (s) => Array.isArray(s.keys) && s.keys[0] === firstKey && s.keys[1] === key,
         );
         if (match) {
           e.preventDefault();
@@ -104,6 +101,6 @@ export function useKeyboardShortcuts(shortcuts: ShortcutDefinition[]): void {
       document.removeEventListener('keydown', handleKeyDown);
       clearChord();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // stable – shortcuts accessed through ref
 }

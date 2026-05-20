@@ -69,7 +69,11 @@ export default function (data) {
   check(eventsRes, {
     'events: status 200': (r) => r.status === 200,
     'events: is array': (r) => {
-      try { return Array.isArray(JSON.parse(r.body)); } catch { return false; }
+      try {
+        return Array.isArray(JSON.parse(r.body));
+      } catch {
+        return false;
+      }
     },
     'events: response < 500ms': (r) => r.timings.duration < 500,
   });

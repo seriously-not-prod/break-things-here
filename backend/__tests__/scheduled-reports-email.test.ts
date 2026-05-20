@@ -66,7 +66,15 @@ beforeEach(async (): Promise<void> => {
   const result = await db.run(
     `INSERT INTO scheduled_reports (event_id, report_type, frequency, recipients, is_active, created_by, next_run_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-    [eventId, 'budget_summary', 'daily', JSON.stringify(['alice@example.com', 'bob@example.com']), true, ownerId, new Date().toISOString()],
+    [
+      eventId,
+      'budget_summary',
+      'daily',
+      JSON.stringify(['alice@example.com', 'bob@example.com']),
+      true,
+      ownerId,
+      new Date().toISOString(),
+    ],
   );
   reportId = Number(result.lastID);
 });
@@ -115,7 +123,11 @@ describe('sendReportEmail', () => {
 
     // Verify delivery row was created
     const db = getDatabase();
-    const delivery = await db.get<{ report_id: number; status: string; error_message: string | null }>(
+    const delivery = await db.get<{
+      report_id: number;
+      status: string;
+      error_message: string | null;
+    }>(
       `SELECT report_id, status, error_message FROM scheduled_report_deliveries WHERE report_id = $1`,
       [reportId],
     );

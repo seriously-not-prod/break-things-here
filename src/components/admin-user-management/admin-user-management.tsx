@@ -61,35 +61,46 @@ export function AdminUserManagement(): React.JSX.Element {
     setChangeTarget({ userId, userName, currentRole: role });
   }, []);
 
-  const confirmRoleChange = useCallback(async (newRole: UserRole) => {
-    if (!changeTarget) return;
+  const confirmRoleChange = useCallback(
+    async (newRole: UserRole) => {
+      if (!changeTarget) return;
+      setChangeTarget(null);
+      try {
+        await updateUserRole(changeTarget.userId, newRole);
+        await loadUsers();
+        setFeedback({
+          type: 'success',
+          message: `${changeTarget.userName}'s role updated to ${newRole}.`,
+        });
+      } catch (err) {
+        setFeedback({
+          type: 'error',
+          message: err instanceof Error ? err.message : 'Failed to update role.',
+        });
+      }
+    },
+    [changeTarget, loadUsers],
+  );
+
+  const handleRestore = useCallback(
+    async (userId: string, userName: string) => {
+      try {
+        await restoreUser(userId);
+        await loadUsers();
+        setFeedback({ type: 'success', message: `${userName}'s account was restored.` });
+      } catch (err) {
+        setFeedback({
+          type: 'error',
+          message: err instanceof Error ? err.message : 'Failed to restore user.',
+        });
+      }
+    },
+    [loadUsers],
+  );
+
+  const cancelRoleChange = useCallback(() => {
     setChangeTarget(null);
-    try {
-      await updateUserRole(changeTarget.userId, newRole);
-      await loadUsers();
-      setFeedback({ type: 'success', message: `${changeTarget.userName}'s role updated to ${newRole}.` });
-    } catch (err) {
-      setFeedback({
-        type: 'error',
-        message: err instanceof Error ? err.message : 'Failed to update role.',
-      });
-    }
-  }, [changeTarget, loadUsers]);
-
-  const handleRestore = useCallback(async (userId: string, userName: string) => {
-    try {
-      await restoreUser(userId);
-      await loadUsers();
-      setFeedback({ type: 'success', message: `${userName}'s account was restored.` });
-    } catch (err) {
-      setFeedback({
-        type: 'error',
-        message: err instanceof Error ? err.message : 'Failed to restore user.',
-      });
-    }
-  }, [loadUsers]);
-
-  const cancelRoleChange = useCallback(() => { setChangeTarget(null); }, []);
+  }, []);
 
   // Auto-clear feedback after 4 seconds
   useEffect(() => {
@@ -99,7 +110,9 @@ export function AdminUserManagement(): React.JSX.Element {
   }, [feedback]);
 
   // Reset page when filters change
-  useEffect(() => { setPage(0); }, [search, roleFilter]);
+  useEffect(() => {
+    setPage(0);
+  }, [search, roleFilter]);
 
   // Redirect non-admins (after all hooks)
   if (!isAdmin) {
@@ -108,14 +121,20 @@ export function AdminUserManagement(): React.JSX.Element {
   }
 
   if (loadState === 'loading') {
-    return <p role="status" aria-live="polite" className="admin-user-management">Loading users&hellip;</p>;
+    return (
+      <p role="status" aria-live="polite" className="admin-user-management">
+        Loading users&hellip;
+      </p>
+    );
   }
 
   if (loadState === 'error') {
     return (
       <div role="alert" aria-live="assertive" className="admin-user-management">
         <p>Failed to load users.</p>
-        <button onClick={loadUsers} aria-label="Retry loading users">Retry</button>
+        <button onClick={loadUsers} aria-label="Retry loading users">
+          Retry
+        </button>
       </div>
     );
   }
@@ -150,7 +169,9 @@ export function AdminUserManagement(): React.JSX.Element {
         >
           <option value="">All Roles</option>
           {USER_ROLES.map((r) => (
-            <option key={r} value={r}>{r}</option>
+            <option key={r} value={r}>
+              {r}
+            </option>
           ))}
         </select>
       </div>
@@ -168,10 +189,19 @@ export function AdminUserManagement(): React.JSX.Element {
           </thead>
           <tbody>
             {pageUsers.length === 0 ? (
-              <tr><td colSpan={5} style={{ textAlign: 'center' }}>No users found.</td></tr>
+              <tr>
+                <td colSpan={5} style={{ textAlign: 'center' }}>
+                  No users found.
+                </td>
+              </tr>
             ) : (
               pageUsers.map((u) => (
-                <UserTableRow key={u.id} user={u} onRoleChange={handleRoleChange} onRestore={handleRestore} />
+                <UserTableRow
+                  key={u.id}
+                  user={u}
+                  onRoleChange={handleRoleChange}
+                  onRestore={handleRestore}
+                />
               ))
             )}
           </tbody>
@@ -188,7 +218,9 @@ export function AdminUserManagement(): React.JSX.Element {
           >
             Previous
           </button>
-          <span aria-current="page">Page {page + 1} of {totalPages}</span>
+          <span aria-current="page">
+            Page {page + 1} of {totalPages}
+          </span>
           <button
             className="admin-user-management__page-btn"
             onClick={() => setPage((p) => p + 1)}

@@ -57,7 +57,9 @@ async function sendWithRetry(
       lastError = err;
       if (attempt < MAX_ATTEMPTS - 1) {
         const backoff = BASE_DELAY_MS * Math.pow(2, attempt);
-        logger.warn(`[ReportEmail] Attempt ${attempt + 1} failed for ${to}, retrying in ${backoff}ms`);
+        logger.warn(
+          `[ReportEmail] Attempt ${attempt + 1} failed for ${to}, retrying in ${backoff}ms`,
+        );
         await delay(backoff);
       }
     }
@@ -143,9 +145,12 @@ export async function sendReportEmail(report: ScheduledReport): Promise<void> {
     } catch (mailErr: unknown) {
       deliveryStatus = 'failed';
       deliveryError = mailErr instanceof Error ? mailErr.message : String(mailErr);
-      logger.error(`[ReportEmail] Failed to send report ${report.id} to ${recipient} after ${MAX_ATTEMPTS} attempts`, {
-        error: deliveryError,
-      });
+      logger.error(
+        `[ReportEmail] Failed to send report ${report.id} to ${recipient} after ${MAX_ATTEMPTS} attempts`,
+        {
+          error: deliveryError,
+        },
+      );
     }
   }
 
@@ -154,7 +159,12 @@ export async function sendReportEmail(report: ScheduledReport): Promise<void> {
     await db.run(
       `INSERT INTO scheduled_report_deliveries (report_id, recipients, status, error_message)
        VALUES ($1, $2::jsonb, $3, $4)`,
-      [report.id, JSON.stringify(recipientList), deliveryStatus === 'success' ? 'success' : 'failed', deliveryError],
+      [
+        report.id,
+        JSON.stringify(recipientList),
+        deliveryStatus === 'success' ? 'success' : 'failed',
+        deliveryError,
+      ],
     );
   } catch (auditErr: unknown) {
     logger.error(`[ReportEmail] Failed to record delivery for report ${report.id}`, {

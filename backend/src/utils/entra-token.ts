@@ -117,7 +117,9 @@ export async function validateEntraIdToken(
 
   const lowerTenantId = tenantId.trim().toLowerCase();
   const supportsAnyTenant =
-    lowerTenantId === 'common' || lowerTenantId === 'organizations' || lowerTenantId === 'consumers';
+    lowerTenantId === 'common' ||
+    lowerTenantId === 'organizations' ||
+    lowerTenantId === 'consumers';
 
   let issuerTenant = tenantId;
   if (supportsAnyTenant) {

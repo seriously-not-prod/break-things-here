@@ -1,5 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { heartbeatPresence, leavePresence, type EntityType, type PresenceUser } from '../../services/collaboration-service';
+import {
+  heartbeatPresence,
+  leavePresence,
+  type EntityType,
+  type PresenceUser,
+} from '../../services/collaboration-service';
 
 interface PresenceIndicatorsProps {
   entityType: EntityType;
@@ -9,7 +14,11 @@ interface PresenceIndicatorsProps {
 
 const HEARTBEAT_INTERVAL_MS = 20000;
 
-export function PresenceIndicators({ entityType, entityId, currentUserId }: PresenceIndicatorsProps): React.JSX.Element {
+export function PresenceIndicators({
+  entityType,
+  entityId,
+  currentUserId,
+}: PresenceIndicatorsProps): React.JSX.Element {
   const [presence, setPresence] = useState<PresenceUser[]>([]);
 
   const sendHeartbeat = useCallback(async () => {

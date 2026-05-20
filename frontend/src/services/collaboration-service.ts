@@ -38,7 +38,9 @@ export interface NotificationBatchRule {
 }
 
 export async function listNotificationPreferences(): Promise<NotificationPreference[]> {
-  const data = await api.get<{ preferences: NotificationPreference[] }>('/api/notifications/preferences');
+  const data = await api.get<{ preferences: NotificationPreference[] }>(
+    '/api/notifications/preferences',
+  );
   return data.preferences;
 }
 
@@ -93,9 +95,7 @@ export async function getPresence(
 }
 
 export async function leavePresence(entityType: EntityType, entityId: number): Promise<void> {
-  await api.delete(
-    `/api/presence?entity_type=${entityType}&entity_id=${entityId}`,
-  );
+  await api.delete(`/api/presence?entity_type=${entityType}&entity_id=${entityId}`);
 }
 
 export async function getEventPresence(eventId: number): Promise<PresenceUser[]> {

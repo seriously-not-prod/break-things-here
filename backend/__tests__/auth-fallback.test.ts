@@ -46,10 +46,22 @@ function makeRes() {
     statusCode: 200,
     body: null,
     cookies: {},
-    status(code: number) { this.statusCode = code; return this; },
-    json(data: unknown) { this.body = data; return this; },
-    cookie(name: string, value: string) { this.cookies[name] = value; return this; },
-    clearCookie(name: string) { delete this.cookies[name]; return this; },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data: unknown) {
+      this.body = data;
+      return this;
+    },
+    cookie(name: string, value: string) {
+      this.cookies[name] = value;
+      return this;
+    },
+    clearCookie(name: string) {
+      delete this.cookies[name];
+      return this;
+    },
   };
   return res;
 }
@@ -134,8 +146,12 @@ import { isEntraEnabled, isLocalFallbackAllowed } from '../src/config/entra.js';
 // ── Tests: 410 guard (no DB required) ───────────────────────────────────────
 
 describe('Auth Fallback — Block local login in production (#783)', () => {
-  beforeEach(() => { snapshotEnv(); });
-  afterEach(() => { restoreEnv(); });
+  beforeEach(() => {
+    snapshotEnv();
+  });
+  afterEach(() => {
+    restoreEnv();
+  });
 
   it('returns 410 Gone when production + Entra enabled + no local fallback', async () => {
     process.env.NODE_ENV = 'production';
@@ -250,8 +266,12 @@ describe('Auth Fallback — Local login allowed scenarios (#783)', () => {
 // ── Tests: startup warning ──────────────────────────────────────────────────
 
 describe('Auth Fallback — Startup warning (#783)', () => {
-  beforeEach(() => { snapshotEnv(); });
-  afterEach(() => { restoreEnv(); });
+  beforeEach(() => {
+    snapshotEnv();
+  });
+  afterEach(() => {
+    restoreEnv();
+  });
 
   it('isEntraEnabled returns true when ENTRA_AUTH_ENABLED=true', () => {
     process.env.ENTRA_AUTH_ENABLED = 'true';
@@ -279,13 +299,15 @@ describe('Auth Fallback — Startup warning (#783)', () => {
       if (process.env.NODE_ENV === 'production' && isEntraEnabled() && isLocalFallbackAllowed()) {
         console.warn(
           '[SECURITY] WARNING: ENTRA_ALLOW_LOCAL_FALLBACK is enabled in production. ' +
-          'Local email/password login is available alongside Entra ID SSO. ' +
-          'Set ENTRA_ALLOW_LOCAL_FALLBACK=false (or unset it) to enforce Entra-only authentication.',
+            'Local email/password login is available alongside Entra ID SSO. ' +
+            'Set ENTRA_ALLOW_LOCAL_FALLBACK=false (or unset it) to enforce Entra-only authentication.',
         );
       }
 
       expect(warnSpy).toHaveBeenCalledOnce();
-      expect(warnSpy.mock.calls[0]?.[0]).toContain('ENTRA_ALLOW_LOCAL_FALLBACK is enabled in production');
+      expect(warnSpy.mock.calls[0]?.[0]).toContain(
+        'ENTRA_ALLOW_LOCAL_FALLBACK is enabled in production',
+      );
     } finally {
       warnSpy.mockRestore();
     }

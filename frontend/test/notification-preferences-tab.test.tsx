@@ -23,14 +23,70 @@ vi.mock('../src/services/collaboration-service', () => ({
 const mockedService = vi.mocked(collaborationService);
 
 const MOCK_PREFERENCES: NotificationPreference[] = [
-  { id: 1, user_id: 10, notification_type: 'task_due', email_enabled: true, in_app_enabled: true, push_enabled: false },
-  { id: 2, user_id: 10, notification_type: 'task_overdue', email_enabled: true, in_app_enabled: true, push_enabled: false },
-  { id: 3, user_id: 10, notification_type: 'task_assigned', email_enabled: true, in_app_enabled: true, push_enabled: true },
-  { id: 4, user_id: 10, notification_type: 'budget_alert', email_enabled: false, in_app_enabled: true, push_enabled: false },
-  { id: 5, user_id: 10, notification_type: 'rsvp_submitted', email_enabled: true, in_app_enabled: true, push_enabled: false },
-  { id: 6, user_id: 10, notification_type: 'event_update', email_enabled: true, in_app_enabled: true, push_enabled: false },
-  { id: 7, user_id: 10, notification_type: 'chat_message', email_enabled: true, in_app_enabled: true, push_enabled: false },
-  { id: 8, user_id: 10, notification_type: 'event_reminder', email_enabled: true, in_app_enabled: true, push_enabled: false },
+  {
+    id: 1,
+    user_id: 10,
+    notification_type: 'task_due',
+    email_enabled: true,
+    in_app_enabled: true,
+    push_enabled: false,
+  },
+  {
+    id: 2,
+    user_id: 10,
+    notification_type: 'task_overdue',
+    email_enabled: true,
+    in_app_enabled: true,
+    push_enabled: false,
+  },
+  {
+    id: 3,
+    user_id: 10,
+    notification_type: 'task_assigned',
+    email_enabled: true,
+    in_app_enabled: true,
+    push_enabled: true,
+  },
+  {
+    id: 4,
+    user_id: 10,
+    notification_type: 'budget_alert',
+    email_enabled: false,
+    in_app_enabled: true,
+    push_enabled: false,
+  },
+  {
+    id: 5,
+    user_id: 10,
+    notification_type: 'rsvp_submitted',
+    email_enabled: true,
+    in_app_enabled: true,
+    push_enabled: false,
+  },
+  {
+    id: 6,
+    user_id: 10,
+    notification_type: 'event_update',
+    email_enabled: true,
+    in_app_enabled: true,
+    push_enabled: false,
+  },
+  {
+    id: 7,
+    user_id: 10,
+    notification_type: 'chat_message',
+    email_enabled: true,
+    in_app_enabled: true,
+    push_enabled: false,
+  },
+  {
+    id: 8,
+    user_id: 10,
+    notification_type: 'event_reminder',
+    email_enabled: true,
+    in_app_enabled: true,
+    push_enabled: false,
+  },
 ];
 
 describe('NotificationPreferencesTab', () => {
@@ -116,9 +172,7 @@ describe('NotificationPreferencesTab', () => {
 
   it('rolls back on API failure', async () => {
     const user = userEvent.setup();
-    mockedService.upsertNotificationPreference.mockRejectedValueOnce(
-      new Error('Network error'),
-    );
+    mockedService.upsertNotificationPreference.mockRejectedValueOnce(new Error('Network error'));
 
     render(<NotificationPreferencesTab />);
 
@@ -142,9 +196,7 @@ describe('NotificationPreferencesTab', () => {
   });
 
   it('displays error when loading preferences fails', async () => {
-    mockedService.listNotificationPreferences.mockRejectedValue(
-      new Error('Server unavailable'),
-    );
+    mockedService.listNotificationPreferences.mockRejectedValue(new Error('Server unavailable'));
 
     render(<NotificationPreferencesTab />);
 
@@ -169,7 +221,9 @@ describe('NotificationPreferencesTab', () => {
     render(<NotificationPreferencesTab />);
 
     await waitFor(() => {
-      expect(screen.getByRole('table', { name: 'Notification preferences matrix' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('table', { name: 'Notification preferences matrix' }),
+      ).toBeInTheDocument();
     });
   });
 });

@@ -170,13 +170,21 @@ describe('logAuditEvent utility', () => {
 describe('Audit actions constants', () => {
   it('AUDIT_ACTIONS has all required action keys', () => {
     const required = [
-      'LOGIN_SUCCESS', 'LOGIN_FAILURE', 'LOGIN_ACCOUNT_LOCKED',
-      'LOGOUT', 'LOGOUT_ALL_SESSIONS',
-      'TOKEN_REFRESH_SUCCESS', 'TOKEN_REFRESH_FAILURE',
+      'LOGIN_SUCCESS',
+      'LOGIN_FAILURE',
+      'LOGIN_ACCOUNT_LOCKED',
+      'LOGOUT',
+      'LOGOUT_ALL_SESSIONS',
+      'TOKEN_REFRESH_SUCCESS',
+      'TOKEN_REFRESH_FAILURE',
       'SESSION_EXPIRED',
-      'ROLE_CHANGE', 'PERMISSION_DENIED',
-      'PASSWORD_RESET_REQUEST', 'PASSWORD_RESET_COMPLETED',
-      'UPLOAD_SCAN_PASS', 'UPLOAD_SCAN_FAIL', 'UPLOAD_REJECTED',
+      'ROLE_CHANGE',
+      'PERMISSION_DENIED',
+      'PASSWORD_RESET_REQUEST',
+      'PASSWORD_RESET_COMPLETED',
+      'UPLOAD_SCAN_PASS',
+      'UPLOAD_SCAN_FAIL',
+      'UPLOAD_REJECTED',
     ];
     for (const key of required) {
       expect(AUDIT_ACTIONS).toHaveProperty(key);

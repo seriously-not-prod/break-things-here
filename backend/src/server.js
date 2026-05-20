@@ -30,21 +30,25 @@ const DEMO_PASSWORD = process.env.DEMO_PASSWORD || 'Password123!';
 const DEFAULT_CORS_ORIGINS = ['http://localhost:5173'];
 const corsOriginsEnv = process.env.CORS_ALLOWED_ORIGINS;
 const allowedCorsOrigins = corsOriginsEnv
-  ? corsOriginsEnv.split(',').map((origin) => origin.trim()).filter(Boolean)
+  ? corsOriginsEnv
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean)
   : DEFAULT_CORS_ORIGINS;
 
 const attemptsByEmail = new Map();
 
 app.use(
   cors({
-    origin: allowedCorsOrigins
-  })
+    origin: allowedCorsOrigins,
+  }),
 );
 app.use(express.json());
 
 function pruneAttemptRecords(now = Date.now()) {
   for (const [emailKey, record] of attemptsByEmail.entries()) {
-    const isExpired = record.lockedUntil <= now && now - record.lastUpdatedAt > ATTEMPT_RECORD_TTL_MS;
+    const isExpired =
+      record.lockedUntil <= now && now - record.lastUpdatedAt > ATTEMPT_RECORD_TTL_MS;
     if (isExpired) {
       attemptsByEmail.delete(emailKey);
     }
@@ -113,7 +117,7 @@ app.post('/api/login', (req, res) => {
 
   if (!email || !password) {
     return res.status(400).json({
-      message: 'Email and password are required.'
+      message: 'Email and password are required.',
     });
   }
 
@@ -124,7 +128,7 @@ app.post('/api/login', (req, res) => {
   if (record.lockedUntil > now) {
     return res.status(429).json({
       message: 'Account is temporarily locked due to failed login attempts.',
-      lockedUntil: record.lockedUntil
+      lockedUntil: record.lockedUntil,
     });
   }
 
@@ -135,14 +139,13 @@ app.post('/api/login', (req, res) => {
     attemptsByEmail.delete(emailKey);
 
     const sessionToken = crypto.randomBytes(32).toString('hex');
-    sessions.set(sessionToken, { email: emailKey, rememberMe: !!rememberMe, createdAt: Date.now() });
+    sessions.set(sessionToken, {
+      email: emailKey,
+      rememberMe: !!rememberMe,
+      createdAt: Date.now(),
+    });
 
-    const cookieOptions = [
-      `refreshToken=${sessionToken}`,
-      'Path=/',
-      'HttpOnly',
-      'SameSite=Strict',
-    ];
+    const cookieOptions = [`refreshToken=${sessionToken}`, 'Path=/', 'HttpOnly', 'SameSite=Strict'];
 
     if (rememberMe) {
       cookieOptions.push(`Max-Age=${Math.floor(PERSISTENT_SESSION_MAX_AGE / 1000)}`);
@@ -151,7 +154,7 @@ app.post('/api/login', (req, res) => {
     res.setHeader('Set-Cookie', cookieOptions.join('; '));
 
     return res.status(200).json({
-      message: 'Login successful.'
+      message: 'Login successful.',
     });
   }
 
@@ -165,7 +168,7 @@ app.post('/api/login', (req, res) => {
 
     return res.status(429).json({
       message: 'Too many failed attempts. Please wait 10 minutes before retrying.',
-      lockedUntil: record.lockedUntil
+      lockedUntil: record.lockedUntil,
     });
   }
 
@@ -173,7 +176,7 @@ app.post('/api/login', (req, res) => {
 
   return res.status(401).json({
     message: 'Invalid email or password.',
-    attemptsRemaining: MAX_FAILED_ATTEMPTS - record.failedAttempts
+    attemptsRemaining: MAX_FAILED_ATTEMPTS - record.failedAttempts,
   });
 });
 

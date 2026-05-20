@@ -41,7 +41,9 @@ export function createConfirmEmailRouter(userStore: UserStore = inMemoryUserStor
     }
 
     if (newlyConfirmed) {
-      res.status(200).json({ message: 'Email confirmed successfully. Your account is now active.' });
+      res
+        .status(200)
+        .json({ message: 'Email confirmed successfully. Your account is now active.' });
     } else {
       res.status(200).json({ message: 'Email address has already been confirmed.' });
     }

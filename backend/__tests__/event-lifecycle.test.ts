@@ -71,7 +71,9 @@ describe('validateEventDate', () => {
   const now = new Date('2026-05-01T12:00:00Z');
 
   it('rejects past dates on create unless historical', () => {
-    expect(validateEventDate('2024-01-01', { isCreate: true, now })).toMatch(/today or in the future/);
+    expect(validateEventDate('2024-01-01', { isCreate: true, now })).toMatch(
+      /today or in the future/,
+    );
     expect(
       validateEventDate('2024-01-01', { isCreate: true, status: 'Completed', now }),
     ).toBeNull();

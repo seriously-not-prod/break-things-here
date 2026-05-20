@@ -29,7 +29,7 @@ export const options = {
         { duration: '30s', target: 25 },
         { duration: '30s', target: 50 },
         { duration: '30s', target: 100 },
-        { duration: '3m', target: 100 },   // Hold at 100 VUs for 3 min
+        { duration: '3m', target: 100 }, // Hold at 100 VUs for 3 min
         { duration: '30s', target: 0 },
       ],
       gracefulRampDown: '15s',

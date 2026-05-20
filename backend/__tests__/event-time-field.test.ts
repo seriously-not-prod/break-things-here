@@ -27,11 +27,7 @@ vi.mock('../src/db/database', () => ({
   getDatabase: () => mockDb,
 }));
 
-import {
-  createEvent,
-  updateEvent,
-  cloneEvent,
-} from '../src/controllers/event-controller.js';
+import { createEvent, updateEvent, cloneEvent } from '../src/controllers/event-controller.js';
 
 function makeRes() {
   const res: {
@@ -265,8 +261,8 @@ describe('updateEvent — event_time validation', () => {
 
   it('preserves existing event_time when not provided in update body', async () => {
     mockDb.get
-      .mockResolvedValueOnce(BASE_EVENT)   // existing event check
-      .mockResolvedValueOnce(BASE_EVENT);  // updated event read-back
+      .mockResolvedValueOnce(BASE_EVENT) // existing event check
+      .mockResolvedValueOnce(BASE_EVENT); // updated event read-back
     mockDb.run.mockResolvedValue({});
 
     const req = makeUpdateReq('42', { title: 'Updated Festival' });
@@ -314,7 +310,7 @@ describe('cloneEvent — event_time propagation', () => {
       status: 'Draft',
     };
     mockDb.get
-      .mockResolvedValueOnce(BASE_EVENT)  // source lookup
+      .mockResolvedValueOnce(BASE_EVENT) // source lookup
       .mockResolvedValueOnce(clonedEvent); // read-back after insert
     mockDb.run.mockResolvedValue({ lastID: 99 });
 
@@ -338,9 +334,7 @@ describe('cloneEvent — event_time propagation', () => {
       title: 'Copy of Summer Festival',
       status: 'Draft',
     };
-    mockDb.get
-      .mockResolvedValueOnce(sourceWithoutTime)
-      .mockResolvedValueOnce(clonedEvent);
+    mockDb.get.mockResolvedValueOnce(sourceWithoutTime).mockResolvedValueOnce(clonedEvent);
     mockDb.run.mockResolvedValue({ lastID: 100 });
 
     const req = makeCloneReq('42');

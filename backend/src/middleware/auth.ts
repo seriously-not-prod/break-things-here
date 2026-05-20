@@ -35,21 +35,22 @@ function _resolveJwtSecret(): string {
   const ephemeral = crypto.randomBytes(32).toString('hex');
   console.warn(
     '[SECURITY] JWT_SECRET is not set. Using an ephemeral per-startup secret — ' +
-    'sessions will not survive restarts. Set JWT_SECRET for persistent sessions.',
+      'sessions will not survive restarts. Set JWT_SECRET for persistent sessions.',
   );
   return ephemeral;
 }
 const JWT_SECRET = _resolveJwtSecret();
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
-export const SESSION_TIMEOUT_MS = parseInt(process.env.SESSION_TIMEOUT_MS || String(30 * 60 * 1000), 10);
+export const SESSION_TIMEOUT_MS = parseInt(
+  process.env.SESSION_TIMEOUT_MS || String(30 * 60 * 1000),
+  10,
+);
 
 export function generateTokens(userId: number, email: string, roleId: number, jti?: string) {
   const accessJti = jti || crypto.randomBytes(16).toString('hex');
-  const accessToken = jwt.sign(
-    { id: userId, email, role_id: roleId, jti: accessJti },
-    JWT_SECRET,
-    { expiresIn: '1h' } as jwt.SignOptions,
-  );
+  const accessToken = jwt.sign({ id: userId, email, role_id: roleId, jti: accessJti }, JWT_SECRET, {
+    expiresIn: '1h',
+  } as jwt.SignOptions);
 
   // Use an opaque random refresh token rather than a signed JWT to avoid
   // persisting jwt.sign outputs in server storage. Refresh tokens are
@@ -70,14 +71,18 @@ export function verifyToken(token: string): TokenPayload | null {
 
 import { decryptToken } from '../utils/auth-helpers.js';
 
-export async function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function authenticateToken(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   // Try to get token from Authorization header first
   let token: string | undefined;
   const authHeader = req.headers['authorization'];
   if (authHeader) {
     token = authHeader.split(' ')[1];
   }
-  
+
   // If no Authorization header, try to get from cookie
   if (!token) {
     const cookies = parseCookies(req.headers.cookie ?? '');
@@ -137,7 +142,10 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
   }
 
   // Update last_activity
-  await db.run('UPDATE sessions SET last_activity = $1 WHERE id = $2', [new Date().toISOString(), session.id]);
+  await db.run('UPDATE sessions SET last_activity = $1 WHERE id = $2', [
+    new Date().toISOString(),
+    session.id,
+  ]);
 
   // Check if user account has been deactivated (#677)
   const userRecord = await db.get<{ deactivated_at: string | null }>(
@@ -149,7 +157,9 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
     return;
   }
   if (userRecord.deactivated_at) {
-    res.status(403).json({ error: 'Your account has been deactivated. Please contact an administrator.' });
+    res
+      .status(403)
+      .json({ error: 'Your account has been deactivated. Please contact an administrator.' });
     return;
   }
 
@@ -183,10 +193,9 @@ export function authorizeRole(
     }
 
     const db = getDatabase();
-    const role = await db.get<{ name: string }>(
-      'SELECT name FROM roles WHERE id = $1',
-      [req.user.role_id],
-    );
+    const role = await db.get<{ name: string }>('SELECT name FROM roles WHERE id = $1', [
+      req.user.role_id,
+    ]);
 
     if (!role || !allowedRoles.includes(role.name)) {
       await logAuditEvent({

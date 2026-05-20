@@ -19,7 +19,12 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import { CampaignRounded, MailOutlined, TrendingUpRounded, OpenInNewRounded } from '@mui/icons-material';
+import {
+  CampaignRounded,
+  MailOutlined,
+  TrendingUpRounded,
+  OpenInNewRounded,
+} from '@mui/icons-material';
 import {
   getCommunicationMetrics,
   type CommunicationMetrics,

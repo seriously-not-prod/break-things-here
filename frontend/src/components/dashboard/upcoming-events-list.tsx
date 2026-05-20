@@ -54,12 +54,11 @@ export function UpcomingEventsList({ events, loading }: UpcomingEventsListProps)
 
   if (upcoming.length === 0) {
     return (
-      <Box
-        sx={{ py: 4, textAlign: 'center' }}
-        role="status"
-        aria-label="No upcoming events"
-      >
-        <CalendarTodayIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} aria-hidden="true" />
+      <Box sx={{ py: 4, textAlign: 'center' }} role="status" aria-label="No upcoming events">
+        <CalendarTodayIcon
+          sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }}
+          aria-hidden="true"
+        />
         <Typography color="text.secondary">No events scheduled yet.</Typography>
       </Box>
     );
@@ -75,12 +74,7 @@ export function UpcomingEventsList({ events, loading }: UpcomingEventsListProps)
           sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 2 }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography
-              variant="body2"
-              fontWeight={700}
-              noWrap
-              title={event.title}
-            >
+            <Typography variant="body2" fontWeight={700} noWrap title={event.title}>
               {event.title}
             </Typography>
             <Typography variant="caption" color="text.secondary">

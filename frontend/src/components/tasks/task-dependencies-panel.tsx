@@ -69,7 +69,9 @@ export default function TaskDependenciesPanel({ eventId, taskId }: Props): JSX.E
     }
   }, [eventId, taskId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const handleAdd = async (depTaskId: number, direction: 'blocks' | 'blockedBy'): Promise<void> => {
     setError(null);
@@ -91,7 +93,11 @@ export default function TaskDependenciesPanel({ eventId, taskId }: Props): JSX.E
     }
   };
 
-  const handleRemove = async (depId: number, taskRef: number, direction: 'blocks' | 'blockedBy'): Promise<void> => {
+  const handleRemove = async (
+    depId: number,
+    taskRef: number,
+    direction: 'blocks' | 'blockedBy',
+  ): Promise<void> => {
     try {
       if (direction === 'blocks') {
         await removeTaskDependency(eventId, taskRef, depId);
@@ -115,7 +121,11 @@ export default function TaskDependenciesPanel({ eventId, taskId }: Props): JSX.E
 
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 1 }}>
+          {error}
+        </Alert>
+      )}
 
       {/* This task is blocked by … */}
       <Stack direction="row" alignItems="center" spacing={1} mb={1}>
@@ -124,7 +134,10 @@ export default function TaskDependenciesPanel({ eventId, taskId }: Props): JSX.E
         <Tooltip title="Add a blocking task">
           <IconButton
             size="small"
-            onClick={() => { setAddingBlockedBy((v) => !v); setAddingBlock(false); }}
+            onClick={() => {
+              setAddingBlockedBy((v) => !v);
+              setAddingBlock(false);
+            }}
             aria-label="Add blocked-by dependency"
           >
             <AddRounded fontSize="small" />
@@ -141,9 +154,13 @@ export default function TaskDependenciesPanel({ eventId, taskId }: Props): JSX.E
             onChange={(e) => setSelectedTask(e.target.value)}
             sx={{ flex: 1 }}
           >
-            <MenuItem value="" disabled>Select a task…</MenuItem>
+            <MenuItem value="" disabled>
+              Select a task…
+            </MenuItem>
             {availableTasks.map((t) => (
-              <MenuItem key={t.id} value={String(t.id)}>{t.title}</MenuItem>
+              <MenuItem key={t.id} value={String(t.id)}>
+                {t.title}
+              </MenuItem>
             ))}
           </Select>
           {selectedTask && (
@@ -159,7 +176,9 @@ export default function TaskDependenciesPanel({ eventId, taskId }: Props): JSX.E
       )}
 
       {blockedBy.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={{ ml: 3, mb: 1 }}>None</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ ml: 3, mb: 1 }}>
+          None
+        </Typography>
       ) : (
         <Stack direction="row" flexWrap="wrap" gap={1} mb={1} sx={{ ml: 3 }}>
           {blockedBy.map((t) => (
@@ -184,7 +203,10 @@ export default function TaskDependenciesPanel({ eventId, taskId }: Props): JSX.E
         <Tooltip title="Add a task this blocks">
           <IconButton
             size="small"
-            onClick={() => { setAddingBlock((v) => !v); setAddingBlockedBy(false); }}
+            onClick={() => {
+              setAddingBlock((v) => !v);
+              setAddingBlockedBy(false);
+            }}
             aria-label="Add blocks dependency"
           >
             <AddRounded fontSize="small" />
@@ -201,9 +223,13 @@ export default function TaskDependenciesPanel({ eventId, taskId }: Props): JSX.E
             onChange={(e) => setSelectedTask(e.target.value)}
             sx={{ flex: 1 }}
           >
-            <MenuItem value="" disabled>Select a task…</MenuItem>
+            <MenuItem value="" disabled>
+              Select a task…
+            </MenuItem>
             {availableTasks.map((t) => (
-              <MenuItem key={t.id} value={String(t.id)}>{t.title}</MenuItem>
+              <MenuItem key={t.id} value={String(t.id)}>
+                {t.title}
+              </MenuItem>
             ))}
           </Select>
           {selectedTask && (
@@ -219,7 +245,9 @@ export default function TaskDependenciesPanel({ eventId, taskId }: Props): JSX.E
       )}
 
       {blocking.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={{ ml: 3 }}>None</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ ml: 3 }}>
+          None
+        </Typography>
       ) : (
         <Stack direction="row" flexWrap="wrap" gap={1} sx={{ ml: 3 }}>
           {blocking.map((t) => (

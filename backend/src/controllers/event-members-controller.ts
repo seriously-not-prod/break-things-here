@@ -6,7 +6,9 @@ interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
 }
 
-function normalizeIncomingEventRole(rawRole: string | undefined): 'Owner' | 'Co-Organizer' | 'Helper' | 'Guest' {
+function normalizeIncomingEventRole(
+  rawRole: string | undefined,
+): 'Owner' | 'Co-Organizer' | 'Helper' | 'Guest' {
   const normalized = (rawRole ?? '').trim().toLowerCase();
   if (!normalized) return 'Helper';
   if (normalized === 'owner') return 'Owner';
@@ -61,16 +63,21 @@ export async function addMember(req: Request, res: Response): Promise<Response> 
   if (!event) return res as Response;
 
   const numericUserId = Number(user_id);
-  if (!Number.isInteger(numericUserId)) return res.status(400).json({ error: 'user_id is required.' });
+  if (!Number.isInteger(numericUserId))
+    return res.status(400).json({ error: 'user_id is required.' });
 
-  const user = await db.get('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [numericUserId]);
+  const user = await db.get('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [
+    numericUserId,
+  ]);
   if (!user) return res.status(404).json({ error: 'User not found.' });
 
   let eventRole: 'Owner' | 'Co-Organizer' | 'Helper' | 'Guest';
   try {
     eventRole = normalizeIncomingEventRole(role);
   } catch (error) {
-    return res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid event role.' });
+    return res
+      .status(400)
+      .json({ error: error instanceof Error ? error.message : 'Invalid event role.' });
   }
 
   await db.run(

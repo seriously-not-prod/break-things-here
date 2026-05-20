@@ -30,9 +30,7 @@ export async function listTaskDependencies(
   eventId: number | string,
   taskId: number | string,
 ): Promise<TaskDependenciesResponse> {
-  return api.get<TaskDependenciesResponse>(
-    `/api/events/${eventId}/tasks/${taskId}/dependencies`,
-  );
+  return api.get<TaskDependenciesResponse>(`/api/events/${eventId}/tasks/${taskId}/dependencies`);
 }
 
 export async function addTaskDependency(

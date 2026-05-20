@@ -8,13 +8,13 @@ import {
 } from '../../services/collaboration-service';
 
 const TYPE_LABELS: Record<NotificationType, string> = {
-  task_due:       'Task Due Soon',
-  task_overdue:   'Task Overdue',
-  task_assigned:  'Task Assigned to Me',
-  budget_alert:   'Budget Alert',
+  task_due: 'Task Due Soon',
+  task_overdue: 'Task Overdue',
+  task_assigned: 'Task Assigned to Me',
+  budget_alert: 'Budget Alert',
   rsvp_submitted: 'RSVP Submitted',
-  event_update:   'Event Updated',
-  chat_message:   'Chat Message',
+  event_update: 'Event Updated',
+  chat_message: 'Chat Message',
   event_reminder: 'Event Reminder',
 };
 
@@ -33,26 +33,31 @@ export function NotificationPreferencesPanel(): React.JSX.Element {
         setPrefs(map);
         setLoading(false);
       })
-      .catch((err: Error) => { setError(err.message); setLoading(false); });
+      .catch((err: Error) => {
+        setError(err.message);
+        setLoading(false);
+      });
   }, []);
 
   const handleToggle = async (
     type: NotificationType,
     field: 'email_enabled' | 'in_app_enabled' | 'push_enabled',
   ) => {
-    const current = prefs.get(type) ?? {
-      notification_type: type,
-      email_enabled: true,
-      in_app_enabled: true,
-      push_enabled: false,
-    } as NotificationPreference;
+    const current =
+      prefs.get(type) ??
+      ({
+        notification_type: type,
+        email_enabled: true,
+        in_app_enabled: true,
+        push_enabled: false,
+      } as NotificationPreference);
     const updated = { ...current, [field]: !current[field] };
     setSaving(type);
     try {
       const saved = await upsertNotificationPreference(type, {
-        email_enabled:  updated.email_enabled,
+        email_enabled: updated.email_enabled,
         in_app_enabled: updated.in_app_enabled,
-        push_enabled:   updated.push_enabled,
+        push_enabled: updated.push_enabled,
       });
       setPrefs((prev) => new Map(prev).set(type, saved));
     } catch (err: unknown) {
@@ -68,9 +73,14 @@ export function NotificationPreferencesPanel(): React.JSX.Element {
     <div className="p-4" aria-label="Notification preferences">
       <h2 className="text-lg font-semibold mb-4">Notification Preferences</h2>
       {error && (
-        <div className="text-red-600 text-sm p-2 rounded bg-red-50 border border-red-200 mb-4" role="alert">
+        <div
+          className="text-red-600 text-sm p-2 rounded bg-red-50 border border-red-200 mb-4"
+          role="alert"
+        >
           {error}
-          <button className="ml-2 underline" onClick={() => setError(null)}>Dismiss</button>
+          <button className="ml-2 underline" onClick={() => setError(null)}>
+            Dismiss
+          </button>
         </div>
       )}
       <div className="overflow-x-auto">
@@ -86,9 +96,9 @@ export function NotificationPreferencesPanel(): React.JSX.Element {
           <tbody>
             {NOTIFICATION_TYPES.map((type) => {
               const pref = prefs.get(type);
-              const inApp  = pref?.in_app_enabled  ?? true;
-              const email  = pref?.email_enabled   ?? true;
-              const push   = pref?.push_enabled    ?? false;
+              const inApp = pref?.in_app_enabled ?? true;
+              const email = pref?.email_enabled ?? true;
+              const push = pref?.push_enabled ?? false;
               const isSaving = saving === type;
 
               return (
@@ -131,7 +141,8 @@ export function NotificationPreferencesPanel(): React.JSX.Element {
         </table>
       </div>
       <p className="text-xs text-muted-foreground mt-3">
-        Changes are saved immediately. Anti-spam batch rules are applied by the server regardless of these settings.
+        Changes are saved immediately. Anti-spam batch rules are applied by the server regardless of
+        these settings.
       </p>
     </div>
   );

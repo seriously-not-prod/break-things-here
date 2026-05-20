@@ -29,8 +29,8 @@ export function AccountDeletion({
       <h2 id="delete-dialog-heading">Delete Account</h2>
 
       <p>
-        This action is <strong>permanent and cannot be undone</strong>. All your personal
-        data, preferences, and event registrations will be removed.
+        This action is <strong>permanent and cannot be undone</strong>. All your personal data,
+        preferences, and event registrations will be removed.
       </p>
 
       <form onSubmit={handleDelete} aria-label="Confirm account deletion">
@@ -64,11 +64,7 @@ export function AccountDeletion({
           >
             {isDeleting ? 'Deleting...' : 'Permanently Delete My Account'}
           </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            aria-label="Cancel account deletion"
-          >
+          <button type="button" onClick={onCancel} aria-label="Cancel account deletion">
             Cancel
           </button>
         </div>

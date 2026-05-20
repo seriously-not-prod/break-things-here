@@ -68,7 +68,9 @@ export async function exportPersonalData(req: AuthRequest, res: Response): Promi
   ]);
 
   await logAuditEvent({
-    db, userId, email: req.user.email,
+    db,
+    userId,
+    email: req.user.email,
     action: 'GDPR_DATA_EXPORT',
     description: 'User exported personal data',
     ipAddress: req.ip,
@@ -134,11 +136,15 @@ export async function erasePersonalData(req: AuthRequest, res: Response): Promis
   for (const upload of uploads) {
     try {
       await fs.unlink(path.join(uploadDir, upload.file_name));
-    } catch { /* file may already be gone */ }
+    } catch {
+      /* file may already be gone */
+    }
   }
 
   await logAuditEvent({
-    db, userId, email: req.user.email,
+    db,
+    userId,
+    email: req.user.email,
     action: 'GDPR_ERASURE',
     description: 'User exercised right to erasure — all PII anonymised',
     ipAddress: req.ip,
@@ -159,7 +165,8 @@ export async function erasePersonalData(req: AuthRequest, res: Response): Promis
  */
 export async function adminErasePersonalData(req: AuthRequest, res: Response): Promise<Response> {
   if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
-  if (req.user.role_id !== ROLE_ADMIN_ID) return res.status(403).json({ error: 'Admin role required.' });
+  if (req.user.role_id !== ROLE_ADMIN_ID)
+    return res.status(403).json({ error: 'Admin role required.' });
 
   const db = getDatabase();
   const targetId = parseInt(req.params.id, 10);
@@ -197,7 +204,9 @@ export async function adminErasePersonalData(req: AuthRequest, res: Response): P
   await db.run('DELETE FROM sessions WHERE user_id = $1', [targetId]);
 
   await logAuditEvent({
-    db, userId: req.user.id, email: req.user.email,
+    db,
+    userId: req.user.id,
+    email: req.user.email,
     action: 'GDPR_ADMIN_ERASURE',
     description: `Admin erased personal data for user ${targetId} (${target.email})`,
     ipAddress: req.ip,

@@ -70,9 +70,7 @@ export function BudgetForecastCard({ eventId }: Props): JSX.Element {
         setForecast(f);
         setError(null);
       })
-      .catch((err: unknown) =>
-        setError(getForecastErrorMessage(err)),
-      )
+      .catch((err: unknown) => setError(getForecastErrorMessage(err)))
       .finally(() => setLoading(false));
   }, [eventId]);
 
@@ -157,9 +155,7 @@ export function BudgetForecastCard({ eventId }: Props): JSX.Element {
             <Typography variant="caption" color="text.secondary">
               Actual spent
             </Typography>
-            <Typography variant="h6">
-              {formatCurrency(totals.actualSpent, baseCurrency)}
-            </Typography>
+            <Typography variant="h6">{formatCurrency(totals.actualSpent, baseCurrency)}</Typography>
           </Box>
           <Box>
             <Typography variant="caption" color="text.secondary">
@@ -173,10 +169,7 @@ export function BudgetForecastCard({ eventId }: Props): JSX.Element {
             <Typography variant="caption" color="text.secondary">
               Variance
             </Typography>
-            <Typography
-              variant="h6"
-              color={totals.variance > 0 ? 'error.main' : 'success.main'}
-            >
+            <Typography variant="h6" color={totals.variance > 0 ? 'error.main' : 'success.main'}>
               {totals.variance >= 0 ? '+' : ''}
               {formatCurrency(totals.variance, baseCurrency)}
             </Typography>
@@ -214,7 +207,11 @@ export function BudgetForecastCard({ eventId }: Props): JSX.Element {
                     <Typography variant="body2" fontWeight={600}>
                       {cat.name}
                     </Typography>
-                    <Chip size="small" color={STATUS_COLOR[cat.status]} label={STATUS_LABEL[cat.status]} />
+                    <Chip
+                      size="small"
+                      color={STATUS_COLOR[cat.status]}
+                      label={STATUS_LABEL[cat.status]}
+                    />
                   </Stack>
                   <Tooltip
                     title={

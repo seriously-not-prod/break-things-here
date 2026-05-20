@@ -19,7 +19,12 @@ import {
   Grid,
   Paper,
   Stack,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Typography,
 } from '@mui/material';
 import {
@@ -40,10 +45,16 @@ interface DeltaEvent {
   timestamp: string;
 }
 
-function statCard(label: string, value: number | string, accent?: 'primary' | 'success' | 'warning' | 'error') {
+function statCard(
+  label: string,
+  value: number | string,
+  accent?: 'primary' | 'success' | 'warning' | 'error',
+) {
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
-      <Typography variant="overline" color="text.secondary">{label}</Typography>
+      <Typography variant="overline" color="text.secondary">
+        {label}
+      </Typography>
       <Typography variant="h4" fontWeight={800} color={accent ? `${accent}.main` : 'inherit'}>
         {value}
       </Typography>
@@ -74,7 +85,9 @@ export default function AttendanceBoardPage(): JSX.Element {
         /* swallow — SSE may still deliver stats */
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [eventId]);
 
   useEffect(() => {
@@ -86,38 +99,58 @@ export default function AttendanceBoardPage(): JSX.Element {
       try {
         const data = JSON.parse((ev as MessageEvent).data) as { stats: AttendanceStats };
         setStats(data.stats);
-      } catch { /* noop */ }
+      } catch {
+        /* noop */
+      }
     });
     source.addEventListener('attendance', (ev) => {
       try {
         const data = JSON.parse((ev as MessageEvent).data) as {
           type: string;
-          rsvp?: { id: number; name: string; email: string; late_arrival: boolean; arrival_delay_minutes: number | null };
+          rsvp?: {
+            id: number;
+            name: string;
+            email: string;
+            late_arrival: boolean;
+            arrival_delay_minutes: number | null;
+          };
           rsvpId?: number;
           timestamp: string;
         };
         if (data.type === 'checkin' && data.rsvp) {
-          setFeed((prev) => [{
-            id: `${data.rsvp!.id}-${data.timestamp}`,
-            type: 'checkin',
-            name: data.rsvp!.name,
-            email: data.rsvp!.email,
-            late: data.rsvp!.late_arrival,
-            delayMinutes: data.rsvp!.arrival_delay_minutes,
-            timestamp: data.timestamp,
-          }, ...prev].slice(0, 50));
+          setFeed((prev) =>
+            [
+              {
+                id: `${data.rsvp!.id}-${data.timestamp}`,
+                type: 'checkin',
+                name: data.rsvp!.name,
+                email: data.rsvp!.email,
+                late: data.rsvp!.late_arrival,
+                delayMinutes: data.rsvp!.arrival_delay_minutes,
+                timestamp: data.timestamp,
+              },
+              ...prev,
+            ].slice(0, 50),
+          );
         } else if (data.type === 'undo_checkin' && data.rsvpId) {
-          setFeed((prev) => [{
-            id: `undo-${data.rsvpId}-${data.timestamp}`,
-            type: 'undo_checkin',
-            name: '',
-            email: '',
-            late: false,
-            delayMinutes: null,
-            timestamp: data.timestamp,
-          }, ...prev].slice(0, 50));
+          setFeed((prev) =>
+            [
+              {
+                id: `undo-${data.rsvpId}-${data.timestamp}`,
+                type: 'undo_checkin',
+                name: '',
+                email: '',
+                late: false,
+                delayMinutes: null,
+                timestamp: data.timestamp,
+              },
+              ...prev,
+            ].slice(0, 50),
+          );
         }
-      } catch { /* noop */ }
+      } catch {
+        /* noop */
+      }
     });
     return () => source.close();
   }, [eventId]);
@@ -138,7 +171,9 @@ export default function AttendanceBoardPage(): JSX.Element {
   return (
     <Box sx={{ p: 3 }}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-        <Typography variant="h5" fontWeight={700}>Real-time attendance</Typography>
+        <Typography variant="h5" fontWeight={700}>
+          Real-time attendance
+        </Typography>
         <Chip
           size="small"
           color={connected ? 'success' : 'default'}
@@ -146,12 +181,24 @@ export default function AttendanceBoardPage(): JSX.Element {
         />
       </Stack>
       <Grid container spacing={2}>
-        <Grid item xs={6} sm={4} md={2}>{statCard('Invited', stats?.invited ?? 0)}</Grid>
-        <Grid item xs={6} sm={4} md={2}>{statCard('Confirmed', stats?.confirmed ?? 0, 'success')}</Grid>
-        <Grid item xs={6} sm={4} md={2}>{statCard('Checked in', stats?.checked_in ?? 0, 'primary')}</Grid>
-        <Grid item xs={6} sm={4} md={2}>{statCard('Late', stats?.late_arrivals ?? 0, 'warning')}</Grid>
-        <Grid item xs={6} sm={4} md={2}>{statCard('No-shows', stats?.no_show ?? 0, 'error')}</Grid>
-        <Grid item xs={6} sm={4} md={2}>{statCard('Attendance rate', `${stats?.attendance_rate ?? 0}%`)}</Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          {statCard('Invited', stats?.invited ?? 0)}
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          {statCard('Confirmed', stats?.confirmed ?? 0, 'success')}
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          {statCard('Checked in', stats?.checked_in ?? 0, 'primary')}
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          {statCard('Late', stats?.late_arrivals ?? 0, 'warning')}
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          {statCard('No-shows', stats?.no_show ?? 0, 'error')}
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          {statCard('Attendance rate', `${stats?.attendance_rate ?? 0}%`)}
+        </Grid>
       </Grid>
 
       <Paper variant="outlined" sx={{ mt: 3 }}>
@@ -167,7 +214,11 @@ export default function AttendanceBoardPage(): JSX.Element {
             </TableHead>
             <TableBody>
               {recentRows.length === 0 && (
-                <TableRow><TableCell colSpan={4} align="center">No scans yet.</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={4} align="center">
+                    No scans yet.
+                  </TableCell>
+                </TableRow>
               )}
               {recentRows.map((row) => (
                 <TableRow key={row.id}>
@@ -177,7 +228,13 @@ export default function AttendanceBoardPage(): JSX.Element {
                   </TableCell>
                   <TableCell>{row.name || '—'}</TableCell>
                   <TableCell>
-                    {row.late && <Chip size="small" color="warning" label={`Late ${row.delayMinutes ?? '?'}m`} />}
+                    {row.late && (
+                      <Chip
+                        size="small"
+                        color="warning"
+                        label={`Late ${row.delayMinutes ?? '?'}m`}
+                      />
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

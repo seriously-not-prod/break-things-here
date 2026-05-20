@@ -23,12 +23,7 @@ export default defineConfig({
       reporter: ['text', 'lcov', 'json-summary'],
       reportsDirectory: './coverage',
       include: ['src/**/*.{ts,tsx}'],
-      exclude: [
-        'src/**/*.d.ts',
-        'src/main.tsx',
-        'src/vite-env.d.ts',
-        'src/react-app-env.d.ts',
-      ],
+      exclude: ['src/**/*.d.ts', 'src/main.tsx', 'src/vite-env.d.ts', 'src/react-app-env.d.ts'],
       // Regression-guard floor; target is ≥80% as coverage grows.
       thresholds: {
         lines: 25,

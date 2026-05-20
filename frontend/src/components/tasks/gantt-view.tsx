@@ -5,14 +5,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Box,
-  CircularProgress,
-  Paper,
-  Tooltip,
-  Typography,
-} from '@mui/material';
+import { Alert, Box, CircularProgress, Paper, Tooltip, Typography } from '@mui/material';
 import { Task, listTasks } from '../../services/tasks-service';
 
 interface Props {
@@ -46,14 +39,13 @@ export default function GanttView({ eventId }: Props): JSX.Element {
   // Filter tasks that have a due_date; sort chronologically
   const scheduledTasks = useMemo(
     () =>
-      tasks
-        .filter((t) => Boolean(t.due_date))
-        .sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1)),
+      tasks.filter((t) => Boolean(t.due_date)).sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1)),
     [tasks],
   );
 
   const { minDate, totalDays } = useMemo(() => {
-    if (scheduledTasks.length === 0) return { minDate: new Date(), maxDate: new Date(), totalDays: 1 };
+    if (scheduledTasks.length === 0)
+      return { minDate: new Date(), maxDate: new Date(), totalDays: 1 };
     const dates = scheduledTasks.map((t) => new Date(t.due_date!).getTime());
     const min = new Date(Math.min(...dates));
     const max = new Date(Math.max(...dates));
@@ -89,14 +81,20 @@ export default function GanttView({ eventId }: Props): JSX.Element {
   if (loading) return <CircularProgress />;
   if (error) return <Alert severity="error">{error}</Alert>;
   if (scheduledTasks.length === 0) {
-    return <Alert severity="info">No tasks with due dates found. Add due dates to tasks to see the Gantt view.</Alert>;
+    return (
+      <Alert severity="info">
+        No tasks with due dates found. Add due dates to tasks to see the Gantt view.
+      </Alert>
+    );
   }
 
   const svgHeight = scheduledTasks.length * (BAR_HEIGHT + ROW_GAP) + 40 + CHART_PADDING;
 
   return (
     <Box>
-      <Typography variant="h6" mb={2}>Gantt View</Typography>
+      <Typography variant="h6" mb={2}>
+        Gantt View
+      </Typography>
       <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
         <Box sx={{ display: 'flex', minWidth: LABEL_WIDTH + CHART_WIDTH + CHART_PADDING * 2 }}>
           {/* Task label column */}
@@ -147,8 +145,18 @@ export default function GanttView({ eventId }: Props): JSX.Element {
               if (todayOffset < 0 || todayOffset > totalDays) return null;
               return (
                 <g key="today">
-                  <line x1={todayX} y1={20} x2={todayX} y2={svgHeight} stroke="#ef5350" strokeWidth={2} strokeDasharray="4 3" />
-                  <text x={todayX + 3} y={20} fontSize={9} fill="#ef5350" fontWeight="bold">Today</text>
+                  <line
+                    x1={todayX}
+                    y1={20}
+                    x2={todayX}
+                    y2={svgHeight}
+                    stroke="#ef5350"
+                    strokeWidth={2}
+                    strokeDasharray="4 3"
+                  />
+                  <text x={todayX + 3} y={20} fontSize={9} fill="#ef5350" fontWeight="bold">
+                    Today
+                  </text>
                 </g>
               );
             })()}
@@ -190,7 +198,15 @@ export default function GanttView({ eventId }: Props): JSX.Element {
         <Box sx={{ display: 'flex', gap: 2, p: 1, flexWrap: 'wrap' }}>
           {Object.entries(STATUS_COLORS).map(([status, color]) => (
             <Box key={status} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 12, height: 12, borderRadius: 1, bgcolor: color, border: '1px solid #9e9e9e' }} />
+              <Box
+                sx={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 1,
+                  bgcolor: color,
+                  border: '1px solid #9e9e9e',
+                }}
+              />
               <Typography variant="caption">{status}</Typography>
             </Box>
           ))}

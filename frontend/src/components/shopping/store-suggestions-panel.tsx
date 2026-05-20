@@ -46,7 +46,10 @@ const STATUS_COLORS: Record<string, 'default' | 'warning' | 'success' | 'error'>
 
 const FILTER_OPTIONS = ['all', 'pending', 'approved', 'rejected'] as const;
 
-export default function StoreSuggestionsPanel({ eventId, canModerate = false }: Props): JSX.Element {
+export default function StoreSuggestionsPanel({
+  eventId,
+  canModerate = false,
+}: Props): JSX.Element {
   const [suggestions, setSuggestions] = useState<StoreSuggestion[]>([]);
   const [filter, setFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -73,11 +76,16 @@ export default function StoreSuggestionsPanel({ eventId, canModerate = false }: 
     }
   }, [eventId, filter]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const handleCreate = async (): Promise<void> => {
     setFormError(null);
-    if (!name.trim()) { setFormError('Store name is required.'); return; }
+    if (!name.trim()) {
+      setFormError('Store name is required.');
+      return;
+    }
     try {
       setSaving(true);
       await createStoreSuggestion(eventId, {
@@ -129,7 +137,11 @@ export default function StoreSuggestionsPanel({ eventId, canModerate = false }: 
         </Button>
       </Stack>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
 
       {/* Filter */}
       <Stack direction="row" spacing={1} mb={2}>
@@ -165,19 +177,28 @@ export default function StoreSuggestionsPanel({ eventId, canModerate = false }: 
               <Box>
                 <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
                   <Typography variant="subtitle2">{s.name}</Typography>
-                  <Chip label={s.status} color={STATUS_COLORS[s.status] ?? 'default'} size="small" />
+                  <Chip
+                    label={s.status}
+                    color={STATUS_COLORS[s.status] ?? 'default'}
+                    size="small"
+                  />
                   {s.category && <Chip label={s.category} size="small" variant="outlined" />}
                 </Stack>
                 {s.website && (
                   <Typography variant="body2">
-                    <a href={s.website} target="_blank" rel="noopener noreferrer">{s.website}</a>
+                    <a href={s.website} target="_blank" rel="noopener noreferrer">
+                      {s.website}
+                    </a>
                   </Typography>
                 )}
                 {s.notes && (
-                  <Typography variant="body2" color="text.secondary">{s.notes}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {s.notes}
+                  </Typography>
                 )}
                 <Typography variant="caption" color="text.secondary">
-                  Suggested by {s.suggester_name ?? 'Unknown'} · {new Date(s.created_at).toLocaleDateString()}
+                  Suggested by {s.suggester_name ?? 'Unknown'} ·{' '}
+                  {new Date(s.created_at).toLocaleDateString()}
                 </Typography>
               </Box>
 

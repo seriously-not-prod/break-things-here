@@ -80,8 +80,14 @@ function makeRes(): MockResponse {
   const res: MockResponse = {
     statusCode: 200,
     body: null,
-    status(code) { this.statusCode = code; return this; },
-    json(data) { this.body = data; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -94,10 +100,7 @@ function makeReq(
 }
 
 // ── Seed helpers ────────────────────────────────────────────────────────────
-async function seedUser(
-  email: string,
-  roleId = 1,
-): Promise<number> {
+async function seedUser(email: string, roleId = 1): Promise<number> {
   const result = await testDb.run(
     `INSERT INTO users (email, display_name, role_id) VALUES (?, ?, ?) RETURNING id`,
     [email, email.split('@')[0], roleId],
@@ -116,10 +119,10 @@ async function seedEvent(ownerId: number, opts: { deleted?: boolean } = {}): Pro
 }
 
 async function addMember(eventId: number, userId: number): Promise<void> {
-  await testDb.run(
-    `INSERT INTO event_members (event_id, user_id) VALUES (?, ?)`,
-    [eventId, userId],
-  );
+  await testDb.run(`INSERT INTO event_members (event_id, user_id) VALUES (?, ?)`, [
+    eventId,
+    userId,
+  ]);
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────

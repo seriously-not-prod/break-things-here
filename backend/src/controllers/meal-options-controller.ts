@@ -26,7 +26,10 @@ interface MealOptionRow {
   updated_at: string;
 }
 
-export async function listMealOptionsForEvent(eventId: number | string, activeOnly = false): Promise<MealOptionRow[]> {
+export async function listMealOptionsForEvent(
+  eventId: number | string,
+  activeOnly = false,
+): Promise<MealOptionRow[]> {
   const db = getDatabase();
   const rows = await db.all<MealOptionRow>(
     `SELECT id, event_id, name, description, is_active, sort_order, created_at, updated_at
@@ -55,7 +58,10 @@ export async function createMealOption(req: Request, res: Response): Promise<Res
   const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
   if (!event) return res as Response;
   const { name, description, is_active, sort_order } = (req.body ?? {}) as {
-    name?: string; description?: string; is_active?: boolean; sort_order?: number;
+    name?: string;
+    description?: string;
+    is_active?: boolean;
+    sort_order?: number;
   };
   if (!name?.trim()) return res.status(400).json({ error: 'Meal name is required.' });
   const db = getDatabase();
@@ -63,12 +69,17 @@ export async function createMealOption(req: Request, res: Response): Promise<Res
     const result = await db.run(
       `INSERT INTO event_meal_options (event_id, name, description, is_active, sort_order)
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [eventId, name.trim(), description?.trim() || null, is_active !== false, Number.isFinite(sort_order) ? Number(sort_order) : 0],
+      [
+        eventId,
+        name.trim(),
+        description?.trim() || null,
+        is_active !== false,
+        Number.isFinite(sort_order) ? Number(sort_order) : 0,
+      ],
     );
-    const row = await db.get<MealOptionRow>(
-      'SELECT * FROM event_meal_options WHERE id = $1',
-      [result.lastID],
-    );
+    const row = await db.get<MealOptionRow>('SELECT * FROM event_meal_options WHERE id = $1', [
+      result.lastID,
+    ]);
     return res.status(201).json({ option: row });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Insert failed';
@@ -88,10 +99,22 @@ export async function updateMealOption(req: Request, res: Response): Promise<Res
   const { name, description, is_active, sort_order } = (req.body ?? {}) as Record<string, unknown>;
   const fields: string[] = [];
   const params: (string | number | boolean | null)[] = [];
-  if (typeof name === 'string') { fields.push('name = ?'); params.push(name.trim()); }
-  if (description !== undefined) { fields.push('description = ?'); params.push(description ? String(description).trim() : null); }
-  if (is_active !== undefined) { fields.push('is_active = ?'); params.push(Boolean(is_active)); }
-  if (sort_order !== undefined) { fields.push('sort_order = $1'); params.push(Number(sort_order)); }
+  if (typeof name === 'string') {
+    fields.push('name = ?');
+    params.push(name.trim());
+  }
+  if (description !== undefined) {
+    fields.push('description = ?');
+    params.push(description ? String(description).trim() : null);
+  }
+  if (is_active !== undefined) {
+    fields.push('is_active = ?');
+    params.push(Boolean(is_active));
+  }
+  if (sort_order !== undefined) {
+    fields.push('sort_order = $1');
+    params.push(Number(sort_order));
+  }
   if (fields.length === 0) return res.status(400).json({ error: 'No fields to update.' });
   fields.push('updated_at = CURRENT_TIMESTAMP');
   params.push(id, eventId);
@@ -115,10 +138,10 @@ export async function deleteMealOption(req: Request, res: Response): Promise<Res
   const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
   if (!event) return res as Response;
   const db = getDatabase();
-  const result = await db.run(
-    'DELETE FROM event_meal_options WHERE id = $1 AND event_id = $2',
-    [id, eventId],
-  );
+  const result = await db.run('DELETE FROM event_meal_options WHERE id = $1 AND event_id = $2', [
+    id,
+    eventId,
+  ]);
   if (!result.changes) {
     return res.status(404).json({ error: 'Meal option not found.' });
   }

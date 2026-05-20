@@ -2,7 +2,15 @@ import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { parse as parseCookies } from 'cookie';
 import { getDatabase } from '../db/database.js';
-import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken, hashToken, encryptToken, decryptToken } from '../utils/auth-helpers.js';
+import {
+  verifyPassword,
+  validateEmailFormat,
+  hashPassword,
+  generateVerificationToken,
+  hashToken,
+  encryptToken,
+  decryptToken,
+} from '../utils/auth-helpers.js';
 import { generateTokens, verifyToken, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
 import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
 import { sendVerificationEmail } from '../utils/mailer.js';
@@ -37,13 +45,10 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
  */
 export async function login(req: Request, res: Response): Promise<Response> {
   // Block local-auth fallback in production when Entra is the required auth provider (#783)
-  if (
-    process.env.NODE_ENV === 'production' &&
-    isEntraEnabled() &&
-    !isLocalFallbackAllowed()
-  ) {
+  if (process.env.NODE_ENV === 'production' && isEntraEnabled() && !isLocalFallbackAllowed()) {
     return res.status(410).json({
-      error: 'Local authentication is disabled. Please use your organisation\'s single sign-on (Entra ID) to log in.',
+      error:
+        "Local authentication is disabled. Please use your organisation's single sign-on (Entra ID) to log in.",
       code: 'LOCAL_AUTH_DISABLED',
     });
   }
@@ -99,7 +104,8 @@ export async function login(req: Request, res: Response): Promise<Response> {
   // Check if email is verified
   if (!user.email_verified) {
     return res.status(403).json({
-      error: 'Email address has not been verified. Please check your inbox for a confirmation link.',
+      error:
+        'Email address has not been verified. Please check your inbox for a confirmation link.',
     });
   }
 
@@ -116,7 +122,9 @@ export async function login(req: Request, res: Response): Promise<Response> {
         [newAttempts, lockedUntil, user.id],
       );
       await logAuditEvent({
-        db, userId: user.id, email: normalizedEmail,
+        db,
+        userId: user.id,
+        email: normalizedEmail,
         action: AUDIT_ACTIONS.LOGIN_ACCOUNT_LOCKED,
         description: `Account locked after ${newAttempts} failed attempts`,
         ipAddress: req.ip,
@@ -130,7 +138,9 @@ export async function login(req: Request, res: Response): Promise<Response> {
       );
     }
     await logAuditEvent({
-      db, userId: user.id, email: normalizedEmail,
+      db,
+      userId: user.id,
+      email: normalizedEmail,
       action: AUDIT_ACTIONS.LOGIN_FAILURE,
       description: 'Invalid password',
       ipAddress: req.ip,
@@ -151,7 +161,12 @@ export async function login(req: Request, res: Response): Promise<Response> {
   // Create a server-side session identifier (random opaque id). This session id is
   // embedded in the access token `jti` claim and a hash of it is stored in the DB.
   const sessionId = crypto.randomBytes(16).toString('hex');
-  const { accessToken, refreshToken } = generateTokens(user.id, user.email, user.role_id, sessionId);
+  const { accessToken, refreshToken } = generateTokens(
+    user.id,
+    user.email,
+    user.role_id,
+    sessionId,
+  );
 
   const tokenHash = hashToken(sessionId);
   const refreshTokenHash = hashToken(refreshToken);
@@ -201,7 +216,9 @@ export async function login(req: Request, res: Response): Promise<Response> {
   }
 
   await logAuditEvent({
-    db, userId: user.id, email: user.email,
+    db,
+    userId: user.id,
+    email: user.email,
     action: AUDIT_ACTIONS.LOGIN_SUCCESS,
     description: 'Successful login',
     ipAddress: req.ip,
@@ -309,7 +326,8 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
   // Prefer revoking session by the refresh token cookie (server-side session).
   let refreshToken = parseCookies(req.headers.cookie ?? '').refreshToken as string | undefined;
   const authHeader = req.headers?.['authorization'];
-  const authToken = authHeader && typeof authHeader === 'string' ? authHeader.split(' ')[1] : undefined;
+  const authToken =
+    authHeader && typeof authHeader === 'string' ? authHeader.split(' ')[1] : undefined;
   if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
     try {
       refreshToken = decryptToken(refreshToken);
@@ -319,12 +337,18 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
   }
 
   if (refreshToken) {
-    await db.run('DELETE FROM sessions WHERE refresh_token = $1 AND user_id = $2', [hashToken(refreshToken), req.user.id]);
+    await db.run('DELETE FROM sessions WHERE refresh_token = $1 AND user_id = $2', [
+      hashToken(refreshToken),
+      req.user.id,
+    ]);
   }
 
   // If no refresh cookie present, fall back to Authorization header token (tests use this flow).
   if (!refreshToken && authToken) {
-    await db.run('DELETE FROM sessions WHERE token = $1 AND user_id = $2', [hashToken(authToken), req.user.id]);
+    await db.run('DELETE FROM sessions WHERE token = $1 AND user_id = $2', [
+      hashToken(authToken),
+      req.user.id,
+    ]);
   }
 
   // Clear authentication cookies
@@ -332,7 +356,9 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
   res.clearCookie('accessToken');
 
   await logAuditEvent({
-    db, userId: req.user.id, email: req.user.email,
+    db,
+    userId: req.user.id,
+    email: req.user.email,
     action: AUDIT_ACTIONS.LOGOUT,
     description: 'User logged out',
     ipAddress: req.ip,
@@ -407,7 +433,9 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
 
   if (!session) {
     await logAuditEvent({
-      db: getDatabase(), userId: null, email: null,
+      db: getDatabase(),
+      userId: null,
+      email: null,
       action: AUDIT_ACTIONS.TOKEN_REFRESH_FAILURE,
       description: 'Refresh token not found or revoked',
       ipAddress: req.ip,
@@ -444,7 +472,13 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
 
   await db.run(
     'UPDATE sessions SET token = $1, refresh_token = $2, expires_at = $3, last_activity = $4 WHERE id = $5',
-    [hashToken(newSessionId), hashToken(newRefreshToken), expiresAt, new Date().toISOString(), session.id],
+    [
+      hashToken(newSessionId),
+      hashToken(newRefreshToken),
+      expiresAt,
+      new Date().toISOString(),
+      session.id,
+    ],
   );
 
   // Set httpOnly cookie for the new refresh token (encrypt before sending)
@@ -466,7 +500,9 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
   });
 
   await logAuditEvent({
-    db, userId: user.id, email: user.email,
+    db,
+    userId: user.id,
+    email: user.email,
     action: AUDIT_ACTIONS.TOKEN_REFRESH_SUCCESS,
     description: 'Access token refreshed',
     ipAddress: req.ip,
@@ -535,7 +571,12 @@ export async function resendVerification(req: Request, res: Response): Promise<R
   const db = getDatabase();
   const normalizedEmail = email.trim().toLowerCase();
 
-  const user = await db.get<{ id: number; email_verified: number; resend_count: number; resend_window_start: string | null }>(
+  const user = await db.get<{
+    id: number;
+    email_verified: number;
+    resend_count: number;
+    resend_window_start: string | null;
+  }>(
     `SELECT id, email_verified,
             COALESCE(resend_verification_count, 0) AS resend_count,
             resend_verification_window_start AS resend_window_start
@@ -545,11 +586,15 @@ export async function resendVerification(req: Request, res: Response): Promise<R
 
   // Always return 200 to prevent user enumeration
   if (!user) {
-    return res.status(200).json({ message: 'If the email is registered and unverified, a new verification email has been sent.' });
+    return res.status(200).json({
+      message: 'If the email is registered and unverified, a new verification email has been sent.',
+    });
   }
 
   if (user.email_verified) {
-    return res.status(200).json({ message: 'If the email is registered and unverified, a new verification email has been sent.' });
+    return res.status(200).json({
+      message: 'If the email is registered and unverified, a new verification email has been sent.',
+    });
   }
 
   // Rate-limit: max 3 resends per hour
@@ -561,11 +606,14 @@ export async function resendVerification(req: Request, res: Response): Promise<R
   let count = windowElapsed > ONE_HOUR_MS ? 0 : user.resend_count;
 
   if (count >= 3) {
-    return res.status(429).json({ error: 'Too many resend attempts. Please wait up to an hour before trying again.' });
+    return res
+      .status(429)
+      .json({ error: 'Too many resend attempts. Please wait up to an hour before trying again.' });
   }
 
   const newToken = generateVerificationToken();
-  const newWindowStart = windowElapsed > ONE_HOUR_MS ? new Date().toISOString() : user.resend_window_start;
+  const newWindowStart =
+    windowElapsed > ONE_HOUR_MS ? new Date().toISOString() : user.resend_window_start;
 
   await db.run(
     `UPDATE users
@@ -587,7 +635,9 @@ export async function resendVerification(req: Request, res: Response): Promise<R
     console.error('[Auth] Failed to send resend-verification email:', err);
   }
 
-  return res.status(200).json({ message: 'If the email is registered and unverified, a new verification email has been sent.' });
+  return res.status(200).json({
+    message: 'If the email is registered and unverified, a new verification email has been sent.',
+  });
 }
 
 /**

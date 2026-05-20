@@ -160,7 +160,10 @@ export async function sendRsvpConfirmation(req: Request, res: Response): Promise
       ],
     });
     if (logResult.lastID) {
-      await db.run('UPDATE communication_log SET status = $1 WHERE id = $2', ['sent', logResult.lastID]);
+      await db.run('UPDATE communication_log SET status = $1 WHERE id = $2', [
+        'sent',
+        logResult.lastID,
+      ]);
     }
     return res.json({ sent: true, accessToken, rsvpLink });
   } catch (err) {

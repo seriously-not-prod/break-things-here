@@ -37,7 +37,7 @@ export default function CalendarPage(): JSX.Element {
     setLoading(true);
     try {
       const data = await api.get<PlannerEvent[] | { events: PlannerEvent[] }>('/api/events');
-      const list: PlannerEvent[] = Array.isArray(data) ? data : data.events ?? [];
+      const list: PlannerEvent[] = Array.isArray(data) ? data : (data.events ?? []);
       setEvents(list);
     } catch (err) {
       console.error('Calendar load failed', err instanceof ApiError ? err.message : err);
@@ -46,7 +46,9 @@ export default function CalendarPage(): JSX.Element {
     }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+  }, []);
 
   const grouped = useMemo(() => {
     const m = new Map<string, PlannerEvent[]>();
@@ -91,7 +93,6 @@ export default function CalendarPage(): JSX.Element {
         </Stack>
       }
     >
-
       {grouped.size === 0 ? (
         <Box sx={{ textAlign: 'center', mt: 8 }}>
           <Typography color="text.secondary">No events scheduled yet.</Typography>
@@ -116,7 +117,12 @@ export default function CalendarPage(): JSX.Element {
                     {evs.map((e) => (
                       <Paper
                         key={e.id}
-                        sx={{ p: 1, mt: 1, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                        sx={{
+                          p: 1,
+                          mt: 1,
+                          cursor: 'pointer',
+                          '&:hover': { bgcolor: 'action.hover' },
+                        }}
                         onClick={() => navigate(`/events/${e.id}`)}
                       >
                         <Typography variant="body1">{e.title}</Typography>

@@ -222,7 +222,10 @@ export function UserFormDialog({
         </Grid>
 
         {/* Section 2 — Role & permissions */}
-        <SectionHeader icon={<AdminPanelSettingsRounded fontSize="small" />} title="Role & Access" />
+        <SectionHeader
+          icon={<AdminPanelSettingsRounded fontSize="small" />}
+          title="Role & Access"
+        />
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6}>
             <TextField
@@ -295,7 +298,11 @@ export function UserFormDialog({
                       onClick={() => setShowPassword((v) => !v)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
-                      {showPassword ? <VisibilityOffRounded fontSize="small" /> : <VisibilityRounded fontSize="small" />}
+                      {showPassword ? (
+                        <VisibilityOffRounded fontSize="small" />
+                      ) : (
+                        <VisibilityRounded fontSize="small" />
+                      )}
                     </IconButton>
                   </InputAdornment>
                 ),

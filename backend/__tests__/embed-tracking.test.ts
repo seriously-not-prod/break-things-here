@@ -4,11 +4,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import {
-  appendOpenPixel,
-  embedTracking,
-  wrapLinksWithTracking,
-} from '../src/utils/embed-tracking';
+import { appendOpenPixel, embedTracking, wrapLinksWithTracking } from '../src/utils/embed-tracking';
 
 beforeEach(() => {
   process.env.TRACKING_TOKEN_SECRET = 'test-secret-do-not-use-in-prod';
@@ -16,8 +12,7 @@ beforeEach(() => {
 
 describe('wrapLinksWithTracking', () => {
   it('rewrites http and https hrefs through the click endpoint', () => {
-    const html =
-      '<a href="https://example.com/a">A</a> <a href=\'http://other.com\'>B</a>';
+    const html = '<a href="https://example.com/a">A</a> <a href=\'http://other.com\'>B</a>';
     const result = wrapLinksWithTracking(html, 'https://app.test', 1);
     expect(result).toContain('href="https://app.test/api/tracking/click/');
     expect(result).toContain("href='https://app.test/api/tracking/click/");

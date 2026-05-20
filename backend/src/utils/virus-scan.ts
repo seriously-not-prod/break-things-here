@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
 
 // Resolve allowed upload directory at startup to prevent path injection (CWE-22/CWE-73)
 const ALLOWED_UPLOAD_DIR = path.resolve(
-  process.env.UPLOAD_DIR ?? path.join(new URL('.', import.meta.url).pathname, '../../uploads')
+  process.env.UPLOAD_DIR ?? path.join(new URL('.', import.meta.url).pathname, '../../uploads'),
 );
 
 /**
@@ -59,7 +59,12 @@ export async function scanFile(filePath: string): Promise<ScanResult> {
 
   if (!fs.existsSync(safePath)) {
     if (process.env.VIRUS_SCAN_BLOCK_ON_ERROR === 'true') {
-      return { clean: false, threat: 'File not accessible for scanning', scanner: 'stub', scannedAt: now };
+      return {
+        clean: false,
+        threat: 'File not accessible for scanning',
+        scanner: 'stub',
+        scannedAt: now,
+      };
     }
     console.warn('[VirusScan] File not found, skipping scan (fail-open):', safePath);
     return { clean: true, scanner: 'stub', scannedAt: now };
@@ -100,7 +105,9 @@ async function scanWithClamAV(filePath: string, scannedAt: string): Promise<Scan
     }
 
     // Fail-open: log warning and allow upload
-    console.warn('[VirusScan] Scanner error — failing open. Set VIRUS_SCAN_BLOCK_ON_ERROR=true to fail closed.');
+    console.warn(
+      '[VirusScan] Scanner error — failing open. Set VIRUS_SCAN_BLOCK_ON_ERROR=true to fail closed.',
+    );
     return { clean: true, scanner: 'clamav', scannedAt };
   }
 }
@@ -124,7 +131,10 @@ async function stubScan(filePath: string, scannedAt: string): Promise<ScanResult
     // Additional heuristic: reject files with known dangerous extensions embedded
     // in content that don't match declared MIME type (simplified stub check).
     const contentStr = content.slice(0, 1024).toString('utf8', 0, 1024);
-    if (/<script[\s>]/i.test(contentStr) && path.extname(filePath).match(/^\.(jpg|jpeg|png|gif|webp)$/i)) {
+    if (
+      /<script[\s>]/i.test(contentStr) &&
+      path.extname(filePath).match(/^\.(jpg|jpeg|png|gif|webp)$/i)
+    ) {
       return {
         clean: false,
         threat: 'Embedded script in image (stub scanner)',

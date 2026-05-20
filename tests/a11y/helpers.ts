@@ -25,10 +25,7 @@ export const BLOCKING_IMPACTS = ['critical', 'serious'] as const;
  * Returns a Set of allowlisted axe rule IDs.
  */
 export function loadBaselineAllowlist(): Set<string> {
-  const baselinePath = path.resolve(
-    __dirname,
-    '../../docs/operations/a11y-baseline.md',
-  );
+  const baselinePath = path.resolve(__dirname, '../../docs/operations/a11y-baseline.md');
   const allowlist = new Set<string>();
 
   if (!fs.existsSync(baselinePath)) {
@@ -64,9 +61,7 @@ export interface AuditResult {
 export async function runAxeAudit(page: Page, pageUrl: string): Promise<AuditResult> {
   await page.goto(pageUrl, { waitUntil: 'networkidle' });
 
-  const results = await new AxeBuilder({ page })
-    .withTags(WCAG_TAGS)
-    .analyze();
+  const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
 
   const allowlist = loadBaselineAllowlist();
 
@@ -80,11 +75,7 @@ export async function runAxeAudit(page: Page, pageUrl: string): Promise<AuditRes
   }
 
   const blocking = results.violations
-    .filter(
-      (v) =>
-        (v.impact === 'critical' || v.impact === 'serious') &&
-        !allowlist.has(v.id),
-    )
+    .filter((v) => (v.impact === 'critical' || v.impact === 'serious') && !allowlist.has(v.id))
     .map((v) => ({
       id: v.id,
       impact: v.impact ?? 'unknown',
@@ -104,16 +95,12 @@ export async function runAxeAudit(page: Page, pageUrl: string): Promise<AuditRes
 /**
  * Format blocking violations into a readable summary for test failure output.
  */
-export function formatViolations(
-  violations: AuditResult['blocking'],
-  pagePath: string,
-): string {
+export function formatViolations(violations: AuditResult['blocking'], pagePath: string): string {
   if (violations.length === 0) return '';
   return violations
     .map(
       (v) =>
-        `[${v.impact}] ${v.id}: ${v.description}\n` +
-        v.nodes.map((n) => `    → ${n}`).join('\n'),
+        `[${v.impact}] ${v.id}: ${v.description}\n` + v.nodes.map((n) => `    → ${n}`).join('\n'),
     )
     .join('\n\n');
 }

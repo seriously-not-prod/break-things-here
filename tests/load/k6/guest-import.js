@@ -62,9 +62,7 @@ export function setup() {
  * Uses VU/iteration IDs to ensure unique emails per request.
  */
 function generateGuestCsv(vuId, iterationId) {
-  const rows = [
-    'name,email,dietary_requirements,plus_one',
-  ];
+  const rows = ['name,email,dietary_requirements,plus_one'];
 
   // Generate 5 guests per import batch
   for (let i = 1; i <= 5; i++) {

@@ -72,8 +72,14 @@ function makeRes() {
   } = {
     statusCode: 200,
     body: null,
-    status(code) { this.statusCode = code; return this; },
-    json(data)   { this.body = data; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -211,9 +217,9 @@ describe('importCsv — column_map applied (Item 11 fix)', () => {
 
     const params = (mockDb.run as ReturnType<typeof vi.fn>).mock.calls[0][1] as unknown[];
     // $7 = phone (index 6), $8 = dietary_restriction (index 7), $6 = notes (index 5)
-    expect(params[5]).toBe('Allergic to nuts');  // notes ($6)
-    expect(params[6]).toBe('555-9999');           // phone ($7)
-    expect(params[7]).toBe('Vegan');              // dietary_restriction ($8)
+    expect(params[5]).toBe('Allergic to nuts'); // notes ($6)
+    expect(params[6]).toBe('555-9999'); // phone ($7)
+    expect(params[7]).toBe('Vegan'); // dietary_restriction ($8)
   });
 
   it('ignores a column mapped to an unrecognised target field name (whitelist protection)', async () => {
@@ -270,17 +276,13 @@ describe('importCsv — column_map applied (Item 11 fix)', () => {
   });
 
   it('handles multiple rows with mixed mapped and skipped columns', async () => {
-    const csv = [
-      'Person,Mail,Notes',
-      'Isla,isla@test.com,VIP',
-      'Jack,jack@test.com,Regular',
-    ].join('\n');
+    const csv = ['Person,Mail,Notes', 'Isla,isla@test.com,VIP', 'Jack,jack@test.com,Regular'].join(
+      '\n',
+    );
     // Notes is not sent (frontend filters '' entries), so it falls back to
     // normalised header "notes" via the default path — still resolved correctly
     const columnMap = { Person: 'name', Mail: 'email' };
-    mockDb.run
-      .mockResolvedValueOnce(dbRunSuccess())
-      .mockResolvedValueOnce(dbRunSuccess());
+    mockDb.run.mockResolvedValueOnce(dbRunSuccess()).mockResolvedValueOnce(dbRunSuccess());
 
     const req = makeImportReq(csv, columnMap);
     const res = makeRes();

@@ -18,7 +18,16 @@ import { useParams } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api-client';
 
 const RSVP_STATUSES = ['Pending', 'Going', 'Maybe', 'Not Going', 'Declined'];
-const DIETARY = ['None', 'Vegetarian', 'Vegan', 'Gluten-Free', 'Halal', 'Kosher', 'Nut-Free', 'Other'];
+const DIETARY = [
+  'None',
+  'Vegetarian',
+  'Vegan',
+  'Gluten-Free',
+  'Halal',
+  'Kosher',
+  'Nut-Free',
+  'Other',
+];
 const AGE_GROUPS = ['', 'Child (0-12)', 'Teen (13-17)', 'Adult (18-64)', 'Senior (65+)'];
 
 interface PublicRsvpEvent {
@@ -31,7 +40,11 @@ interface PublicRsvpEvent {
   capacity: number | null;
 }
 
-interface MealOption { id: number; name: string; description: string | null; }
+interface MealOption {
+  id: number;
+  name: string;
+  description: string | null;
+}
 
 interface PublicRsvpContext {
   event: PublicRsvpEvent;
@@ -65,12 +78,24 @@ interface RsvpFormState {
 }
 
 const INITIAL_FORM: RsvpFormState = {
-  name: '', email: '', phone: '',
-  guests: '1', status: 'Going', notes: '',
-  dietary_restriction: 'None', meal_choice: '',
-  company: '', title: '', relation_type: '', age_group: '',
-  address_line1: '', city: '', postal_code: '', country: '',
-  emergency_contact_name: '', emergency_contact_phone: '',
+  name: '',
+  email: '',
+  phone: '',
+  guests: '1',
+  status: 'Going',
+  notes: '',
+  dietary_restriction: 'None',
+  meal_choice: '',
+  company: '',
+  title: '',
+  relation_type: '',
+  age_group: '',
+  address_line1: '',
+  city: '',
+  postal_code: '',
+  country: '',
+  emergency_contact_name: '',
+  emergency_contact_phone: '',
   accept_waitlist: false,
 };
 
@@ -172,21 +197,27 @@ export default function PublicRsvpPage(): JSX.Element {
     <Box
       sx={{
         minHeight: '100vh',
-        px: 2, py: 6,
+        px: 2,
+        py: 6,
         background: 'radial-gradient(circle at top, #eef7ff 0%, #f7f8fc 55%, #eef3f7 100%)',
       }}
     >
       <Paper sx={{ width: '100%', maxWidth: 840, mx: 'auto', p: { xs: 3, sm: 4 } }} elevation={8}>
         <Stack spacing={1.5} sx={{ mb: 3 }}>
-          <Typography variant="overline" color="text.secondary">Public RSVP</Typography>
-          <Typography variant="h4" fontWeight={800}>{event.title}</Typography>
+          <Typography variant="overline" color="text.secondary">
+            Public RSVP
+          </Typography>
+          <Typography variant="h4" fontWeight={800}>
+            {event.title}
+          </Typography>
           <Typography color="text.secondary">
             {new Date(event.date).toLocaleDateString()}
             {event.location ? ` · ${event.location}` : ''}
           </Typography>
           {event.capacity !== null && (
             <Typography color="text.secondary">
-              Capacity: {event.capacity}{remainingCapacity !== null ? ` · Remaining: ${remainingCapacity}` : ''}
+              Capacity: {event.capacity}
+              {remainingCapacity !== null ? ` · Remaining: ${remainingCapacity}` : ''}
             </Typography>
           )}
           {rsvpDeadline && (
@@ -198,8 +229,16 @@ export default function PublicRsvpPage(): JSX.Element {
           {event.description && <Typography>{event.description}</Typography>}
         </Stack>
 
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-        {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+        {success && (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            {success}
+          </Alert>
+        )}
         {deadlinePassed && (
           <Alert severity="warning" sx={{ mb: 2 }}>
             The RSVP deadline has passed. Please contact the organizer if you still wish to attend.
@@ -213,67 +252,213 @@ export default function PublicRsvpPage(): JSX.Element {
 
         <Box component="form" onSubmit={submit} noValidate aria-disabled={deadlinePassed}>
           <Stack spacing={2}>
-            <Typography variant="subtitle1" fontWeight={700}>Your details</Typography>
+            <Typography variant="subtitle1" fontWeight={700}>
+              Your details
+            </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}><TextField label="Name" value={form.name} onChange={update('name')} required fullWidth /></Grid>
-              <Grid item xs={12} sm={6}><TextField label="Email" type="email" value={form.email} onChange={update('email')} required fullWidth /></Grid>
-              <Grid item xs={12} sm={6}><TextField label="Phone" value={form.phone} onChange={update('phone')} fullWidth /></Grid>
-              <Grid item xs={6} sm={3}><TextField label="Guests" type="number" value={form.guests} onChange={update('guests')} inputProps={{ min: 1 }} fullWidth /></Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Name"
+                  value={form.name}
+                  onChange={update('name')}
+                  required
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Email"
+                  type="email"
+                  value={form.email}
+                  onChange={update('email')}
+                  required
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField label="Phone" value={form.phone} onChange={update('phone')} fullWidth />
+              </Grid>
               <Grid item xs={6} sm={3}>
-                <TextField label="Status" select value={form.status} onChange={update('status')} fullWidth>
-                  {RSVP_STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                <TextField
+                  label="Guests"
+                  type="number"
+                  value={form.guests}
+                  onChange={update('guests')}
+                  inputProps={{ min: 1 }}
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <TextField
+                  label="Status"
+                  select
+                  value={form.status}
+                  onChange={update('status')}
+                  fullWidth
+                >
+                  {RSVP_STATUSES.map((s) => (
+                    <MenuItem key={s} value={s}>
+                      {s}
+                    </MenuItem>
+                  ))}
                 </TextField>
               </Grid>
             </Grid>
 
             <Divider sx={{ my: 1 }} />
-            <Typography variant="subtitle1" fontWeight={700}>Profile</Typography>
+            <Typography variant="subtitle1" fontWeight={700}>
+              Profile
+            </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}><TextField label="Company" value={form.company} onChange={update('company')} fullWidth /></Grid>
-              <Grid item xs={12} sm={6}><TextField label="Title" value={form.title} onChange={update('title')} fullWidth /></Grid>
-              <Grid item xs={12} sm={6}><TextField label="Relation" value={form.relation_type} onChange={update('relation_type')} placeholder="Friend, family, colleague…" fullWidth /></Grid>
               <Grid item xs={12} sm={6}>
-                <TextField label="Age group" select value={form.age_group} onChange={update('age_group')} fullWidth>
-                  {AGE_GROUPS.map((a) => <MenuItem key={a} value={a}>{a || 'Prefer not to say'}</MenuItem>)}
+                <TextField
+                  label="Company"
+                  value={form.company}
+                  onChange={update('company')}
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField label="Title" value={form.title} onChange={update('title')} fullWidth />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Relation"
+                  value={form.relation_type}
+                  onChange={update('relation_type')}
+                  placeholder="Friend, family, colleague…"
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Age group"
+                  select
+                  value={form.age_group}
+                  onChange={update('age_group')}
+                  fullWidth
+                >
+                  {AGE_GROUPS.map((a) => (
+                    <MenuItem key={a} value={a}>
+                      {a || 'Prefer not to say'}
+                    </MenuItem>
+                  ))}
                 </TextField>
               </Grid>
-              <Grid item xs={12}><TextField label="Address" value={form.address_line1} onChange={update('address_line1')} fullWidth /></Grid>
-              <Grid item xs={6} sm={4}><TextField label="City" value={form.city} onChange={update('city')} fullWidth /></Grid>
-              <Grid item xs={6} sm={4}><TextField label="Postal code" value={form.postal_code} onChange={update('postal_code')} fullWidth /></Grid>
-              <Grid item xs={12} sm={4}><TextField label="Country" value={form.country} onChange={update('country')} fullWidth /></Grid>
-              <Grid item xs={12} sm={6}><TextField label="Emergency contact name" value={form.emergency_contact_name} onChange={update('emergency_contact_name')} fullWidth /></Grid>
-              <Grid item xs={12} sm={6}><TextField label="Emergency contact phone" value={form.emergency_contact_phone} onChange={update('emergency_contact_phone')} fullWidth /></Grid>
+              <Grid item xs={12}>
+                <TextField
+                  label="Address"
+                  value={form.address_line1}
+                  onChange={update('address_line1')}
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={6} sm={4}>
+                <TextField label="City" value={form.city} onChange={update('city')} fullWidth />
+              </Grid>
+              <Grid item xs={6} sm={4}>
+                <TextField
+                  label="Postal code"
+                  value={form.postal_code}
+                  onChange={update('postal_code')}
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  label="Country"
+                  value={form.country}
+                  onChange={update('country')}
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Emergency contact name"
+                  value={form.emergency_contact_name}
+                  onChange={update('emergency_contact_name')}
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Emergency contact phone"
+                  value={form.emergency_contact_phone}
+                  onChange={update('emergency_contact_phone')}
+                  fullWidth
+                />
+              </Grid>
             </Grid>
 
             <Divider sx={{ my: 1 }} />
-            <Typography variant="subtitle1" fontWeight={700}>Meal & dietary</Typography>
+            <Typography variant="subtitle1" fontWeight={700}>
+              Meal & dietary
+            </Typography>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
-                <TextField label="Dietary restriction" select value={form.dietary_restriction} onChange={update('dietary_restriction')} fullWidth>
-                  {DIETARY.map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
+                <TextField
+                  label="Dietary restriction"
+                  select
+                  value={form.dietary_restriction}
+                  onChange={update('dietary_restriction')}
+                  fullWidth
+                >
+                  {DIETARY.map((d) => (
+                    <MenuItem key={d} value={d}>
+                      {d}
+                    </MenuItem>
+                  ))}
                 </TextField>
               </Grid>
               {mealOptions.length > 0 && (
                 <Grid item xs={12} sm={6}>
-                  <TextField label="Meal choice" select value={form.meal_choice} onChange={update('meal_choice')} fullWidth>
+                  <TextField
+                    label="Meal choice"
+                    select
+                    value={form.meal_choice}
+                    onChange={update('meal_choice')}
+                    fullWidth
+                  >
                     <MenuItem value="">No preference</MenuItem>
                     {mealOptions.map((m) => (
-                      <MenuItem key={m.id} value={m.name}>{m.name}{m.description ? ` — ${m.description}` : ''}</MenuItem>
+                      <MenuItem key={m.id} value={m.name}>
+                        {m.name}
+                        {m.description ? ` — ${m.description}` : ''}
+                      </MenuItem>
                     ))}
                   </TextField>
                 </Grid>
               )}
-              <Grid item xs={12}><TextField label="Notes for the organizer" value={form.notes} onChange={update('notes')} multiline rows={2} fullWidth /></Grid>
+              <Grid item xs={12}>
+                <TextField
+                  label="Notes for the organizer"
+                  value={form.notes}
+                  onChange={update('notes')}
+                  multiline
+                  rows={2}
+                  fullWidth
+                />
+              </Grid>
             </Grid>
 
             {capacityFull && waitlistEnabled && (
               <FormControlLabel
-                control={<Switch checked={form.accept_waitlist} onChange={(_, v) => setForm((p) => ({ ...p, accept_waitlist: v }))} />}
+                control={
+                  <Switch
+                    checked={form.accept_waitlist}
+                    onChange={(_, v) => setForm((p) => ({ ...p, accept_waitlist: v }))}
+                  />
+                }
                 label="Join the waitlist if the event is full"
               />
             )}
 
-            <Button type="submit" variant="contained" size="large" disabled={saving || deadlinePassed}>
+            <Button
+              type="submit"
+              variant="contained"
+              size="large"
+              disabled={saving || deadlinePassed}
+            >
               {saving ? 'Submitting…' : 'Submit RSVP'}
             </Button>
           </Stack>

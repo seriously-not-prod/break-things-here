@@ -74,14 +74,10 @@ export default function (data) {
     plus_one: false,
   });
 
-  const rsvpRes = http.post(
-    `${BASE_URL}/api/events/${eventId}/rsvp`,
-    rsvpPayload,
-    {
-      headers: { 'Content-Type': 'application/json' },
-      tags: { scenario: 'rsvp_submit' },
-    },
-  );
+  const rsvpRes = http.post(`${BASE_URL}/api/events/${eventId}/rsvp`, rsvpPayload, {
+    headers: { 'Content-Type': 'application/json' },
+    tags: { scenario: 'rsvp_submit' },
+  });
 
   check(rsvpRes, {
     'rsvp: status 2xx': (r) => r.status >= 200 && r.status < 300,

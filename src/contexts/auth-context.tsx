@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     }).catch(() => {
       // Ignore errors, just continue
     });
-    
+
     const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
     if (storedUser) {
       try {
@@ -73,16 +73,16 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     try {
       // Get CSRF token from cookie
       const csrfToken = getCsrfToken();
-      
+
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-      
+
       // Add CSRF token if available
       if (csrfToken) {
         headers['X-XSRF-TOKEN'] = csrfToken;
       }
-      
+
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers,
@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       }
 
       const data = await response.json();
-      
+
       // Backend returns: { message, user: { id, email, displayName, roleId } }
       const authUser: AuthUser = {
         id: String(data.user.id),
@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
         email: data.user.email,
         role: data.user.roleId === 3 ? 'Admin' : data.user.roleId === 2 ? 'Organizer' : 'Attendee',
       };
-      
+
       setUser(authUser);
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: authUser }));
       return true;
@@ -119,11 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     // Call backend logout to clear session
     const csrfToken = getCsrfToken();
     const headers: Record<string, string> = {};
-    
+
     if (csrfToken) {
       headers['X-XSRF-TOKEN'] = csrfToken;
     }
-    
+
     fetch(`${API_BASE_URL}/auth/logout`, {
       method: 'POST',
       headers,
@@ -131,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     }).catch(() => {
       // Ignore errors, just clear local state
     });
-    
+
     setUser(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
   };

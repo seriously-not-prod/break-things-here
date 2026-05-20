@@ -51,7 +51,9 @@ export function isSecureDeploymentEnv(nodeEnv: string | undefined): boolean {
   return nodeEnv === 'production' || nodeEnv === 'staging';
 }
 
-export function assertStrictDataSecurityControlsAtStartup(nodeEnv: string | undefined = process.env.NODE_ENV): void {
+export function assertStrictDataSecurityControlsAtStartup(
+  nodeEnv: string | undefined = process.env.NODE_ENV,
+): void {
   if (!isSecureDeploymentEnv(nodeEnv)) {
     return;
   }
@@ -69,8 +71,8 @@ export function assertStrictDataSecurityControlsAtStartup(nodeEnv: string | unde
 
   if (errors.length > 0) {
     throw new Error(
-      '[SECURITY] Startup blocked due to unmet strict data-security requirements:\n'
-      + errors.map((line) => `- ${line}`).join('\n'),
+      '[SECURITY] Startup blocked due to unmet strict data-security requirements:\n' +
+        errors.map((line) => `- ${line}`).join('\n'),
     );
   }
 }

@@ -56,9 +56,6 @@ export async function editChatMessage(
   return data.message;
 }
 
-export async function deleteChatMessage(
-  eventId: number,
-  messageId: number,
-): Promise<void> {
+export async function deleteChatMessage(eventId: number, messageId: number): Promise<void> {
   await api.delete(`/api/events/${eventId}/chat/${messageId}`);
 }

@@ -18,9 +18,8 @@ vi.mock('../src/contexts/auth-context', async () => {
 });
 
 vi.mock('../src/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../src/lib/api-client')>(
-    '../src/lib/api-client',
-  );
+  const actual =
+    await vi.importActual<typeof import('../src/lib/api-client')>('../src/lib/api-client');
   return {
     ...actual,
     api: {
@@ -166,7 +165,10 @@ beforeEach(() => {
   vi.mocked(apiClient.api.get).mockResolvedValue(MOCK_EVENTS);
 });
 
-function renderPage(props?: { initialView?: 'list' | 'grid' | 'calendar' | 'timeline'; ownerOnly?: boolean }) {
+function renderPage(props?: {
+  initialView?: 'list' | 'grid' | 'calendar' | 'timeline';
+  ownerOnly?: boolean;
+}) {
   return render(
     <MemoryRouter>
       <EventsPage {...props} />

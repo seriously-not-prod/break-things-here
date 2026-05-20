@@ -65,10 +65,7 @@ export function validatePassword(password: string): string | null {
  * @param confirmPassword - The confirmation password to compare against.
  * @returns An error message string, or null if they match.
  */
-export function validateConfirmPassword(
-  password: string,
-  confirmPassword: string,
-): string | null {
+export function validateConfirmPassword(password: string, confirmPassword: string): string | null {
   if (!confirmPassword) {
     return 'Please confirm your password.';
   }

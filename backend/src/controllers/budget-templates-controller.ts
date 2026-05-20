@@ -56,10 +56,9 @@ export async function getTemplate(req: Request, res: Response): Promise<Response
   const { id } = req.params;
   const db = getDatabase();
 
-  const template = await db.get<BudgetTemplate>(
-    `SELECT * FROM budget_templates WHERE id = $1`,
-    [id],
-  );
+  const template = await db.get<BudgetTemplate>(`SELECT * FROM budget_templates WHERE id = $1`, [
+    id,
+  ]);
   if (!template) return res.status(404).json({ error: 'Budget template not found.' });
 
   const items = await db.all<BudgetTemplateItem>(
@@ -109,10 +108,9 @@ export async function createTemplate(req: Request, res: Response): Promise<Respo
     );
   }
 
-  const template = await db.get<BudgetTemplate>(
-    `SELECT * FROM budget_templates WHERE id = $1`,
-    [templateId],
-  );
+  const template = await db.get<BudgetTemplate>(`SELECT * FROM budget_templates WHERE id = $1`, [
+    templateId,
+  ]);
   const savedItems = await db.all<BudgetTemplateItem>(
     `SELECT * FROM budget_template_items WHERE template_id = $1 ORDER BY id ASC`,
     [templateId],
@@ -169,10 +167,9 @@ export async function applyTemplate(req: Request, res: Response): Promise<Respon
 
   const db = getDatabase();
 
-  const template = await db.get<{ id: number }>(
-    `SELECT id FROM budget_templates WHERE id = $1`,
-    [template_id],
-  );
+  const template = await db.get<{ id: number }>(`SELECT id FROM budget_templates WHERE id = $1`, [
+    template_id,
+  ]);
   if (!template) return res.status(404).json({ error: 'Budget template not found.' });
 
   const templateItems = await db.all<BudgetTemplateItem>(
@@ -190,10 +187,9 @@ export async function applyTemplate(req: Request, res: Response): Promise<Respon
        VALUES ($1, $2, $3, $4) RETURNING id`,
       [eventId, item.name, item.allocated_amount, item.color ?? '#6366f1'],
     );
-    const category = await db.get(
-      `SELECT *, 0 AS spent FROM budget_categories WHERE id = $1`,
-      [result.lastID],
-    );
+    const category = await db.get(`SELECT *, 0 AS spent FROM budget_categories WHERE id = $1`, [
+      result.lastID,
+    ]);
     if (category) created.push(category);
   }
 
