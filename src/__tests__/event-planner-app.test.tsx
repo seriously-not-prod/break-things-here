@@ -163,4 +163,63 @@ describe('EventPlannerApp', () => {
       expect(screen.getByText('Your RSVP has been saved.')).toBeInTheDocument();
     });
   });
+
+  it('shows inline validation errors when required fields are left empty on the public rsvp form', async () => {
+    const user = userEvent.setup();
+
+    // Mock API calls — no login, load events; no POST needed for this case
+    (global.fetch as any).mockImplementation((url: string, options?: any) => {
+      if (url.includes('/api/auth/me')) {
+        return Promise.resolve({
+          ok: false,
+          status: 401,
+        } as Response);
+      }
+      if (url.includes('/api/events') && !options?.method) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_EVENTS,
+        } as Response);
+      }
+      if (url.includes('/api/tasks')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_TASKS,
+        } as Response);
+      }
+      if (url.includes('/api/rsvps') && !options?.method) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_RSVPS,
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({}),
+      } as Response);
+    });
+
+    window.history.pushState({}, '', '/rsvp/event-1');
+    render(<EventPlannerApp />);
+
+    // Wait for the RSVP form to load
+    await waitFor(
+      () => {
+        expect(screen.getByLabelText('Name')).toBeInTheDocument();
+      },
+      { timeout: 3000 },
+    );
+
+    // Submit without filling in any required fields
+    await user.click(screen.getByRole('button', { name: 'Submit RSVP' }));
+
+    // Validation errors should appear inline
+    await waitFor(() => {
+      expect(screen.getByText('Name is required.')).toBeInTheDocument();
+      expect(screen.getByText('Email is required.')).toBeInTheDocument();
+    });
+
+    // Success message must NOT appear
+    expect(screen.queryByText('Your RSVP has been saved.')).not.toBeInTheDocument();
+  });
 });
