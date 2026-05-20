@@ -1,0 +1,97 @@
+# Axe-core Accessibility CI Workflow (#815)
+#
+# Runs @axe-core/playwright audits against key application pages on every PR.
+# Fails on critical or serious WCAG 2.1 AA violations unless allowlisted
+# in the baseline (docs/operations/a11y-baseline.md).
+#
+# Pages audited: login, dashboard, events list, event detail, guest list,
+#                budget, RSVP portal.
+
+name: Accessibility (axe-core)
+
+on:
+  pull_request:
+    branches: [develop, test, stage, main]
+
+concurrency:
+  group: a11y-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  axe-audit:
+    name: Axe-core WCAG 2.1 AA Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: festival_test
+          POSTGRES_USER: festival
+          POSTGRES_PASSWORD: festival_test_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U festival"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://festival:festival_test_pass@localhost:5432/festival_test
+      NODE_ENV: test
+      PLAYWRIGHT_BASE_URL: http://localhost:5173
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        run: cd backend && npm ci
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start backend
+        run: |
+          cd backend && npm run build && node dist/server.js &
+          sleep 5
+        env:
+          PORT: 4000
+
+      - name: Start frontend
+        run: |
+          cd frontend && npm run dev -- --host 0.0.0.0 --port 5173 &
+          sleep 5
+
+      - name: Wait for services
+        run: |
+          npx wait-on http://localhost:4000/api/health http://localhost:5173 --timeout 30000
+
+      - name: Run axe-core accessibility tests
+        run: npx playwright test tests/a11y/ --project=chromium --reporter=list,junit
+        env:
+          PLAYWRIGHT_JUNIT_OUTPUT_NAME: a11y-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a11y-audit-results
+          path: |
+            a11y-results.xml
+            test-results/
+          retention-days: 14
