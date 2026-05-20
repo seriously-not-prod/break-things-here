@@ -226,7 +226,8 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
 
         {localFallbackDisclosure}
 
-        {localFormVisible && <>
+        {localFormVisible && (
+          <>
             {entraEnabled && <Divider>or use a local account</Divider>}
 
             <TextField
@@ -330,7 +331,8 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
                 </Typography>
               </Paper>
             )}
-        </>}
+          </>
+        )}
       </Stack>
     </Box>
   );
