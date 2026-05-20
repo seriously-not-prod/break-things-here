@@ -241,9 +241,15 @@ export function getAllDomains(): ReportDomain[] {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Delegate to the domain-from factory — avoids referencing DOMAIN_FROM before it's defined. */
-function DOMAIN_DOMAIN_FROM(domain: ReportDomain, eventId: number) {
-  return DOMAIN_FROM[domain](eventId);
+/** Resolve domain FROM clause via explicit switch — avoids dynamic dispatch on user-controlled key. */
+function DOMAIN_DOMAIN_FROM(domain: ReportDomain, eventId: number): { from: string; baseParam: number[] } {
+  switch (domain) {
+    case 'events':  return DOMAIN_FROM.events(eventId);
+    case 'guests':  return DOMAIN_FROM.guests(eventId);
+    case 'budget':  return DOMAIN_FROM.budget(eventId);
+    case 'tasks':   return DOMAIN_FROM.tasks(eventId);
+    case 'vendors': return DOMAIN_FROM.vendors(eventId);
+  }
 }
 
 function resolveGroupBy(domain: ReportDomain, userGroupBy: string | undefined, fields: DomainFields): string {
