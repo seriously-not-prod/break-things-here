@@ -132,8 +132,9 @@ async function seedRsvp(
 ): Promise<number> {
   const result = await db.run(
     `INSERT INTO rsvps (event_id, name, email, guests, status)
-      VALUES (?, ?, ?, ?, ?) RETURNING id
-      ON CONFLICT DO NOTHING`,
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT DO NOTHING
+      RETURNING id`,
     [eventId, name, email, 1, 'confirmed'],
   );
   return result.lastID as number;
