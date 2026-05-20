@@ -617,6 +617,7 @@ export async function addComment(req: AuthRequest, res: Response): Promise<Respo
     body: body.trim(),
     contextLabel: `task comment`,
     link: `/events/${eventId}/tasks/${taskId}`,
+    eventId: Number(eventId),
   });
 
   return res.status(201).json({ comment });
