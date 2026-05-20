@@ -1,8 +1,16 @@
 # PostgREST Pilot Surface — Definition after RLS Validation
 
-Issues: #421, #473
+Issues: #421, #473, #775
 
-**Status:** Planning — depends on validated RLS behavior from #472 and #474.
+**Status:** Closed for runtime rollout — PostgREST container removed from active docker stack by task #775.
+
+## Decision Record (Task #775)
+
+- Decision: **Remove** PostgREST from the default Docker Compose runtime for the current release cycle.
+- Why: The frontend and backend currently use the Express `/api` surface only; keeping an unused PostgREST container caused architecture confusion.
+- Runtime change: `postgrest` service removed from `docker-compose.yml`.
+- Port impact: Host port `3001` is now unassigned/freed in the default stack.
+- Contract clarification: Express remains the active API contract, as reflected in TRD section 4.1.
 
 ---
 

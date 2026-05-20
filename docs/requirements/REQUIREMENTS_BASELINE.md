@@ -22,7 +22,7 @@ AI-assisted development practices and modern web technologies.
 
 ### Key Characteristics:
 
-- **Technology:** React, Next.js, Material-UI, PostgreSQL, PostgREST
+- **Technology:** React, Next.js, Material-UI, PostgreSQL, Express API
 - **Authentication:** Azure Entra ID with SSO and MFA
 - **Access Control:** Role-Based Access Control (RBAC) with 5 distinct user groups
 - **Deployment:** Docker-based containerized architecture
@@ -361,7 +361,7 @@ Schema reference alignment note (BRD v2.0 §1.4):
 - Row Level Security policies enforce permissions at database level
 - Integration Requirements
 - Azure Entra ID provides authentication and authorization
-- PostgREST automatically generates RESTful API from database schema
+- Express provides the active REST API contract for frontend and integrations
 - All API calls include JWT token in Authorization header
 - CORS configured to allow requests from Next
 - js frontend
@@ -414,7 +414,7 @@ Schema reference alignment note (BRD v2.0 §1.4):
 ### Backend & Database
 
 - **Database:** PostgreSQL 14+
-- **API Layer:** PostgREST (automatic RESTful API generation)
+- **API Layer:** Express (versioned `/api` contract)
 - **Authentication:** Azure Entra ID with MSAL.js
 
 ### DevOps & Infrastructure
@@ -465,6 +465,8 @@ Schema reference alignment note (BRD v2.0 §1.4):
 
 | Date       | Section                          | Change                                                                                                                                                   | Reference |
 | ---------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| 2026-05-20 | 4.1 Technology Stack             | Updated backend API contract to Express `/api` and removed PostgREST as the active runtime API layer.                                                    | #775      |
+| 2026-05-20 | 4.3 Development Environment      | Replaced PostgREST service reference with Express backend container and documented freed port `3001` in default compose runtime.                         | #775      |
 | 2026-05-20 | 4.2 Database Schema Architecture | Replaced outdated "11-table core" wording with live-schema baseline and canonical reference to `docs/database/schema.md` (64 tables at generation time). | #773      |
 | 2026-05-20 | 4.2 Database Schema Architecture | Added UUID migration spike outcome and decision to defer UUID cutover now, ratify SERIAL baseline, and track phased UUID migration as future work.       | #774      |
 
@@ -473,8 +475,9 @@ Schema reference alignment note (BRD v2.0 §1.4):
 ### Docker Compose Services:
 
 - **PostgreSQL Container** - Database with persistent volumes
-- **PostgREST Container** - Automatic API generation (port 3001)
+- **Express Backend Container** - API contract served on backend port 4000 (`/api`)
 - **Next.js Dev Server** - Frontend with hot reload (port 3000)
+- **Freed Port** - `3001` (previous PostgREST mapping) is intentionally unassigned in the default compose runtime
 - **Environment Configuration** - Via .env files
 
 ### Development Tools:
@@ -625,7 +628,7 @@ Schema reference alignment note (BRD v2.0 §1.4):
 - [ ] Dashboard with key metrics
 - [ ] Real-time collaboration updates
 - [ ] PostgreSQL database with RLS policies
-- [ ] PostgREST API auto-generation
+- [ ] Express API contract coverage for required MVP workflows
 
 #### High-Priority (Should Have)
 

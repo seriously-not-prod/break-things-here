@@ -19,6 +19,7 @@
 ## ⚠️ Issues to Address
 
 ### Test Failures
+
 Two tests are failing in `src/__tests__/event-planner-app.test.tsx`:
 
 1. **Test:** "submits a public rsvp without requiring login"
@@ -30,6 +31,7 @@ Two tests are failing in `src/__tests__/event-planner-app.test.tsx`:
    - **Action Required:** Review test expectations vs. actual component output
 
 ### Fix Command
+
 ```bash
 # Run specific failing tests to debug
 cd /home/nikhilpatel15/source/devel/eQuip/break-things-here
@@ -42,24 +44,29 @@ cat src/components/event-planner/event-planner-app.tsx | grep -A 50 "PublicRsvpP
 ## 📋 Required Actions
 
 ### 1. Link Issues (Work Item Hierarchy)
+
 Navigate to GitHub and establish parent-child relationship:
 
 **Steps:**
+
 1. Go to User Story: https://github.com/seriously-not-prod/break-things-here/issues/183
 2. Scroll down to the issue description
 3. Click "Create sub-issue" or "Convert to issue" in the sidebar
 4. Link Task #184 as a sub-issue
 
 **Alternative via GitHub CLI:**
+
 ```bash
 # Note: Requires repository admin permissions
 gh issue edit 184 --add-project "seriously-not-prod/break-things-here/1"
 ```
 
 ### 2. Update Pull Request Description
+
 PR #185 was auto-created but needs comprehensive description:
 
 **Manual Update:**
+
 1. Visit: https://github.com/seriously-not-prod/break-things-here/pull/185
 2. Click "Edit" on the PR description
 3. Copy the comprehensive description from terminal output above
@@ -71,12 +78,14 @@ PR #185 was auto-created but needs comprehensive description:
    - Deployment notes
 
 **Key Points to Include:**
+
 - Replace localStorage with SQLite database
 - Cookie-based JWT authentication
 - 16 files changed (3 new controllers, API client, etc.)
 - Dependencies added: cookie-parser@1.4.6
 
 ### 3. Fix Failing Tests
+
 Before merging, address the 2 failing tests:
 
 ```bash
@@ -100,21 +109,25 @@ git push origin feature/184-database-integration-cookie-auth
 ```
 
 ### 4. Address Code Review Feedback
+
 Once PR is ready for review:
 
 **Automated Checks to Pass:**
+
 - ✅ CodeQL security scanning
 - ⏳ Required status check: "Verify pusher is issue assignee"
 - ⏳ CI/CD pipeline tests
 - ⏳ Branch protection rules
 
 **Manual Review:**
+
 - Code quality and style
 - Security concerns
 - Documentation completeness
 - Test coverage
 
 ### 5. Merge Process
+
 After all checks pass and approvals received:
 
 ```bash
@@ -130,16 +143,17 @@ git branch -d feature/184-database-integration-cookie-auth
 
 ## 🔗 Quick Reference Links
 
-| Resource | URL |
-|----------|-----|
-| User Story #183 | https://github.com/seriously-not-prod/break-things-here/issues/183 |
-| Task #184 | https://github.com/seriously-not-prod/break-things-here/issues/184 |
-| Pull Request #185 | https://github.com/seriously-not-prod/break-things-here/pull/185 |
-| Feature Branch | `feature/184-database-integration-cookie-auth` |
+| Resource          | URL                                                                |
+| ----------------- | ------------------------------------------------------------------ |
+| User Story #183   | https://github.com/seriously-not-prod/break-things-here/issues/183 |
+| Task #184         | https://github.com/seriously-not-prod/break-things-here/issues/184 |
+| Pull Request #185 | https://github.com/seriously-not-prod/break-things-here/pull/185   |
+| Feature Branch    | `feature/184-database-integration-cookie-auth`                     |
 
 ## 📊 Test Summary
 
 ### Backend Tests
+
 ```
 ✓ __tests__/profile-photo.test.ts (18 tests)
 ✓ __tests__/forgot-password.test.ts (13 tests)
@@ -154,6 +168,7 @@ Duration: 6.09s
 ```
 
 ### Frontend Tests
+
 ```
 ⚠️ Test Files: 1 failed | 25 passed (26)
 ⚠️ Tests: 2 failed | 334 passed (336)
@@ -168,26 +183,29 @@ FAILING:
 ## 🚀 Deployment Considerations
 
 ### Environment Variables
+
 - `DATABASE_URL`: PostgreSQL connection string for local, CI, and deployed environments
 
 ### Database Migration
+
 - ✅ Automatic via `database.ts` PostgreSQL migrations
 - ✅ No manual schema bootstrapping beyond providing `DATABASE_URL`
 - ✅ CI and local scripts use PostgreSQL-compatible queries
 
 ### Post-Deployment Verification
+
 ```bash
 # Start local PostgreSQL and inspect data
 docker compose up -d db
 cd backend && node scripts/check-database.mjs
 
 # Test authentication
-curl -c cookies.txt -X POST http://localhost:3001/api/auth/login \
+curl -c cookies.txt -X POST http://localhost:4000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@festivalplanner.com","password":"Admin123!"}'
 
 # Test event creation
-curl -b cookies.txt -X POST http://localhost:3001/api/events \
+curl -b cookies.txt -X POST http://localhost:4000/api/events \
   -H "Content-Type: application/json" \
   -d '{"title":"Test","date":"2026-05-01","location":"Test","description":"Test","status":"Active"}'
 ```
@@ -196,7 +214,7 @@ curl -b cookies.txt -X POST http://localhost:3001/api/events \
 
 - **Breaking Changes:** None (additive feature)
 - **Performance Impact:** Minimal for local development; PostgreSQL now matches deployed environments
-- **Security Improvements:** 
+- **Security Improvements:**
   - httpOnly cookies prevent XSS attacks
   - JWT tokens not stored in localStorage
   - CSRF protection via SameSite cookies

@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **Task #775 — PostgREST runtime decision and contract cleanup**: Removed the unused `postgrest` service from `docker-compose.yml`, recorded the "remove" decision and freed port `3001` in `docs/postgrest-pilot.md`, and updated TRD references in `docs/requirements/REQUIREMENTS_BASELINE.md` to declare Express `/api` as the active API contract (#775).
+
 - **Task #774 — SERIAL to UUID primary-key migration spike**: Added `docs/architecture/uuid-migration-spike.md` with migration option analysis (dual-column phased cutover vs in-place ALTER), data-migration script outline, FK rewrite plan, frontend type-change footprint, backward-compatibility risks, and effort estimates. Recorded decision in `docs/requirements/REQUIREMENTS_BASELINE.md` TRD section 4.2 to defer UUID cutover for the current cycle and ratify SERIAL/sequence-backed keys as the active baseline while tracking UUID migration as future phased work (#774).
 
 ### Added (Track E — Performance & Observability)
