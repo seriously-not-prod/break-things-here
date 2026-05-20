@@ -14,31 +14,67 @@
 BEGIN;
 
 -- Step 1: Backfill any NULL canonical_status values from legacy status or context
-UPDATE rsvps SET canonical_status = CASE
-  WHEN canonical_status IS NOT NULL THEN canonical_status
-  WHEN waitlist_position IS NOT NULL THEN 'waitlist'
-  WHEN checked_in = TRUE THEN 'checked_in'
-  WHEN LOWER(status) IN ('going','yes','confirmed','accepted') THEN 'confirmed'
-  WHEN LOWER(status) IN ('not going','declined','no','rejected') THEN 'declined'
-  WHEN LOWER(status) IN ('maybe','tentative') THEN 'maybe'
-  WHEN LOWER(status) IN ('cancelled','canceled') THEN 'cancelled'
-  WHEN LOWER(status) IN ('pending','invited','sent') THEN 'pending'
-  ELSE 'pending'
+-- Guard against databases where the legacy status column has already been dropped.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'rsvps' AND column_name = 'status'
+  ) THEN
+    UPDATE rsvps SET canonical_status = CASE
+      WHEN canonical_status IS NOT NULL AND canonical_status <> '' THEN canonical_status
+      WHEN waitlist_position IS NOT NULL THEN 'waitlist'
+      WHEN checked_in = TRUE THEN 'checked_in'
+      WHEN LOWER(status) IN ('going','yes','confirmed','accepted') THEN 'confirmed'
+      WHEN LOWER(status) IN ('not going','declined','no','rejected') THEN 'declined'
+      WHEN LOWER(status) IN ('maybe','tentative') THEN 'maybe'
+      WHEN LOWER(status) IN ('cancelled','canceled') THEN 'cancelled'
+      WHEN LOWER(status) IN ('pending','invited','sent') THEN 'pending'
+      ELSE 'pending'
+    END
+    WHERE canonical_status IS NULL OR canonical_status = '';
+  ELSE
+    -- No legacy status column; just ensure any NULLs are defaulted
+    UPDATE rsvps SET canonical_status = 'pending'
+    WHERE canonical_status IS NULL OR canonical_status = '';
+  END IF;
 END
-WHERE canonical_status IS NULL OR canonical_status = '';
+$$;
 
--- Step 2: Add NOT NULL constraint by recreating the column
--- (PostgreSQL doesn't allow direct constraint modification)
-ALTER TABLE rsvps 
-  ALTER COLUMN canonical_status SET NOT NULL,
-  ADD CONSTRAINT check_canonical_status_values CHECK (canonical_status IN (
-    'pending', 'confirmed', 'declined', 'maybe', 
-    'waitlist', 'cancelled', 'checked_in', 'no_show'
-  ));
+-- Step 2: Add NOT NULL constraint and CHECK constraint if not already present
+DO $$
+BEGIN
+  -- Set NOT NULL if column is currently nullable
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'rsvps' AND column_name = 'canonical_status' AND is_nullable = 'YES'
+  ) THEN
+    ALTER TABLE rsvps ALTER COLUMN canonical_status SET NOT NULL;
+  END IF;
 
--- Step 3: Drop the legacy status column (source of truth is now canonical_status only)
-ALTER TABLE rsvps 
-  DROP COLUMN status;
+  -- Add CHECK constraint if not already present
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'check_canonical_status_values'
+  ) THEN
+    ALTER TABLE rsvps ADD CONSTRAINT check_canonical_status_values CHECK (canonical_status IN (
+      'pending', 'confirmed', 'declined', 'maybe',
+      'waitlist', 'cancelled', 'checked_in', 'no_show'
+    ));
+  END IF;
+END
+$$;
+
+-- Step 3: Drop the legacy status column if it still exists
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'rsvps' AND column_name = 'status'
+  ) THEN
+    ALTER TABLE rsvps DROP COLUMN status;
+  END IF;
+END
+$$;
 
 -- Step 4: Add helpful comment to clarify the canonical_status column
 COMMENT ON COLUMN rsvps.canonical_status IS 

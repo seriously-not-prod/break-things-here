@@ -229,7 +229,6 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
               label="Email"
               value={email}
               onChange={handleEmailChange}
-              inputProps={{ 'aria-label': 'Email address' }}
               autoComplete="email"
               fullWidth
               placeholder="your.email@festival.local"
@@ -243,7 +242,6 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
               label="Password"
               value={password}
               onChange={handlePasswordChange}
-              inputProps={{ 'aria-label': 'Password' }}
               autoComplete="current-password"
               fullWidth
               placeholder="Enter your password"

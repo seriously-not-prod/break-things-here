@@ -1496,15 +1496,15 @@ INSERT INTO rsvps (event_id, name, email, guests, canonical_status, dietary_rest
   (11, 'Mark Davis',       'mark.d@example.com',    1, 'maybe',     'None',       'Need to confirm travel.',          'public',  FALSE, NOW(), NOW()),
   -- Community Food Fair (event 12)
   (12, 'Carol Davis',      'carol@festival.local',  2, 'confirmed',     'Vegan',      'Bringing kids!',                   'public',  FALSE, NOW(), NOW()),
-  (12, 'Alice Johnson',    'alice@festival.local',  1, 'Going',     'None',       NULL,                               'public',  FALSE, NOW(), NOW()),
-  (12, 'Peter Jackson',    'peter.j@example.com',   4, 'Going',     'None',       'Family of four.',                  'public',  FALSE, NOW(), NOW()),
+  (12, 'Alice Johnson',    'alice@festival.local',  1, 'confirmed',     'None',       NULL,                               'public',  FALSE, NOW(), NOW()),
+  (12, 'Peter Jackson',    'peter.j@example.com',   4, 'confirmed',     'None',       'Family of four.',                  'public',  FALSE, NOW(), NOW()),
   -- Charity Gala (event 13)
-  (13, 'Alice Johnson',    'alice@festival.local',  1, 'Going',     'None',       'Happy to support the cause!',      'public',  FALSE, NOW(), NOW()),
-  (13, 'Bob Williams',     'bob@festival.local',    2, 'Going',     'None',       'Plus one.',                        'public',  FALSE, NOW(), NOW()),
+  (13, 'Alice Johnson',    'alice@festival.local',  1, 'confirmed',     'None',       'Happy to support the cause!',      'public',  FALSE, NOW(), NOW()),
+  (13, 'Bob Williams',     'bob@festival.local',    2, 'confirmed',     'None',       'Plus one.',                        'public',  FALSE, NOW(), NOW()),
   -- Spring Arts Festival completed (event 16) — checked in
-  (16, 'Alice Johnson',    'alice@festival.local',  1, 'Going',     'None',       NULL, 'public', TRUE,  NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days'),
-  (16, 'Bob Williams',     'bob@festival.local',    1, 'Going',     'None',       NULL, 'public', TRUE,  NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days'),
-  (16, 'Carol Davis',      'carol@festival.local',  1, 'Going',     'None',       NULL, 'public', TRUE,  NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days')
+  (16, 'Alice Johnson',    'alice@festival.local',  1, 'confirmed',     'None',       NULL, 'public', TRUE,  NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days'),
+  (16, 'Bob Williams',     'bob@festival.local',    1, 'confirmed',     'None',       NULL, 'public', TRUE,  NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days'),
+  (16, 'Carol Davis',      'carol@festival.local',  1, 'confirmed',     'None',       NULL, 'public', TRUE,  NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days')
 ON CONFLICT (event_id, email) DO NOTHING;
 
 -- ----------------------------------------------------------
