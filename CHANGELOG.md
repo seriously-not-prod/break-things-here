@@ -55,11 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added (Track E — Performance & Observability)
 
-- **Task #784 — Microsoft Graph group fetch — cache and failure-mode hardening**: Added `backend/src/services/graph-groups.ts` implementing an in-memory TTL cache keyed by user OID (default 10 min, configurable via `GRAPH_GROUPS_CACHE_TTL_MS`). On Graph API failure, requests are authorised using last-known cached role for up to 24 hours (`GRAPH_GROUPS_MAX_STALE_MS`); beyond that ceiling, login is refused with HTTP 503. Counter metrics `graph_groups_cache_hit_total`, `graph_groups_cache_miss_total`, `graph_groups_failure_total` exposed via `GET /metrics` in Prometheus text format. `backend/src/controllers/entra-auth-controller.ts` updated to route group-overage fetches through the cache. Unit tests in `backend/__tests__/graph-groups.test.ts` cover happy path, cache hit, stale fallback within ceiling, stale refusal past ceiling, and metric counters (#784).
-
 ### Security
-
-- **Task #783 — Block local-auth fallback in production deployments**: When `NODE_ENV=production` and `ENTRA_AUTH_ENABLED=true`, `POST /api/auth/login` now returns `410 Gone` with `LOCAL_AUTH_DISABLED` error code unless `ENTRA_ALLOW_LOCAL_FALLBACK=true` is explicitly set. Startup emits a security warning when both Entra and local fallback are active in production. Integration tests in `backend/__tests__/auth-fallback.test.ts` cover all acceptance criteria (#783).
 
 ### Added (Track E — Performance & Observability)
 

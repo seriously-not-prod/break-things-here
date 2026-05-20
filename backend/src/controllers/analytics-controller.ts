@@ -56,14 +56,12 @@ export async function getEventSummary(req: AuthRequest, res: Response): Promise<
       [eventId],
     );
 
-    const totalRsvps      = Number(rsvpStats?.total_rsvps      ?? 0);
-    const confirmedRsvps  = Number(rsvpStats?.confirmed_rsvps  ?? 0);
-    const declinedRsvps   = Number(rsvpStats?.declined_rsvps   ?? 0);
-    const pendingRsvps    = Number(rsvpStats?.pending_rsvps    ?? 0);
-    const checkedInCount  = Number(rsvpStats?.checked_in_count ?? 0);
-    const acceptanceRate  = totalRsvps > 0
-      ? Math.round((confirmedRsvps / totalRsvps) * 100)
-      : 0;
+    const totalRsvps = Number(rsvpStats?.total_rsvps ?? 0);
+    const confirmedRsvps = Number(rsvpStats?.confirmed_rsvps ?? 0);
+    const declinedRsvps = Number(rsvpStats?.declined_rsvps ?? 0);
+    const pendingRsvps = Number(rsvpStats?.pending_rsvps ?? 0);
+    const checkedInCount = Number(rsvpStats?.checked_in_count ?? 0);
+    const acceptanceRate = totalRsvps > 0 ? Math.round((confirmedRsvps / totalRsvps) * 100) : 0;
 
     // ── Budget ─────────────────────────────────────────────────────────────────
     const budgetStats = await db.get<{
@@ -80,10 +78,9 @@ export async function getEventSummary(req: AuthRequest, res: Response): Promise<
     );
 
     const totalBudgetAllocated = Number(budgetStats?.total_allocated ?? 0);
-    const totalBudgetSpent     = Number(budgetStats?.total_spent     ?? 0);
-    const budgetUtilizationPct = totalBudgetAllocated > 0
-      ? Math.round((totalBudgetSpent / totalBudgetAllocated) * 100)
-      : 0;
+    const totalBudgetSpent = Number(budgetStats?.total_spent ?? 0);
+    const budgetUtilizationPct =
+      totalBudgetAllocated > 0 ? Math.round((totalBudgetSpent / totalBudgetAllocated) * 100) : 0;
 
     // ── Tasks ──────────────────────────────────────────────────────────────────
     const taskRows = await db.all<{ status: string; cnt: string }>(
@@ -95,22 +92,21 @@ export async function getEventSummary(req: AuthRequest, res: Response): Promise<
     for (const row of taskRows) {
       const cnt = Number(row.cnt);
       totalTasks += cnt;
-      if (row.status === 'Pending')     tasksByStatus.Pending    += cnt;
+      if (row.status === 'Pending') tasksByStatus.Pending += cnt;
       else if (row.status === 'In Progress') tasksByStatus.InProgress += cnt;
-      else if (row.status === 'Blocked')     tasksByStatus.Blocked    += cnt;
-      else if (row.status === 'Complete')    tasksByStatus.Complete   += cnt;
+      else if (row.status === 'Blocked') tasksByStatus.Blocked += cnt;
+      else if (row.status === 'Complete') tasksByStatus.Complete += cnt;
     }
-    const taskCompletionRate = totalTasks > 0
-      ? Math.round((tasksByStatus.Complete / totalTasks) * 100)
-      : 0;
+    const taskCompletionRate =
+      totalTasks > 0 ? Math.round((tasksByStatus.Complete / totalTasks) * 100) : 0;
 
     // ── Vendors ─ (no vendors table in current schema) ────────────────────────
     const vendorsByStatus = {
-      Contacted:     0,
+      Contacted: 0,
       QuoteReceived: 0,
-      Booked:        0,
-      Confirmed:     0,
-      Cancelled:     0,
+      Booked: 0,
+      Confirmed: 0,
+      Cancelled: 0,
     };
 
     // ── Dietary restrictions ─ (no dietary column in current schema) ──────────
@@ -130,7 +126,7 @@ export async function getEventSummary(req: AuthRequest, res: Response): Promise<
     );
     const topExpenseCategories = topExpenseRows.map((r) => ({
       category: String(r.category),
-      spent:    Number(r.spent),
+      spent: Number(r.spent),
     }));
 
     res.json({
@@ -169,9 +165,9 @@ export async function getGlobalAnalytics(req: AuthRequest, res: Response): Promi
       return;
     }
 
-    const db     = getDatabase();
+    const db = getDatabase();
     const userId = req.user.id;
-    const today  = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
     const globalStats = await db.get<{
       total_events: string;
@@ -191,6 +187,29 @@ export async function getGlobalAnalytics(req: AuthRequest, res: Response): Promi
               OR EXISTS (SELECT 1 FROM event_members em
                          WHERE em.event_id = e.id AND em.user_id = $3))`,
       [today, userId, userId],
+    );
+    // Event status breakdown (BRD v2 #575, #779 — all 6 statuses)
+    const eventsByStatus = await db.get<{
+      draft: string;
+      planning: string;
+      confirmed: string;
+      active: string;
+      completed: string;
+      cancelled: string;
+    }>(
+      `SELECT
+           COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'Draft')     AS draft,
+           COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'Planning')  AS planning,
+           COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'Confirmed') AS confirmed,
+           COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'Active')    AS active,
+           COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'Completed') AS completed,
+           COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'Cancelled') AS cancelled
+         FROM events e
+         WHERE e.deleted_at IS NULL
+           AND (e.created_by = $1
+                OR EXISTS (SELECT 1 FROM event_members em
+                           WHERE em.event_id = e.id AND em.user_id = $2))`,
+      [userId, userId],
     );
 
     const totalBudgetRow = await db.get<{ total_budget: string }>(
@@ -225,12 +244,20 @@ export async function getGlobalAnalytics(req: AuthRequest, res: Response): Promi
     );
 
     res.json({
-      totalEvents:        Number(globalStats?.total_events     ?? 0),
-      upcomingEvents:     Number(globalStats?.upcoming_events  ?? 0),
-      completedEvents:    Number(globalStats?.completed_events ?? 0),
-      totalGuestsManaged: Number(globalStats?.total_guests     ?? 0),
-      totalBudgetManaged: Number(totalBudgetRow?.total_budget  ?? 0),
-      averageRsvpRate:    Math.round(Number(rsvpRateRow?.avg_rate ?? 0)),
+      totalEvents: Number(globalStats?.total_events ?? 0),
+      upcomingEvents: Number(globalStats?.upcoming_events ?? 0),
+      completedEvents: Number(globalStats?.completed_events ?? 0),
+      totalGuestsManaged: Number(globalStats?.total_guests ?? 0),
+      totalBudgetManaged: Number(totalBudgetRow?.total_budget ?? 0),
+      averageRsvpRate: Math.round(Number(rsvpRateRow?.avg_rate ?? 0)),
+      eventsByStatus: {
+        draft: Number(eventsByStatus?.draft ?? 0),
+        planning: Number(eventsByStatus?.planning ?? 0),
+        confirmed: Number(eventsByStatus?.confirmed ?? 0),
+        active: Number(eventsByStatus?.active ?? 0),
+        completed: Number(eventsByStatus?.completed ?? 0),
+        cancelled: Number(eventsByStatus?.cancelled ?? 0),
+      },
     });
   } catch (error) {
     console.error('Error fetching global analytics:', error);
@@ -270,16 +297,16 @@ export async function exportEventReport(req: AuthRequest, res: Response): Promis
 
     // RSVP rows
     const rsvps = await db.all<{
-      id:            number;
-      name:          string;
-      email:         string;
-      guests:        number;
-      status:        string;
-      notes:         string | null;
-      source:        string;
-      checked_in:    boolean;
+      id: number;
+      name: string;
+      email: string;
+      guests: number;
+      status: string;
+      notes: string | null;
+      source: string;
+      checked_in: boolean;
       checked_in_at: string | null;
-      created_at:    string;
+      created_at: string;
     }>(
       `SELECT id, name, email, guests, status, notes, source,
               checked_in, checked_in_at, created_at
@@ -291,9 +318,9 @@ export async function exportEventReport(req: AuthRequest, res: Response): Promis
 
     // Budget summary rows
     const budgetRows = await db.all<{
-      category:  string;
+      category: string;
       allocated: string;
-      spent:     string;
+      spent: string;
     }>(
       `SELECT bc.name AS category,
               bc.allocated_amount::numeric              AS allocated,
@@ -316,17 +343,37 @@ export async function exportEventReport(req: AuthRequest, res: Response): Promis
     // Section: RSVPs
     lines.push(esc('RSVP LIST'));
     lines.push(
-      ['ID', 'Name', 'Email', 'Guests', 'Status', 'Notes', 'Source',
-        'Checked In', 'Checked In At', 'Created At'].map(esc).join(','),
+      [
+        'ID',
+        'Name',
+        'Email',
+        'Guests',
+        'Status',
+        'Notes',
+        'Source',
+        'Checked In',
+        'Checked In At',
+        'Created At',
+      ]
+        .map(esc)
+        .join(','),
     );
     for (const r of rsvps) {
       lines.push(
-        [r.id, r.name, r.email, r.guests, r.status,
-          r.notes ?? '', r.source,
+        [
+          r.id,
+          r.name,
+          r.email,
+          r.guests,
+          r.status,
+          r.notes ?? '',
+          r.source,
           r.checked_in ? 'Yes' : 'No',
           r.checked_in_at ?? '',
           r.created_at,
-        ].map(esc).join(','),
+        ]
+          .map(esc)
+          .join(','),
       );
     }
 
@@ -337,14 +384,14 @@ export async function exportEventReport(req: AuthRequest, res: Response): Promis
     lines.push(['Category', 'Allocated', 'Spent', 'Utilization %'].map(esc).join(','));
     for (const b of budgetRows) {
       const allocated = Number(b.allocated);
-      const spent     = Number(b.spent);
-      const util      = allocated > 0 ? Math.round((spent / allocated) * 100) : 0;
+      const spent = Number(b.spent);
+      const util = allocated > 0 ? Math.round((spent / allocated) * 100) : 0;
       lines.push(
         [b.category, allocated.toFixed(2), spent.toFixed(2), `${util}%`].map(esc).join(','),
       );
     }
 
-    const csv      = lines.join('\r\n');
+    const csv = lines.join('\r\n');
     const safeTitle = event.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -378,10 +425,7 @@ interface PerCampaignRow {
  * GET /api/events/:eventId/analytics/communication
  * Aggregate open/click stats for the event's communication log.
  */
-export async function getCommunicationMetrics(
-  req: AuthRequest,
-  res: Response,
-): Promise<void> {
+export async function getCommunicationMetrics(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { eventId } = req.params;
 
@@ -459,4 +503,3 @@ export async function getCommunicationMetrics(
     res.status(500).json({ error: 'Failed to fetch communication metrics' });
   }
 }
-
