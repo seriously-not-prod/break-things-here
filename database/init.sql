@@ -281,7 +281,6 @@ CREATE TABLE IF NOT EXISTS rsvps (
   name       TEXT NOT NULL,
   email      TEXT NOT NULL,
   guests     INTEGER DEFAULT 1,
-  status     TEXT CHECK(status IN ('Pending', 'Going', 'Maybe', 'Not Going', 'Declined')) DEFAULT 'Pending',
   notes      TEXT,
   source     TEXT DEFAULT 'public',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1046,7 +1045,9 @@ ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS age_group TEXT;
 ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS emergency_contact_name TEXT;
 ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS emergency_contact_phone TEXT;
 ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS profile_completeness INTEGER DEFAULT 0;
-ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS canonical_status TEXT;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS canonical_status TEXT NOT NULL 
+  DEFAULT 'pending' 
+  CHECK(canonical_status IN ('pending', 'confirmed', 'declined', 'maybe', 'waitlist', 'cancelled', 'checked_in', 'no_show'));
 ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS meal_choice TEXT;
 ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS meal_options_locked BOOLEAN DEFAULT FALSE;
 ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS late_arrival BOOLEAN DEFAULT FALSE;
@@ -1113,19 +1114,16 @@ CREATE TABLE IF NOT EXISTS seating_groups (
   UNIQUE (event_id, name)
 );
 
--- Backfill canonical_status from legacy status text on init.
+-- Backfill canonical_status to ensure all rows have valid status.
+-- This handles data migrated from older schema versions.
 UPDATE rsvps SET canonical_status = CASE
   WHEN canonical_status IS NOT NULL THEN canonical_status
   WHEN waitlist_position IS NOT NULL THEN 'waitlist'
   WHEN checked_in = TRUE THEN 'checked_in'
-  WHEN LOWER(status) IN ('going','yes','confirmed','accepted') THEN 'confirmed'
-  WHEN LOWER(status) IN ('not going','declined','no','rejected') THEN 'declined'
-  WHEN LOWER(status) IN ('maybe','tentative') THEN 'maybe'
-  WHEN LOWER(status) IN ('cancelled','canceled') THEN 'cancelled'
-  WHEN LOWER(status) IN ('pending','invited','sent') THEN 'pending'
   ELSE 'pending'
 END
 WHERE canonical_status IS NULL OR canonical_status = '';
+
 
 -- ============================================================
 -- Gallery albums, moderation queue & slideshows (#417, #459)
@@ -1479,27 +1477,25 @@ INSERT INTO event_members (event_id, user_id, role, joined_at) VALUES
 ON CONFLICT DO NOTHING;
 
 -- ----------------------------------------------------------
--- RSVPs for active events
--- ----------------------------------------------------------
-INSERT INTO rsvps (event_id, name, email, guests, status, dietary_restriction, notes, source, checked_in, created_at, updated_at) VALUES
+INSERT INTO rsvps (event_id, name, email, guests, canonical_status, dietary_restriction, notes, source, checked_in, created_at, updated_at) VALUES
   -- Summer Beats Festival (event 10)
-  (10, 'Alice Johnson',    'alice@festival.local',  1, 'Going',     'None',       'So excited for this!',            'public',  FALSE, NOW(), NOW()),
-  (10, 'Bob Williams',     'bob@festival.local',    2, 'Going',     'Vegetarian', 'Bringing my partner.',             'public',  FALSE, NOW(), NOW()),
-  (10, 'Carol Davis',      'carol@festival.local',  1, 'Going',     'Vegan',      NULL,                               'public',  FALSE, NOW(), NOW()),
-  (10, 'David Martinez',   'david.m@example.com',   1, 'Maybe',     'None',       'Depends on work schedule.',        'public',  FALSE, NOW(), NOW()),
-  (10, 'Emma Thompson',    'emma.t@example.com',    3, 'Going',     'None',       'Family picnic!',                   'public',  FALSE, NOW(), NOW()),
-  (10, 'Frank Garcia',     'frank.g@example.com',   1, 'Going',     'Gluten-Free',NULL,                               'public',  FALSE, NOW(), NOW()),
-  (10, 'Grace Wilson',     'grace.w@example.com',   2, 'Going',     'None',       NULL,                               'public',  FALSE, NOW(), NOW()),
-  (10, 'Henry Brown',      'henry.b@example.com',   1, 'Not Going', 'None',       'Conflict that weekend.',           'public',  FALSE, NOW(), NOW()),
-  (10, 'Isabel Chen',      'isabel.c@example.com',  1, 'Going',     'None',       NULL,                               'public',  FALSE, NOW(), NOW()),
-  (10, 'Jake Robinson',    'jake.r@example.com',    1, 'Pending',   'None',       NULL,                               'public',  FALSE, NOW(), NOW()),
+  (10, 'Alice Johnson',    'alice@festival.local',  1, 'confirmed',     'None',       'So excited for this!',            'public',  FALSE, NOW(), NOW()),
+  (10, 'Bob Williams',     'bob@festival.local',    2, 'confirmed',     'Vegetarian', 'Bringing my partner.',             'public',  FALSE, NOW(), NOW()),
+  (10, 'Carol Davis',      'carol@festival.local',  1, 'confirmed',     'Vegan',      NULL,                               'public',  FALSE, NOW(), NOW()),
+  (10, 'David Martinez',   'david.m@example.com',   1, 'maybe',     'None',       'Depends on work schedule.',        'public',  FALSE, NOW(), NOW()),
+  (10, 'Emma Thompson',    'emma.t@example.com',    3, 'confirmed',     'None',       'Family picnic!',                   'public',  FALSE, NOW(), NOW()),
+  (10, 'Frank Garcia',     'frank.g@example.com',   1, 'confirmed',     'Gluten-Free',NULL,                               'public',  FALSE, NOW(), NOW()),
+  (10, 'Grace Wilson',     'grace.w@example.com',   2, 'confirmed',     'None',       NULL,                               'public',  FALSE, NOW(), NOW()),
+  (10, 'Henry Brown',      'henry.b@example.com',   1, 'declined', 'None',       'Conflict that weekend.',           'public',  FALSE, NOW(), NOW()),
+  (10, 'Isabel Chen',      'isabel.c@example.com',  1, 'confirmed',     'None',       NULL,                               'public',  FALSE, NOW(), NOW()),
+  (10, 'Jake Robinson',    'jake.r@example.com',    1, 'pending',   'None',       NULL,                               'public',  FALSE, NOW(), NOW()),
   -- Tech Summit (event 11)
-  (11, 'Alice Johnson',    'alice@festival.local',  1, 'Going',     'None',       'Looking forward to the workshops.',    'public', FALSE, NOW(), NOW()),
-  (11, 'Bob Williams',     'bob@festival.local',    1, 'Going',     'Vegetarian', NULL,                               'public',  FALSE, NOW(), NOW()),
-  (11, 'Laura Kim',        'laura.k@example.com',   1, 'Going',     'None',       NULL,                               'public',  FALSE, NOW(), NOW()),
-  (11, 'Mark Davis',       'mark.d@example.com',    1, 'Maybe',     'None',       'Need to confirm travel.',          'public',  FALSE, NOW(), NOW()),
+  (11, 'Alice Johnson',    'alice@festival.local',  1, 'confirmed',     'None',       'Looking forward to the workshops.',    'public', FALSE, NOW(), NOW()),
+  (11, 'Bob Williams',     'bob@festival.local',    1, 'confirmed',     'Vegetarian', NULL,                               'public',  FALSE, NOW(), NOW()),
+  (11, 'Laura Kim',        'laura.k@example.com',   1, 'confirmed',     'None',       NULL,                               'public',  FALSE, NOW(), NOW()),
+  (11, 'Mark Davis',       'mark.d@example.com',    1, 'maybe',     'None',       'Need to confirm travel.',          'public',  FALSE, NOW(), NOW()),
   -- Community Food Fair (event 12)
-  (12, 'Carol Davis',      'carol@festival.local',  2, 'Going',     'Vegan',      'Bringing kids!',                   'public',  FALSE, NOW(), NOW()),
+  (12, 'Carol Davis',      'carol@festival.local',  2, 'confirmed',     'Vegan',      'Bringing kids!',                   'public',  FALSE, NOW(), NOW()),
   (12, 'Alice Johnson',    'alice@festival.local',  1, 'Going',     'None',       NULL,                               'public',  FALSE, NOW(), NOW()),
   (12, 'Peter Jackson',    'peter.j@example.com',   4, 'Going',     'None',       'Family of four.',                  'public',  FALSE, NOW(), NOW()),
   -- Charity Gala (event 13)

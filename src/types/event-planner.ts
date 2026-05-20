@@ -3,6 +3,15 @@ export type EventStatus = 'Active' | 'Draft' | 'Completed';
 export type TaskStatus = 'Pending' | 'Complete';
 
 export type RsvpStatus = 'Pending' | 'Confirmed' | 'Declined';
+export type CanonicalRsvpStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'declined'
+  | 'maybe'
+  | 'waitlist'
+  | 'cancelled'
+  | 'checked_in'
+  | 'no_show';
 
 export type AdminRole = 'Admin' | 'Organizer' | 'Coordinator';
 

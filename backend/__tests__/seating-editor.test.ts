@@ -71,7 +71,12 @@ vi.mock('../src/db/database.js', () => ({
   initializeDatabase: async () => testDb,
 }));
 
-import { assignGuest, createTable, listTables, updateTableLayout } from '../src/controllers/seating-controller.js';
+import {
+  assignGuest,
+  createTable,
+  listTables,
+  updateTableLayout,
+} from '../src/controllers/seating-controller.js';
 
 function makeRes() {
   const res: {
@@ -82,8 +87,14 @@ function makeRes() {
   } = {
     statusCode: 200,
     body: null,
-    status(code) { this.statusCode = code; return this; },
-    json(data) { this.body = data; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -113,11 +124,17 @@ async function seedEvent(db: TestDatabase, userId: number): Promise<number> {
   return result.lastID as number;
 }
 
-async function seedRsvp(db: TestDatabase, eventId: number, email: string, name: string): Promise<number> {
+async function seedRsvp(
+  db: TestDatabase,
+  eventId: number,
+  email: string,
+  name: string,
+): Promise<number> {
   const result = await db.run(
     `INSERT INTO rsvps (event_id, name, email, guests, status)
-     VALUES (?, ?, ?, 1, 'Going') RETURNING id`,
-    [eventId, name, email],
+      VALUES (?, ?, ?, ?, ?) RETURNING id
+      ON CONFLICT DO NOTHING`,
+    [eventId, `Guest ${i}`, `guest${i}@test.com`, 1, 'confirmed'],
   );
   return result.lastID as number;
 }
@@ -135,11 +152,15 @@ describe('seating editor controllers — issue #457', () => {
     const userId = await seedUser(testDb);
     const eventId = await seedEvent(testDb, userId);
 
-    const req = makeReq({ eventId: String(eventId) }, { name: 'VIP Table', capacity: 6 }, {
-      id: userId,
-      email: 'owner@test.com',
-      role_id: 2,
-    });
+    const req = makeReq(
+      { eventId: String(eventId) },
+      { name: 'VIP Table', capacity: 6 },
+      {
+        id: userId,
+        email: 'owner@test.com',
+        role_id: 2,
+      },
+    );
     const res = makeRes();
 
     await createTable(req, res as unknown as import('express').Response);
@@ -193,7 +214,11 @@ describe('seating editor controllers — issue #457', () => {
     );
     await assignGuest(assignReq, makeRes() as unknown as import('express').Response);
 
-    const req = makeReq({ eventId: String(eventId) }, {}, { id: userId, email: 'owner@test.com', role_id: 2 });
+    const req = makeReq(
+      { eventId: String(eventId) },
+      {},
+      { id: userId, email: 'owner@test.com', role_id: 2 },
+    );
     const res = makeRes();
 
     await listTables(req, res as unknown as import('express').Response);

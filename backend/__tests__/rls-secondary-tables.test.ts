@@ -122,7 +122,7 @@ async function seedTask(eventId: number, title: string, createdBy: number): Prom
 
 async function seedRsvp(eventId: number, guestName: string): Promise<number> {
   const r = await exec(
-    `INSERT INTO "${schema}".rsvps (event_id, guest_name, status) VALUES ($1, $2, 'Pending') RETURNING id`,
+    `INSERT INTO "${schema}".rsvps (event_id, name, canonical_status) VALUES ($1, $2, 'pending') RETURNING id`,
     [eventId, guestName],
   );
   return r.rows[0].id as number;

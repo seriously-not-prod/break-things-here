@@ -91,13 +91,22 @@ function makeRes() {
   } = {
     statusCode: 200,
     body: null,
-    status(code) { this.statusCode = code; return this; },
-    json(data) { this.body = data; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
 
-function makeReq(params: Record<string, string>, user = { id: 1, email: 'staff@test.com', role_id: 2 }) {
+function makeReq(
+  params: Record<string, string>,
+  user = { id: 1, email: 'staff@test.com', role_id: 2 },
+) {
   return { params, body: {}, user } as unknown as import('express').Request;
 }
 
@@ -119,8 +128,8 @@ async function seedEvent(db: TestDatabase, userId: number): Promise<number> {
 
 async function seedRsvp(db: TestDatabase, eventId: number, checkedIn = false): Promise<number> {
   const result = await db.run(
-    `INSERT INTO rsvps (event_id, name, email, guests, status, checked_in)
-     VALUES (?, 'Jane Doe', 'jane@test.com', 1, 'Going', ?) RETURNING id`,
+    `INSERT INTO rsvps (event_id, name, email, guests, canonical_status, checked_in)
+     VALUES (?, 'Jane Doe', 'jane@test.com', 1, 'confirmed', ?) RETURNING id`,
     [eventId, checkedIn],
   );
   return result.lastID as number;
