@@ -6,6 +6,7 @@ import {
   Checkbox,
   Divider,
   FormControlLabel,
+  Link,
   Paper,
   Stack,
   TextField,
@@ -15,7 +16,10 @@ import {
 import { useAuth } from '../../contexts/auth-context';
 import { ApiError, api } from '../../lib/api-client';
 
-
+interface EntraConfigResponse {
+  enabled: boolean;
+  allowLocalFallback?: boolean;
+}
 
 function toRemainingSeconds(lockedUntil?: number): number {
   if (!lockedUntil) {
@@ -39,6 +43,11 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [lockedUntil, setLockedUntil] = useState<number | undefined>();
   const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [entraEnabled, setEntraEnabled] = useState(false);
+  const [allowLocalFallback, setAllowLocalFallback] = useState(true);
+  const [showLocalForm, setShowLocalForm] = useState(false);
+  const [configStatus, setConfigStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const { login } = useAuth();
 
   useEffect(() => {
     if (!lockedUntil) {
@@ -68,14 +77,34 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
   }, [remainingSeconds]);
 
   const isLocked = Boolean(lockoutText);
-  const [entraEnabled, setEntraEnabled] = useState(false);
-  const { login } = useAuth();
 
   useEffect(() => {
-    api.get<{ enabled: boolean }>('/api/auth/entra/config')
-      .then((data) => setEntraEnabled(data.enabled))
-      .catch(() => setEntraEnabled(false));
+    api
+      .get<EntraConfigResponse>('/api/auth/entra/config')
+      .then((data) => {
+        setEntraEnabled(Boolean(data.enabled));
+        // When Entra is disabled, local credentials are always available — fall
+        // back to the legacy form regardless of what the API echoes back.
+        setAllowLocalFallback(data.enabled ? Boolean(data.allowLocalFallback) : true);
+        setConfigStatus('ready');
+      })
+      .catch(() => {
+        // #781 — fail closed. If we cannot reach the config endpoint we don't
+        // know whether the deployment is Entra-only, so we must not surface
+        // local credentials. The user sees a banner pointing them at SSO and
+        // an option to retry once the network recovers.
+        setEntraEnabled(false);
+        setAllowLocalFallback(false);
+        setConfigStatus('error');
+      });
   }, []);
+
+  // #781 — when Entra is enabled, the local form starts collapsed. It only
+  // becomes reachable if the operator opted into fallback via the env var. We
+  // also gate the form on the config request having succeeded so a transport
+  // failure cannot accidentally expose local credentials.
+  const localFormVisible =
+    configStatus === 'ready' && (!entraEnabled || (allowLocalFallback && showLocalForm));
 
   function handleEmailChange(event: ChangeEvent<HTMLInputElement>) {
     setEmail(event.target.value);
@@ -95,6 +124,12 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
     setSuccessMessage(null);
 
     if (isLocked) return;
+    // Defence-in-depth: even if the disclosure link somehow renders when the
+    // server has disabled fallback, refuse to submit credentials.
+    if (entraEnabled && !allowLocalFallback) {
+      setErrorMessage('Local sign-in is disabled. Please use Microsoft sign-in.');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -110,6 +145,36 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
     }
   }
 
+  const entraButton = entraEnabled ? (
+    <Button
+      variant="contained"
+      fullWidth
+      href="/api/auth/entra/login"
+      aria-label="Sign in with Microsoft"
+      data-testid="entra-sign-in"
+      sx={{ py: 1.5, fontWeight: 600, textTransform: 'none' }}
+    >
+      Sign in with Microsoft
+    </Button>
+  ) : null;
+
+  const localFallbackDisclosure =
+    entraEnabled && allowLocalFallback && !showLocalForm ? (
+      <Box sx={{ textAlign: 'center' }}>
+        <Link
+          component="button"
+          type="button"
+          underline="hover"
+          onClick={() => setShowLocalForm(true)}
+          data-testid="local-fallback-disclosure"
+          aria-label="Use a local account"
+          sx={{ fontSize: '0.875rem' }}
+        >
+          Use a local account
+        </Link>
+      </Box>
+    ) : null;
+
   return (
     <Box component="form" onSubmit={handleSubmit} noValidate>
       <Stack spacing={2} sx={{ width: '100%' }}>
@@ -117,117 +182,135 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
         {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
         {successMessage && <Alert severity="success">{successMessage}</Alert>}
 
-        <TextField
-          required
-          id="email"
-          name="email"
-          type="email"
-          label="Email"
-          value={email}
-          onChange={handleEmailChange}
-          inputProps={{ 'aria-label': 'Email address' }}
-          autoComplete="email"
-          fullWidth
-          placeholder="your.email@festival.local"
-        />
+        {configStatus === 'loading' && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }} data-testid="login-loading">
+            <CircularProgress size={24} />
+          </Box>
+        )}
 
-        <TextField
-          required
-          id="password"
-          name="password"
-          type="password"
-          label="Password"
-          value={password}
-          onChange={handlePasswordChange}
-          inputProps={{ 'aria-label': 'Password' }}
-          autoComplete="current-password"
-          fullWidth
-          placeholder="Enter your password"
-        />
+        {configStatus === 'error' && (
+          <Alert severity="error" data-testid="config-error">
+            Unable to load sign-in configuration. Please refresh and try again, or contact your administrator.
+          </Alert>
+        )}
 
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={rememberMe}
-              onChange={handleRememberMeChange}
-              inputProps={{ 'aria-label': 'Remember me' }}
-            />
-          }
-          label="Remember me"
-        />
+        {entraButton}
 
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={isSubmitting || isLocked || !email || !password}
-          aria-label="Log in"
-          sx={{ py: 1.5, fontWeight: 600 }}
-          fullWidth
-        >
-          {isSubmitting ? <CircularProgress size={20} color="inherit" /> : 'Sign In'}
-        </Button>
+        {entraEnabled && !allowLocalFallback && (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            align="center"
+            data-testid="entra-only-notice"
+          >
+            Sign-in is managed by your organisation's Microsoft account.
+          </Typography>
+        )}
 
-        <Typography aria-live="polite" variant="body2" color="text.secondary">
-          {isSubmitting ? 'Submitting your login request...' : 'Use your email and password to sign in.'}
-        </Typography>
+        {localFallbackDisclosure}
 
-        <Button
-          variant="text"
-          onClick={onForgotPassword}
-          aria-label="Forgot password"
-          fullWidth
-          size="small"
-        >
-          Forgot password?
-        </Button>
-
-        {entraEnabled && (
+        {localFormVisible && (
           <>
-            <Divider>or</Divider>
-            <Button
-              variant="outlined"
+            {entraEnabled && <Divider>or use a local account</Divider>}
+
+            <TextField
+              required
+              id="email"
+              name="email"
+              type="email"
+              label="Email"
+              value={email}
+              onChange={handleEmailChange}
+              inputProps={{ 'aria-label': 'Email address' }}
+              autoComplete="email"
               fullWidth
-              href="/api/auth/entra/login"
-              aria-label="Sign in with Microsoft"
-              sx={{ py: 1.5, fontWeight: 600, textTransform: 'none' }}
+              placeholder="your.email@festival.local"
+            />
+
+            <TextField
+              required
+              id="password"
+              name="password"
+              type="password"
+              label="Password"
+              value={password}
+              onChange={handlePasswordChange}
+              inputProps={{ 'aria-label': 'Password' }}
+              autoComplete="current-password"
+              fullWidth
+              placeholder="Enter your password"
+            />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={rememberMe}
+                  onChange={handleRememberMeChange}
+                  inputProps={{ 'aria-label': 'Remember me' }}
+                />
+              }
+              label="Remember me"
+            />
+
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={isSubmitting || isLocked || !email || !password}
+              aria-label="Log in"
+              sx={{ py: 1.5, fontWeight: 600 }}
+              fullWidth
             >
-              Sign in with Microsoft
+              {isSubmitting ? <CircularProgress size={20} color="inherit" /> : 'Sign In'}
             </Button>
+
+            <Typography aria-live="polite" variant="body2" color="text.secondary">
+              {isSubmitting ? 'Submitting your login request...' : 'Use your email and password to sign in.'}
+            </Typography>
+
+            <Button
+              variant="text"
+              onClick={onForgotPassword}
+              aria-label="Forgot password"
+              fullWidth
+              size="small"
+            >
+              Forgot password?
+            </Button>
+
+            {onRegister && (
+              <Typography variant="body2" align="center">
+                Don't have an account?{' '}
+                <Button variant="text" size="small" onClick={onRegister}>
+                  Create account
+                </Button>
+              </Typography>
+            )}
+
+            <Paper
+              variant="outlined"
+              sx={{
+                p: 2,
+                bgcolor: '#f0f4ff',
+                borderColor: '#c7d2fe',
+                borderRadius: 2,
+              }}
+            >
+              <Typography
+                variant="caption"
+                fontWeight={700}
+                sx={{ letterSpacing: 1, display: 'block', mb: 1, color: '#3730a3' }}
+              >
+                DEMO CREDENTIALS
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 0.5 }}>
+                <strong>Admin:</strong>&nbsp; admin@festival.local / festivalAdmin2025
+              </Typography>
+              <Typography variant="body2">
+                <strong>User:</strong>&nbsp;&nbsp;&nbsp;&nbsp; user@festival.local / userPass2025
+              </Typography>
+            </Paper>
           </>
         )}
-
-        {onRegister && (
-          <Typography variant="body2" align="center">
-            Don't have an account?{' '}
-            <Button variant="text" size="small" onClick={onRegister}>
-              Create account
-            </Button>
-          </Typography>
-        )}
-
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 2,
-            bgcolor: '#f0f4ff',
-            borderColor: '#c7d2fe',
-            borderRadius: 2,
-          }}
-        >
-          <Typography
-            variant="caption"
-            fontWeight={700}
-            sx={{ letterSpacing: 1, display: 'block', mb: 1, color: '#3730a3' }}
-          >
-            DEMO CREDENTIALS
-          </Typography>
-          <Typography variant="body2" sx={{ mb: 0.5 }}>
-            <strong>Admin:</strong>&nbsp; admin@festival.local / festivalAdmin2025
-          </Typography>
-          <Typography variant="body2">
-            <strong>User:</strong>&nbsp;&nbsp;&nbsp;&nbsp; user@festival.local / userPass2025
-          </Typography>
-        </Paper>
       </Stack>
     </Box>
   );
