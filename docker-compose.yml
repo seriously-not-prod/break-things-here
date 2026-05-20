@@ -6,11 +6,25 @@ services:
       POSTGRES_DB: festival_planner
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env (see .env.example)}
+    command:
+      - postgres
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=/usr/local/bin/archive-wal.sh "%p" "%f"
+      - -c
+      - wal_level=replica
+      - -c
+      - max_wal_senders=3
+      - -c
+      - wal_keep_size=1GB
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - wal-archive:/var/lib/postgresql/wal_archive
+      - ./scripts/archive-wal.sh:/usr/local/bin/archive-wal.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d festival_planner"]
       interval: 10s
@@ -144,6 +158,22 @@ services:
       - app-network
     restart: unless-stopped
 
+  # WAL archive retention manager — enforces 14-day retention policy
+  wal-archive-cleanup:
+    image: alpine:latest
+    container_name: festival-wal-archive-cleanup
+    volumes:
+      - wal-archive:/var/lib/postgresql/wal_archive
+    entrypoint: >
+      sh -c "
+        apk add --no-cache dcron find &&
+        echo '0 * * * * find /var/lib/postgresql/wal_archive -type f -mtime +14 -delete' > /etc/crontabs/root &&
+        crond -f
+      "
+    networks:
+      - app-network
+    restart: unless-stopped
+
 volumes:
   postgres-data:
     name: festival-postgres-data
@@ -153,6 +183,8 @@ volumes:
     name: festival-uploads-data
   db-backups:
     name: festival-db-backups
+  wal-archive:
+    name: festival-wal-archive
 
 networks:
   app-network:
