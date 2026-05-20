@@ -53,11 +53,13 @@ import * as gallerySharesController from '../controllers/gallery-shares-controll
 import * as galleryCommentsController from '../controllers/gallery-comments-controller.js';
 import * as galleryDownloadsController from '../controllers/gallery-downloads-controller.js';
 import * as reportsController from '../controllers/reports-controller.js';
+import * as reportBuilderController from '../controllers/reports-builder-controller.js';
 import * as globalSearchController from '../controllers/global-search-controller.js';
 import * as taskMultiAssigneeController from '../controllers/task-multi-assignee-controller.js';
 import * as timelineTemplatesController from '../controllers/timeline-templates-controller.js';
 import * as collaborationController from '../controllers/collaboration-controller.js';
 import * as realtimeController from '../controllers/realtime-controller.js';
+import * as presenceController from '../controllers/presence-controller.js';
 import * as eventChatController from '../controllers/event-chat-controller.js';
 import * as entityVersionsController from '../controllers/entity-versions-controller.js';
 import * as guestExportController from '../controllers/guest-export-controller.js';
@@ -1413,6 +1415,19 @@ router.get(
   reportsController.listDueReports,
 );
 
+// ── #812: Custom report builder ───────────────────────────────────────────────────────────
+router.get('/reports/builder/domains', authenticateToken, reportBuilderController.getDomains);
+router.post(
+  '/events/:eventId/reports/builder/run',
+  authenticateToken,
+  reportBuilderController.runReport,
+);
+router.post(
+  '/events/:eventId/reports/builder/save',
+  authenticateToken,
+  reportBuilderController.saveReport,
+);
+
 // ============ POWER-USER GLOBAL SEARCH — #581 ============
 router.get('/search', authenticateToken, globalSearchController.globalSearch);
 
@@ -1531,6 +1546,15 @@ router.get(
   authenticateToken,
   realtimeController.streamEventRealtime,
 );
+// ── #809: Unified multiplexed SSE stream ─────────────────────────────────────────────────
+// SSE — EventSource cannot set Authorization headers; auth flows through the
+// HttpOnly `accessToken` cookie already supported by `authenticateToken`.
+router.get('/realtime/stream', authenticateToken, realtimeController.streamRealtime);
+
+// ── #811: User presence (online/offline/idle) ─────────────────────────────────────────────
+router.post('/user-presence/heartbeat', authenticateToken, presenceController.heartbeat);
+router.delete('/user-presence/leave', authenticateToken, presenceController.leave);
+router.get('/user-presence/online', authenticateToken, presenceController.online);
 
 // ── #628: Event team chat ─────────────────────────────────────────────────────────────────
 router.get('/events/:eventId/chat', authenticateToken, eventChatController.listChatMessages);

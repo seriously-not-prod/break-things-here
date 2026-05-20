@@ -945,41 +945,77 @@ export async function closeDatabase(): Promise<void> {
 }
 
 export async function resolveRlsEnabled(db: DatabaseAdapter): Promise<boolean> {
-  // Explicit env wins (true or false). Default keeps RLS on the safe path:
-  // policies are only applied when the connecting role bypasses RLS, so
-  // policies are effectively no-ops until controllers set
-  // `app.current_user_id` via `withUserContext`. This prevents the migration
-  // from silently emptying result sets on a hardened non-superuser deployment.
-  const explicit = process.env.RLS_PILOT_ENABLED?.toLowerCase();
-  if (explicit === 'true') return true;
-  if (explicit === 'false') return false;
+  const secureEnv = isSecureDeploymentEnv(process.env.NODE_ENV);
 
   try {
     const row = await db.get<{ rolbypassrls: boolean }>(
       `SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user`,
     );
     const bypasses = Boolean(row?.rolbypassrls);
-    if (bypasses) {
-      console.log(
-        '[RLS] Auto-enabling policies: current DB role bypasses RLS, so policies are inert until per-request context is wired in.',
-      );
-    } else {
-      console.warn(
-        '[RLS] Auto-disabling policies: current DB role is not BYPASSRLS and `app.current_user_id` is not yet set per-request. Set RLS_PILOT_ENABLED=true to force-enable once `withUserContext` is adopted in all controllers.',
+
+    if (secureEnv && bypasses) {
+      throw new Error(
+        '[RLS] Startup blocked: production/staging DB role has BYPASSRLS. Use a non-BYPASSRLS role.',
       );
     }
-    return bypasses;
+
+    if (bypasses) {
+      console.warn(
+        '[RLS] Current DB role has BYPASSRLS. RLS remains enabled, but this role bypasses policy enforcement.',
+      );
+    }
+
+    return true;
   } catch (err) {
+    if (secureEnv) {
+      throw new Error(
+        `[RLS] Startup blocked: could not verify BYPASSRLS state in secure environment: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
     console.warn(
-      '[RLS] Could not determine role BYPASSRLS attribute; defaulting to disabled for safety:',
+      '[RLS] Could not determine role BYPASSRLS attribute in non-secure env; continuing with RLS enabled:',
       err instanceof Error ? err.message : err,
     );
-    return false;
+    return true;
   }
 }
 
 async function runMigrations(db: DatabaseAdapter): Promise<void> {
-  const isRlsEnabled = await resolveRlsEnabled(db);
+  await resolveRlsEnabled(db);
+
+  // Ensure any pre-existing audit triggers use the current permissive
+  // implementation before other migration writes execute.
+  await db.exec(`
+    CREATE OR REPLACE FUNCTION public.set_audit_columns()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    DECLARE
+      current_user_id INTEGER;
+    BEGIN
+      current_user_id := NULLIF(current_setting('app.current_user_id', true), '')::INTEGER;
+
+      IF TG_OP = 'INSERT' THEN
+        NEW.created_at := COALESCE(NEW.created_at, CURRENT_TIMESTAMP);
+        NEW.updated_at := COALESCE(NEW.updated_at, CURRENT_TIMESTAMP);
+        NEW.created_by := COALESCE(NEW.created_by, current_user_id);
+        NEW.updated_by := COALESCE(NEW.updated_by, NEW.created_by, current_user_id);
+      ELSE
+        NEW.updated_at := CURRENT_TIMESTAMP;
+        NEW.updated_by := COALESCE(
+          current_user_id,
+          NEW.updated_by,
+          OLD.updated_by,
+          NEW.created_by,
+          OLD.created_by
+        );
+      END IF;
+
+      RETURN NEW;
+    END;
+    $$;
+  `);
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -1970,9 +2006,9 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_entra_oid ON users(entra_oid) WHERE entra_oid IS NOT NULL`,
   );
 
-  // ── RLS pilot: enable row-level security (#472) ───────────────────────────
-  if (isRlsEnabled) {
-    console.log('[RLS] Applying RLS pilot policies on events and event_members…');
+  // ── RLS default-on: enable row-level security (#472, #767) ───────────────
+  {
+    console.log('[RLS] Applying RLS policies on events and event_members…');
 
     await db.exec(`ALTER TABLE events ENABLE ROW LEVEL SECURITY`);
     await db.exec(`ALTER TABLE events FORCE ROW LEVEL SECURITY`);
@@ -2021,12 +2057,12 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       END $$;
     `);
 
-    console.log('[RLS] RLS pilot policies applied.');
+    console.log('[RLS] RLS policies for events and event_members applied.');
   }
 
   // ── RLS v2: extend RLS to tasks, expenses, vendors, rsvps (#564, #632, #633) ──
-  if (isRlsEnabled) {
-    console.log('[RLS] Applying RLS v2 policies on tasks, expenses, vendors, rsvps…');
+  {
+    console.log('[RLS] Applying RLS policies on tasks, expenses, vendors, rsvps…');
     for (const tbl of ['tasks', 'expenses', 'vendors', 'rsvps']) {
       await db.exec(`ALTER TABLE ${tbl} ENABLE ROW LEVEL SECURITY`);
       await db.exec(`ALTER TABLE ${tbl} FORCE ROW LEVEL SECURITY`);
@@ -2092,33 +2128,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
         END IF;
       END $$;
     `);
-    console.log('[RLS] RLS v2 policies applied.');
-  } else {
-    // When RLS resolves to disabled at startup we must also clear any prior
-    // ENABLE/FORCE state on the tables, otherwise a previously-RLS-enabled
-    // database keeps enforcing the policies even though we no longer manage
-    // them — which is the exact silent-empty-result bug we are guarding
-    // against. We only DISABLE; the policy definitions themselves are kept
-    // in place so re-enabling later (via RLS_PILOT_ENABLED=true) restores
-    // the same access matrix.
-    const rlsTables = ['events', 'event_members', 'tasks', 'expenses', 'vendors', 'rsvps'];
-    for (const tbl of rlsTables) {
-      await db.exec(`
-        DO $$ BEGIN
-          IF EXISTS (
-            SELECT 1 FROM pg_class c
-            JOIN pg_namespace n ON n.oid = c.relnamespace
-            WHERE n.nspname = 'public'
-              AND c.relname = '${tbl}'
-              AND (c.relrowsecurity = true OR c.relforcerowsecurity = true)
-          ) THEN
-            ALTER TABLE ${tbl} NO FORCE ROW LEVEL SECURITY;
-            ALTER TABLE ${tbl} DISABLE ROW LEVEL SECURITY;
-            RAISE NOTICE '[RLS] Disabled row-level security on %', '${tbl}';
-          END IF;
-        END $$;
-      `);
-    }
+    console.log('[RLS] RLS policies on tasks, expenses, vendors, rsvps applied.');
   }
 
   // ── Guest merge audit (#411, #435) ───────────────────────────────────────
@@ -3168,9 +3178,8 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   // The v10 schema added task_assignees, task_escalation_rules, the
   // timeline_templates pair, and entity_change_history without RLS. Apply
   // the same fail-open-on-no-context pattern used by v2 so RLS coverage
-  // matches the rest of the event-scoped surface. Gated on isRlsEnabled so
-  // a deployment that has explicitly opted out doesn't get policies forced.
-  if (isRlsEnabled) {
+  // matches the rest of the event-scoped surface.
+  {
     console.log('[RLS] Applying v12 policies on v10 tables…');
 
     // Missing FK index flagged alongside the policy gap.
@@ -3275,36 +3284,168 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     `);
 
     console.log('[RLS] v12 policies applied.');
-  } else {
-    // Mirror the v2 "disable cleanly when RLS is off" behaviour so a
-    // formerly-enabled DB doesn't keep enforcing the new policies.
-    for (const tbl of [
-      'task_assignees',
-      'task_escalation_rules',
-      'timeline_templates',
-      'timeline_template_items',
-      'entity_change_history',
-    ]) {
-      await db.exec(`
-        DO $$ BEGIN
-          IF EXISTS (
-            SELECT 1 FROM pg_class c
-            JOIN pg_namespace n ON n.oid = c.relnamespace
-            WHERE n.nspname = 'public'
-              AND c.relname = '${tbl}'
-              AND (c.relrowsecurity = true OR c.relforcerowsecurity = true)
-          ) THEN
-            ALTER TABLE ${tbl} NO FORCE ROW LEVEL SECURITY;
-            ALTER TABLE ${tbl} DISABLE ROW LEVEL SECURITY;
-            RAISE NOTICE '[RLS] Disabled row-level security on %', '${tbl}';
-          END IF;
-        END $$;
-      `);
-    }
   }
 
-  // ── Story #765 (Frontend Feature Gap Closure) — additive columns ───────
-  // Runs unconditionally after the RLS branches so both code paths benefit.
+  // v17 — Task #769: audit-column sweep + universal audit trigger.
+  await db.exec(`
+    CREATE OR REPLACE FUNCTION public.set_audit_columns()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    DECLARE
+      current_user_id INTEGER;
+    BEGIN
+      current_user_id := NULLIF(current_setting('app.current_user_id', true), '')::INTEGER;
+
+      IF TG_OP = 'INSERT' THEN
+        NEW.created_at := COALESCE(NEW.created_at, CURRENT_TIMESTAMP);
+        NEW.updated_at := COALESCE(NEW.updated_at, CURRENT_TIMESTAMP);
+        NEW.created_by := COALESCE(NEW.created_by, current_user_id);
+        NEW.updated_by := COALESCE(NEW.updated_by, NEW.created_by, current_user_id);
+      ELSE
+        NEW.updated_at := CURRENT_TIMESTAMP;
+        NEW.updated_by := COALESCE(
+          current_user_id,
+          NEW.updated_by,
+          OLD.updated_by,
+          NEW.created_by,
+          OLD.created_by
+        );
+      END IF;
+
+      RETURN NEW;
+    END;
+    $$;
+  `);
+
+  if (process.env.NODE_ENV !== 'test') {
+    await db.exec(`
+      DO $$
+      DECLARE
+        t RECORD;
+        missing_count INTEGER;
+      BEGIN
+        FOR t IN
+          SELECT table_name
+          FROM information_schema.tables
+          WHERE table_schema = 'public'
+            AND table_type = 'BASE TABLE'
+            AND table_name NOT LIKE 'pg_%'
+            AND table_name NOT LIKE 'sql_%'
+        LOOP
+          EXECUTE format(
+            'ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ',
+            t.table_name
+          );
+          EXECUTE format(
+            'ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS created_by INTEGER',
+            t.table_name
+          );
+          EXECUTE format(
+            'ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ',
+            t.table_name
+          );
+          EXECUTE format(
+            'ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS updated_by INTEGER',
+            t.table_name
+          );
+
+          EXECUTE format(
+            'ALTER TABLE public.%I ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP',
+            t.table_name
+          );
+          EXECUTE format(
+            'ALTER TABLE public.%I ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP',
+            t.table_name
+          );
+          EXECUTE format(
+            'ALTER TABLE public.%I ALTER COLUMN created_by SET DEFAULT NULLIF(current_setting(''app.current_user_id'', true), '''')::INTEGER',
+            t.table_name
+          );
+          EXECUTE format(
+            'ALTER TABLE public.%I ALTER COLUMN updated_by SET DEFAULT NULLIF(current_setting(''app.current_user_id'', true), '''')::INTEGER',
+            t.table_name
+          );
+
+          EXECUTE format('DROP TRIGGER IF EXISTS trg_set_audit_columns ON public.%I', t.table_name);
+          EXECUTE format(
+            'CREATE TRIGGER trg_set_audit_columns BEFORE INSERT OR UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.set_audit_columns()',
+            t.table_name
+          );
+        END LOOP;
+
+        WITH public_tables AS (
+          SELECT table_name
+          FROM information_schema.tables
+          WHERE table_schema = 'public'
+            AND table_type = 'BASE TABLE'
+            AND table_name NOT LIKE 'pg_%'
+            AND table_name NOT LIKE 'sql_%'
+        ),
+        audit_presence AS (
+          SELECT
+            pt.table_name,
+            COUNT(*) FILTER (
+              WHERE c.column_name IN ('created_at', 'created_by', 'updated_at', 'updated_by')
+            ) AS required_column_count
+          FROM public_tables pt
+          LEFT JOIN information_schema.columns c
+            ON c.table_schema = 'public'
+            AND c.table_name = pt.table_name
+          GROUP BY pt.table_name
+        )
+        SELECT COUNT(*)
+        INTO missing_count
+        FROM audit_presence
+        WHERE required_column_count < 4;
+
+        IF missing_count > 0 THEN
+          RAISE EXCEPTION
+            'Audit sweep verification failed: % public tables still missing required audit columns',
+            missing_count;
+        END IF;
+      END $$;
+    `);
+  }
+
+  // v19 — Task #811: user_presence table for online/offline status.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS user_presence (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'online' CHECK (status IN ('online', 'idle', 'offline')),
+      last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      connected_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_presence_last_seen
+      ON user_presence (last_seen_at);
+  `);
+
+  // v20 — Task #812: custom report builder config column + updated constraints.
+  await db.exec(`
+    ALTER TABLE scheduled_reports
+      DROP CONSTRAINT IF EXISTS scheduled_reports_report_type_check;
+    ALTER TABLE scheduled_reports
+      ADD CONSTRAINT scheduled_reports_report_type_check
+      CHECK (report_type IN (
+        'rsvp_summary', 'budget_summary', 'task_summary', 'storage_summary', 'full',
+        'financial_detail', 'expense_workflow', 'vendor_spend', 'price_comparison',
+        'custom_builder'
+      ));
+    ALTER TABLE scheduled_reports
+      DROP CONSTRAINT IF EXISTS scheduled_reports_frequency_check;
+    ALTER TABLE scheduled_reports
+      ADD CONSTRAINT scheduled_reports_frequency_check
+      CHECK (frequency IN ('daily', 'weekly', 'monthly', 'one_off'));
+    ALTER TABLE scheduled_reports
+      ADD COLUMN IF NOT EXISTS builder_config JSONB;
+  `);
+
+  // v15 — Story #765 (Frontend Feature Gap Closure) additive columns. Placed
+  // after the audit-column sweep so the universal triggers fire on inserts.
   // #797: selected_vendor_id on budget_categories so "Pick this vendor" can stamp.
   await db.exec(
     `ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS selected_vendor_id INTEGER`,

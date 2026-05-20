@@ -1,5 +1,6 @@
 import type { FC } from 'react';
 import './eventora-sidebar.css';
+import { TeamPresenceList } from '../collaboration/team-presence-list';
 
 interface SidebarProps {
   activeNav?: string;
@@ -64,6 +65,12 @@ export const EventoraSidebar: FC<SidebarProps> = ({
       {/* Divider */}
       <div className="sidebar-divider"></div>
 
+      {/* Team Presence — #811 */}
+      <TeamPresenceList />
+
+      {/* Divider */}
+      <div className="sidebar-divider"></div>
+
       {/* Quick Actions */}
       <div className="quick-actions">
         <div className="quick-label">Quick Actions</div>
@@ -102,7 +109,11 @@ export const EventoraSidebar: FC<SidebarProps> = ({
       {/* Upgrade Box */}
       <div className="upgrade-box">
         <div className="crown">👑</div>
-        <p>Upgrade to Pro<br /><small>Unlock advanced features</small></p>
+        <p>
+          Upgrade to Pro
+          <br />
+          <small>Unlock advanced features</small>
+        </p>
         <button>Upgrade Now</button>
       </div>
 
