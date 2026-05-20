@@ -3401,4 +3401,24 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_user_presence_last_seen
       ON user_presence (last_seen_at);
   `);
+
+  // v20 — Task #812: custom report builder config column + updated constraints.
+  await db.exec(`
+    ALTER TABLE scheduled_reports
+      DROP CONSTRAINT IF EXISTS scheduled_reports_report_type_check;
+    ALTER TABLE scheduled_reports
+      ADD CONSTRAINT scheduled_reports_report_type_check
+      CHECK (report_type IN (
+        'rsvp_summary', 'budget_summary', 'task_summary', 'storage_summary', 'full',
+        'financial_detail', 'expense_workflow', 'vendor_spend', 'price_comparison',
+        'custom_builder'
+      ));
+    ALTER TABLE scheduled_reports
+      DROP CONSTRAINT IF EXISTS scheduled_reports_frequency_check;
+    ALTER TABLE scheduled_reports
+      ADD CONSTRAINT scheduled_reports_frequency_check
+      CHECK (frequency IN ('daily', 'weekly', 'monthly', 'one_off'));
+    ALTER TABLE scheduled_reports
+      ADD COLUMN IF NOT EXISTS builder_config JSONB;
+  `);
 }

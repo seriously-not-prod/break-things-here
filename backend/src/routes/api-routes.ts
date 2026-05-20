@@ -53,6 +53,7 @@ import * as gallerySharesController from '../controllers/gallery-shares-controll
 import * as galleryCommentsController from '../controllers/gallery-comments-controller.js';
 import * as galleryDownloadsController from '../controllers/gallery-downloads-controller.js';
 import * as reportsController from '../controllers/reports-controller.js';
+import * as reportBuilderController from '../controllers/reports-builder-controller.js';
 import * as globalSearchController from '../controllers/global-search-controller.js';
 import * as taskMultiAssigneeController from '../controllers/task-multi-assignee-controller.js';
 import * as timelineTemplatesController from '../controllers/timeline-templates-controller.js';
@@ -1386,6 +1387,11 @@ router.get(
   authorizeRole(['Admin']),
   reportsController.listDueReports,
 );
+
+// ── #812: Custom report builder ───────────────────────────────────────────────────────────
+router.get('/reports/builder/domains', authenticateToken, reportBuilderController.getDomains);
+router.post('/events/:eventId/reports/builder/run', authenticateToken, reportBuilderController.runReport);
+router.post('/events/:eventId/reports/builder/save', authenticateToken, reportBuilderController.saveReport);
 
 // ============ POWER-USER GLOBAL SEARCH — #581 ============
 router.get('/search', authenticateToken, globalSearchController.globalSearch);
