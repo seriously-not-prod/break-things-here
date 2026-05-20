@@ -80,12 +80,9 @@ describe('ShoppingPage', () => {
     await userEvent.click(checkbox);
 
     await waitFor(() => {
-      expect(mockedService.updateShoppingItem).toHaveBeenCalledWith(
-        1,
-        1,
-        1,
-        { status: 'Purchased' },
-      );
+      expect(mockedService.updateShoppingItem).toHaveBeenCalledWith(1, 1, 1, {
+        status: 'Purchased',
+      });
     });
   });
 

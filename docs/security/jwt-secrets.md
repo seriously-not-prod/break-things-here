@@ -9,11 +9,11 @@
 
 This document covers the three server-side secrets used for token security in the Festival Planner backend, along with how to generate them, rotate them, and perform emergency revocation.
 
-| Environment Variable | Purpose | Required in Production |
-|---|---|---|
-| `JWT_SECRET` | Signs and verifies JWT access tokens | ✅ Yes |
-| `TOKEN_HASH_SECRET` | scrypt-derives a key to hash opaque tokens before DB storage | ✅ Yes |
-| `REFRESH_TOKEN_ENC_KEY` | AES-256-GCM encrypts refresh tokens stored in HttpOnly cookies | ✅ Yes |
+| Environment Variable    | Purpose                                                        | Required in Production |
+| ----------------------- | -------------------------------------------------------------- | ---------------------- |
+| `JWT_SECRET`            | Signs and verifies JWT access tokens                           | ✅ Yes                 |
+| `TOKEN_HASH_SECRET`     | scrypt-derives a key to hash opaque tokens before DB storage   | ✅ Yes                 |
+| `REFRESH_TOKEN_ENC_KEY` | AES-256-GCM encrypts refresh tokens stored in HttpOnly cookies | ✅ Yes                 |
 
 If any of these are missing in production, the backend will **throw on startup** and refuse to serve requests. In development/test, ephemeral per-startup values are used (sessions will not survive a restart).
 
@@ -107,12 +107,12 @@ Use this procedure during planned maintenance (e.g. scheduled quarterly rotation
 
 ### Impact
 
-| Action | User impact |
-|---|---|
-| Rotating `JWT_SECRET` | All access tokens expire; users log in again within ~1 hour |
-| Rotating `TOKEN_HASH_SECRET` | All sessions invalidated immediately; users log in again |
-| Rotating `REFRESH_TOKEN_ENC_KEY` | All refresh cookies become invalid; users log in again |
-| Deleting `sessions` table rows | All sessions invalidated immediately (recommended alongside any secret rotation) |
+| Action                           | User impact                                                                      |
+| -------------------------------- | -------------------------------------------------------------------------------- |
+| Rotating `JWT_SECRET`            | All access tokens expire; users log in again within ~1 hour                      |
+| Rotating `TOKEN_HASH_SECRET`     | All sessions invalidated immediately; users log in again                         |
+| Rotating `REFRESH_TOKEN_ENC_KEY` | All refresh cookies become invalid; users log in again                           |
+| Deleting `sessions` table rows   | All sessions invalidated immediately (recommended alongside any secret rotation) |
 
 ---
 
@@ -181,6 +181,7 @@ env: {
 ```
 
 These values are safe to commit because they are:
+
 - Only active during `vitest run`
 - Not used in production (production throws if these exact strings were used, as they don't match length/entropy requirements in practice — but more importantly, production requires `NODE_ENV=production` where missing secrets throw)
 

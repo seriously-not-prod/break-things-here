@@ -2,20 +2,20 @@ import { alpha, createTheme, type PaletteMode } from '@mui/material/styles';
 
 // ── LIGHT: Professional Blue + Slate palette ─────────────────────────────────
 const lightPalette = {
-  primary:    { main: '#2563EB', light: '#3b82f6', dark: '#1d4ed8', contrastText: '#FFFFFF' },
-  secondary:  { main: '#0EA5E9', light: '#38BDF8', dark: '#0369A1', contrastText: '#FFFFFF' },
+  primary: { main: '#2563EB', light: '#3b82f6', dark: '#1d4ed8', contrastText: '#FFFFFF' },
+  secondary: { main: '#0EA5E9', light: '#38BDF8', dark: '#0369A1', contrastText: '#FFFFFF' },
   background: { default: '#F8FAFC', paper: '#FFFFFF' },
-  text:       { primary: '#0F172A', secondary: '#64748B' },
-  divider:    '#E2E8F0',
+  text: { primary: '#0F172A', secondary: '#64748B' },
+  divider: '#E2E8F0',
 };
 
 // ── DARK: Deep charcoal + blue palette ────────────────────────────────────────
 const darkPalette = {
-  primary:    { main: '#3b82f6', light: '#60a5fa', dark: '#2563EB', contrastText: '#0D1117' },
-  secondary:  { main: '#38BDF8', light: '#7DD3FC', dark: '#0EA5E9', contrastText: '#071E30' },
+  primary: { main: '#3b82f6', light: '#60a5fa', dark: '#2563EB', contrastText: '#0D1117' },
+  secondary: { main: '#38BDF8', light: '#7DD3FC', dark: '#0EA5E9', contrastText: '#071E30' },
   background: { default: '#0D1117', paper: '#161B27' },
-  text:       { primary: '#E2E8F0', secondary: '#94A3B8' },
-  divider:    '#1E2A3A',
+  text: { primary: '#E2E8F0', secondary: '#94A3B8' },
+  divider: '#1E2A3A',
 };
 
 export const SIDEBAR_WIDTH = 256;
@@ -31,8 +31,8 @@ export function createAppTheme(mode: PaletteMode) {
       ...palette,
       success: { main: mode === 'dark' ? '#34D399' : '#059669', contrastText: '#fff' },
       warning: { main: mode === 'dark' ? '#FBBF24' : '#D97706', contrastText: '#fff' },
-      error:   { main: mode === 'dark' ? '#F87171' : '#DC2626', contrastText: '#fff' },
-      info:    { main: mode === 'dark' ? '#60A5FA' : '#2563EB', contrastText: '#fff' },
+      error: { main: mode === 'dark' ? '#F87171' : '#DC2626', contrastText: '#fff' },
+      info: { main: mode === 'dark' ? '#60A5FA' : '#2563EB', contrastText: '#fff' },
     },
     typography: {
       fontFamily: "'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
@@ -54,9 +54,7 @@ export function createAppTheme(mode: PaletteMode) {
     shape: { borderRadius: 10 },
     shadows: [
       'none',
-      mode === 'dark'
-        ? '0 1px 3px rgba(0,0,0,0.5)'
-        : '0 1px 2px rgba(15,23,42,0.06)',
+      mode === 'dark' ? '0 1px 3px rgba(0,0,0,0.5)' : '0 1px 2px rgba(15,23,42,0.06)',
       mode === 'dark'
         ? '0 1px 4px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.25)'
         : '0 1px 3px rgba(15,23,42,0.05), 0 4px 12px rgba(15,23,42,0.08)',
@@ -70,37 +68,38 @@ export function createAppTheme(mode: PaletteMode) {
         styleOverrides: {
           ':root': {
             colorScheme: mode,
-            '--primary':        palette.primary.main,
-            '--primary-light':  palette.primary.light,
-            '--primary-bg':     alpha(palette.primary.main, mode === 'dark' ? 0.18 : 0.08),
-            '--sidebar-bg':     sidebarBg,
-            '--sidebar-text':   'rgba(255,255,255,0.65)',
+            '--primary': palette.primary.main,
+            '--primary-light': palette.primary.light,
+            '--primary-bg': alpha(palette.primary.main, mode === 'dark' ? 0.18 : 0.08),
+            '--sidebar-bg': sidebarBg,
+            '--sidebar-text': 'rgba(255,255,255,0.65)',
             '--sidebar-active': palette.primary.main,
-            '--bg':             palette.background.default,
-            '--card':           palette.background.paper,
-            '--text':           palette.text.primary,
-            '--text-muted':     palette.text.secondary,
-            '--border':         palette.divider,
-            '--green':  mode === 'dark' ? '#34D399' : '#059669',
+            '--bg': palette.background.default,
+            '--card': palette.background.paper,
+            '--text': palette.text.primary,
+            '--text-muted': palette.text.secondary,
+            '--border': palette.divider,
+            '--green': mode === 'dark' ? '#34D399' : '#059669',
             '--orange': mode === 'dark' ? '#FB923C' : '#EA580C',
-            '--blue':   mode === 'dark' ? '#60A5FA' : '#2563EB',
-            '--pink':   mode === 'dark' ? '#F472B6' : '#DB2777',
+            '--blue': mode === 'dark' ? '#60A5FA' : '#2563EB',
+            '--pink': mode === 'dark' ? '#F472B6' : '#DB2777',
             '--yellow': mode === 'dark' ? '#FBBF24' : '#D97706',
-            '--red':    mode === 'dark' ? '#F87171' : '#DC2626',
-            '--nav-width':      `${SIDEBAR_WIDTH}px`,
-            '--nav-collapsed':  `${SIDEBAR_COLLAPSED_WIDTH}px`,
-            '--topbar-height':  '60px',
+            '--red': mode === 'dark' ? '#F87171' : '#DC2626',
+            '--nav-width': `${SIDEBAR_WIDTH}px`,
+            '--nav-collapsed': `${SIDEBAR_COLLAPSED_WIDTH}px`,
+            '--topbar-height': '60px',
             '--transition-fast': '150ms cubic-bezier(0.4,0,0.2,1)',
             '--transition-base': '250ms cubic-bezier(0.4,0,0.2,1)',
-            '--radius':         '10px',
-            '--radius-sm':      '6px',
-            '--radius-lg':      '14px',
+            '--radius': '10px',
+            '--radius-sm': '6px',
+            '--radius-lg': '14px',
           },
           '*': {
             scrollbarWidth: 'thin',
-            scrollbarColor: mode === 'dark'
-              ? 'rgba(255,255,255,0.1) transparent'
-              : 'rgba(15,23,42,0.12) transparent',
+            scrollbarColor:
+              mode === 'dark'
+                ? 'rgba(255,255,255,0.1) transparent'
+                : 'rgba(15,23,42,0.12) transparent',
           },
           '*::-webkit-scrollbar': { width: '6px', height: '6px' },
           '*::-webkit-scrollbar-track': { background: 'transparent' },
@@ -115,7 +114,7 @@ export function createAppTheme(mode: PaletteMode) {
           '::selection': {
             backgroundColor: alpha(palette.primary.main, mode === 'dark' ? 0.45 : 0.28),
           },
-          'a': { color: 'inherit' },
+          a: { color: 'inherit' },
         },
       },
       MuiAppBar: {
@@ -140,15 +139,15 @@ export function createAppTheme(mode: PaletteMode) {
             border: `1px solid ${palette.divider}`,
           },
           elevation1: {
-            boxShadow: mode === 'dark'
-              ? '0 1px 3px rgba(0,0,0,0.5)'
-              : '0 1px 2px rgba(15,23,42,0.06)',
+            boxShadow:
+              mode === 'dark' ? '0 1px 3px rgba(0,0,0,0.5)' : '0 1px 2px rgba(15,23,42,0.06)',
             border: `1px solid ${palette.divider}`,
           },
           elevation2: {
-            boxShadow: mode === 'dark'
-              ? '0 2px 8px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.3)'
-              : '0 2px 6px rgba(15,23,42,0.06), 0 6px 16px rgba(15,23,42,0.08)',
+            boxShadow:
+              mode === 'dark'
+                ? '0 2px 8px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.3)'
+                : '0 2px 6px rgba(15,23,42,0.06), 0 6px 16px rgba(15,23,42,0.08)',
             border: `1px solid ${palette.divider}`,
           },
         },
@@ -162,9 +161,10 @@ export function createAppTheme(mode: PaletteMode) {
             backgroundImage: 'none',
             transition: 'box-shadow 200ms ease, transform 200ms ease',
             '&:hover': {
-              boxShadow: mode === 'dark'
-                ? '0 4px 16px rgba(0,0,0,0.4), 0 8px 32px rgba(0,0,0,0.3)'
-                : '0 4px 12px rgba(15,23,42,0.08), 0 8px 24px rgba(15,23,42,0.1)',
+              boxShadow:
+                mode === 'dark'
+                  ? '0 4px 16px rgba(0,0,0,0.4), 0 8px 32px rgba(0,0,0,0.3)'
+                  : '0 4px 12px rgba(15,23,42,0.08), 0 8px 24px rgba(15,23,42,0.1)',
             },
           },
         },
@@ -230,9 +230,7 @@ export function createAppTheme(mode: PaletteMode) {
         styleOverrides: {
           root: {
             borderRadius: 8,
-            backgroundColor: mode === 'dark'
-              ? alpha('#161B27', 0.6)
-              : alpha('#FFFFFF', 0.9),
+            backgroundColor: mode === 'dark' ? alpha('#161B27', 0.6) : alpha('#FFFFFF', 0.9),
             transition: 'box-shadow 150ms ease',
             '&:hover .MuiOutlinedInput-notchedOutline': {
               borderColor: palette.primary.main,
@@ -274,9 +272,8 @@ export function createAppTheme(mode: PaletteMode) {
           paper: {
             backgroundColor: sidebarBg,
             borderRight: 'none',
-            boxShadow: mode === 'light'
-              ? '2px 0 20px rgba(15,23,42,0.12)'
-              : '2px 0 20px rgba(0,0,0,0.4)',
+            boxShadow:
+              mode === 'light' ? '2px 0 20px rgba(15,23,42,0.12)' : '2px 0 20px rgba(0,0,0,0.4)',
           },
         },
       },
@@ -320,9 +317,7 @@ export function createAppTheme(mode: PaletteMode) {
         styleOverrides: {
           root: {
             '& .MuiTableCell-head': {
-              backgroundColor: mode === 'dark'
-                ? alpha('#FFFFFF', 0.04)
-                : alpha('#F1F5F9', 0.8),
+              backgroundColor: mode === 'dark' ? alpha('#FFFFFF', 0.04) : alpha('#F1F5F9', 0.8),
               fontWeight: 700,
               fontSize: '0.75rem',
               letterSpacing: '0.05em',
@@ -348,9 +343,7 @@ export function createAppTheme(mode: PaletteMode) {
           root: {
             transition: 'background-color 150ms ease',
             '&:hover': {
-              backgroundColor: mode === 'dark'
-                ? alpha('#FFFFFF', 0.03)
-                : alpha('#4F46E5', 0.03),
+              backgroundColor: mode === 'dark' ? alpha('#FFFFFF', 0.03) : alpha('#4F46E5', 0.03),
             },
             '&:last-child .MuiTableCell-root': { borderBottom: 'none' },
           },
@@ -390,9 +383,8 @@ export function createAppTheme(mode: PaletteMode) {
         styleOverrides: {
           paper: {
             borderRadius: 16,
-            boxShadow: mode === 'dark'
-              ? '0 8px 40px rgba(0,0,0,0.6)'
-              : '0 8px 40px rgba(15,23,42,0.15)',
+            boxShadow:
+              mode === 'dark' ? '0 8px 40px rgba(0,0,0,0.6)' : '0 8px 40px rgba(15,23,42,0.15)',
           },
         },
       },

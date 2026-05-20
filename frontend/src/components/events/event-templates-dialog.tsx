@@ -162,10 +162,7 @@ export function EventTemplatesDialog({
 
   function field<K extends keyof TemplateFormState>(key: K) {
     return (e: ChangeEvent<HTMLInputElement>) => {
-      const value =
-        key === 'default_waitlist_enabled'
-          ? e.target.checked
-          : e.target.value;
+      const value = key === 'default_waitlist_enabled' ? e.target.checked : e.target.value;
       setForm((prev) => ({ ...prev, [key]: value as TemplateFormState[K] }));
     };
   }
@@ -255,9 +252,18 @@ export function EventTemplatesDialog({
       <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
         <DialogTitle>Event Templates</DialogTitle>
         <DialogContent dividers>
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
 
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+            sx={{ mb: 1.5 }}
+          >
             <Typography variant="body2" color="text.secondary">
               Save common event setups and apply them with one click.
             </Typography>
@@ -284,12 +290,7 @@ export function EventTemplatesDialog({
           ) : (
             <List dense>
               {templates.map((t) => (
-                <ListItem
-                  key={t.id}
-                  divider
-                  sx={{ pr: 18 }}
-                  data-testid={`event-template-${t.id}`}
-                >
+                <ListItem key={t.id} divider sx={{ pr: 18 }} data-testid={`event-template-${t.id}`}>
                   <ListItemText
                     primary={
                       <Stack direction="row" spacing={0.5} alignItems="center">
@@ -417,7 +418,9 @@ export function EventTemplatesDialog({
                       fullWidth
                     >
                       {STATUS_OPTIONS.map((s) => (
-                        <MenuItem key={s} value={s}>{s}</MenuItem>
+                        <MenuItem key={s} value={s}>
+                          {s}
+                        </MenuItem>
                       ))}
                     </TextField>
                   </Stack>
@@ -448,7 +451,11 @@ export function EventTemplatesDialog({
                       disabled={saving}
                       startIcon={saving ? <CircularProgress size={16} color="inherit" /> : null}
                     >
-                      {saving ? 'Saving…' : editorMode === 'edit' ? 'Save changes' : 'Create template'}
+                      {saving
+                        ? 'Saving…'
+                        : editorMode === 'edit'
+                          ? 'Save changes'
+                          : 'Create template'}
                     </Button>
                   </Stack>
                 </Stack>

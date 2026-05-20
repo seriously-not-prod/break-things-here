@@ -6,13 +6,7 @@
  * one place keeps the controller, tests, and any future bulk action consistent.
  */
 
-export type EventStatus =
-  | 'Draft'
-  | 'Planning'
-  | 'Confirmed'
-  | 'Active'
-  | 'Completed'
-  | 'Cancelled';
+export type EventStatus = 'Draft' | 'Planning' | 'Confirmed' | 'Active' | 'Completed' | 'Cancelled';
 
 export const EVENT_STATUSES: readonly EventStatus[] = [
   'Draft',
@@ -77,10 +71,7 @@ export interface DateValidationContext {
   now?: Date;
 }
 
-export function validateEventDate(
-  dateInput: unknown,
-  ctx: DateValidationContext,
-): string | null {
+export function validateEventDate(dateInput: unknown, ctx: DateValidationContext): string | null {
   if (dateInput === null || dateInput === undefined || dateInput === '') {
     return ctx.isCreate ? 'date is required.' : null;
   }

@@ -44,17 +44,21 @@ All builds should succeed and all tests should pass.
 ### 3. Run the Application
 
 **Terminal 1 - Backend API:**
+
 ```bash
 docker compose up -d db
 cd backend
 npm run dev
 ```
+
 Backend runs on `http://localhost:4000`
 
 **Terminal 2 - Frontend:**
+
 ```bash
 npm run dev
 ```
+
 Frontend runs on `http://localhost:5173`
 
 ### 4. Access the Application
@@ -62,6 +66,7 @@ Frontend runs on `http://localhost:5173`
 Open your browser to: **http://localhost:5173**
 
 **Default Users (for testing):**
+
 - **Admin:** admin@festival.local / festivalAdmin2025
 - **User:** alice@email.com / password123
 
@@ -89,6 +94,7 @@ cd backend && npm run build && cd ..
 ### What's New in Latest Develop
 
 **✅ Database Integration (PR #185 - Merged)**
+
 - PostgreSQL database replaced localStorage
 - Cookie-based JWT authentication
 - Session timeout and token refresh
@@ -96,12 +102,14 @@ cd backend && npm run build && cd ..
 - ReDoS vulnerabilities fixed
 
 **New Files:**
+
 - `backend/src/db/database.ts` - Database connection and migrations
 - `backend/src/controllers/` - Event, Task, and RSVP controllers
 - `src/api/event-planner-api.ts` - Frontend API client
 - `database/init.sql` - Database schema
 
 **Modified Files:**
+
 - `src/hooks/use-event-planner-store.ts` - Now uses backend API
 - `src/contexts/auth-context.tsx` - Cookie-based auth
 - `backend/src/index.ts` - CSRF protection middleware
@@ -153,6 +161,7 @@ This shows all users, events, tasks, and RSVPs in the database.
 ### Default Admin Account
 
 A default admin user is created automatically:
+
 - **Email:** admin@festival.local
 - **Password:** festivalAdmin2025
 - **Role:** Admin (can manage all events and users)
@@ -160,15 +169,18 @@ A default admin user is created automatically:
 ## Common Issues and Solutions
 
 ### "Cannot connect to backend"
+
 - Ensure the main database is running: `docker compose up -d db`
 - Ensure backend is running on port 4000: `cd backend && npm run dev`
 - Check if another process is using port 4000: `lsof -i :4000`
 
 ### "Authentication failed"
+
 - Database may not be initialized - restart backend to trigger auto-init
 - Try logging in with admin@festival.local / festivalAdmin2025
 
 ### "Tests failing"
+
 ```bash
 # Clean install dependencies
 rm -rf node_modules backend/node_modules
@@ -187,6 +199,7 @@ cd backend && npm run build && cd ..
 ```
 
 ### "CSRF token error"
+
 - Clear browser cookies and refresh
 - Restart both frontend and backend
 
@@ -233,6 +246,7 @@ cd backend && node dist/index.js
 ## Latest CI Status
 
 All CI checks passing on develop:
+
 - ✅ Code Quality
 - ✅ CodeQL Security Scan
 - ✅ TypeScript Compilation

@@ -150,13 +150,7 @@ export default function GalleryShareDownloadPanel({
       // bundled assets — handy as an audit reference even after client zipping.
       const lines = [['File', 'Bytes', 'URL'].join(',')];
       for (const item of manifest.items) {
-        lines.push(
-          [
-            item.originalName.replace(/"/g, ''),
-            String(item.bytes),
-            item.url,
-          ].join(','),
-        );
+        lines.push([item.originalName.replace(/"/g, ''), String(item.bytes), item.url].join(','));
       }
       const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
@@ -217,7 +211,12 @@ export default function GalleryShareDownloadPanel({
         <CircularProgress size={20} />
       ) : usage ? (
         <Box sx={{ mb: 2 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 0.5 }}>
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="baseline"
+            sx={{ mb: 0.5 }}
+          >
             <Typography variant="body2">
               Storage: {bytesToHuman(usage.usedBytes)} of {bytesToHuman(usage.quotaBytes)} (
               {usage.percentUsed.toFixed(1)}%)
@@ -237,7 +236,9 @@ export default function GalleryShareDownloadPanel({
           <LinearProgress
             variant="determinate"
             value={Math.min(usage.percentUsed, 100)}
-            color={usage.percentUsed > 90 ? 'error' : usage.percentUsed > 75 ? 'warning' : 'primary'}
+            color={
+              usage.percentUsed > 90 ? 'error' : usage.percentUsed > 75 ? 'warning' : 'primary'
+            }
             data-testid="storage-quota-progress"
           />
         </Box>

@@ -49,13 +49,7 @@ const capitalize = (s: string): string =>
  * @returns The generated jsPDF document instance (useful for testing)
  */
 export function generateExpenseSummaryPdf(options: ExpensePdfOptions): jsPDF {
-  const {
-    categories,
-    expenses,
-    summary,
-    eventName = 'Event',
-    generatedAt = new Date(),
-  } = options;
+  const { categories, expenses, summary, eventName = 'Event', generatedAt = new Date() } = options;
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -118,10 +112,7 @@ export function generateExpenseSummaryPdf(options: ExpensePdfOptions): jsPDF {
   currentY += 4;
 
   const categoryRows = categories.map((cat) => {
-    const pct =
-      cat.allocated_amount > 0
-        ? Math.round((cat.spent / cat.allocated_amount) * 100)
-        : 0;
+    const pct = cat.allocated_amount > 0 ? Math.round((cat.spent / cat.allocated_amount) * 100) : 0;
     return [
       cat.name,
       fmtCurrency(cat.allocated_amount),
@@ -189,18 +180,15 @@ export function generateExpenseSummaryPdf(options: ExpensePdfOptions): jsPDF {
   doc.setTextColor(150);
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
-    doc.text(
-      `Page ${i} of ${pageCount}`,
-      pageWidth / 2,
-      doc.internal.pageSize.getHeight() - 8,
-      { align: 'center' },
-    );
+    doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 8, {
+      align: 'center',
+    });
   }
 
   // ── Save ──────────────────────────────────────────────────────────────────
-  const fileName = `expense-summary-${eventName.toLowerCase().replace(/\s+/g, '-')}-${
-    generatedAt.toISOString().slice(0, 10)
-  }.pdf`;
+  const fileName = `expense-summary-${eventName.toLowerCase().replace(/\s+/g, '-')}-${generatedAt
+    .toISOString()
+    .slice(0, 10)}.pdf`;
   doc.save(fileName);
 
   return doc;

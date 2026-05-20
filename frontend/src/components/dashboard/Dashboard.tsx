@@ -8,7 +8,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Box, Grid, Paper, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, Grid, Paper, Typography } from '@mui/material';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useAuth } from '../../contexts/auth-context';
 import { fetchDashboardData } from '../../services/dashboard-service';
 import type { DashboardData } from '../../services/dashboard-service';
@@ -22,10 +23,11 @@ import { GlobalAnalyticsWidget } from '../analytics/global-analytics-widget';
 import { PageLayout } from '../layout/page-layout';
 
 export default function Dashboard(): JSX.Element {
-  const { user } = useAuth();
+  const { user, authSource } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalBudget, setTotalBudget] = useState<number | null>(null);
 
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -40,6 +42,13 @@ export default function Dashboard(): JSX.Element {
     }
   }, []);
 
+  const errorCopy =
+    error === null
+      ? null
+      : error.toLowerCase().includes('network') || error.toLowerCase().includes('fetch')
+        ? 'The dashboard could not reach the API. Showing the last available view when possible.'
+        : 'The dashboard hit a temporary problem loading data. Please try again.';
+
   useEffect(() => {
     void loadData();
   }, [loadData]);
@@ -51,6 +60,27 @@ export default function Dashboard(): JSX.Element {
       title={`Welcome back, ${firstName} 👋`}
       subtitle="Here's what's happening with your events today."
     >
+      {/* Demo mode banner */}
+      {authSource === 'demo' && (
+        <Alert
+          severity="info"
+          icon={<InfoOutlinedIcon fontSize="inherit" />}
+          sx={{ mb: 2 }}
+          action={
+            <Chip
+              label="Demo Mode"
+              size="small"
+              color="info"
+              variant="outlined"
+              sx={{ fontWeight: 700, letterSpacing: 0.5 }}
+            />
+          }
+        >
+          You are viewing <strong>demo data</strong>. The backend API is unavailable — connect the
+          server and log in again to see live data.
+        </Alert>
+      )}
+
       {/* Error banner */}
       {error !== null && (
         <Alert
@@ -58,14 +88,19 @@ export default function Dashboard(): JSX.Element {
           sx={{ mb: 3 }}
           onClose={() => setError(null)}
           data-testid="dashboard-error-alert"
+          action={
+            <Button color="inherit" size="small" onClick={() => void loadData()}>
+              Retry
+            </Button>
+          }
         >
-          {error}
+          {errorCopy}
         </Alert>
       )}
 
       {/* KPI row */}
       <Box sx={{ mb: 3 }}>
-        <KpiCards data={data} loading={loading} />
+        <KpiCards data={data} loading={loading} totalBudget={totalBudget} />
       </Box>
 
       {/* Main panels row */}
@@ -105,7 +140,7 @@ export default function Dashboard(): JSX.Element {
             <Typography component="h2" variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>
               Budget Overview
             </Typography>
-            <BudgetOverviewPanel />
+            <BudgetOverviewPanel onGrandAllocated={setTotalBudget} />
           </Paper>
         </Grid>
 

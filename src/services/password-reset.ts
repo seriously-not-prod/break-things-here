@@ -13,8 +13,8 @@
 import crypto from 'crypto';
 import { hashPassword } from '../utils/password-hash';
 
-const TOKEN_EXPIRY_MS = 60 * 60 * 1000;       // 1 hour
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;  // 1 hour window
+const TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour window
 const RATE_LIMIT_MAX_REQUESTS = 3;
 
 export interface ResetTokenEntry {
@@ -33,11 +33,14 @@ interface RateLimitEntry {
 // In-memory stores — would be a database in production
 const tokenStore = new Map<string, ResetTokenEntry>();
 const rateLimitStore = new Map<string, RateLimitEntry>();
-const sessionStore = new Map<string, Set<string>>();   // email → active session IDs
-const passwordStore = new Map<string, string>();        // email → hashed password
+const sessionStore = new Map<string, Set<string>>(); // email → active session IDs
+const passwordStore = new Map<string, string>(); // email → hashed password
 
 export class PasswordResetError extends Error {
-  constructor(message: string, public readonly code: string) {
+  constructor(
+    message: string,
+    public readonly code: string,
+  ) {
     super(message);
     this.name = 'PasswordResetError';
     if (Error.captureStackTrace) {
@@ -106,7 +109,7 @@ export function generateResetToken(rawEmail: string): string {
   if (isRateLimited(email)) {
     throw new PasswordResetError(
       'Too many password reset requests. Please try again in an hour.',
-      'RATE_LIMIT_EXCEEDED'
+      'RATE_LIMIT_EXCEEDED',
     );
   }
 
@@ -161,19 +164,19 @@ export function validatePasswordStrength(password: string): void {
   if (!password || password.length < 8) {
     throw new PasswordResetError(
       'Password must be at least 8 characters long.',
-      'PASSWORD_TOO_SHORT'
+      'PASSWORD_TOO_SHORT',
     );
   }
   if (!/[A-Z]/.test(password)) {
     throw new PasswordResetError(
       'Password must contain at least one uppercase letter.',
-      'PASSWORD_NO_UPPERCASE'
+      'PASSWORD_NO_UPPERCASE',
     );
   }
   if (!/[0-9]/.test(password)) {
     throw new PasswordResetError(
       'Password must contain at least one number.',
-      'PASSWORD_NO_NUMBER'
+      'PASSWORD_NO_NUMBER',
     );
   }
 }

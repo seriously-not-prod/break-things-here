@@ -9,7 +9,7 @@ export interface TaskTemplate {
   event_id: number;
   name: string;
   description: string | null;
-  priority: 'Low' | 'Medium' | 'High';
+  priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   estimated_hours: number | null;
   created_by: number | null;
   created_at: string;
@@ -46,10 +46,7 @@ export async function createTaskTemplate(
   return data.template;
 }
 
-export async function deleteTaskTemplate(
-  eventId: number | string,
-  id: number,
-): Promise<void> {
+export async function deleteTaskTemplate(eventId: number | string, id: number): Promise<void> {
   await api.delete(`/api/events/${eventId}/task-templates/${id}`);
 }
 
@@ -58,7 +55,7 @@ export interface AppliedTask {
   event_id: number;
   title: string;
   description: string | null;
-  priority: 'Low' | 'Medium' | 'High';
+  priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   estimated_hours: number | null;
   assignee_name: string | null;
   due_date: string | null;

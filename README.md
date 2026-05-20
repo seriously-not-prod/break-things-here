@@ -263,11 +263,18 @@ See [Branching Strategy](docs/processes/branching-strategy.md) for complete comm
 - [Contributing Guidelines](CONTRIBUTING.md) - How to contribute
 - [Code of Conduct](CODE_OF_CONDUCT.md) - Community standards
 
+### Security & Identity
+
+- [Entra Auth Rollout Matrix](docs/entra-auth-rollout.md) - Environment rollout matrix, local-fallback policy, and rollback procedures
+- [Entra Outage Runbook](docs/operations/entra-outage.md) - Temporary fallback toggle process during Entra outages
+
 ### Database Documentation
 
 - [Schema Reference](docs/database/schema.md) - Generated table/column/index/RLS reference for `public` schema
 - [ER Diagram (SVG)](docs/database/erd.svg) - Generated entity relationship diagram from live schema
-- Regenerate both artifacts with: `./scripts/generate-erd.sh`
+- [PITR Operations Runbook](docs/operations/pitr.md) - Point-in-time recovery configuration, procedures, and monitoring (14-day retention)
+- [Disaster Recovery Runbook](docs/operations/dr-runbook.md) - DR procedure: detection, escalation, RTO/RPO targets, restore steps, communications and post-incident review templates
+- Regenerate schema artifacts with: `./scripts/generate-erd.sh`
 
 ### Configuration
 
@@ -281,6 +288,7 @@ See [Branching Strategy](docs/processes/branching-strategy.md) for complete comm
 - [AGENTS.md](AGENTS.md) - Development agents and automation
 - [CHANGELOG.md](CHANGELOG.md) - Release history
 - [SECURITY.md](SECURITY.md) - Security policies
+- [docs/security/tls.md](docs/security/tls.md) - TLS termination, HSTS, and certificate ownership
 - [LICENSE](LICENSE) - MIT License
 
 ## Git Hooks

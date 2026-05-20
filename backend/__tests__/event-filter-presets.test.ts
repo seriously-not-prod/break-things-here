@@ -45,8 +45,14 @@ function makeRes() {
   const res = {
     statusCode: 200,
     body: null as unknown,
-    status(code: number) { this.statusCode = code; return this; },
-    json(data: unknown) { this.body = data; return this; },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data: unknown) {
+      this.body = data;
+      return this;
+    },
   };
   return res;
 }
@@ -75,7 +81,9 @@ describe('listPresets', () => {
     const res = makeRes();
     await listPresets(makeReq({ user: ORGANIZER }), res as unknown as import('express').Response);
     expect(res.statusCode).toBe(200);
-    const body = res.body as { presets: { id: number; name: string; filters: Record<string, unknown> }[] };
+    const body = res.body as {
+      presets: { id: number; name: string; filters: Record<string, unknown> }[];
+    };
     expect(body.presets[0].filters).toEqual({ capacity_min: 100 });
     const sql = mockDb.all.mock.calls[0][0] as string;
     expect(sql).toContain('user_id = ?');
@@ -120,8 +128,8 @@ describe('createPreset', () => {
 
   it('inserts and returns the parsed view', async () => {
     mockDb.get
-      .mockResolvedValueOnce(undefined)            // duplicate check
-      .mockResolvedValueOnce(PRESET);              // re-fetch after insert
+      .mockResolvedValueOnce(undefined) // duplicate check
+      .mockResolvedValueOnce(PRESET); // re-fetch after insert
     mockDb.run.mockResolvedValueOnce({ lastID: 10, changes: 1 });
     const res = makeRes();
     await createPreset(

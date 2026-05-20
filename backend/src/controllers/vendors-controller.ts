@@ -109,7 +109,11 @@ async function cleanupUploadedFile(filePath?: string): Promise<void> {
   }
 }
 
-async function assertEventAccess(req: AuthRequest, res: Response, eventId: string): Promise<boolean> {
+async function assertEventAccess(
+  req: AuthRequest,
+  res: Response,
+  eventId: string,
+): Promise<boolean> {
   const event = await requireEventAccess(req, res, eventId, {
     allowMembers: true,
     forbiddenMessage: 'Not authorised to manage vendors for this event.',
@@ -125,10 +129,13 @@ export async function listVendors(req: Request, res: Response): Promise<Response
   const { eventId } = req.params;
   const db = getDatabase();
 
-  const event = await db.get<{ id: number }>('SELECT id FROM events WHERE id = $1 AND deleted_at IS NULL', [eventId]);
+  const event = await db.get<{ id: number }>(
+    'SELECT id FROM events WHERE id = $1 AND deleted_at IS NULL',
+    [eventId],
+  );
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
-  const vendors = await db.all<(VendorRow & { is_favorite: boolean; booking_status: string | null })>(
+  const vendors = await db.all<VendorRow & { is_favorite: boolean; booking_status: string | null }>(
     `SELECT v.*, 
             CASE WHEN vf.id IS NULL THEN FALSE ELSE TRUE END AS is_favorite,
             vb.status AS booking_status
@@ -152,7 +159,7 @@ export async function listFavoriteVendors(req: Request, res: Response): Promise<
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const favorites = await db.all<(VendorFavoriteRow & { vendor: VendorRow })>(
+  const favorites = await db.all<VendorFavoriteRow & { vendor: VendorRow }>(
     `SELECT vf.*, row_to_json(v.*) AS vendor
        FROM vendor_favorites vf
        JOIN vendors v ON v.id = vf.vendor_id
@@ -176,7 +183,10 @@ export async function setVendorFavorite(req: Request, res: Response): Promise<Re
   }
 
   const db = getDatabase();
-  const vendor = await db.get<{ id: number }>('SELECT id FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
+  const vendor = await db.get<{ id: number }>(
+    'SELECT id FROM vendors WHERE id = $1 AND event_id = $2',
+    [id, eventId],
+  );
   if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
 
   if (favorite) {
@@ -218,7 +228,15 @@ export async function upsertVendorBooking(req: Request, res: Response): Promise<
   const ok = await assertEventAccess(authReq, res, eventId);
   if (!ok) return res as Response;
 
-  const { status, contract_signed_at, service_start_at, service_end_at, total_amount, currency_code, notes } = req.body as {
+  const {
+    status,
+    contract_signed_at,
+    service_start_at,
+    service_end_at,
+    total_amount,
+    currency_code,
+    notes,
+  } = req.body as {
     status?: string;
     contract_signed_at?: string;
     service_start_at?: string;
@@ -228,17 +246,26 @@ export async function upsertVendorBooking(req: Request, res: Response): Promise<
     notes?: string;
   };
 
-  if (!status || !VALID_BOOKING_STATUSES.includes(status as (typeof VALID_BOOKING_STATUSES)[number])) {
-    return res.status(400).json({ error: `status must be one of: ${VALID_BOOKING_STATUSES.join(', ')}.` });
+  if (
+    !status ||
+    !VALID_BOOKING_STATUSES.includes(status as (typeof VALID_BOOKING_STATUSES)[number])
+  ) {
+    return res
+      .status(400)
+      .json({ error: `status must be one of: ${VALID_BOOKING_STATUSES.join(', ')}.` });
   }
 
-  const parsedAmount = total_amount !== undefined && total_amount !== '' ? Number(total_amount) : null;
+  const parsedAmount =
+    total_amount !== undefined && total_amount !== '' ? Number(total_amount) : null;
   if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
     return res.status(400).json({ error: 'total_amount must be a valid non-negative number.' });
   }
 
   const db = getDatabase();
-  const vendor = await db.get<{ id: number }>('SELECT id FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
+  const vendor = await db.get<{ id: number }>(
+    'SELECT id FROM vendors WHERE id = $1 AND event_id = $2',
+    [id, eventId],
+  );
   if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
 
   await db.run(
@@ -320,21 +347,29 @@ export async function createVendorPaymentSchedule(req: Request, res: Response): 
 
   const paymentStatus = status ?? 'pending';
   if (!VALID_PAYMENT_STATUSES.includes(paymentStatus as (typeof VALID_PAYMENT_STATUSES)[number])) {
-    return res.status(400).json({ error: `status must be one of: ${VALID_PAYMENT_STATUSES.join(', ')}.` });
+    return res
+      .status(400)
+      .json({ error: `status must be one of: ${VALID_PAYMENT_STATUSES.join(', ')}.` });
   }
 
   const db = getDatabase();
-  const vendor = await db.get<{ id: number }>('SELECT id FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
+  const vendor = await db.get<{ id: number }>(
+    'SELECT id FROM vendors WHERE id = $1 AND event_id = $2',
+    [id, eventId],
+  );
   if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
 
-  const bookingId = vendor_booking_id !== undefined && vendor_booking_id !== '' ? Number(vendor_booking_id) : null;
+  const bookingId =
+    vendor_booking_id !== undefined && vendor_booking_id !== '' ? Number(vendor_booking_id) : null;
   if (bookingId !== null) {
     const booking = await db.get<{ id: number }>(
       `SELECT id FROM vendor_bookings WHERE id = $1 AND event_id = $2 AND vendor_id = $3`,
       [bookingId, eventId, id],
     );
     if (!booking) {
-      return res.status(400).json({ error: 'vendor_booking_id must reference a booking for this vendor/event.' });
+      return res
+        .status(400)
+        .json({ error: 'vendor_booking_id must reference a booking for this vendor/event.' });
     }
   }
 
@@ -371,17 +406,18 @@ export async function createVendor(req: Request, res: Response): Promise<Respons
   const ok = await assertEventAccess(authReq, res, eventId);
   if (!ok) return res as Response;
 
-  const { name, category, email, phone, website, status, quoted_amount, notes, rating } = req.body as {
-    name?: string;
-    category?: string;
-    email?: string;
-    phone?: string;
-    website?: string;
-    status?: string;
-    quoted_amount?: number | string;
-    notes?: string;
-    rating?: number | string;
-  };
+  const { name, category, email, phone, website, status, quoted_amount, notes, rating } =
+    req.body as {
+      name?: string;
+      category?: string;
+      email?: string;
+      phone?: string;
+      website?: string;
+      status?: string;
+      quoted_amount?: number | string;
+      notes?: string;
+      rating?: number | string;
+    };
 
   if (!name?.trim()) return res.status(400).json({ error: 'Vendor name is required.' });
   if (!category?.trim()) return res.status(400).json({ error: 'Vendor category is required.' });
@@ -393,11 +429,15 @@ export async function createVendor(req: Request, res: Response): Promise<Respons
   }
 
   const parsedRating = rating !== undefined && rating !== '' ? Number(rating) : null;
-  if (parsedRating !== null && (parsedRating < 1 || parsedRating > 5 || !Number.isInteger(parsedRating))) {
+  if (
+    parsedRating !== null &&
+    (parsedRating < 1 || parsedRating > 5 || !Number.isInteger(parsedRating))
+  ) {
     return res.status(400).json({ error: 'Rating must be an integer between 1 and 5.' });
   }
 
-  const parsedAmount = quoted_amount !== undefined && quoted_amount !== '' ? Number(quoted_amount) : null;
+  const parsedAmount =
+    quoted_amount !== undefined && quoted_amount !== '' ? Number(quoted_amount) : null;
   if (parsedAmount !== null && isNaN(parsedAmount)) {
     return res.status(400).json({ error: 'Quoted amount must be a valid number.' });
   }
@@ -424,7 +464,9 @@ export async function createVendor(req: Request, res: Response): Promise<Respons
 
   const vendor = await db.get<VendorRow>('SELECT * FROM vendors WHERE id = $1', [result.lastID]);
   if (result.lastID !== undefined) {
-    await logMutation(db, authReq, AUDIT_ACTIONS.VENDOR_CREATE, 'vendor', result.lastID, { eventId });
+    await logMutation(db, authReq, AUDIT_ACTIONS.VENDOR_CREATE, 'vendor', result.lastID, {
+      eventId,
+    });
   }
   return res.status(201).json({ vendor });
 }
@@ -437,20 +479,24 @@ export async function updateVendor(req: Request, res: Response): Promise<Respons
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const existing = await db.get<VendorRow>('SELECT * FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
+  const existing = await db.get<VendorRow>(
+    'SELECT * FROM vendors WHERE id = $1 AND event_id = $2',
+    [id, eventId],
+  );
   if (!existing) return res.status(404).json({ error: 'Vendor not found.' });
 
-  const { name, category, email, phone, website, status, quoted_amount, notes, rating } = req.body as {
-    name?: string;
-    category?: string;
-    email?: string;
-    phone?: string;
-    website?: string;
-    status?: string;
-    quoted_amount?: number | string;
-    notes?: string;
-    rating?: number | string;
-  };
+  const { name, category, email, phone, website, status, quoted_amount, notes, rating } =
+    req.body as {
+      name?: string;
+      category?: string;
+      email?: string;
+      phone?: string;
+      website?: string;
+      status?: string;
+      quoted_amount?: number | string;
+      notes?: string;
+      rating?: number | string;
+    };
 
   const validStatuses = ['Contacted', 'Quote Received', 'Booked', 'Confirmed', 'Cancelled'];
   if (status && !validStatuses.includes(status)) {
@@ -458,11 +504,18 @@ export async function updateVendor(req: Request, res: Response): Promise<Respons
   }
 
   const parsedRating = rating !== undefined && rating !== '' ? Number(rating) : existing.rating;
-  if (parsedRating !== null && parsedRating !== undefined && (parsedRating < 1 || parsedRating > 5 || !Number.isInteger(parsedRating))) {
+  if (
+    parsedRating !== null &&
+    parsedRating !== undefined &&
+    (parsedRating < 1 || parsedRating > 5 || !Number.isInteger(parsedRating))
+  ) {
     return res.status(400).json({ error: 'Rating must be an integer between 1 and 5.' });
   }
 
-  const parsedAmount = quoted_amount !== undefined && quoted_amount !== '' ? Number(quoted_amount) : existing.quoted_amount;
+  const parsedAmount =
+    quoted_amount !== undefined && quoted_amount !== ''
+      ? Number(quoted_amount)
+      : existing.quoted_amount;
 
   await db.run(
     `UPDATE vendors SET
@@ -472,12 +525,12 @@ export async function updateVendor(req: Request, res: Response): Promise<Respons
     [
       name?.trim() ?? existing.name,
       category?.trim() ?? existing.category,
-      email !== undefined ? (email.trim() || null) : existing.email,
-      phone !== undefined ? (phone.trim() || null) : existing.phone,
-      website !== undefined ? (website.trim() || null) : existing.website,
+      email !== undefined ? email.trim() || null : existing.email,
+      phone !== undefined ? phone.trim() || null : existing.phone,
+      website !== undefined ? website.trim() || null : existing.website,
       status ?? existing.status,
       parsedAmount,
-      notes !== undefined ? (notes.trim() || null) : existing.notes,
+      notes !== undefined ? notes.trim() || null : existing.notes,
       parsedRating ?? null,
       id,
       eventId,
@@ -497,7 +550,10 @@ export async function deleteVendor(req: Request, res: Response): Promise<Respons
   if (!ok) return res as Response;
 
   const db = getDatabase();
-  const existing = await db.get<{ id: number; contract_file: string | null }>('SELECT id, contract_file FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
+  const existing = await db.get<{ id: number; contract_file: string | null }>(
+    'SELECT id, contract_file FROM vendors WHERE id = $1 AND event_id = $2',
+    [id, eventId],
+  );
   if (!existing) return res.status(404).json({ error: 'Vendor not found.' });
 
   await db.run('DELETE FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
@@ -525,7 +581,10 @@ export async function uploadContract(req: Request, res: Response): Promise<Respo
   }
 
   const db = getDatabase();
-  const existing = await db.get<{ id: number; contract_file: string | null }>('SELECT id, contract_file FROM vendors WHERE id = $1 AND event_id = $2', [id, eventId]);
+  const existing = await db.get<{ id: number; contract_file: string | null }>(
+    'SELECT id, contract_file FROM vendors WHERE id = $1 AND event_id = $2',
+    [id, eventId],
+  );
   if (!existing) {
     await cleanupUploadedFile(authReq.file.path);
     return res.status(404).json({ error: 'Vendor not found.' });

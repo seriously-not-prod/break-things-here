@@ -155,7 +155,15 @@ beforeEach(async (): Promise<void> => {
   const result = await testDb.run(
     `INSERT INTO scheduled_reports (event_id, report_type, frequency, recipients, is_active, created_by, next_run_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-    [eventId, 'budget_summary', 'daily', JSON.stringify(['alice@example.com', 'bob@example.com']), true, ownerId, new Date().toISOString()],
+    [
+      eventId,
+      'budget_summary',
+      'daily',
+      JSON.stringify(['alice@example.com', 'bob@example.com']),
+      true,
+      ownerId,
+      new Date().toISOString(),
+    ],
   );
   reportId = Number(result.lastID);
 });

@@ -36,7 +36,9 @@ function makeRes() {
 }
 
 function makeReq(body: any = {}, cookies: Record<string, string> = {}, ip = '127.0.0.1') {
-  const cookieHeader = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ');
+  const cookieHeader = Object.entries(cookies)
+    .map(([k, v]) => `${k}=${v}`)
+    .join('; ');
   return { body, cookies, ip, headers: cookieHeader ? { cookie: cookieHeader } : {} } as any;
 }
 
@@ -150,10 +152,7 @@ describe('Refresh Token HttpOnly Cookie (#249 #267 #289 #290)', () => {
 
       // Pass token via cookie (correct flow)
       const refreshRes = makeRes();
-      await refreshTokenEndpoint(
-        makeReq({}, { refreshToken: cookieToken }),
-        refreshRes,
-      );
+      await refreshTokenEndpoint(makeReq({}, { refreshToken: cookieToken }), refreshRes);
 
       expect(refreshRes.statusCode).toBe(200);
       expect(refreshRes.body).toHaveProperty('accessToken');

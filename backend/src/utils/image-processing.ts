@@ -61,7 +61,8 @@ export function isHeicFile(originalName: string, mimeType: string): boolean {
   return (
     mimeType === 'image/heic' ||
     mimeType === 'image/heif' ||
-    mimeType === 'application/octet-stream' && (lower.endsWith('.heic') || lower.endsWith('.heif')) ||
+    (mimeType === 'application/octet-stream' &&
+      (lower.endsWith('.heic') || lower.endsWith('.heif'))) ||
     lower.endsWith('.heic') ||
     lower.endsWith('.heif')
   );

@@ -466,10 +466,11 @@ export async function createSlideshow(req: Request, res: Response): Promise<Resp
 
   const db = getDatabase();
   const userId = authReq.user?.id ?? null;
-  await db.run(
-    `INSERT INTO gallery_slideshows (event_id, name, created_by) VALUES ($1, $2, $3)`,
-    [eventId, safeName, userId],
-  );
+  await db.run(`INSERT INTO gallery_slideshows (event_id, name, created_by) VALUES ($1, $2, $3)`, [
+    eventId,
+    safeName,
+    userId,
+  ]);
   const created = await db.get<SlideshowRow>(
     `SELECT id, event_id, name, created_by, created_at, updated_at
      FROM gallery_slideshows WHERE event_id = $1 AND name = $2 ORDER BY created_at DESC LIMIT 1`,
@@ -583,6 +584,9 @@ export async function deleteSlideshow(req: Request, res: Response): Promise<Resp
   );
   if (!existing) return res.status(404).json({ error: 'Slideshow not found.' });
 
-  await db.run(`DELETE FROM gallery_slideshows WHERE id = $1 AND event_id = $2`, [slideshowId, eventId]);
+  await db.run(`DELETE FROM gallery_slideshows WHERE id = $1 AND event_id = $2`, [
+    slideshowId,
+    eventId,
+  ]);
   return res.json({ message: 'Slideshow deleted.' });
 }

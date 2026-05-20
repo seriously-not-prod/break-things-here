@@ -55,7 +55,7 @@ export function ForgotPasswordForm(): JSX.Element {
 
       // Always show the same generic message to prevent user enumeration
       setSuccessMessage(
-        'If an account exists with that email, a reset link has been sent. Please check your inbox.'
+        'If an account exists with that email, a reset link has been sent. Please check your inbox.',
       );
     } catch (error) {
       if (error instanceof TypeError) {

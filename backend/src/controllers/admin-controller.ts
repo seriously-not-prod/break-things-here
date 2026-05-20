@@ -37,7 +37,10 @@ export async function changeUserRole(req: AuthRequest, res: Response): Promise<R
     return res.status(400).json({ error: 'You cannot change your own role.' });
   }
 
-  await db.run('UPDATE users SET role_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [role_id, id]);
+  await db.run('UPDATE users SET role_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [
+    role_id,
+    id,
+  ]);
 
   // Get target user info for audit
   const targetUser = await db.get<{ email: string }>('SELECT email FROM users WHERE id = $1', [id]);
@@ -93,7 +96,7 @@ export async function deleteUser(req: AuthRequest, res: Response): Promise<Respo
   if (user.deleted_at) return res.status(400).json({ error: 'User already deleted.' });
 
   await db.run(
-    "UPDATE users SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+    'UPDATE users SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
     [id],
   );
   return res.json({ message: 'User deleted.' });
@@ -108,10 +111,9 @@ export async function restoreUser(req: AuthRequest, res: Response): Promise<Resp
   if (!user) return res.status(404).json({ error: 'User not found.' });
   if (!user.deleted_at) return res.status(400).json({ error: 'User is not deleted.' });
 
-  await db.run(
-    'UPDATE users SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
-    [id],
-  );
+  await db.run('UPDATE users SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [
+    id,
+  ]);
 
   return res.json({ message: 'User restored.' });
 }
@@ -134,7 +136,9 @@ export async function createUser(req: AuthRequest, res: Response): Promise<Respo
   };
 
   if (!email || !password || !display_name || !role_id) {
-    return res.status(400).json({ error: 'email, password, display_name and role_id are required.' });
+    return res
+      .status(400)
+      .json({ error: 'email, password, display_name and role_id are required.' });
   }
   if (!validateEmailFormat(email)) {
     return res.status(400).json({ error: 'Invalid email format.' });
@@ -178,24 +182,93 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<Respo
 
   const db = getDatabase();
   const normalizedEmail = email.trim().toLowerCase();
+
   const user = await db.get('SELECT id, deleted_at FROM users WHERE id = $1', [id]);
   if (!user) return res.status(404).json({ error: 'User not found.' });
   if (user.deleted_at) return res.status(400).json({ error: 'Cannot update a deleted user.' });
 
-  const updateValues: unknown[] = [normalizedEmail, display_name.trim(), role_id, email_verified ? 1 : 0, account_locked ? 1 : 0];
-  let query = `UPDATE users SET email = $1, display_name = $2, role_id = $3, email_verified = $4, account_locked = $5, updated_at = CURRENT_TIMESTAMP`;
+  // Prevent email collision with another account
+  const emailConflict = await db.get('SELECT id FROM users WHERE LOWER(email) = $1 AND id != $2', [
+    normalizedEmail,
+    Number(id),
+  ]);
+  if (emailConflict) {
+    return res.status(409).json({ error: 'Email is already in use by another account.' });
+  }
+
+  // Build parameterised SET clauses with explicit $N indices
+  const values: unknown[] = [
+    normalizedEmail, // $1
+    display_name.trim(), // $2
+    role_id, // $3
+    email_verified ? 1 : 0, // $4
+    account_locked ? 1 : 0, // $5
+  ];
+
+  let setClauses =
+    'email = $1, display_name = $2, role_id = $3, email_verified = $4, account_locked = $5, updated_at = CURRENT_TIMESTAMP';
 
   if (password) {
     const passwordHash = await hashPassword(password);
-    query += ', password_hash = ?';
-    updateValues.push(passwordHash);
+    values.push(passwordHash);
+    setClauses += `, password_hash = $${values.length}`;
   }
 
-  query += ' WHERE id = $1';
-  updateValues.push(id);
+  values.push(id); // WHERE param — always the last value
+  const whereIdx = values.length;
 
-  await db.run(query, updateValues);
+  await db.run(`UPDATE users SET ${setClauses} WHERE id = $${whereIdx}`, values);
   return res.json({ message: 'User updated.' });
+}
+
+/** GET /api/admin/users/:id/events — list events assigned to a user */
+export async function getUserEvents(req: Request, res: Response): Promise<Response> {
+  const { id } = req.params;
+  const db = getDatabase();
+  const user = await db.get('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  const events = await db.all(
+    `SELECT e.id, e.title, e.date, e.status, em.role AS event_role
+     FROM event_members em
+     JOIN events e ON e.id = em.event_id
+     WHERE em.user_id = $1 AND e.deleted_at IS NULL
+     ORDER BY e.date ASC`,
+    [id],
+  );
+  return res.json({ events });
+}
+
+/** PUT /api/admin/users/:id/events — replace all event assignments for a user */
+export async function setUserEvents(req: AuthRequest, res: Response): Promise<Response> {
+  const { id } = req.params;
+  const { event_ids } = req.body as { event_ids?: number[] };
+
+  if (!Array.isArray(event_ids)) {
+    return res.status(400).json({ error: 'event_ids must be an array of event IDs.' });
+  }
+
+  const db = getDatabase();
+  const user = await db.get('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  // Replace all non-owner memberships for this user
+  await db.run("DELETE FROM event_members WHERE user_id = $1 AND role != 'Owner'", [id]);
+
+  for (const eventId of event_ids) {
+    const event = await db.get('SELECT id FROM events WHERE id = $1 AND deleted_at IS NULL', [
+      eventId,
+    ]);
+    if (!event) continue; // skip invalid event ids silently
+    await db.run(
+      `INSERT INTO event_members (event_id, user_id, role)
+       VALUES ($1, $2, 'Helper')
+       ON CONFLICT (event_id, user_id) DO NOTHING`,
+      [eventId, id],
+    );
+  }
+
+  return res.json({ message: 'Event access updated.' });
 }
 
 /** GET /api/admin/audit-log — search audit log by user email, action type, date range */
@@ -296,16 +369,29 @@ export async function exportAuditLog(req: AuthRequest, res: Response): Promise<R
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="audit-log.csv"');
 
-  const headers = ['id', 'actor_id', 'actor_email', 'action', 'description', 'ip_address', 'severity', 'target_type', 'target_id', 'created_at'];
+  const headers = [
+    'id',
+    'actor_id',
+    'actor_email',
+    'action',
+    'description',
+    'ip_address',
+    'severity',
+    'target_type',
+    'target_id',
+    'created_at',
+  ];
   res.write(headers.join(',') + '\n');
 
   for (const row of rows as Record<string, unknown>[]) {
-    const line = headers.map(h => {
-      const val = row[h];
-      if (val === null || val === undefined) return '';
-      const s = String(val).replace(/"/g, '""');
-      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
-    }).join(',');
+    const line = headers
+      .map((h) => {
+        const val = row[h];
+        if (val === null || val === undefined) return '';
+        const s = String(val).replace(/"/g, '""');
+        return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
+      })
+      .join(',');
     res.write(line + '\n');
   }
 
@@ -322,7 +408,10 @@ export async function deactivateUser(req: AuthRequest, res: Response): Promise<R
     return res.status(400).json({ error: 'You cannot deactivate your own account.' });
   }
 
-  const user = await db.get('SELECT id, deactivated_at FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
+  const user = await db.get(
+    'SELECT id, deactivated_at FROM users WHERE id = $1 AND deleted_at IS NULL',
+    [id],
+  );
   if (!user) return res.status(404).json({ error: 'User not found.' });
 
   await db.run(
@@ -334,7 +423,9 @@ export async function deactivateUser(req: AuthRequest, res: Response): Promise<R
   await db.run('DELETE FROM sessions WHERE user_id = $1', [id]);
 
   await logAuditEvent({
-    db, userId: req.user!.id, email: req.user!.email,
+    db,
+    userId: req.user!.id,
+    email: req.user!.email,
     action: 'USER_DEACTIVATED' as string,
     description: `Admin deactivated user ${id}`,
     ipAddress: req.ip,
@@ -354,7 +445,9 @@ export async function forceLogoutUser(req: AuthRequest, res: Response): Promise<
   const result = await db.run('DELETE FROM sessions WHERE user_id = $1', [id]);
 
   await logAuditEvent({
-    db, userId: req.user!.id, email: req.user!.email,
+    db,
+    userId: req.user!.id,
+    email: req.user!.email,
     action: 'FORCE_LOGOUT',
     description: `Admin force-logged out user ${id}`,
     ipAddress: req.ip,

@@ -77,7 +77,11 @@ const SUB_LABELS: Record<string, string> = {
   seating: 'Seating',
 };
 
-export function EventPickerModal({ open, targetSubPath, onClose }: EventPickerModalProps): JSX.Element {
+export function EventPickerModal({
+  open,
+  targetSubPath,
+  onClose,
+}: EventPickerModalProps): JSX.Element {
   const navigate = useNavigate();
   const { user } = useAuth();
   const canCreate = canEditEvent(user?.roleName);
@@ -92,7 +96,9 @@ export function EventPickerModal({ open, targetSubPath, onClose }: EventPickerMo
     api
       .get<PickerEvent[] | { events: PickerEvent[] }>('/api/events?limit=100')
       .then((data) => {
-        const list = Array.isArray(data) ? data : (data as { events: PickerEvent[] }).events ?? [];
+        const list = Array.isArray(data)
+          ? data
+          : ((data as { events: PickerEvent[] }).events ?? []);
         setEvents(list);
       })
       .catch(() => setEvents([]))
@@ -103,9 +109,7 @@ export function EventPickerModal({ open, targetSubPath, onClose }: EventPickerMo
     const q = search.toLowerCase().trim();
     if (!q) return events;
     return events.filter(
-      (e) =>
-        e.title.toLowerCase().includes(q) ||
-        (e.location ?? '').toLowerCase().includes(q),
+      (e) => e.title.toLowerCase().includes(q) || (e.location ?? '').toLowerCase().includes(q),
     );
   }, [events, search]);
 
@@ -195,7 +199,10 @@ export function EventPickerModal({ open, targetSubPath, onClose }: EventPickerMo
                 variant="contained"
                 startIcon={<AddRounded />}
                 sx={{ mt: 2.5 }}
-                onClick={() => { onClose(); navigate('/events/new'); }}
+                onClick={() => {
+                  onClose();
+                  navigate('/events/new');
+                }}
               >
                 Create Event
               </Button>
@@ -245,16 +252,28 @@ export function EventPickerModal({ open, targetSubPath, onClose }: EventPickerMo
                       secondary={
                         <Box
                           component="span"
-                          sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.25, flexWrap: 'wrap' }}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1.5,
+                            mt: 0.25,
+                            flexWrap: 'wrap',
+                          }}
                         >
-                          <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Box
+                            component="span"
+                            sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                          >
                             <CalendarTodayRounded sx={{ fontSize: 12, color: 'text.disabled' }} />
                             <Typography variant="caption" color="text.secondary">
                               {formatDate(event.date)}
                             </Typography>
                           </Box>
                           {event.location && (
-                            <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Box
+                              component="span"
+                              sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                            >
                               <LocationOnRounded sx={{ fontSize: 12, color: 'text.disabled' }} />
                               <Typography variant="caption" color="text.secondary">
                                 {event.location}
@@ -296,7 +315,15 @@ export function EventPickerModal({ open, targetSubPath, onClose }: EventPickerMo
       {!loading && filtered.length > 0 && (
         <>
           <Divider />
-          <Box sx={{ px: 3, py: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box
+            sx={{
+              px: 3,
+              py: 1.5,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
             <Typography variant="caption" color="text.disabled">
               {filtered.length} event{filtered.length !== 1 ? 's' : ''}
             </Typography>
@@ -304,7 +331,10 @@ export function EventPickerModal({ open, targetSubPath, onClose }: EventPickerMo
               <Button
                 size="small"
                 startIcon={<AddRounded />}
-                onClick={() => { onClose(); navigate('/events/new'); }}
+                onClick={() => {
+                  onClose();
+                  navigate('/events/new');
+                }}
               >
                 Create New Event
               </Button>

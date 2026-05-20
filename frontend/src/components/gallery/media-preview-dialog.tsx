@@ -119,7 +119,12 @@ export function MediaPreviewDialog({
         <Box sx={{ display: 'flex', gap: 0.5 }}>
           {onDelete && (
             <Tooltip title="Delete image">
-              <IconButton onClick={handleDelete} aria-label="Delete image" size="small" color="error">
+              <IconButton
+                onClick={handleDelete}
+                aria-label="Delete image"
+                size="small"
+                color="error"
+              >
                 <DeleteRounded />
               </IconButton>
             </Tooltip>
@@ -200,17 +205,29 @@ export function MediaPreviewDialog({
               inputProps={{ 'aria-label': 'Caption input', maxLength: 500 }}
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); handleCaptionSave(); }
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleCaptionSave();
+                }
                 if (e.key === 'Escape') setEditingCaption(false);
               }}
             />
             <Tooltip title="Save caption">
-              <IconButton onClick={handleCaptionSave} aria-label="Save caption" size="small" color="primary">
+              <IconButton
+                onClick={handleCaptionSave}
+                aria-label="Save caption"
+                size="small"
+                color="primary"
+              >
                 <CheckRounded />
               </IconButton>
             </Tooltip>
             <Tooltip title="Cancel">
-              <IconButton onClick={() => setEditingCaption(false)} aria-label="Cancel caption edit" size="small">
+              <IconButton
+                onClick={() => setEditingCaption(false)}
+                aria-label="Cancel caption edit"
+                size="small"
+              >
                 <CloseRounded />
               </IconButton>
             </Tooltip>

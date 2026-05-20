@@ -16,9 +16,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [
     ['list'],
-    ...(process.env.CI
-      ? [['junit', { outputFile: 'a11y-results.xml' }] as [string, object]]
-      : []),
+    ...(process.env.CI ? [['junit', { outputFile: 'a11y-results.xml' }] as [string, object]] : []),
   ],
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173',

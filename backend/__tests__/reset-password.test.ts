@@ -176,14 +176,23 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
   describe('AC: Token Validation', () => {
     it('returns 400 for a non-existent token', async () => {
       const res = makeRes();
-      await resetPassword(makeReq({ token: 'nonexistent-token-xyz', newPassword: 'ValidPass1' }), res);
+      await resetPassword(
+        makeReq({ token: 'nonexistent-token-xyz', newPassword: 'ValidPass1' }),
+        res,
+      );
       expect(res.statusCode).toBe(400);
       expect(res.body.error).toMatch(/invalid|expired/i);
     });
 
     it('returns 400 for an already-used token', async () => {
       const userId = await seedUser('used@example.com', 'OldPass1');
-      const tok = await seedToken(userId, 'used@example.com', 'used-token-abc', 3_600_000, new Date().toISOString());
+      const tok = await seedToken(
+        userId,
+        'used@example.com',
+        'used-token-abc',
+        3_600_000,
+        new Date().toISOString(),
+      );
 
       const res = makeRes();
       await resetPassword(makeReq({ token: tok, newPassword: 'NewPass1' }), res);
@@ -255,10 +264,7 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
         [userId, 'session-token-1', 'refresh-token-1', expiresAt],
       );
 
-      await resetPassword(
-        makeReq({ token: tok, newPassword: 'NewPass1' }),
-        makeRes(),
-      );
+      await resetPassword(makeReq({ token: tok, newPassword: 'NewPass1' }), makeRes());
 
       const remaining = await db.get(`SELECT id FROM sessions WHERE user_id = ?`, [userId]);
       expect(remaining).toBeUndefined();
@@ -296,7 +302,10 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
   describe('AC: Consistent error messages (no user enumeration)', () => {
     it('gives the same error wording for invalid vs expired tokens', async () => {
       const res1 = makeRes();
-      await resetPassword(makeReq({ token: 'completely-fake-token', newPassword: 'ValidPass9' }), res1);
+      await resetPassword(
+        makeReq({ token: 'completely-fake-token', newPassword: 'ValidPass9' }),
+        res1,
+      );
 
       const userId = await seedUser('enum@example.com', 'OldPass1');
       const enumTok = await seedToken(userId, 'enum@example.com', 'expired-enum-token', -1000);

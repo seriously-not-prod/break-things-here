@@ -14,7 +14,24 @@ const PRIORITY_COLORS: Record<string, 'default' | 'success' | 'warning' | 'error
   Low: 'success',
   Medium: 'warning',
   High: 'error',
+  Urgent: 'error',
 };
+
+function getPriorityChipSx(priority: string): {
+  fontWeight?: number;
+  bgcolor?: string;
+  color?: string;
+} {
+  if (priority !== 'Urgent') {
+    return {};
+  }
+
+  return {
+    bgcolor: 'error.dark',
+    color: 'common.white',
+    fontWeight: 700,
+  };
+}
 
 function isOverdue(dueDate: string | null): boolean {
   if (!dueDate) return false;
@@ -56,11 +73,13 @@ export function TaskCard({ task, subtasks, onClick }: TaskCardProps): JSX.Elemen
         '&:hover': { boxShadow: 3 },
         borderLeft: '3px solid',
         borderLeftColor:
-          task.priority === 'High'
-            ? 'error.main'
-            : task.priority === 'Medium'
-              ? 'warning.main'
-              : 'success.main',
+          task.priority === 'Urgent'
+            ? 'error.dark'
+            : task.priority === 'High'
+              ? 'error.main'
+              : task.priority === 'Medium'
+                ? 'warning.main'
+                : 'success.main',
       }}
       role="button"
       tabIndex={0}
@@ -101,7 +120,7 @@ export function TaskCard({ task, subtasks, onClick }: TaskCardProps): JSX.Elemen
           label={task.priority}
           size="small"
           color={PRIORITY_COLORS[task.priority] ?? 'default'}
-          sx={{ height: 18, fontSize: '0.65rem' }}
+          sx={{ height: 18, fontSize: '0.65rem', ...getPriorityChipSx(task.priority) }}
         />
         {task.due_date && (
           <Typography

@@ -42,7 +42,7 @@ import {
 import { useParams } from 'react-router-dom';
 import { PageLayout } from '../layout/page-layout';
 import * as guestService from '../../services/guest-service';
-import type { Rsvp, SeatingTable } from '../../services/guest-service';
+import type { CanonicalRsvpStatus, Rsvp, SeatingTable } from '../../services/guest-service';
 import { ApiError } from '../../lib/api-client';
 import { generateNameTagPdf } from '../../utils/name-tag-pdf-export';
 
@@ -106,7 +106,11 @@ function parseGuestDragPayload(raw: string): DragGuestPayload | null {
   try {
     const parsed = JSON.parse(raw) as Partial<DragGuestPayload>;
     if (typeof parsed.rsvpId !== 'number') return null;
-    if (parsed.fromTableId !== null && parsed.fromTableId !== undefined && typeof parsed.fromTableId !== 'number') {
+    if (
+      parsed.fromTableId !== null &&
+      parsed.fromTableId !== undefined &&
+      typeof parsed.fromTableId !== 'number'
+    ) {
       return null;
     }
     return {
@@ -165,9 +169,7 @@ export function SeatingPage(): JSX.Element {
   }, [tables]);
 
   // Compute the set of assigned rsvp IDs across all tables
-  const assignedIds = new Set(
-    tables.flatMap((t) => t.guests.map((g) => g.rsvp_id)),
-  );
+  const assignedIds = new Set(tables.flatMap((t) => t.guests.map((g) => g.rsvp_id)));
 
   const unassigned = rsvps.filter((r) => !assignedIds.has(r.id));
 
@@ -272,9 +274,7 @@ export function SeatingPage(): JSX.Element {
       await guestService.unassignGuest(eventId, tableId, rsvpId);
       setTables((prev) =>
         prev.map((t) =>
-          t.id === tableId
-            ? { ...t, guests: t.guests.filter((g) => g.rsvp_id !== rsvpId) }
-            : t,
+          t.id === tableId ? { ...t, guests: t.guests.filter((g) => g.rsvp_id !== rsvpId) } : t,
         ),
       );
       // Re-add the guest to the rsvps list (keep local state consistent)
@@ -292,54 +292,60 @@ export function SeatingPage(): JSX.Element {
   const updateDraggedTablePosition = useCallback((tableId: number, position: TablePosition) => {
     setTables((prev) => {
       const next = prev.map((table) =>
-        table.id === tableId
-          ? { ...table, layout_x: position.x, layout_y: position.y }
-          : table,
+        table.id === tableId ? { ...table, layout_x: position.x, layout_y: position.y } : table,
       );
       latestTablesRef.current = next;
       return next;
     });
   }, []);
 
-  const persistTableLayout = useCallback(async (tableId: number) => {
-    if (!eventId) return;
+  const persistTableLayout = useCallback(
+    async (tableId: number) => {
+      if (!eventId) return;
 
-    const table = latestTablesRef.current.find((candidate) => candidate.id === tableId);
-    if (!table || table.layout_x == null || table.layout_y == null) return;
+      const table = latestTablesRef.current.find((candidate) => candidate.id === tableId);
+      if (!table || table.layout_x == null || table.layout_y == null) return;
 
-    setSavingLayoutTableId(tableId);
-    try {
-      const updatedTable = await guestService.updateTableLayout(eventId, tableId, {
-        layout_x: table.layout_x,
-        layout_y: table.layout_y,
-      });
-      setTables((prev) =>
-        prev.map((candidate) =>
-          candidate.id === tableId ? { ...candidate, ...updatedTable, guests: candidate.guests } : candidate,
-        ),
-      );
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to save table layout.');
-      await loadAll();
-    } finally {
-      setSavingLayoutTableId((current) => (current === tableId ? null : current));
-    }
-  }, [eventId, loadAll]);
+      setSavingLayoutTableId(tableId);
+      try {
+        const updatedTable = await guestService.updateTableLayout(eventId, tableId, {
+          layout_x: table.layout_x,
+          layout_y: table.layout_y,
+        });
+        setTables((prev) =>
+          prev.map((candidate) =>
+            candidate.id === tableId
+              ? { ...candidate, ...updatedTable, guests: candidate.guests }
+              : candidate,
+          ),
+        );
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Failed to save table layout.');
+        await loadAll();
+      } finally {
+        setSavingLayoutTableId((current) => (current === tableId ? null : current));
+      }
+    },
+    [eventId, loadAll],
+  );
 
-  const moveTableByKeyboard = useCallback((tableId: number, deltaX: number, deltaY: number) => {
-    const tableIndex = latestTablesRef.current.findIndex((table) => table.id === tableId);
-    const table = latestTablesRef.current[tableIndex];
-    if (!table) return;
+  const moveTableByKeyboard = useCallback(
+    (tableId: number, deltaX: number, deltaY: number) => {
+      const tableIndex = latestTablesRef.current.findIndex((table) => table.id === tableId);
+      const table = latestTablesRef.current[tableIndex];
+      if (!table) return;
 
-    const currentPosition = getTablePosition(table, tableIndex);
-    const nextPosition = {
-      x: clamp(currentPosition.x + deltaX, 0, LAYOUT_WIDTH - TABLE_WIDTH),
-      y: clamp(currentPosition.y + deltaY, 0, LAYOUT_HEIGHT - TABLE_HEIGHT),
-    };
+      const currentPosition = getTablePosition(table, tableIndex);
+      const nextPosition = {
+        x: clamp(currentPosition.x + deltaX, 0, LAYOUT_WIDTH - TABLE_WIDTH),
+        y: clamp(currentPosition.y + deltaY, 0, LAYOUT_HEIGHT - TABLE_HEIGHT),
+      };
 
-    updateDraggedTablePosition(tableId, nextPosition);
-    void persistTableLayout(tableId);
-  }, [persistTableLayout, updateDraggedTablePosition]);
+      updateDraggedTablePosition(tableId, nextPosition);
+      void persistTableLayout(tableId);
+    },
+    [persistTableLayout, updateDraggedTablePosition],
+  );
 
   useEffect(() => {
     if (draggingTableId == null) return;
@@ -404,23 +410,24 @@ export function SeatingPage(): JSX.Element {
     };
   }, [draggingTableId, persistTableLayout, updateDraggedTablePosition]);
 
-  const handleTablePointerDown = (tableId: number) => (event: React.PointerEvent<HTMLButtonElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const handleTablePointerDown =
+    (tableId: number) => (event: React.PointerEvent<HTMLButtonElement>) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    const tableIndex = tables.findIndex((table) => table.id === tableId);
-    const table = tables[tableIndex];
-    if (!table) return;
+      const tableIndex = tables.findIndex((table) => table.id === tableId);
+      const table = tables[tableIndex];
+      if (!table) return;
 
-    const canvasRect = canvas.getBoundingClientRect();
-    const currentPosition = getTablePosition(table, tableIndex);
-    dragStateRef.current = {
-      tableId,
-      offsetX: event.clientX - canvasRect.left - currentPosition.x,
-      offsetY: event.clientY - canvasRect.top - currentPosition.y,
+      const canvasRect = canvas.getBoundingClientRect();
+      const currentPosition = getTablePosition(table, tableIndex);
+      dragStateRef.current = {
+        tableId,
+        offsetX: event.clientX - canvasRect.left - currentPosition.x,
+        offsetY: event.clientY - canvasRect.top - currentPosition.y,
+      };
+      setDraggingTableId(tableId);
     };
-    setDraggingTableId(tableId);
-  };
 
   const handleGuestDragStart = (
     event: React.DragEvent<HTMLElement>,
@@ -456,7 +463,7 @@ export function SeatingPage(): JSX.Element {
   };
 
   const renderGuestCard = (
-    guest: { id: number; name: string; email: string; status: string },
+    guest: { id: number; name: string; email: string; status: CanonicalRsvpStatus | string },
     fromTableId: number | null,
     tableName?: string,
   ) => (
@@ -481,7 +488,9 @@ export function SeatingPage(): JSX.Element {
           bgcolor: 'background.paper',
           cursor: 'grab',
         }}
-        aria-label={tableName ? `${guest.name} assigned to ${tableName}` : `${guest.name} unassigned guest`}
+        aria-label={
+          tableName ? `${guest.name} assigned to ${tableName}` : `${guest.name} unassigned guest`
+        }
       >
         <Typography variant="body2" fontWeight={600}>
           {guest.name}
@@ -534,7 +543,6 @@ export function SeatingPage(): JSX.Element {
         </Stack>
       }
     >
-
       {error && (
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
           {error}
@@ -544,7 +552,11 @@ export function SeatingPage(): JSX.Element {
       <Grid container spacing={3}>
         <Grid item xs={12} lg={8}>
           <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3 }}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              justifyContent="space-between"
+              spacing={1.5}
+            >
               <Box>
                 <Typography variant="subtitle1" fontWeight={600}>
                   Layout Editor
@@ -583,7 +595,8 @@ export function SeatingPage(): JSX.Element {
                     border: '1px solid',
                     borderColor: 'divider',
                     bgcolor: '#fcfaf5',
-                    backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(25, 118, 210, 0.12) 1px, transparent 0)',
+                    backgroundImage:
+                      'radial-gradient(circle at 1px 1px, rgba(25, 118, 210, 0.12) 1px, transparent 0)',
                     backgroundSize: '24px 24px',
                     overflow: 'hidden',
                   }}
@@ -600,7 +613,9 @@ export function SeatingPage(): JSX.Element {
                       }}
                     >
                       <Typography fontWeight={600}>No tables yet.</Typography>
-                      <Typography variant="body2">Create one to start designing the seating layout.</Typography>
+                      <Typography variant="body2">
+                        Create one to start designing the seating layout.
+                      </Typography>
                     </Stack>
                   )}
 
@@ -623,7 +638,8 @@ export function SeatingPage(): JSX.Element {
                           borderColor: draggingTableId === table.id ? 'primary.main' : 'divider',
                           boxShadow: draggingTableId === table.id ? 6 : 2,
                           zIndex: draggingTableId === table.id ? 2 : 1,
-                          transition: draggingTableId === table.id ? 'none' : 'box-shadow 120ms ease',
+                          transition:
+                            draggingTableId === table.id ? 'none' : 'box-shadow 120ms ease',
                         }}
                       >
                         <CardHeader
@@ -792,7 +808,8 @@ export function SeatingPage(): JSX.Element {
                   Drag a table handle to reposition it on the room layout.
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Focus a table handle and use the arrow keys to nudge its position without dragging.
+                  Focus a table handle and use the arrow keys to nudge its position without
+                  dragging.
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Drag a guest onto a table to seat them or onto the unassigned list to remove them.

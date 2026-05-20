@@ -51,6 +51,12 @@ jobs:
         working-directory: backend
         run: npx tsc --noEmit
 
+      # Defensive mirror of the .githooks/pre-commit checks.
+      # Ensures format and lint regressions are caught even when the local hook
+      # was bypassed (e.g. git commit --no-verify or a fresh clone without npm install).
+      - name: Prettier format check (pre-commit mirror)
+        run: npm run format:check
+
   test-root:
     name: Test - Root (Vitest)
     runs-on: ubuntu-latest
@@ -114,11 +120,19 @@ jobs:
         working-directory: backend
         run: npm ci
 
-      - name: Run backend tests
+      - name: Run backend tests with coverage
         working-directory: backend
-        run: npm test
+        run: npm run test:coverage
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/festival_planner_test
+
+      - name: Upload backend coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-backend
+          path: backend/coverage/
+          retention-days: 14
 
   test-frontend:
     name: Test - Frontend (Vite)
@@ -143,6 +157,91 @@ jobs:
       - name: TypeScript type check (frontend)
         working-directory: frontend
         run: npx tsc --noEmit
+
+      - name: Run frontend tests with coverage
+        working-directory: frontend
+        run: npm run test:coverage
+
+      - name: Upload frontend coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-frontend
+          path: frontend/coverage/
+          retention-days: 14
+
+  coverage-comment:
+    name: Coverage Delta Comment
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: [test-frontend, test-backend]
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Download frontend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-frontend
+          path: coverage/frontend
+
+      - name: Download backend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-backend
+          path: coverage/backend
+
+      - name: Fetch base branch coverage artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_BRANCH: ${{ github.base_ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Find the latest successful CI - Unified Pipeline run on the base branch
+          RUN_ID=$(gh api "repos/$REPO/actions/runs?branch=$BASE_BRANCH&status=success&per_page=50" \
+            --jq '[.workflow_runs[] | select(.name == "CI - Unified Pipeline")] | first | .id // empty' 2>/dev/null || true)
+          if [ -n "$RUN_ID" ]; then
+            echo "Base run found: $RUN_ID"
+            # Download frontend base coverage
+            ARTIFACT_ID=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" \
+              --jq '.artifacts[] | select(.name == "coverage-frontend") | .id' 2>/dev/null | head -1 || true)
+            if [ -n "$ARTIFACT_ID" ]; then
+              gh api "repos/$REPO/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/base-frontend.zip 2>/dev/null && \
+                unzip -q /tmp/base-frontend.zip -d coverage/base-frontend && \
+                echo "Base frontend coverage downloaded" || true
+            fi
+            # Download backend base coverage
+            ARTIFACT_ID=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" \
+              --jq '.artifacts[] | select(.name == "coverage-backend") | .id' 2>/dev/null | head -1 || true)
+            if [ -n "$ARTIFACT_ID" ]; then
+              gh api "repos/$REPO/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/base-backend.zip 2>/dev/null && \
+                unzip -q /tmp/base-backend.zip -d coverage/base-backend && \
+                echo "Base backend coverage downloaded" || true
+            fi
+          else
+            echo "No base branch coverage run found; delta will be omitted."
+          fi
+
+      - name: Post coverage delta comment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          FRONTEND_COVERAGE: coverage/frontend/coverage-summary.json
+          BACKEND_COVERAGE: coverage/backend/coverage-summary.json
+          BASE_FRONTEND_COVERAGE: coverage/base-frontend/coverage-summary.json
+          BASE_BACKEND_COVERAGE: coverage/base-backend/coverage-summary.json
+        run: node scripts/post-coverage-comment.js
 
   build-check:
     name: Build Check

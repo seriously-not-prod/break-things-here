@@ -92,7 +92,9 @@ describe('Role permission seeding', () => {
   it('seeds every defined permission for the Admin role', async () => {
     const db = getDatabase();
     const adminRoleId = await getRoleId('Admin');
-    const allPermissions = await db.all<{ name: string }>('SELECT name FROM permissions ORDER BY name');
+    const allPermissions = await db.all<{ name: string }>(
+      'SELECT name FROM permissions ORDER BY name',
+    );
     const adminPermissions = await db.all<{ name: string }>(
       `SELECT p.name
        FROM permissions p
@@ -102,7 +104,9 @@ describe('Role permission seeding', () => {
       [adminRoleId],
     );
 
-    expect(adminPermissions.map(({ name }) => name)).toEqual(allPermissions.map(({ name }) => name));
+    expect(adminPermissions.map(({ name }) => name)).toEqual(
+      allPermissions.map(({ name }) => name),
+    );
   });
 
   it('allows Admin users through authorizePermission for seeded permissions', async () => {

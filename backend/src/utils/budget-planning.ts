@@ -26,7 +26,9 @@ export function calculateBudgetPlanning(
   const taxAmount = roundCurrency((allocatedAmount * rates.taxRate) / 100);
   const gratuityAmount = roundCurrency((allocatedAmount * rates.gratuityRate) / 100);
   const contingencyAmount = roundCurrency((allocatedAmount * rates.contingencyRate) / 100);
-  const plannedTotal = roundCurrency(allocatedAmount + taxAmount + gratuityAmount + contingencyAmount);
+  const plannedTotal = roundCurrency(
+    allocatedAmount + taxAmount + gratuityAmount + contingencyAmount,
+  );
 
   return {
     ...rates,

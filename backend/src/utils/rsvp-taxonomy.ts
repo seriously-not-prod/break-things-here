@@ -51,9 +51,8 @@ export const RSVP_STATUS_INPUT_ALIASES: Record<LegacyRsvpStatus, readonly string
 } as const;
 
 /** Flat list of every accepted alias (for API documentation / error responses). */
-export const RSVP_STATUS_INPUT_ALIAS_LIST: readonly string[] = Object.values(
-  RSVP_STATUS_INPUT_ALIASES,
-).flat();
+export const RSVP_STATUS_INPUT_ALIAS_LIST: readonly string[] =
+  Object.values(RSVP_STATUS_INPUT_ALIASES).flat();
 
 /**
  * Map any legacy free-text status to a canonical value. Unknown values default
@@ -81,15 +80,23 @@ export function toCanonicalStatus(
 /** Reverse map for round-tripping a canonical value into the legacy column. */
 export function toLegacyStatus(canonical: CanonicalRsvpStatus): string {
   switch (canonical) {
-    case 'confirmed': return 'Going';
-    case 'declined': return 'Declined';
-    case 'maybe': return 'Maybe';
-    case 'cancelled': return 'Not Going';
-    case 'waitlist': return 'Going'; // waitlisted rows keep 'Going' per legacy contract
-    case 'checked_in': return 'Going';
-    case 'no_show': return 'Going';
+    case 'confirmed':
+      return 'Going';
+    case 'declined':
+      return 'Declined';
+    case 'maybe':
+      return 'Maybe';
+    case 'cancelled':
+      return 'Not Going';
+    case 'waitlist':
+      return 'Going'; // waitlisted rows keep 'Going' per legacy contract
+    case 'checked_in':
+      return 'Going';
+    case 'no_show':
+      return 'Going';
     case 'pending':
-    default: return 'Pending';
+    default:
+      return 'Pending';
   }
 }
 

@@ -18,6 +18,7 @@ import * as guestGroupsController from '../controllers/guest-groups-controller.j
 import * as eventDocumentsController from '../controllers/event-documents-controller.js';
 import * as analyticsController from '../controllers/analytics-controller.js';
 import * as notificationsController from '../controllers/notifications-controller.js';
+import * as notificationPreferencesController from '../controllers/notification-preferences-controller.js';
 import * as activityFeedController from '../controllers/activity-feed-controller.js';
 import * as vendorsController from '../controllers/vendors-controller.js';
 import * as shoppingController from '../controllers/shopping-controller.js';
@@ -69,6 +70,7 @@ import * as unsubscribeController from '../controllers/unsubscribe-controller.js
 import * as qrCheckinController from '../controllers/qr-checkin-controller.js';
 import * as attendanceBoardController from '../controllers/attendance-board-controller.js';
 import * as seatingGroupsController from '../controllers/seating-groups-controller.js';
+import * as guestsController from '../controllers/guests-controller.js';
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import {
   apiLimiter,
@@ -274,6 +276,18 @@ router.delete('/profile/account', authenticateToken, profileController.deleteAcc
 // ============ USER (self-service) ROUTES — issues #36, #39 ============
 router.get('/users/me', authenticateToken, usersController.getMe);
 router.patch('/users/me', authenticateToken, usersController.updateMe);
+
+// ── #786: Notification preferences (channel × category matrix) ──────────────
+router.get(
+  '/users/me/notification-preferences',
+  authenticateToken,
+  notificationPreferencesController.listPreferences,
+);
+router.patch(
+  '/users/me/notification-preferences',
+  authenticateToken,
+  notificationPreferencesController.patchPreferences,
+);
 router.get('/rsvps', authenticateToken, legacyRsvpController.getAllRsvps);
 router.get('/rsvps/:id', authenticateToken, legacyRsvpController.getRsvpById);
 router.post('/rsvps', legacyRsvpController.submitRsvp);
@@ -909,6 +923,20 @@ router.post(
 );
 router.get('/admin/roles', authenticateToken, authorizeRole(['Admin']), adminController.listRoles);
 
+// User-event assignment endpoints — issue #891
+router.get(
+  '/admin/users/:id/events',
+  authenticateToken,
+  authorizeRole(['Admin']),
+  adminController.getUserEvents,
+);
+router.put(
+  '/admin/users/:id/events',
+  authenticateToken,
+  authorizeRole(['Admin']),
+  adminController.setUserEvents,
+);
+
 // ============ ADMIN ROUTES — #665 #677 ============
 router.get(
   '/admin/audit-log',
@@ -1008,6 +1036,7 @@ router.get(
 // ============ NOTIFICATIONS ROUTES — BRD 3.11 ============
 router.get('/notifications', authenticateToken, notificationsController.listNotifications);
 router.patch('/notifications/:id', authenticateToken, notificationsController.markRead);
+router.delete('/notifications/:id', authenticateToken, notificationsController.dismissNotification);
 router.post('/notifications/mark-all-read', authenticateToken, notificationsController.markAllRead);
 router.get('/notifications/digest', authenticateToken, notificationsController.getDueTaskAlerts);
 
@@ -1653,6 +1682,16 @@ router.post(
   '/events/:eventId/guest-groups/bulk-checkin',
   authenticateToken,
   guestGroupsController.bulkCheckIn,
+);
+
+router.get('/events/:eventId/guest-records', authenticateToken, guestsController.listGuests);
+router.get('/events/:eventId/guest-records/:id', authenticateToken, guestsController.getGuest);
+router.post('/events/:eventId/guest-records', authenticateToken, guestsController.createGuest);
+router.put('/events/:eventId/guest-records/:id', authenticateToken, guestsController.updateGuest);
+router.delete(
+  '/events/:eventId/guest-records/:id',
+  authenticateToken,
+  guestsController.deleteGuest,
 );
 
 // ============ GDPR — #680 ============

@@ -36,14 +36,14 @@ interface NotificationsPanelProps {
   onMarkAllRead: () => Promise<void>;
 }
 
-function getIcon(type: string): JSX.Element {
+export function getIcon(type: string): JSX.Element {
   if (type === 'task_due') return <TaskAltRounded fontSize="small" />;
   if (type === 'rsvp') return <ReplyRounded fontSize="small" />;
   if (type === 'budget_alert') return <WarningAmberRounded fontSize="small" />;
   return <NotificationsNoneRounded fontSize="small" />;
 }
 
-function formatTimeAgo(iso: string): string {
+export function formatTimeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const minutes = Math.max(1, Math.floor(diffMs / 60000));
   if (minutes < 60) return `${minutes}m ago`;
@@ -115,7 +115,12 @@ export function NotificationsPanel({
             <Alert severity="error">{error}</Alert>
           </Box>
         ) : notifications.length === 0 ? (
-          <Stack spacing={1} alignItems="center" justifyContent="center" sx={{ p: 4, textAlign: 'center' }}>
+          <Stack
+            spacing={1}
+            alignItems="center"
+            justifyContent="center"
+            sx={{ p: 4, textAlign: 'center' }}
+          >
             <NotificationsNoneRounded color="disabled" />
             <Typography fontWeight={700}>You're all caught up</Typography>
             <Typography variant="body2" color="text.secondary">

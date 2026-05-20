@@ -44,13 +44,7 @@ function publicBase(): string {
   return '';
 }
 
-export function RsvpQrDialog({
-  eventId,
-  rsvpId,
-  guestName,
-  open,
-  onClose,
-}: Props): JSX.Element {
+export function RsvpQrDialog({ eventId, rsvpId, guestName, open, onClose }: Props): JSX.Element {
   const [token, setToken] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
@@ -178,7 +172,8 @@ export function RsvpQrDialog({
               Download .ics calendar invite
             </Button>
             <Typography variant="caption" color="text.secondary">
-              Tokens are revoked when guests are merged or rotated. Confirmation emails attach an ICS calendar invite (Google, Outlook, Apple).
+              Tokens are revoked when guests are merged or rotated. Confirmation emails attach an
+              ICS calendar invite (Google, Outlook, Apple).
             </Typography>
           </Stack>
         </Stack>

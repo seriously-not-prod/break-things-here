@@ -30,10 +30,7 @@ function newToken(): string {
 }
 
 /** Idempotent: returns the existing active token, or creates a new one. */
-export async function ensureRsvpAccessToken(
-  db: DatabaseAdapter,
-  rsvpId: number,
-): Promise<string> {
+export async function ensureRsvpAccessToken(db: DatabaseAdapter, rsvpId: number): Promise<string> {
   const existing = await db.get<{ token: string }>(
     'SELECT token FROM rsvp_access_tokens WHERE rsvp_id = $1 AND revoked_at IS NULL',
     [rsvpId],

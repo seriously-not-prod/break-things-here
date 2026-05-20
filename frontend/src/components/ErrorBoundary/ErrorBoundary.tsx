@@ -41,13 +41,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
       return (
-        <Box
-          display="flex"
-          justifyContent="center"
-          alignItems="center"
-          minHeight="200px"
-          p={3}
-        >
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px" p={3}>
           <Paper elevation={2} sx={{ p: 4, maxWidth: 480, textAlign: 'center' }}>
             <Typography variant="h6" gutterBottom aria-live="assertive" role="alert">
               Something went wrong

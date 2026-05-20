@@ -30,7 +30,11 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { CheckCircleOutlineRounded, QrCodeScannerRounded, SearchRounded } from '@mui/icons-material';
+import {
+  CheckCircleOutlineRounded,
+  QrCodeScannerRounded,
+  SearchRounded,
+} from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PageLayout } from '../layout/page-layout';
 import * as guestService from '../../services/guest-service';
@@ -101,9 +105,7 @@ export function CheckInPage(): JSX.Element {
     } catch (err) {
       // Revert optimistic update
       setRsvps((prev) =>
-        prev.map((r) =>
-          r.id === rsvp.id ? { ...r, checked_in: false, checked_in_at: null } : r,
-        ),
+        prev.map((r) => (r.id === rsvp.id ? { ...r, checked_in: false, checked_in_at: null } : r)),
       );
       setError(err instanceof ApiError ? err.message : 'Check-in failed. Please try again.');
     } finally {
@@ -117,8 +119,7 @@ export function CheckInPage(): JSX.Element {
 
   const filtered = rsvps.filter((r) => {
     const q = search.toLowerCase();
-    const matchesSearch =
-      r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q);
+    const matchesSearch = r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q);
     const matchesStatus = statusFilter === 'All' || r.canonical_status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -132,7 +133,13 @@ export function CheckInPage(): JSX.Element {
       title="Guest Check-In"
       breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Check-In' }]}
       actions={
-        <Tooltip title={hasBarcodeDetector() ? 'Open live QR scanner' : 'QR scanning requires a Chromium-based browser. Use manual token paste on this device.'}>
+        <Tooltip
+          title={
+            hasBarcodeDetector()
+              ? 'Open live QR scanner'
+              : 'QR scanning requires a Chromium-based browser. Use manual token paste on this device.'
+          }
+        >
           <span>
             <Button
               variant="outlined"
@@ -146,7 +153,6 @@ export function CheckInPage(): JSX.Element {
         </Tooltip>
       }
     >
-
       {/* Progress bar */}
       <Paper sx={{ p: 2, mb: 3 }} variant="outlined">
         <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
@@ -232,7 +238,9 @@ export function CheckInPage(): JSX.Element {
             {!loading && filtered.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
-                  {rsvps.length === 0 ? 'No RSVPs for this event yet.' : 'No guests match your search.'}
+                  {rsvps.length === 0
+                    ? 'No RSVPs for this event yet.'
+                    : 'No guests match your search.'}
                 </TableCell>
               </TableRow>
             )}
@@ -241,7 +249,10 @@ export function CheckInPage(): JSX.Element {
               filtered.map((rsvp) => (
                 <TableRow
                   key={rsvp.id}
-                  sx={{ backgroundColor: rsvp.checked_in ? 'success.light' : undefined, opacity: rsvp.checked_in ? 0.85 : 1 }}
+                  sx={{
+                    backgroundColor: rsvp.checked_in ? 'success.light' : undefined,
+                    opacity: rsvp.checked_in ? 0.85 : 1,
+                  }}
                 >
                   <TableCell sx={{ fontWeight: 600 }}>{rsvp.name}</TableCell>
                   <TableCell>{rsvp.email}</TableCell>
@@ -273,7 +284,11 @@ export function CheckInPage(): JSX.Element {
                       color="success"
                       disabled={rsvp.checked_in || checkingIn.has(rsvp.id)}
                       onClick={() => void handleCheckIn(rsvp)}
-                      aria-label={rsvp.checked_in ? `${rsvp.name} already checked in` : `Check in ${rsvp.name}`}
+                      aria-label={
+                        rsvp.checked_in
+                          ? `${rsvp.name} already checked in`
+                          : `Check in ${rsvp.name}`
+                      }
                     >
                       {rsvp.checked_in ? 'Done' : checkingIn.has(rsvp.id) ? 'Saving…' : 'Check In'}
                     </Button>

@@ -1,6 +1,13 @@
 import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
-import { validateEmailFormat, generatePasswordResetTokenPair, sendPasswordResetEmail, hashPassword, hashResetVerifier, verifyResetToken } from '../utils/auth-helpers.js';
+import {
+  validateEmailFormat,
+  generatePasswordResetTokenPair,
+  sendPasswordResetEmail,
+  hashPassword,
+  hashResetVerifier,
+  verifyResetToken,
+} from '../utils/auth-helpers.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -107,7 +114,8 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
       const entraTenantId = process.env.AZURE_TENANT_ID ?? 'common';
       const entraPasswordResetUrl = `https://account.activedirectory.windowsazure.com/r/#/passwordReset`;
       return res.status(422).json({
-        error: 'This account uses Microsoft Entra ID (SSO) for authentication. Please reset your password via your organisation\u2019s Microsoft account portal.',
+        error:
+          'This account uses Microsoft Entra ID (SSO) for authentication. Please reset your password via your organisation\u2019s Microsoft account portal.',
         entraPasswordResetUrl,
         tenantId: entraTenantId,
       });
@@ -140,7 +148,7 @@ export async function forgotPassword(req: AuthRequest, res: Response): Promise<R
       );
 
       try {
-        await sendPasswordResetEmail(normalizedEmail, fullToken, baseUrl);  // full token (selector+verifier) in email link
+        await sendPasswordResetEmail(normalizedEmail, fullToken, baseUrl); // full token (selector+verifier) in email link
       } catch (emailError) {
         console.error('Failed to send password reset email:', emailError);
         // Continue despite email failure - token is stored and audit log is written
@@ -204,7 +212,9 @@ export async function resetPassword(req: AuthRequest, res: Response): Promise<Re
 
   // Basic complexity check: require at least one letter and one digit
   if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-    return res.status(400).json({ error: 'Password must contain at least one letter and one number.' });
+    return res
+      .status(400)
+      .json({ error: 'Password must contain at least one letter and one number.' });
   }
 
   const db = getDatabase();
@@ -239,7 +249,9 @@ export async function resetPassword(req: AuthRequest, res: Response): Promise<Re
 
     const expiresAt = new Date(tokenRow.expires_at as string).getTime();
     if (Date.now() > expiresAt) {
-      return res.status(400).json({ error: 'This reset link has expired. Please request a new one.' });
+      return res
+        .status(400)
+        .json({ error: 'This reset link has expired. Please request a new one.' });
     }
 
     const userId = tokenRow.user_id as number;
@@ -249,24 +261,32 @@ export async function resetPassword(req: AuthRequest, res: Response): Promise<Re
     const passwordHash = await hashPassword(newPassword);
 
     // Update user password
-    await db.run(`UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [
-      passwordHash,
-      userId,
-    ]);
+    await db.run(
+      `UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [passwordHash, userId],
+    );
 
     // Invalidate all existing sessions
     await db.run(`DELETE FROM sessions WHERE user_id = $1`, [userId]);
 
     // Mark token as used
-    await db.run(
-      `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = $1`,
-      [tokenRow.id],
-    );
+    await db.run(`UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = $1`, [
+      tokenRow.id,
+    ]);
 
     // Log audit entry
-    await logAudit(db, userId, email, 'PASSWORD_RESET_COMPLETED', 'Password successfully reset', req.ip);
+    await logAudit(
+      db,
+      userId,
+      email,
+      'PASSWORD_RESET_COMPLETED',
+      'Password successfully reset',
+      req.ip,
+    );
 
-    return res.status(200).json({ message: 'Your password has been reset. You can now log in with your new password.' });
+    return res.status(200).json({
+      message: 'Your password has been reset. You can now log in with your new password.',
+    });
   } catch (error) {
     console.error('Error in reset password endpoint:', error);
     return res.status(500).json({ error: 'An unexpected error occurred. Please try again.' });

@@ -47,10 +47,10 @@ import {
   exportCsvUrl,
   listRsvpGuests,
   listTables,
+  type CanonicalRsvpStatus,
   type GuestGroup,
   type RsvpGuest,
   type RsvpGuestInput,
-  type CanonicalRsvpStatus,
 } from '../../services/guest-service';
 import { generateNameTagPdf } from '../../utils/name-tag-pdf-export';
 import { AddGuestDialog } from './add-guest-dialog';
@@ -77,7 +77,16 @@ const STATUS_COLOUR: Record<
   checked_in: 'success',
 };
 
-const ALL_STATUSES: CanonicalRsvpStatus[] = ['pending', 'confirmed', 'maybe', 'declined', 'waitlist', 'cancelled', 'checked_in', 'no_show'];
+const ALL_STATUSES: CanonicalRsvpStatus[] = [
+  'pending',
+  'confirmed',
+  'maybe',
+  'declined',
+  'waitlist',
+  'cancelled',
+  'checked_in',
+  'no_show',
+];
 const ALL_GROUPS: GuestGroup[] = ['Family', 'Friends', 'Colleagues', 'VIPs', 'Custom'];
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -122,7 +131,9 @@ export default function GuestsPage(): JSX.Element {
       .finally(() => setLoading(false));
   }, [eventId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const filtered = useMemo(
     () =>
@@ -145,8 +156,7 @@ export default function GuestsPage(): JSX.Element {
 
   // ── Selection helpers ──────────────────────────────────────────────────────
 
-  const allSelected =
-    filtered.length > 0 && filtered.every((g) => selected.has(g.id));
+  const allSelected = filtered.length > 0 && filtered.every((g) => selected.has(g.id));
 
   function toggleSelectAll(): void {
     if (allSelected) {
@@ -254,7 +264,11 @@ export default function GuestsPage(): JSX.Element {
       title="Guest List"
       breadcrumbs={[{ label: 'Events', to: '/events' }, { label: 'Guests' }]}
     >
-      {pageError && <Alert severity="error" sx={{ mb: 2 }}>{pageError}</Alert>}
+      {pageError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {pageError}
+        </Alert>
+      )}
 
       <Tabs value={tab} onChange={(_, v: number) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label="Guests" aria-label="Guests tab" />
@@ -264,12 +278,8 @@ export default function GuestsPage(): JSX.Element {
         <Tab label="Custom questions" aria-label="Custom RSVP questions tab" />
       </Tabs>
 
-      {tab === 2 && eventId && (
-        <DuplicatesPanel eventId={eventId} onChanged={load} />
-      )}
-      {tab === 3 && eventId && (
-        <WaitlistPanel eventId={eventId} onChanged={load} />
-      )}
+      {tab === 2 && eventId && <DuplicatesPanel eventId={eventId} onChanged={load} />}
+      {tab === 3 && eventId && <WaitlistPanel eventId={eventId} onChanged={load} />}
       {tab === 4 && eventId && <RsvpQuestionsPanel eventId={eventId} />}
 
       {tab === 0 && (
@@ -283,7 +293,9 @@ export default function GuestsPage(): JSX.Element {
               onChange={(e) => setSearch(e.target.value)}
               InputProps={{
                 startAdornment: (
-                  <InputAdornment position="start"><SearchRounded fontSize="small" /></InputAdornment>
+                  <InputAdornment position="start">
+                    <SearchRounded fontSize="small" />
+                  </InputAdornment>
                 ),
               }}
               sx={{ minWidth: 220 }}
@@ -300,8 +312,14 @@ export default function GuestsPage(): JSX.Element {
                   setStatusFilter(e.target.value as CanonicalRsvpStatus | '')
                 }
               >
-                <MenuItem value=""><em>All statuses</em></MenuItem>
-                {ALL_STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                <MenuItem value="">
+                  <em>All statuses</em>
+                </MenuItem>
+                {ALL_STATUSES.map((s) => (
+                  <MenuItem key={s} value={s}>
+                    {s}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
 
@@ -315,8 +333,14 @@ export default function GuestsPage(): JSX.Element {
                   setGroupFilter(e.target.value as GuestGroup | '')
                 }
               >
-                <MenuItem value=""><em>All groups</em></MenuItem>
-                {ALL_GROUPS.map((g) => <MenuItem key={g} value={g}>{g}</MenuItem>)}
+                <MenuItem value="">
+                  <em>All groups</em>
+                </MenuItem>
+                {ALL_GROUPS.map((g) => (
+                  <MenuItem key={g} value={g}>
+                    {g}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
 
@@ -378,11 +402,7 @@ export default function GuestsPage(): JSX.Element {
               <Typography variant="body2" sx={{ flexGrow: 1 }}>
                 {selected.size} selected
               </Typography>
-              <Button
-                size="small"
-                startIcon={<SendRounded />}
-                onClick={() => setTab(1)}
-              >
+              <Button size="small" startIcon={<SendRounded />} onClick={() => setTab(1)}>
                 Send Invitation
               </Button>
               <Button
@@ -443,11 +463,7 @@ export default function GuestsPage(): JSX.Element {
                     </TableRow>
                   ) : (
                     filtered.map((guest) => (
-                      <TableRow
-                        key={guest.id}
-                        selected={selected.has(guest.id)}
-                        hover
-                      >
+                      <TableRow key={guest.id} selected={selected.has(guest.id)} hover>
                         <TableCell padding="checkbox">
                           <Checkbox
                             checked={selected.has(guest.id)}
@@ -466,7 +482,9 @@ export default function GuestsPage(): JSX.Element {
                           />
                         </TableCell>
                         <TableCell>{guest.dietary_restriction ?? 'None'}</TableCell>
-                        <TableCell>{guest.plus_one ? (guest.plus_one_name ?? 'Yes') : 'No'}</TableCell>
+                        <TableCell>
+                          {guest.plus_one ? (guest.plus_one_name ?? 'Yes') : 'No'}
+                        </TableCell>
                         <TableCell>{guest.guest_group ?? '—'}</TableCell>
                         <TableCell>
                           {guest.checked_in ? (
@@ -523,11 +541,7 @@ export default function GuestsPage(): JSX.Element {
       )}
 
       {tab === 1 && eventId && (
-        <GuestCommunicationPanel
-          eventId={eventId}
-          guests={guests}
-          selectedRsvpIds={selectedIds}
-        />
+        <GuestCommunicationPanel eventId={eventId} guests={guests} selectedRsvpIds={selectedIds} />
       )}
 
       {/* ── Dialogs ── */}

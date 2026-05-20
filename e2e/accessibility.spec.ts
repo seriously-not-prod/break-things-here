@@ -16,9 +16,7 @@ const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 async function auditPage(page: Parameters<typeof AxeBuilder>[0], path: string) {
   await page.goto(path);
-  const results = await new AxeBuilder({ page })
-    .withTags(WCAG_TAGS)
-    .analyze();
+  const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
   return results;
 }
 
@@ -59,7 +57,10 @@ test.describe('WCAG 2.1 AA — Authenticated pages', () => {
     );
     if (critical.length > 0) {
       const summary = critical
-        .map((v) => `[${v.impact}] ${v.id}: ${v.description}\n  → ${v.nodes.map((n) => n.html).join('\n  → ')}`)
+        .map(
+          (v) =>
+            `[${v.impact}] ${v.id}: ${v.description}\n  → ${v.nodes.map((n) => n.html).join('\n  → ')}`,
+        )
         .join('\n\n');
       expect(critical, `Critical a11y violations on /events:\n${summary}`).toHaveLength(0);
     }

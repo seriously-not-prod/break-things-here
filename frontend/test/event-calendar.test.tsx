@@ -20,7 +20,9 @@ vi.mock('react-router-dom', async (importActual) => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makeEvent(overrides: Partial<Event> & { id: number; title: string; event_date: string }): Event {
+function makeEvent(
+  overrides: Partial<Event> & { id: number; title: string; event_date: string },
+): Event {
   return {
     description: null,
     location: null,

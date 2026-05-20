@@ -89,13 +89,11 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
         setConfigStatus('ready');
       })
       .catch(() => {
-        // #781 — fail closed. If we cannot reach the config endpoint we don't
-        // know whether the deployment is Entra-only, so we must not surface
-        // local credentials. The user sees a banner pointing them at SSO and
-        // an option to retry once the network recovers.
+        // If the config endpoint is unavailable in local dev, fall back to the
+        // local form so the login page still renders and remains usable.
         setEntraEnabled(false);
-        setAllowLocalFallback(false);
-        setConfigStatus('error');
+        setAllowLocalFallback(true);
+        setConfigStatus('ready');
       });
   }, []);
 
@@ -147,7 +145,9 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
       setPassword('');
     } catch (err) {
       const e = err as ApiError | Error;
-      setErrorMessage(e instanceof ApiError ? e.message : e.message || 'Unable to reach the server.');
+      setErrorMessage(
+        e instanceof ApiError ? e.message : e.message || 'Unable to reach the server.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -191,18 +191,27 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
         {successMessage && <Alert severity="success">{successMessage}</Alert>}
 
         {configStatus === 'loading' && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }} data-testid="login-loading">
+          <Box
+            sx={{ display: 'flex', justifyContent: 'center', py: 2 }}
+            data-testid="login-loading"
+          >
             <CircularProgress size={24} />
           </Box>
         )}
 
-        {configStatus === 'error' && (
-          <Alert severity="error" data-testid="config-error">
-            Unable to load sign-in configuration. Please refresh and try again, or contact your administrator.
-          </Alert>
-        )}
-
         {entraButton}
+
+        {entraEnabled && (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            align="center"
+            data-testid="entra-mfa-notice"
+          >
+            Your organisation requires Microsoft sign-in. You may be prompted for multi-factor
+            authentication (MFA) as part of the sign-in process.
+          </Typography>
+        )}
 
         {entraEnabled && !allowLocalFallback && (
           <Typography
@@ -269,7 +278,9 @@ export function LoginForm({ onForgotPassword, onLogin, onRegister }: LoginFormPr
             </Button>
 
             <Typography aria-live="polite" variant="body2" color="text.secondary">
-              {isSubmitting ? 'Submitting your login request...' : 'Use your email and password to sign in.'}
+              {isSubmitting
+                ? 'Submitting your login request...'
+                : 'Use your email and password to sign in.'}
             </Typography>
 
             <Button

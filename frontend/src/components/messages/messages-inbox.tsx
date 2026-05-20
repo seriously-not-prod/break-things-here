@@ -167,86 +167,87 @@ export function MessagesInbox(): JSX.Element {
   return (
     <PageLayout title="Messages" breadcrumbs={[{ label: 'Messages' }]} noPadding>
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', px: 3, pb: 3, pt: 1 }}>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
-
-      {conversations.length === 0 ? (
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flex: 1,
-            gap: 2,
-            color: 'text.secondary',
-          }}
-          role="status"
-          aria-label="Empty inbox"
-        >
-          <MailRounded sx={{ fontSize: 56, opacity: 0.3 }} />
-          <Typography variant="h6">No messages yet</Typography>
-          <Typography variant="body2">Messages from other organisers will appear here.</Typography>
-        </Box>
-      ) : (
-        <Paper
-          variant="outlined"
-          sx={{
-            flex: 1,
-            display: 'flex',
-            overflow: 'hidden',
-            borderRadius: 2,
-          }}
-        >
-          {/* Left panel — conversation list */}
+        {conversations.length === 0 ? (
           <Box
             sx={{
-              width: 300,
-              flexShrink: 0,
-              borderRight: '1px solid',
-              borderColor: 'divider',
-              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 1,
+              gap: 2,
+              color: 'text.secondary',
+            }}
+            role="status"
+            aria-label="Empty inbox"
+          >
+            <MailRounded sx={{ fontSize: 56, opacity: 0.3 }} />
+            <Typography variant="h6">No messages yet</Typography>
+            <Typography variant="body2">
+              Messages from other organisers will appear here.
+            </Typography>
+          </Box>
+        ) : (
+          <Paper
+            variant="outlined"
+            sx={{
+              flex: 1,
+              display: 'flex',
+              overflow: 'hidden',
+              borderRadius: 2,
             }}
           >
-            <ConversationList
-              conversations={conversations}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-            />
-          </Box>
-
-          {/* Right panel — thread view */}
-          <Box sx={{ flex: 1, overflow: 'hidden' }}>
-            {selectedConversation ? (
-              <ThreadView
-                conversationId={selectedConversation.id}
-                threadName={selectedConversation.participantName}
-                messages={messages}
-                loading={loadingMessages}
-                onSend={handleSend}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
+            {/* Left panel — conversation list */}
+            <Box
+              sx={{
+                width: 300,
+                flexShrink: 0,
+                borderRight: '1px solid',
+                borderColor: 'divider',
+                overflowY: 'auto',
+              }}
+            >
+              <ConversationList
+                conversations={conversations}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
               />
-            ) : (
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '100%',
-                  color: 'text.secondary',
-                }}
-              >
-                <Typography variant="body2">Select a conversation to read messages</Typography>
-              </Box>
-            )}
-          </Box>
-        </Paper>
-      )}
+            </Box>
+
+            {/* Right panel — thread view */}
+            <Box sx={{ flex: 1, overflow: 'hidden' }}>
+              {selectedConversation ? (
+                <ThreadView
+                  conversationId={selectedConversation.id}
+                  threadName={selectedConversation.participantName}
+                  messages={messages}
+                  loading={loadingMessages}
+                  onSend={handleSend}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                />
+              ) : (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    color: 'text.secondary',
+                  }}
+                >
+                  <Typography variant="body2">Select a conversation to read messages</Typography>
+                </Box>
+              )}
+            </Box>
+          </Paper>
+        )}
       </Box>
     </PageLayout>
   );

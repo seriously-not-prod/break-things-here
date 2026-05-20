@@ -33,9 +33,13 @@ export async function globalSearch(req: Request, res: Response): Promise<Respons
   const limit = Math.min(Math.max(Number(req.query['limit']) || 10, 1), 50);
   const includeArchived = req.query['include_archived'] === 'true';
 
-  const requestedTypes = typeof req.query['types'] === 'string'
-    ? (req.query['types'] as string).split(',').map((t) => t.trim()).filter(Boolean)
-    : [...ALL_TYPES];
+  const requestedTypes =
+    typeof req.query['types'] === 'string'
+      ? (req.query['types'] as string)
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : [...ALL_TYPES];
   const types = requestedTypes.filter((t): t is SearchType =>
     (ALL_TYPES as readonly string[]).includes(t),
   );

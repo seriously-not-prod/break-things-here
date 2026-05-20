@@ -52,10 +52,7 @@ function makeRes() {
   return res;
 }
 
-function makeReq(
-  params: Record<string, string>,
-  body: Record<string, unknown> = {},
-) {
+function makeReq(params: Record<string, string>, body: Record<string, unknown> = {}) {
   return {
     params,
     query: {},
@@ -72,7 +69,19 @@ describe('event custom fields controller', () => {
 
   it('lists fields for an event', async () => {
     const rows = [
-      { id: 1, event_id: 1, field_key: 'theme', label: 'Theme', field_type: 'text', value: 'Retro', required: false, sort_order: 0, options: null, created_at: '', updated_at: '' },
+      {
+        id: 1,
+        event_id: 1,
+        field_key: 'theme',
+        label: 'Theme',
+        field_type: 'text',
+        value: 'Retro',
+        required: false,
+        sort_order: 0,
+        options: null,
+        created_at: '',
+        updated_at: '',
+      },
     ];
     mockDb.all.mockResolvedValueOnce(rows);
     const req = makeReq({ eventId: '1' });

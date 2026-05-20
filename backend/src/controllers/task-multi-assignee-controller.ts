@@ -34,7 +34,10 @@ export async function listTaskAssignees(req: Request, res: Response): Promise<Re
   if (!event) return res as Response;
 
   const db = getDatabase();
-  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [
+    taskId,
+    eventId,
+  ]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const assignees = await db.all(
@@ -60,7 +63,10 @@ export async function addTaskAssignee(req: Request, res: Response): Promise<Resp
   if (!event) return res as Response;
 
   const db = getDatabase();
-  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [
+    taskId,
+    eventId,
+  ]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   // Verify target user is a member of the event
@@ -109,7 +115,10 @@ export async function removeTaskAssignee(req: Request, res: Response): Promise<R
   if (!event) return res as Response;
 
   const db = getDatabase();
-  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [
+    taskId,
+    eventId,
+  ]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   await db.run('DELETE FROM task_assignees WHERE task_id = $1 AND user_id = $2', [taskId, userId]);
@@ -154,7 +163,11 @@ export async function updateTaskStatus(req: Request, res: Response): Promise<Res
     });
   }
 
-  const fields: string[] = ['status = ?', 'version = version + 1', 'updated_at = CURRENT_TIMESTAMP'];
+  const fields: string[] = [
+    'status = ?',
+    'version = version + 1',
+    'updated_at = CURRENT_TIMESTAMP',
+  ];
   const params: (string | number | null)[] = [status];
 
   if (status === 'Cancelled') {
@@ -238,10 +251,9 @@ export async function getEscalationPolicy(req: Request, res: Response): Promise<
   if (!event) return res as Response;
 
   const db = getDatabase();
-  const policy = await db.get(
-    'SELECT * FROM task_escalation_policies WHERE event_id = $1',
-    [eventId],
-  );
+  const policy = await db.get('SELECT * FROM task_escalation_policies WHERE event_id = $1', [
+    eventId,
+  ]);
   return res.json({ policy: policy ?? null });
 }
 
@@ -249,17 +261,13 @@ export async function getEscalationPolicy(req: Request, res: Response): Promise<
 export async function upsertEscalationPolicy(req: Request, res: Response): Promise<Response> {
   const authReq = req as AuthRequest;
   const { eventId } = req.params;
-  const {
-    overdue_hours,
-    escalate_to_user_id,
-    escalate_to_role_id,
-    notify_on_escalation,
-  } = req.body as {
-    overdue_hours?: number;
-    escalate_to_user_id?: number | null;
-    escalate_to_role_id?: number | null;
-    notify_on_escalation?: boolean;
-  };
+  const { overdue_hours, escalate_to_user_id, escalate_to_role_id, notify_on_escalation } =
+    req.body as {
+      overdue_hours?: number;
+      escalate_to_user_id?: number | null;
+      escalate_to_role_id?: number | null;
+      notify_on_escalation?: boolean;
+    };
 
   if (overdue_hours !== undefined && (overdue_hours < 1 || overdue_hours > 8760)) {
     return res.status(400).json({ error: 'overdue_hours must be between 1 and 8760.' });
@@ -289,7 +297,9 @@ export async function upsertEscalationPolicy(req: Request, res: Response): Promi
     ],
   );
 
-  const policy = await db.get('SELECT * FROM task_escalation_policies WHERE event_id = $1', [eventId]);
+  const policy = await db.get('SELECT * FROM task_escalation_policies WHERE event_id = $1', [
+    eventId,
+  ]);
   return res.json({ policy });
 }
 
@@ -308,7 +318,8 @@ export async function escalateOverdueTasks(req: Request, res: Response): Promise
     notify_on_escalation: boolean;
   }>('SELECT * FROM task_escalation_policies WHERE event_id = $1', [eventId]);
 
-  if (!policy) return res.status(404).json({ error: 'No escalation policy configured for this event.' });
+  if (!policy)
+    return res.status(404).json({ error: 'No escalation policy configured for this event.' });
 
   const overdueTasks = await db.all<{ id: number; title: string }>(
     `SELECT id, title FROM tasks

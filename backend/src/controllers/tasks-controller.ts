@@ -9,14 +9,20 @@ interface AuthRequest extends Request {
 }
 
 const ALLOWED_STATUSES = new Set(['Pending', 'Complete', 'Completed', 'In Progress', 'Blocked']);
-const ALLOWED_PRIORITIES = new Set(['Low', 'Medium', 'High']);
+const ALLOWED_PRIORITIES = new Set(['Low', 'Medium', 'High', 'Urgent']);
 
 function normalizeTaskStatus(status?: string): string {
-  return status === 'Completed' ? 'Complete' : status ?? 'Pending';
+  return status === 'Completed' ? 'Complete' : (status ?? 'Pending');
 }
 
-async function getTaskTeamMemberIds(db: ReturnType<typeof getDatabase>, eventId: string): Promise<Set<number>> {
-  const rows = await db.all<{ user_id: number }>('SELECT user_id FROM event_members WHERE event_id = $1', [eventId]);
+async function getTaskTeamMemberIds(
+  db: ReturnType<typeof getDatabase>,
+  eventId: string,
+): Promise<Set<number>> {
+  const rows = await db.all<{ user_id: number }>(
+    'SELECT user_id FROM event_members WHERE event_id = $1',
+    [eventId],
+  );
   return new Set(rows.map((row) => Number(row.user_id)));
 }
 
@@ -92,10 +98,7 @@ async function replaceTaskAssignees(
     );
   }
   // Mirror primary to legacy column (or null when assignee set is empty).
-  await db.run('UPDATE tasks SET assigned_user_id = ? WHERE id = ?', [
-    userIds[0] ?? null,
-    taskId,
-  ]);
+  await db.run('UPDATE tasks SET assigned_user_id = ? WHERE id = ?', [userIds[0] ?? null, taskId]);
 }
 
 /** Single round-trip load of assignees for a set of task ids. Avoids N+1 in listTasks. */
@@ -174,8 +177,10 @@ export async function createTask(req: AuthRequest, res: Response): Promise<Respo
   const { title, notes, assignee_name, assigned_user_id, due_date, status, priority } = body;
 
   if (!title?.trim()) return res.status(400).json({ error: 'Task title is required.' });
-  if (status && !ALLOWED_STATUSES.has(status)) return res.status(400).json({ error: 'Invalid task status.' });
-  if (priority && !ALLOWED_PRIORITIES.has(priority)) return res.status(400).json({ error: 'Invalid priority.' });
+  if (status && !ALLOWED_STATUSES.has(status))
+    return res.status(400).json({ error: 'Invalid task status.' });
+  if (priority && !ALLOWED_PRIORITIES.has(priority))
+    return res.status(400).json({ error: 'Invalid priority.' });
 
   const db = getDatabase();
 
@@ -191,11 +196,17 @@ export async function createTask(req: AuthRequest, res: Response): Promise<Respo
     const parsed = await normaliseAssigneeIds(db, eventId, body.assignee_user_ids);
     if (!parsed.ok) return res.status(400).json({ error: parsed.error });
     assigneeIds = parsed.ids;
-  } else if (assigned_user_id !== undefined && assigned_user_id !== null && assigned_user_id !== '') {
+  } else if (
+    assigned_user_id !== undefined &&
+    assigned_user_id !== null &&
+    assigned_user_id !== ''
+  ) {
     const n = Number(assigned_user_id);
-    if (!Number.isInteger(n)) return res.status(400).json({ error: 'assigned_user_id must be a valid user id.' });
+    if (!Number.isInteger(n))
+      return res.status(400).json({ error: 'assigned_user_id must be a valid user id.' });
     const teamMembers = await getTaskTeamMemberIds(db, eventId);
-    if (!teamMembers.has(n)) return res.status(400).json({ error: 'Assigned user must be a member of this event.' });
+    if (!teamMembers.has(n))
+      return res.status(400).json({ error: 'Assigned user must be a member of this event.' });
     assigneeIds = [n];
   }
 
@@ -294,9 +305,11 @@ export async function updateTask(req: Request, res: Response): Promise<Response>
       newAssigneeIds = [];
     } else {
       const n = Number(assigned_user_id);
-      if (!Number.isInteger(n)) return res.status(400).json({ error: 'assigned_user_id must be a valid user id.' });
+      if (!Number.isInteger(n))
+        return res.status(400).json({ error: 'assigned_user_id must be a valid user id.' });
       const teamMembers = await getTaskTeamMemberIds(db, String(task.event_id));
-      if (!teamMembers.has(n)) return res.status(400).json({ error: 'Assigned user must be a member of this event.' });
+      if (!teamMembers.has(n))
+        return res.status(400).json({ error: 'Assigned user must be a member of this event.' });
       newAssigneeIds = [n];
     }
   }
@@ -320,20 +333,35 @@ export async function updateTask(req: Request, res: Response): Promise<Response>
     }
   }
 
-  if (title !== undefined) { fields.push('title = ?'); params.push(title.trim()); }
-  if (notes !== undefined) { fields.push('notes = ?'); params.push(notes.trim() || null); }
-  if (due_date !== undefined) { fields.push('due_date = ?'); params.push(due_date || null); }
+  if (title !== undefined) {
+    fields.push('title = ?');
+    params.push(title.trim());
+  }
+  if (notes !== undefined) {
+    fields.push('notes = ?');
+    params.push(notes.trim() || null);
+  }
+  if (due_date !== undefined) {
+    fields.push('due_date = ?');
+    params.push(due_date || null);
+  }
   if (status !== undefined) {
-    if (!ALLOWED_STATUSES.has(status)) return res.status(400).json({ error: 'Invalid task status.' });
+    if (!ALLOWED_STATUSES.has(status))
+      return res.status(400).json({ error: 'Invalid task status.' });
     fields.push('status = ?');
     params.push(normalizeTaskStatus(status));
   }
   if (priority !== undefined) {
-    if (!ALLOWED_PRIORITIES.has(priority)) return res.status(400).json({ error: 'Invalid priority.' });
+    if (!ALLOWED_PRIORITIES.has(priority))
+      return res.status(400).json({ error: 'Invalid priority.' });
     fields.push('priority = ?');
     params.push(priority);
   }
-  if (assignee_name !== undefined && assigned_user_id === undefined && body.assignee_user_ids === undefined) {
+  if (
+    assignee_name !== undefined &&
+    assigned_user_id === undefined &&
+    body.assignee_user_ids === undefined
+  ) {
     fields.push('assignee_name = ?');
     params.push(assignee_name.trim() || null);
   }
@@ -375,7 +403,7 @@ export async function updateTask(req: Request, res: Response): Promise<Response>
       String(task.event_id),
       authReq.user?.id ?? null,
       'task_completed',
-      `Task completed: ${(updated as Record<string, unknown> | null)?.['title'] as string ?? 'Unknown'}`,
+      `Task completed: ${((updated as Record<string, unknown> | null)?.['title'] as string) ?? 'Unknown'}`,
       `/events/${task.event_id as string}`,
     );
   }
@@ -410,7 +438,10 @@ export async function listAssignees(req: Request, res: Response): Promise<Respon
   const { eventId, taskId } = req.params;
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
-  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [
+    taskId,
+    eventId,
+  ]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
   const map = await loadAssigneesForTasks(db, [Number(taskId)]);
   return res.json({ assignees: map.get(Number(taskId)) ?? [] });
@@ -423,7 +454,10 @@ export async function addAssignee(req: Request, res: Response): Promise<Response
   const { eventId, taskId } = req.params;
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
-  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [
+    taskId,
+    eventId,
+  ]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const body = req.body as { user_id?: number | string; is_primary?: boolean };
@@ -473,10 +507,10 @@ export async function removeAssignee(req: Request, res: Response): Promise<Respo
   );
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
-  const removed = await db.run(
-    'DELETE FROM task_assignees WHERE task_id = ? AND user_id = ?',
-    [taskId, userId],
-  );
+  const removed = await db.run('DELETE FROM task_assignees WHERE task_id = ? AND user_id = ?', [
+    taskId,
+    userId,
+  ]);
   if (removed.changes === 0) {
     return res.status(404).json({ error: 'Assignee not found on this task.' });
   }
@@ -495,9 +529,14 @@ export async function removeAssignee(req: Request, res: Response): Promise<Respo
         nextPrimary.user_id,
         taskId,
       ]);
-      await db.run('UPDATE tasks SET assigned_user_id = ? WHERE id = ?', [nextPrimary.user_id, taskId]);
+      await db.run('UPDATE tasks SET assigned_user_id = ? WHERE id = ?', [
+        nextPrimary.user_id,
+        taskId,
+      ]);
     } else {
-      await db.run('UPDATE tasks SET assigned_user_id = NULL, assignee_name = NULL WHERE id = ?', [taskId]);
+      await db.run('UPDATE tasks SET assigned_user_id = NULL, assignee_name = NULL WHERE id = ?', [
+        taskId,
+      ]);
     }
   }
 
@@ -522,7 +561,10 @@ export async function listComments(req: Request, res: Response): Promise<Respons
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
 
-  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [
+    taskId,
+    eventId,
+  ]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const comments = await db.all(
@@ -547,7 +589,10 @@ export async function addComment(req: AuthRequest, res: Response): Promise<Respo
   const event = await requireEventAccess(req, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
 
-  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [
+    taskId,
+    eventId,
+  ]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const result = await db.run(
@@ -579,7 +624,10 @@ export async function addSubtask(req: Request, res: Response): Promise<Response>
   const event = await requireEventAccess(authReq, res, eventId, { allowMembers: true });
   if (!event) return res as Response;
 
-  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [taskId, eventId]);
+  const task = await db.get('SELECT id FROM tasks WHERE id = $1 AND event_id = $2', [
+    taskId,
+    eventId,
+  ]);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
 
   const result = await db.run(

@@ -5,14 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import {
-  Box,
-  Button,
-  LinearProgress,
-  Skeleton,
-  Stack,
-  Typography,
-} from '@mui/material';
+import { Box, Button, LinearProgress, Skeleton, Stack, Typography } from '@mui/material';
 import AccountBalanceWalletRounded from '@mui/icons-material/AccountBalanceWalletRounded';
 import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded';
 import { useNavigate } from 'react-router-dom';
@@ -41,7 +34,11 @@ const fmt = (n: number): string =>
 
 const MAX_EVENTS = 5;
 
-export function BudgetOverviewPanel(): JSX.Element {
+interface BudgetOverviewPanelProps {
+  onGrandAllocated?: (total: number) => void;
+}
+
+export function BudgetOverviewPanel({ onGrandAllocated }: BudgetOverviewPanelProps): JSX.Element {
   const navigate = useNavigate();
   const [budgets, setBudgets] = useState<EventBudget[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +48,9 @@ export function BudgetOverviewPanel(): JSX.Element {
 
     async function load(): Promise<void> {
       try {
-        const events = await api.get<DashboardEvent[] | { events?: DashboardEvent[] }>('/api/events');
+        const events = await api.get<DashboardEvent[] | { events?: DashboardEvent[] }>(
+          '/api/events',
+        );
         const list: DashboardEvent[] = Array.isArray(events)
           ? events
           : ((events as { events?: DashboardEvent[] }).events ?? []);
@@ -75,7 +74,10 @@ export function BudgetOverviewPanel(): JSX.Element {
           }),
         );
 
-        if (!cancelled) setBudgets(results);
+        if (!cancelled) {
+          setBudgets(results);
+          onGrandAllocated?.(results.reduce((s, b) => s + b.totalAllocated, 0));
+        }
       } catch {
         // Silently ignore — panel shows empty state
       } finally {
@@ -84,7 +86,9 @@ export function BudgetOverviewPanel(): JSX.Element {
     }
 
     void load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) {
@@ -100,7 +104,10 @@ export function BudgetOverviewPanel(): JSX.Element {
   if (budgets.length === 0) {
     return (
       <Box sx={{ py: 2, textAlign: 'center' }}>
-        <AccountBalanceWalletRounded sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} aria-hidden="true" />
+        <AccountBalanceWalletRounded
+          sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }}
+          aria-hidden="true"
+        />
         <Typography color="text.secondary" variant="body2">
           No active events with budget data yet.
         </Typography>
@@ -110,7 +117,8 @@ export function BudgetOverviewPanel(): JSX.Element {
 
   const grandAllocated = budgets.reduce((s, b) => s + b.totalAllocated, 0);
   const grandSpent = budgets.reduce((s, b) => s + b.totalSpent, 0);
-  const overallPct = grandAllocated > 0 ? Math.min(100, Math.round((grandSpent / grandAllocated) * 100)) : 0;
+  const overallPct =
+    grandAllocated > 0 ? Math.min(100, Math.round((grandSpent / grandAllocated) * 100)) : 0;
 
   return (
     <Stack spacing={2}>
@@ -151,7 +159,8 @@ export function BudgetOverviewPanel(): JSX.Element {
       {/* Per-event rows */}
       <Stack spacing={1}>
         {budgets.map(({ event, totalAllocated, totalSpent }) => {
-          const pct = totalAllocated > 0 ? Math.min(100, Math.round((totalSpent / totalAllocated) * 100)) : 0;
+          const pct =
+            totalAllocated > 0 ? Math.min(100, Math.round((totalSpent / totalAllocated) * 100)) : 0;
           return (
             <Box key={event.id}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -184,4 +193,3 @@ export function BudgetOverviewPanel(): JSX.Element {
     </Stack>
   );
 }
-

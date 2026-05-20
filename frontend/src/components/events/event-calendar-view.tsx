@@ -1,12 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import {
-  Box,
-  Chip,
-  IconButton,
-  Paper,
-  Tooltip,
-  Typography,
-} from '@mui/material';
+import { Box, Chip, IconButton, Paper, Tooltip, Typography } from '@mui/material';
 import ChevronLeftRounded from '@mui/icons-material/ChevronLeftRounded';
 import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded';
 import TodayRounded from '@mui/icons-material/TodayRounded';
@@ -37,15 +30,15 @@ type CalChipColor = 'primary' | 'success' | 'default' | 'error' | 'warning';
 function statusChipColor(status: string): CalChipColor {
   switch (status) {
     case 'Active':
-      return 'primary';   // blue
+      return 'primary'; // blue
     case 'Ongoing':
-      return 'success';   // green
+      return 'success'; // green
     case 'Completed':
-      return 'default';   // grey
+      return 'default'; // grey
     case 'Cancelled':
-      return 'error';     // red
+      return 'error'; // red
     default:
-      return 'warning';   // amber for Draft etc.
+      return 'warning'; // amber for Draft etc.
   }
 }
 
@@ -125,7 +118,11 @@ export function EventCalendarView({ events }: EventCalendarViewProps): JSX.Eleme
       >
         {/* Day row header */}
         <Box component="thead" role="rowgroup">
-          <Box component="tr" role="row" sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+          <Box
+            component="tr"
+            role="row"
+            sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}
+          >
             {WEEK_DAYS.map((day) => (
               <Box
                 key={day}
@@ -179,8 +176,8 @@ export function EventCalendarView({ events }: EventCalendarViewProps): JSX.Eleme
                         bgcolor: todayFlag
                           ? 'action.selected'
                           : inMonth
-                          ? 'background.paper'
-                          : 'action.hover',
+                            ? 'background.paper'
+                            : 'action.hover',
                         opacity: inMonth ? 1 : 0.5,
                       }}
                     >
@@ -190,7 +187,11 @@ export function EventCalendarView({ events }: EventCalendarViewProps): JSX.Eleme
                         sx={{
                           display: 'block',
                           mb: 0.25,
-                          color: todayFlag ? 'primary.main' : inMonth ? 'text.primary' : 'text.disabled',
+                          color: todayFlag
+                            ? 'primary.main'
+                            : inMonth
+                              ? 'text.primary'
+                              : 'text.disabled',
                         }}
                       >
                         {format(day, 'd')}
@@ -223,14 +224,12 @@ export function EventCalendarView({ events }: EventCalendarViewProps): JSX.Eleme
                           ev.waitlist_enabled
                             ? 'Waitlist enabled'
                             : overflow
-                            ? 'Waitlist disabled'
-                            : null,
+                              ? 'Waitlist disabled'
+                              : null,
                         ]
                           .filter(Boolean)
                           .join(' · ');
-                        const label = capacityText
-                          ? `${ev.title} · ${capacityText}`
-                          : ev.title;
+                        const label = capacityText ? `${ev.title} · ${capacityText}` : ev.title;
                         return (
                           <Tooltip key={ev.id} title={tooltip}>
                             <Chip
@@ -251,7 +250,11 @@ export function EventCalendarView({ events }: EventCalendarViewProps): JSX.Eleme
                         );
                       })}
                       {cellEvents.length > 3 && (
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ fontSize: '0.65rem' }}
+                        >
                           +{cellEvents.length - 3} more
                         </Typography>
                       )}

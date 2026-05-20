@@ -175,8 +175,13 @@ export async function createQuestion(req: Request, res: Response): Promise<Respo
   if (typeof prompt !== 'string' || !prompt.trim() || prompt.trim().length > 500) {
     return res.status(400).json({ error: 'prompt is required (≤500 chars).' });
   }
-  if (typeof question_type !== 'string' || !QUESTION_TYPES.includes(question_type as QuestionType)) {
-    return res.status(400).json({ error: 'question_type must be one of: ' + QUESTION_TYPES.join(', ') });
+  if (
+    typeof question_type !== 'string' ||
+    !QUESTION_TYPES.includes(question_type as QuestionType)
+  ) {
+    return res
+      .status(400)
+      .json({ error: 'question_type must be one of: ' + QUESTION_TYPES.join(', ') });
   }
   let parsedOptions: string[] | null = null;
   if (question_type === 'single_choice' || question_type === 'multi_choice') {
@@ -273,10 +278,10 @@ export async function deleteQuestion(req: Request, res: Response): Promise<Respo
   const event = await requireEventAccess(authReq, res, eventId, { ownerOnly: true });
   if (!event) return res as Response;
   const db = getDatabase();
-  const r = await db.run(
-    'DELETE FROM rsvp_questions WHERE id = $1 AND event_id = $2',
-    [id, eventId],
-  );
+  const r = await db.run('DELETE FROM rsvp_questions WHERE id = $1 AND event_id = $2', [
+    id,
+    eventId,
+  ]);
   if ((r.changes ?? 0) === 0) return res.status(404).json({ error: 'Question not found.' });
   return res.json({ deleted: true });
 }

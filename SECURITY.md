@@ -65,6 +65,16 @@ Additionally, `DATABASE_URL` must use PostgreSQL with strict SSL verification:
 This ensures the 3.1.3 Data Security controls are enforced as hard startup
 requirements, not optional runtime behavior.
 
+## TLS & HTTPS
+
+TLS is terminated at the reverse-proxy / ingress layer with TLS 1.3 enforced.
+HSTS is applied by the backend via Helmet (`max-age=31536000; includeSubDomains; preload`).
+
+For full details on TLS termination, cipher suites, certificate management,
+renewal procedures, and on-call ownership, see:
+
+- **[docs/security/tls.md](docs/security/tls.md)** — TLS termination ownership and HTTPS enforcement
+
 ## Secret Management
 
 The backend uses three server-side secrets for token security. See the dedicated guide for generation, rotation, and emergency revocation procedures:
@@ -77,6 +87,13 @@ For emergency session revocation, use `scripts/revoke-all-sessions.sql` against 
 ```bash
 psql "$DATABASE_URL" -f scripts/revoke-all-sessions.sql
 ```
+
+## Incident Response & Disaster Recovery
+
+For the end-to-end DR procedure covering detection, escalation, RTO/RPO targets, database restore steps, communications templates, and post-incident review:
+
+- **[docs/operations/dr-runbook.md](docs/operations/dr-runbook.md)** — Disaster Recovery runbook
+- **[docs/operations/pitr.md](docs/operations/pitr.md)** — Point-in-Time Recovery configuration and restore drills (14-day WAL retention)
 
 ## Disclosure Policy
 

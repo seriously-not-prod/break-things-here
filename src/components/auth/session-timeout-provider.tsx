@@ -64,17 +64,20 @@ export function SessionTimeoutProvider({
 
     const timeUntilWarning = timeoutMs - WARNING_BEFORE_MS;
 
-    warningTimerRef.current = setTimeout(() => {
-      setShowWarning(true);
-      setRemainingSeconds(Math.ceil(WARNING_BEFORE_MS / 1000));
+    warningTimerRef.current = setTimeout(
+      () => {
+        setShowWarning(true);
+        setRemainingSeconds(Math.ceil(WARNING_BEFORE_MS / 1000));
 
-      countdownRef.current = setInterval(() => {
-        setRemainingSeconds((prev) => {
-          if (prev <= 1) return 0;
-          return prev - 1;
-        });
-      }, 1000);
-    }, Math.max(timeUntilWarning, 0));
+        countdownRef.current = setInterval(() => {
+          setRemainingSeconds((prev) => {
+            if (prev <= 1) return 0;
+            return prev - 1;
+          });
+        }, 1000);
+      },
+      Math.max(timeUntilWarning, 0),
+    );
 
     expiryTimerRef.current = setTimeout(handleExpired, timeoutMs);
   }, [timeoutMs, clearTimers, handleExpired]);
@@ -85,9 +88,10 @@ export function SessionTimeoutProvider({
     resetTimers();
 
     try {
-      const token = typeof window !== 'undefined'
-        ? (window as unknown as Record<string, string>).__accessToken
-        : null;
+      const token =
+        typeof window !== 'undefined'
+          ? (window as unknown as Record<string, string>).__accessToken
+          : null;
 
       await fetch(`${API_BASE_URL}/api/auth/session/heartbeat`, {
         method: 'POST',
@@ -165,28 +169,45 @@ export function SessionTimeoutProvider({
           aria-modal="true"
           aria-label="Session expiring soon"
           style={{
-            position: 'fixed', inset: 0, zIndex: 9999,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             backgroundColor: 'rgba(0,0,0,0.5)',
           }}
         >
-          <div style={{
-            background: '#fff', borderRadius: 8, padding: '24px 32px',
-            maxWidth: 420, textAlign: 'center', boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
-          }}>
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 8,
+              padding: '24px 32px',
+              maxWidth: 420,
+              textAlign: 'center',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
+            }}
+          >
             <h2 style={{ margin: '0 0 12px' }}>Session Expiring Soon</h2>
             <p>
               Your session will expire in{' '}
-              <strong>{minutes}:{String(seconds).padStart(2, '0')}</strong>{' '}
+              <strong>
+                {minutes}:{String(seconds).padStart(2, '0')}
+              </strong>{' '}
               due to inactivity.
             </p>
             <button
               onClick={extendSession}
               aria-label="Extend session"
               style={{
-                marginTop: 12, padding: '10px 24px', fontSize: 16,
-                cursor: 'pointer', borderRadius: 4, border: 'none',
-                background: '#1976d2', color: '#fff',
+                marginTop: 12,
+                padding: '10px 24px',
+                fontSize: 16,
+                cursor: 'pointer',
+                borderRadius: 4,
+                border: 'none',
+                background: '#1976d2',
+                color: '#fff',
               }}
             >
               Stay Logged In

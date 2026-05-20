@@ -96,7 +96,11 @@ describe('profile completeness', () => {
   });
 
   it('treats "None" as unfilled for dietary so the score reflects actual user input', () => {
-    const score = computeProfileCompleteness({ name: 'A', email: 'a@b.com', dietary_restriction: 'None' });
+    const score = computeProfileCompleteness({
+      name: 'A',
+      email: 'a@b.com',
+      dietary_restriction: 'None',
+    });
     // Only name + email weighted (12 + 12) out of total 100.
     expect(score).toBe(24);
   });
@@ -111,7 +115,9 @@ describe('template personalization', () => {
       unsubscribeUrl: 'https://x/u/abc',
     });
     expect(personalize('Hello {name} — {EVENT}', tokens)).toBe('Hello Alex — Summer Bash');
-    expect(personalize('Unsubscribe: {unsubscribe_url}', tokens)).toBe('Unsubscribe: https://x/u/abc');
+    expect(personalize('Unsubscribe: {unsubscribe_url}', tokens)).toBe(
+      'Unsubscribe: https://x/u/abc',
+    );
   });
 
   it('leaves unknown tokens intact so typos are visible in preview', () => {

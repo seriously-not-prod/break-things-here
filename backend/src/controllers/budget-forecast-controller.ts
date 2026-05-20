@@ -184,14 +184,15 @@ export async function buildBudgetForecast(
   for (const cat of categories) ensure(cat);
 
   for (const exp of expenses) {
-    const cat = exp.category_id !== null
-      ? categories.find((c) => c.id === exp.category_id) ?? null
-      : null;
+    const cat =
+      exp.category_id !== null ? (categories.find((c) => c.id === exp.category_id) ?? null) : null;
     const bucket = ensure(cat);
 
     const baseAmount = await expenseAmountInBase(db, exp, baseCurrency);
     if (baseAmount === null) {
-      warnings.push(`Expense #${exp.id}: rate ${exp.currency_code ?? '?'}→${baseCurrency} unavailable.`);
+      warnings.push(
+        `Expense #${exp.id}: rate ${exp.currency_code ?? '?'}→${baseCurrency} unavailable.`,
+      );
       continue;
     }
 
@@ -248,17 +249,19 @@ export async function buildBudgetForecast(
   let actualTotal = 0;
   let forecastTotal = 0;
   for (const f of forecasts.values()) {
-    f.forecastTotal = f.actualSpent + f.pendingRecurring + f.pendingInstallments + f.trendProjection;
+    f.forecastTotal =
+      f.actualSpent + f.pendingRecurring + f.pendingInstallments + f.trendProjection;
     f.variance = f.forecastTotal - f.allocatedAmount;
-    f.status = f.allocatedAmount === 0
-      ? f.forecastTotal > 0
-        ? 'over'
-        : 'under'
-      : f.forecastTotal >= f.allocatedAmount * 1.05
-        ? 'over'
-        : f.forecastTotal >= f.allocatedAmount * 0.85
-          ? 'on_track'
-          : 'under';
+    f.status =
+      f.allocatedAmount === 0
+        ? f.forecastTotal > 0
+          ? 'over'
+          : 'under'
+        : f.forecastTotal >= f.allocatedAmount * 1.05
+          ? 'over'
+          : f.forecastTotal >= f.allocatedAmount * 0.85
+            ? 'on_track'
+            : 'under';
     allocatedTotal += f.allocatedAmount;
     actualTotal += f.actualSpent;
     forecastTotal += f.forecastTotal;

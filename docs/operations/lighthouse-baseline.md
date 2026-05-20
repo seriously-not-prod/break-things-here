@@ -8,23 +8,23 @@
 
 ## Desktop Baseline
 
-| Route | Performance | Accessibility | Best Practices | SEO |
-|-------|:-----------:|:-------------:|:--------------:|:---:|
-| `/login` | — | — | — | — |
-| `/dashboard` | — | — | — | — |
-| `/events` | — | — | — | — |
-| `/guests` | — | — | — | — |
-| `/budget` | — | — | — | — |
+| Route        | Performance | Accessibility | Best Practices | SEO |
+| ------------ | :---------: | :-----------: | :------------: | :-: |
+| `/login`     |      —      |       —       |       —        |  —  |
+| `/dashboard` |      —      |       —       |       —        |  —  |
+| `/events`    |      —      |       —       |       —        |  —  |
+| `/guests`    |      —      |       —       |       —        |  —  |
+| `/budget`    |      —      |       —       |       —        |  —  |
 
 ## Mobile Baseline
 
-| Route | Performance | Accessibility | Best Practices | SEO |
-|-------|:-----------:|:-------------:|:--------------:|:---:|
-| `/login` | — | — | — | — |
-| `/dashboard` | — | — | — | — |
-| `/events` | — | — | — | — |
-| `/guests` | — | — | — | — |
-| `/budget` | — | — | — | — |
+| Route        | Performance | Accessibility | Best Practices | SEO |
+| ------------ | :---------: | :-----------: | :------------: | :-: |
+| `/login`     |      —      |       —       |       —        |  —  |
+| `/dashboard` |      —      |       —       |       —        |  —  |
+| `/events`    |      —      |       —       |       —        |  —  |
+| `/guests`    |      —      |       —       |       —        |  —  |
+| `/budget`    |      —      |       —       |       —        |  —  |
 
 ---
 
@@ -38,13 +38,13 @@
 
 ## Audited Routes
 
-| Route | Description |
-|-------|-------------|
-| `/login` | Authentication entry point |
+| Route        | Description                |
+| ------------ | -------------------------- |
+| `/login`     | Authentication entry point |
 | `/dashboard` | Main application dashboard |
-| `/events` | Event listing page |
-| `/guests` | Guest management page |
-| `/budget` | Budget management page |
+| `/events`    | Event listing page         |
+| `/guests`    | Guest management page      |
+| `/budget`    | Budget management page     |
 
 ## CI Configuration
 

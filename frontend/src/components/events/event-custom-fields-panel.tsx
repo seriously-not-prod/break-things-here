@@ -122,9 +122,7 @@ export default function EventCustomFieldsPanel({ eventId, canEdit }: Props): JSX
   async function handleValueChange(field: EventCustomField, value: string): Promise<void> {
     try {
       await updateCustomField(eventId, field.id, { value });
-      setFields((prev) =>
-        prev.map((f) => (f.id === field.id ? { ...f, value } : f)),
-      );
+      setFields((prev) => prev.map((f) => (f.id === field.id ? { ...f, value } : f)));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to update field.');
     }
@@ -224,10 +222,10 @@ export default function EventCustomFieldsPanel({ eventId, canEdit }: Props): JSX
                     field.field_type === 'number'
                       ? 'number'
                       : field.field_type === 'date'
-                      ? 'date'
-                      : field.field_type === 'url'
-                      ? 'url'
-                      : 'text'
+                        ? 'date'
+                        : field.field_type === 'url'
+                          ? 'url'
+                          : 'text'
                   }
                   value={field.value ?? ''}
                   onChange={(e) => void handleValueChange(field, e.target.value)}
@@ -274,7 +272,10 @@ export default function EventCustomFieldsPanel({ eventId, canEdit }: Props): JSX
               select
               value={form.field_type}
               onChange={(e) =>
-                setForm((p) => ({ ...p, field_type: e.target.value as EventCustomField['field_type'] }))
+                setForm((p) => ({
+                  ...p,
+                  field_type: e.target.value as EventCustomField['field_type'],
+                }))
               }
               fullWidth
             >
@@ -303,9 +304,7 @@ export default function EventCustomFieldsPanel({ eventId, canEdit }: Props): JSX
               label="Required"
               select
               value={form.required ? 'true' : 'false'}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, required: e.target.value === 'true' }))
-              }
+              onChange={(e) => setForm((p) => ({ ...p, required: e.target.value === 'true' }))}
               fullWidth
             >
               <MenuItem value="false">No</MenuItem>

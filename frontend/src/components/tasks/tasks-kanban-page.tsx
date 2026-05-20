@@ -12,6 +12,7 @@ import AddIcon from '@mui/icons-material/Add';
 import {
   Box,
   Button,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -112,6 +113,26 @@ function AddTaskDialog({
     }
   }
 
+  function renderPriorityOption(option: TaskPriority): JSX.Element {
+    const urgent = option === 'Urgent';
+
+    return (
+      <MenuItem key={option} value={option}>
+        <Chip
+          label={option}
+          size="small"
+          color={option === 'Low' ? 'success' : option === 'Medium' ? 'warning' : 'error'}
+          sx={
+            urgent
+              ? { mr: 1, bgcolor: 'error.dark', color: 'common.white', fontWeight: 700 }
+              : { mr: 1 }
+          }
+        />
+        {option}
+      </MenuItem>
+    );
+  }
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>Add Task</DialogTitle>
@@ -135,9 +156,7 @@ function AddTaskDialog({
               value={priority}
               onChange={(e: SelectChangeEvent) => setPriority(e.target.value as TaskPriority)}
             >
-              <MenuItem value="Low">Low</MenuItem>
-              <MenuItem value="Medium">Medium</MenuItem>
-              <MenuItem value="High">High</MenuItem>
+              {(['Low', 'Medium', 'High', 'Urgent'] as const).map(renderPriorityOption)}
             </Select>
           </FormControl>
           <FormControl size="small" fullWidth>

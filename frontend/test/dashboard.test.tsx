@@ -182,9 +182,7 @@ describe('Dashboard', () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(
-          screen.getByText('Budget panel content'),
-        ).toBeInTheDocument();
+        expect(screen.getByText('Budget panel content')).toBeInTheDocument();
       });
     });
 
@@ -257,15 +255,18 @@ describe('Dashboard', () => {
 
   describe('error state', () => {
     it('shows an alert when the API call fails', async () => {
-      vi.mocked(dashboardService.fetchDashboardData).mockRejectedValue(
-        new Error('Network error'),
-      );
+      vi.mocked(dashboardService.fetchDashboardData).mockRejectedValue(new Error('Network error'));
 
       renderDashboard();
 
       await waitFor(() => {
         expect(screen.getByTestId('dashboard-error-alert')).toBeInTheDocument();
-        expect(screen.getByText('Network error')).toBeInTheDocument();
+        expect(
+          screen.getByText(
+            'The dashboard could not reach the API. Showing the last available view when possible.',
+          ),
+        ).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
       });
     });
 
@@ -277,7 +278,7 @@ describe('Dashboard', () => {
       await waitFor(() => {
         expect(screen.getByTestId('dashboard-error-alert')).toBeInTheDocument();
         expect(
-          screen.getByText('Failed to load dashboard data.'),
+          screen.getByText('The dashboard hit a temporary problem loading data. Please try again.'),
         ).toBeInTheDocument();
       });
     });

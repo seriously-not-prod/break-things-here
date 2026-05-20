@@ -84,14 +84,18 @@ export function GuestCommunicationPanel({
   function buildPayload(): BulkSendPayload {
     if (scope === 'confirmed') {
       return {
-        rsvpIds: guests.filter((guest) => guest.canonical_status === 'confirmed').map((guest) => guest.id),
+        rsvpIds: guests
+          .filter((guest) => guest.canonical_status === 'confirmed')
+          .map((guest) => guest.id),
         subject,
         body,
       };
     }
     if (scope === 'pending') {
       return {
-        rsvpIds: guests.filter((guest) => guest.canonical_status === 'pending').map((guest) => guest.id),
+        rsvpIds: guests
+          .filter((guest) => guest.canonical_status === 'pending')
+          .map((guest) => guest.id),
         subject,
         body,
       };
@@ -244,11 +248,7 @@ export function GuestCommunicationPanel({
             >
               Send Invitation
             </Button>
-            <Button
-              variant="outlined"
-              disabled={sending}
-              onClick={() => void handleSendReminder()}
-            >
+            <Button variant="outlined" disabled={sending} onClick={() => void handleSendReminder()}>
               Send Reminder
             </Button>
             <Tooltip title="Send post-event thank-you to confirmed (Going) guests. Unsubscribed guests are skipped automatically.">
@@ -309,9 +309,7 @@ export function GuestCommunicationPanel({
                       </TableCell>
                       <TableCell>{entry.subject}</TableCell>
                       <TableCell>{entry.sent_by_name ?? '—'}</TableCell>
-                      <TableCell>
-                        {new Date(entry.sent_at).toLocaleString()}
-                      </TableCell>
+                      <TableCell>{new Date(entry.sent_at).toLocaleString()}</TableCell>
                     </TableRow>
                   ))
                 )}

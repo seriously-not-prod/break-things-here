@@ -51,10 +51,9 @@ async function calculateLateArrival(
   db: DatabaseAdapter,
   eventId: number,
 ): Promise<{ isLate: boolean; delayMinutes: number | null }> {
-  const ev = await db.get<{ date: string | null }>(
-    `SELECT date FROM events WHERE id = $1`,
-    [eventId],
-  );
+  const ev = await db.get<{ date: string | null }>(`SELECT date FROM events WHERE id = $1`, [
+    eventId,
+  ]);
   if (!ev?.date) return { isLate: false, delayMinutes: null };
   const start = new Date(ev.date);
   if (Number.isNaN(start.getTime())) return { isLate: false, delayMinutes: null };
@@ -74,7 +73,9 @@ async function runInTransaction<T>(fn: (_tx: DatabaseAdapter) => Promise<T>): Pr
   return fn(db);
 }
 
-function validateRsvpIdArray(input: unknown): { ok: true; ids: number[] } | { ok: false; error: string } {
+function validateRsvpIdArray(
+  input: unknown,
+): { ok: true; ids: number[] } | { ok: false; error: string } {
   if (!Array.isArray(input) || input.length === 0) {
     return { ok: false, error: 'rsvpIds[] is required.' };
   }
@@ -105,7 +106,10 @@ export async function scanQr(req: Request, res: Response): Promise<Response> {
 
   let alreadyCheckedIn = false;
   let updated: ScanResolveResult['rsvp'] | null = null;
-  let lateInfo: { isLate: boolean; delayMinutes: number | null } = { isLate: false, delayMinutes: null };
+  let lateInfo: { isLate: boolean; delayMinutes: number | null } = {
+    isLate: false,
+    delayMinutes: null,
+  };
   let previousCanonicalStatus: string | null = null;
 
   try {
@@ -141,11 +145,12 @@ export async function scanQr(req: Request, res: Response): Promise<Response> {
          WHERE id = $3`,
         [late.isLate, late.delayMinutes, rsvp.id],
       );
-      const fresh = (await tx.get<ScanResolveResult['rsvp']>(
-        `SELECT id, event_id, name, email, status, canonical_status, checked_in, checked_in_at,
+      const fresh =
+        (await tx.get<ScanResolveResult['rsvp']>(
+          `SELECT id, event_id, name, email, status, canonical_status, checked_in, checked_in_at,
                 late_arrival, arrival_delay_minutes FROM rsvps WHERE id = $1`,
-        [rsvp.id],
-      )) ?? rsvp;
+          [rsvp.id],
+        )) ?? rsvp;
       // Capture the previous canonical status in the audit row so undoCheckin
       // can restore it precisely (#PR-644 critical fix).
       await tx.run(
@@ -213,17 +218,23 @@ export async function undoCheckin(req: Request, res: Response): Promise<Response
 
   try {
     const result = await runInTransaction(async (tx) => {
-      const rsvp = await tx.get<{ id: number; canonical_status: string | null; checked_in: boolean }>(
-        `SELECT id, canonical_status, checked_in FROM rsvps WHERE id = $1 AND event_id = $2`,
-        [numericRsvpId, eventId],
-      );
+      const rsvp = await tx.get<{
+        id: number;
+        canonical_status: string | null;
+        checked_in: boolean;
+      }>(`SELECT id, canonical_status, checked_in FROM rsvps WHERE id = $1 AND event_id = $2`, [
+        numericRsvpId,
+        eventId,
+      ]);
       if (!rsvp) return { kind: 'not-found' as const };
 
       // Restore the canonical status captured during the most recent
       // `checked_in` audit row. If the metadata is missing (e.g. legacy data
       // pre-fix), fall back to 'confirmed' since the guest had to be confirmed
       // to scan in.
-      const audit = await tx.get<{ metadata: { previous_canonical_status?: string | null } | null }>(
+      const audit = await tx.get<{
+        metadata: { previous_canonical_status?: string | null } | null;
+      }>(
         `SELECT metadata FROM attendance_events
           WHERE event_id = $1 AND rsvp_id = $2 AND action = 'checked_in'
           ORDER BY occurred_at DESC, id DESC

@@ -22,17 +22,25 @@ function buildApp() {
   return app;
 }
 
-async function expectRateLimitAfterTenRequests(path: '/auth/login' | '/auth/register' | '/auth/forgot-password') {
+async function expectRateLimitAfterTenRequests(
+  path: '/auth/login' | '/auth/register' | '/auth/forgot-password',
+) {
   const app = buildApp();
 
   for (let index = 0; index < 10; index += 1) {
-    const response = await request(app).post(path).send({ email: 'user@test.com', password: 'Pass1234' });
+    const response = await request(app)
+      .post(path)
+      .send({ email: 'user@test.com', password: 'Pass1234' });
     expect(response.status).toBe(200);
   }
 
-  const limitedResponse = await request(app).post(path).send({ email: 'user@test.com', password: 'Pass1234' });
+  const limitedResponse = await request(app)
+    .post(path)
+    .send({ email: 'user@test.com', password: 'Pass1234' });
   expect(limitedResponse.status).toBe(429);
-  expect(limitedResponse.body).toEqual({ error: 'Too many auth requests. Please try again later.' });
+  expect(limitedResponse.body).toEqual({
+    error: 'Too many auth requests. Please try again later.',
+  });
 }
 
 describe('Auth endpoint rate limits (#248)', () => {

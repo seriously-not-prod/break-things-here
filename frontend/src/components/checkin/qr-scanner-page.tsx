@@ -46,21 +46,26 @@ export default function QrScannerPage(): JSX.Element {
   const [manualToken, setManualToken] = useState('');
   const [supported, setSupported] = useState(true);
 
-  const handleToken = useCallback(async (token: string) => {
-    if (!eventId || !token || token === lastTokenRef.current) return;
-    lastTokenRef.current = token;
-    try {
-      const result = await scanQrToken(eventId, token);
-      setLastResult(result);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Scan failed.');
-    } finally {
-      // Allow re-scanning the same token after 2.5s — useful when the guest
-      // accidentally double-shows the badge.
-      setTimeout(() => { if (lastTokenRef.current === token) lastTokenRef.current = null; }, 2500);
-    }
-  }, [eventId]);
+  const handleToken = useCallback(
+    async (token: string) => {
+      if (!eventId || !token || token === lastTokenRef.current) return;
+      lastTokenRef.current = token;
+      try {
+        const result = await scanQrToken(eventId, token);
+        setLastResult(result);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Scan failed.');
+      } finally {
+        // Allow re-scanning the same token after 2.5s — useful when the guest
+        // accidentally double-shows the badge.
+        setTimeout(() => {
+          if (lastTokenRef.current === token) lastTokenRef.current = null;
+        }, 2500);
+      }
+    },
+    [eventId],
+  );
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -70,7 +75,10 @@ export default function QrScannerPage(): JSX.Element {
 
   const startScanner = useCallback(async () => {
     const Detector = getBarcodeDetector();
-    if (!Detector) { setSupported(false); return; }
+    if (!Detector) {
+      setSupported(false);
+      return;
+    }
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -116,11 +124,13 @@ export default function QrScannerPage(): JSX.Element {
   return (
     <Box sx={{ p: 3 }}>
       <Stack spacing={2}>
-        <Typography variant="h5" fontWeight={700}>Live QR check-in</Typography>
+        <Typography variant="h5" fontWeight={700}>
+          Live QR check-in
+        </Typography>
         {!supported && (
           <Alert severity="info">
-            Your browser does not support the BarcodeDetector API. Use a Chromium-based browser
-            for camera scanning, or paste the guest&apos;s token below.
+            Your browser does not support the BarcodeDetector API. Use a Chromium-based browser for
+            camera scanning, or paste the guest&apos;s token below.
           </Alert>
         )}
         {error && <Alert severity="error">{error}</Alert>}
@@ -131,18 +141,27 @@ export default function QrScannerPage(): JSX.Element {
               <Button variant="contained" disabled={scanning} onClick={() => void startScanner()}>
                 Start camera
               </Button>
-              <Button variant="outlined" disabled={!scanning} onClick={stopStream}>Stop</Button>
+              <Button variant="outlined" disabled={!scanning} onClick={stopStream}>
+                Stop
+              </Button>
               {scanning && <CircularProgress size={20} />}
             </Stack>
             <Box sx={{ width: '100%', maxWidth: 480, aspectRatio: '4 / 3', bgcolor: 'black' }}>
-              <video ref={videoRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} playsInline muted />
+              <video
+                ref={videoRef}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                playsInline
+                muted
+              />
             </Box>
           </Stack>
         </Paper>
 
         <Paper sx={{ p: 2 }} variant="outlined">
           <Stack spacing={1.5}>
-            <Typography variant="subtitle1" fontWeight={700}>Manual token entry</Typography>
+            <Typography variant="subtitle1" fontWeight={700}>
+              Manual token entry
+            </Typography>
             <Stack direction="row" spacing={1}>
               <TextField
                 value={manualToken}
@@ -150,7 +169,9 @@ export default function QrScannerPage(): JSX.Element {
                 placeholder="Paste token or RSVP URL"
                 fullWidth
               />
-              <Button variant="contained" onClick={() => void submitManual()}>Check in</Button>
+              <Button variant="contained" onClick={() => void submitManual()}>
+                Check in
+              </Button>
             </Stack>
           </Stack>
         </Paper>
@@ -159,16 +180,25 @@ export default function QrScannerPage(): JSX.Element {
           <Paper sx={{ p: 2 }} variant="outlined">
             <Stack spacing={1}>
               <Typography variant="subtitle1" fontWeight={700}>
-                {lastResult.alreadyCheckedIn ? 'Already checked in' : 'Checked in'}: {lastResult.rsvp.name}
+                {lastResult.alreadyCheckedIn ? 'Already checked in' : 'Checked in'}:{' '}
+                {lastResult.rsvp.name}
               </Typography>
               <Typography color="text.secondary">{lastResult.rsvp.email}</Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap">
                 <Chip label={`Status: ${lastResult.rsvp.canonical_status}`} size="small" />
-                {lastResult.rsvp.guests > 1 && <Chip label={`Party of ${lastResult.rsvp.guests}`} size="small" />}
-                {lastResult.rsvp.late_arrival && (
-                  <Chip color="warning" size="small" label={`Late by ${lastResult.rsvp.arrival_delay_minutes ?? '?'} min`} />
+                {lastResult.rsvp.guests > 1 && (
+                  <Chip label={`Party of ${lastResult.rsvp.guests}`} size="small" />
                 )}
-                {lastResult.rsvp.meal_choice && <Chip label={`Meal: ${lastResult.rsvp.meal_choice}`} size="small" />}
+                {lastResult.rsvp.late_arrival && (
+                  <Chip
+                    color="warning"
+                    size="small"
+                    label={`Late by ${lastResult.rsvp.arrival_delay_minutes ?? '?'} min`}
+                  />
+                )}
+                {lastResult.rsvp.meal_choice && (
+                  <Chip label={`Meal: ${lastResult.rsvp.meal_choice}`} size="small" />
+                )}
               </Stack>
             </Stack>
           </Paper>

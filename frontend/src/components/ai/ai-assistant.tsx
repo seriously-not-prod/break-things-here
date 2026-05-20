@@ -45,7 +45,10 @@ export function AiAssistant(): JSX.Element {
     setLoading(true);
 
     try {
-      const data = await api.post<{ suggestion: string }>('/api/ai/suggest', { context, prompt: text });
+      const data = await api.post<{ suggestion: string }>('/api/ai/suggest', {
+        context,
+        prompt: text,
+      });
       setMessages((prev) => [...prev, { role: 'assistant', text: data.suggestion }]);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'AI request failed.';
@@ -94,7 +97,16 @@ export function AiAssistant(): JSX.Element {
           }}
         >
           {/* Header */}
-          <Box sx={{ p: 2, bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box
+            sx={{
+              p: 2,
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+            }}
+          >
             <AutoAwesomeRounded fontSize="small" />
             <Typography variant="subtitle1" fontWeight={700} flexGrow={1}>
               AI Planning Assistant
@@ -113,7 +125,9 @@ export function AiAssistant(): JSX.Element {
               fullWidth
             >
               {(Object.keys(CONTEXT_LABELS) as Context[]).map((k) => (
-                <MenuItem key={k} value={k}>{CONTEXT_LABELS[k]}</MenuItem>
+                <MenuItem key={k} value={k}>
+                  {CONTEXT_LABELS[k]}
+                </MenuItem>
               ))}
             </Select>
           </Box>
@@ -131,7 +145,8 @@ export function AiAssistant(): JSX.Element {
           >
             {messages.length === 0 && (
               <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ mt: 2 }}>
-                Ask me anything about festival planning — event ideas, task tips, RSVP strategies, and more.
+                Ask me anything about festival planning — event ideas, task tips, RSVP strategies,
+                and more.
               </Typography>
             )}
             {messages.map((msg, i) => (
@@ -147,13 +162,17 @@ export function AiAssistant(): JSX.Element {
                   borderRadius: 2,
                 }}
               >
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{msg.text}</Typography>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {msg.text}
+                </Typography>
               </Box>
             ))}
             {loading && (
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                 <CircularProgress size={16} />
-                <Typography variant="caption" color="text.secondary">Thinking…</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Thinking…
+                </Typography>
               </Box>
             )}
           </Box>

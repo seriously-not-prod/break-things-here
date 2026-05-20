@@ -20,17 +20,11 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { apiFetch } from '../lib/api-client';
 
-const ACTIVITY_EVENTS = [
-  'mousemove',
-  'keydown',
-  'click',
-  'touchstart',
-  'scroll',
-] as const;
+const ACTIVITY_EVENTS = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'] as const;
 
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000; // poll every 5 min when active
-const WARN_BEFORE_MS = 2 * 60 * 1000;        // warn 2 min before expiry
+const WARN_BEFORE_MS = 2 * 60 * 1000; // warn 2 min before expiry
 
 export function useSessionTimeout(
   onTimeout: () => void,
@@ -47,8 +41,12 @@ export function useSessionTimeout(
   // --- stable callback refs so scheduleTimers doesn't change identity ---
   const onTimeoutRef = useRef(onTimeout);
   const onWarnRef = useRef(onWarn);
-  useEffect(() => { onTimeoutRef.current = onTimeout; }, [onTimeout]);
-  useEffect(() => { onWarnRef.current = onWarn; }, [onWarn]);
+  useEffect(() => {
+    onTimeoutRef.current = onTimeout;
+  }, [onTimeout]);
+  useEffect(() => {
+    onWarnRef.current = onWarn;
+  }, [onWarn]);
 
   const scheduleTimers = useCallback(() => {
     clearTimeout(timeoutRef.current);
@@ -56,10 +54,7 @@ export function useSessionTimeout(
     const ms = timeoutMsRef.current;
 
     if (onWarnRef.current && ms > WARN_BEFORE_MS) {
-      warnRef.current = setTimeout(
-        () => onWarnRef.current?.(WARN_BEFORE_MS),
-        ms - WARN_BEFORE_MS,
-      );
+      warnRef.current = setTimeout(() => onWarnRef.current?.(WARN_BEFORE_MS), ms - WARN_BEFORE_MS);
     }
 
     timeoutRef.current = setTimeout(() => onTimeoutRef.current(), ms);
@@ -93,9 +88,9 @@ export function useSessionTimeout(
   // Fetch real timeout config from backend on mount and re-schedule timers
   useEffect(() => {
     apiFetch('/api/auth/session/heartbeat', { method: 'POST' })
-      .then(async res => {
+      .then(async (res) => {
         if (!res.ok) return;
-        const data = await res.json() as { sessionTimeoutMs?: number };
+        const data = (await res.json()) as { sessionTimeoutMs?: number };
         if (typeof data.sessionTimeoutMs === 'number' && data.sessionTimeoutMs > 0) {
           timeoutMsRef.current = data.sessionTimeoutMs;
           scheduleTimers();
@@ -113,9 +108,9 @@ export function useSessionTimeout(
       const idleMs = Date.now() - lastActivityRef.current;
       if (idleMs < timeoutMsRef.current) {
         apiFetch('/api/auth/session/heartbeat', { method: 'POST' })
-          .then(async res => {
+          .then(async (res) => {
             if (res.status === 401) {
-              const body = await res.json().catch(() => null) as { code?: string } | null;
+              const body = (await res.json().catch(() => null)) as { code?: string } | null;
               if (body?.code === 'SESSION_TIMEOUT') {
                 onTimeoutRef.current();
               }

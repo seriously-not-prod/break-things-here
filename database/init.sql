@@ -242,7 +242,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   due_date         TEXT,
   status           TEXT CHECK(status IN ('Pending', 'In Progress', 'Blocked', 'Complete')) DEFAULT 'Pending',
-  priority         TEXT CHECK(priority IN ('Low', 'Medium', 'High')) DEFAULT 'Medium',
+  priority         TEXT CHECK(priority IN ('Low', 'Medium', 'High', 'Urgent')) DEFAULT 'Medium',
   created_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -300,8 +300,32 @@ ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS rsvp_deadline TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_rsvps_event_id ON rsvps(event_id);
 
-CREATE OR REPLACE VIEW guests AS
-SELECT * FROM rsvps;
+-- ============================================================
+-- Guests (TRD §4.2 — first-class table, task #771)
+-- Stores guest identity/profile independent of RSVP response rows.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS guests (
+  id                   SERIAL PRIMARY KEY,
+  event_id             INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name                 TEXT NOT NULL,
+  email                TEXT NOT NULL,
+  phone                TEXT,
+  dietary_restriction  TEXT DEFAULT 'None',
+  accessibility_needs  TEXT,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_by           INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_guests_event_id ON guests(event_id);
+CREATE INDEX IF NOT EXISTS idx_guests_email ON guests(email);
+
+ALTER TABLE rsvps
+  ADD COLUMN IF NOT EXISTS guest_id INTEGER REFERENCES guests(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_rsvps_guest_id ON rsvps(guest_id) WHERE guest_id IS NOT NULL;
+
+-- RLS for guests is applied later (after event_members table is created).
 
 -- ============================================================
 -- Guest Communication Log
@@ -547,6 +571,34 @@ CREATE TABLE IF NOT EXISTS event_members (
 CREATE INDEX IF NOT EXISTS idx_event_members_event_id ON event_members(event_id);
 
 -- ============================================================
+-- Guests RLS policy — applied here because event_members must exist first
+-- (TRD §4.2, task #771)
+-- ============================================================
+ALTER TABLE guests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE guests FORCE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename  = 'guests'
+      AND policyname = 'rls_guests_event_member'
+  ) THEN
+    CREATE POLICY rls_guests_event_member ON guests
+      USING (
+        event_id IN (
+          SELECT e.id FROM events e
+          WHERE e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
+          UNION
+          SELECT em.event_id FROM event_members em
+          WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+        )
+        OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
+      );
+  END IF;
+END $$;
+
+-- ============================================================
 -- Vendors (BRD 3.6)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS vendors (
@@ -687,7 +739,7 @@ CREATE TABLE IF NOT EXISTS task_templates (
   event_id        INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   name            TEXT NOT NULL,
   description     TEXT,
-  priority        TEXT CHECK(priority IN ('Low','Medium','High')) DEFAULT 'Medium',
+  priority        TEXT CHECK(priority IN ('Low','Medium','High','Urgent')) DEFAULT 'Medium',
   estimated_hours NUMERIC(5,2),
   created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -1496,15 +1548,15 @@ INSERT INTO rsvps (event_id, name, email, guests, canonical_status, dietary_rest
   (11, 'Mark Davis',       'mark.d@example.com',    1, 'maybe',     'None',       'Need to confirm travel.',          'public',  FALSE, NOW(), NOW()),
   -- Community Food Fair (event 12)
   (12, 'Carol Davis',      'carol@festival.local',  2, 'confirmed',     'Vegan',      'Bringing kids!',                   'public',  FALSE, NOW(), NOW()),
-  (12, 'Alice Johnson',    'alice@festival.local',  1, 'confirmed',     'None',       NULL,                               'public',  FALSE, NOW(), NOW()),
-  (12, 'Peter Jackson',    'peter.j@example.com',   4, 'confirmed',     'None',       'Family of four.',                  'public',  FALSE, NOW(), NOW()),
+  (12, 'Alice Johnson',    'alice@festival.local',  1, 'confirmed', 'None',       NULL,                               'public',  FALSE, NOW(), NOW()),
+  (12, 'Peter Jackson',    'peter.j@example.com',   4, 'confirmed', 'None',       'Family of four.',                  'public',  FALSE, NOW(), NOW()),
   -- Charity Gala (event 13)
-  (13, 'Alice Johnson',    'alice@festival.local',  1, 'confirmed',     'None',       'Happy to support the cause!',      'public',  FALSE, NOW(), NOW()),
-  (13, 'Bob Williams',     'bob@festival.local',    2, 'confirmed',     'None',       'Plus one.',                        'public',  FALSE, NOW(), NOW()),
+  (13, 'Alice Johnson',    'alice@festival.local',  1, 'confirmed', 'None',       'Happy to support the cause!',      'public',  FALSE, NOW(), NOW()),
+  (13, 'Bob Williams',     'bob@festival.local',    2, 'confirmed', 'None',       'Plus one.',                        'public',  FALSE, NOW(), NOW()),
   -- Spring Arts Festival completed (event 16) — checked in
-  (16, 'Alice Johnson',    'alice@festival.local',  1, 'confirmed',     'None',       NULL, 'public', TRUE,  NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days'),
-  (16, 'Bob Williams',     'bob@festival.local',    1, 'confirmed',     'None',       NULL, 'public', TRUE,  NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days'),
-  (16, 'Carol Davis',      'carol@festival.local',  1, 'confirmed',     'None',       NULL, 'public', TRUE,  NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days')
+  (16, 'Alice Johnson',    'alice@festival.local',  1, 'confirmed', 'None',       NULL, 'public', TRUE,  NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days'),
+  (16, 'Bob Williams',     'bob@festival.local',    1, 'confirmed', 'None',       NULL, 'public', TRUE,  NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days'),
+  (16, 'Carol Davis',      'carol@festival.local',  1, 'confirmed', 'None',       NULL, 'public', TRUE,  NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days')
 ON CONFLICT (event_id, email) DO NOTHING;
 
 -- ----------------------------------------------------------
@@ -1559,21 +1611,21 @@ ON CONFLICT (id) DO NOTHING;
 SELECT setval('budget_categories_id_seq', GREATEST((SELECT MAX(id) FROM budget_categories), 19));
 
 INSERT INTO expenses (event_id, category_id, title, amount, payment_status, vendor_name, notes, currency_code, created_by, created_at, updated_at) VALUES
-  (10, 10, 'Headliner Band Fee',          45000.00, 'Paid',    'Cosmic Sounds Agency',  'Headliner deposit paid.',        'USD', 11, NOW(), NOW()),
-  (10, 10, 'Supporting Act 1',            12000.00, 'Pending', 'Local Talent Booking',  'Contract pending signature.',    'USD', 11, NOW(), NOW()),
-  (10, 10, 'DJ Set',                       5000.00, 'Paid',    'DJ Events Inc.',         NULL,                             'USD', 11, NOW(), NOW()),
-  (10, 11, 'Stage Rental',               18000.00, 'Paid',    'Austin Stage Co.',       'Main and two side stages.',      'USD', 11, NOW(), NOW()),
-  (10, 11, 'Sound System',                8000.00, 'Paid',    'ProAudio Rentals',       NULL,                             'USD', 11, NOW(), NOW()),
-  (10, 12, 'Social Media Ads',            3500.00, 'Paid',    'Digital Marketing Co.',  'Facebook & Instagram campaign.', 'USD', 11, NOW(), NOW()),
-  (10, 12, 'Print Flyers',                 800.00, 'Paid',    'FastPrint Austin',       '5000 flyers distributed.',       'USD', 11, NOW(), NOW()),
-  (10, 13, 'Security Staff',             10000.00, 'Pending', 'SecureEvents LLC',       '50 guards for 3 days.',          'USD', 11, NOW(), NOW()),
-  (10, 14, 'City Permit',                 2500.00, 'Paid',    'City of Austin',         'Parks use permit.',              'USD', 11, NOW(), NOW()),
-  (11, 15, 'Convention Center Rental',   15000.00, 'Paid',    'Austin Convention Ctr',  'Full day both days.',            'USD', 11, NOW(), NOW()),
-  (11, 16, 'Catering - Day 1',            3500.00, 'Pending', 'Taste of Texas Catering',NULL,                             'USD', 11, NOW(), NOW()),
-  (11, 16, 'Catering - Day 2',            3500.00, 'Pending', 'Taste of Texas Catering',NULL,                             'USD', 11, NOW(), NOW()),
-  (11, 17, 'Projectors & Screens',        2500.00, 'Paid',    'TechRent Austin',        NULL,                             'USD', 11, NOW(), NOW()),
-  (12, 18, 'Plaza Permit',                 500.00, 'Paid',    'Nashville City',         NULL,                             'USD', 12, NOW(), NOW()),
-  (12, 19, 'Local Band Fee',              1200.00, 'Pending', 'Nashville Musicians Grp',NULL,                             'USD', 12, NOW(), NOW())
+  (10, 10, 'Headliner Band Fee',          45000.00, 'paid',    'Cosmic Sounds Agency',  'Headliner deposit paid.',        'USD', 11, NOW(), NOW()),
+  (10, 10, 'Supporting Act 1',            12000.00, 'pending', 'Local Talent Booking',  'Contract pending signature.',    'USD', 11, NOW(), NOW()),
+  (10, 10, 'DJ Set',                       5000.00, 'paid',    'DJ Events Inc.',         NULL,                             'USD', 11, NOW(), NOW()),
+  (10, 11, 'Stage Rental',               18000.00, 'paid',    'Austin Stage Co.',       'Main and two side stages.',      'USD', 11, NOW(), NOW()),
+  (10, 11, 'Sound System',                8000.00, 'paid',    'ProAudio Rentals',       NULL,                             'USD', 11, NOW(), NOW()),
+  (10, 12, 'Social Media Ads',            3500.00, 'paid',    'Digital Marketing Co.',  'Facebook & Instagram campaign.', 'USD', 11, NOW(), NOW()),
+  (10, 12, 'Print Flyers',                 800.00, 'paid',    'FastPrint Austin',       '5000 flyers distributed.',       'USD', 11, NOW(), NOW()),
+  (10, 13, 'Security Staff',             10000.00, 'pending', 'SecureEvents LLC',       '50 guards for 3 days.',          'USD', 11, NOW(), NOW()),
+  (10, 14, 'City Permit',                 2500.00, 'paid',    'City of Austin',         'Parks use permit.',              'USD', 11, NOW(), NOW()),
+  (11, 15, 'Convention Center Rental',   15000.00, 'paid',    'Austin Convention Ctr',  'Full day both days.',            'USD', 11, NOW(), NOW()),
+  (11, 16, 'Catering - Day 1',            3500.00, 'pending', 'Taste of Texas Catering',NULL,                             'USD', 11, NOW(), NOW()),
+  (11, 16, 'Catering - Day 2',            3500.00, 'pending', 'Taste of Texas Catering',NULL,                             'USD', 11, NOW(), NOW()),
+  (11, 17, 'Projectors & Screens',        2500.00, 'paid',    'TechRent Austin',        NULL,                             'USD', 11, NOW(), NOW()),
+  (12, 18, 'Plaza Permit',                 500.00, 'paid',    'Nashville City',         NULL,                             'USD', 12, NOW(), NOW()),
+  (12, 19, 'Local Band Fee',              1200.00, 'pending', 'Nashville Musicians Grp',NULL,                             'USD', 12, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
 -- ----------------------------------------------------------
@@ -1921,13 +1973,10 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'rsvps' AND policyname = 'rls_rsvps_access') THEN
     CREATE POLICY rls_rsvps_access ON rsvps
       USING (
-        user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
-        OR event_id IN (
-          SELECT e.id FROM events e
-          WHERE e.created_by = NULLIF(current_setting('app.current_user_id', true), '')::int
-          UNION
-          SELECT em.event_id FROM event_members em
-          WHERE em.user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+        event_id IN (
+          SELECT event_id FROM event_members
+          WHERE user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+            AND LOWER(role) IN ('organizer', 'admin', 'collaborator', 'owner', 'co-organizer', 'helper')
         )
         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL
       );

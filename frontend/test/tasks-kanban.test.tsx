@@ -163,7 +163,13 @@ describe('TasksKanbanPage', () => {
   });
 
   it('calls createTask when the add task form is submitted', async () => {
-    const newTask: Task = { ...mockTasks[0], id: 99, title: 'New Task', status: 'Pending' };
+    const newTask: Task = {
+      ...mockTasks[0],
+      id: 99,
+      title: 'New Task',
+      status: 'Pending',
+      priority: 'Urgent',
+    };
     vi.mocked(tasksService.createTask).mockResolvedValue(newTask);
 
     const user = userEvent.setup();
@@ -180,15 +186,34 @@ describe('TasksKanbanPage', () => {
     await user.clear(titleInput);
     await user.type(titleInput, 'New Task');
 
+    await user.click(within(dialog).getAllByRole('combobox')[0]);
+    await user.click(await screen.findByRole('option', { name: /urgent/i }));
+
     await user.click(within(dialog).getByRole('button', { name: 'Add' }));
 
     await waitFor(() => {
       expect(tasksService.createTask).toHaveBeenCalledWith(
         '42',
-        expect.objectContaining({ title: 'New Task', status: 'Pending' }),
+        expect.objectContaining({ title: 'New Task', status: 'Pending', priority: 'Urgent' }),
       );
     });
   }, 15000);
+
+  it('offers Urgent in the priority picker', async () => {
+    const user = userEvent.setup();
+    renderBoard();
+    await waitFor(() => {
+      expect(screen.queryByRole('progressbar')).toBeNull();
+    });
+
+    const addButtons = screen.getAllByText('Add');
+    await user.click(addButtons[0]);
+
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getAllByRole('combobox')[0]);
+
+    expect(await screen.findByRole('option', { name: /urgent/i })).toBeTruthy();
+  });
 
   it('shows loading spinner initially', () => {
     vi.mocked(tasksService.listTasks).mockReturnValue(new Promise(() => undefined));

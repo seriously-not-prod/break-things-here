@@ -16,9 +16,10 @@ function resolveApiUrl(path: string): string {
     return target;
   }
 
-  const baseOrigin = typeof window !== 'undefined' && window.location?.origin
-    ? window.location.origin
-    : 'http://localhost';
+  const baseOrigin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'http://localhost';
 
   return new URL(target, baseOrigin).toString();
 }
@@ -46,7 +47,7 @@ async function ensureCsrfToken(): Promise<void> {
   try {
     const res = await fetch(resolveApiUrl('/api/csrf-token'), { credentials: 'include' });
     if (res.ok) {
-      const data = await res.json() as { csrfToken: string };
+      const data = (await res.json()) as { csrfToken: string };
       _csrfToken = data.csrfToken;
     }
   } catch {
@@ -95,7 +96,10 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   let response = await performFetch(path, init);
 
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && response.status === 403) {
-    const body = await response.clone().json().catch(() => null) as { error?: string } | null;
+    const body = (await response
+      .clone()
+      .json()
+      .catch(() => null)) as { error?: string } | null;
     if (body?.error === 'Invalid CSRF token') {
       _csrfToken = null;
       response = await performFetch(path, init);
@@ -109,7 +113,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await apiFetch(path, init);
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string; code?: string };
+    const body = (await res.json().catch(() => ({ error: res.statusText }))) as {
+      error?: string;
+      code?: string;
+    };
     throw new ApiError(body.error ?? res.statusText, res.status, body.code);
   }
 

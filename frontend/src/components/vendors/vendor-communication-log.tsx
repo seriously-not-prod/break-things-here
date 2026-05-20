@@ -50,7 +50,11 @@ interface Props {
   vendorName: string;
 }
 
-export default function VendorCommunicationLog({ eventId, vendorId, vendorName }: Props): JSX.Element {
+export default function VendorCommunicationLog({
+  eventId,
+  vendorId,
+  vendorName,
+}: Props): JSX.Element {
   const [logs, setLogs] = useState<VendorCommLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,11 +79,16 @@ export default function VendorCommunicationLog({ eventId, vendorId, vendorName }
     }
   }, [eventId, vendorId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const handleAdd = async (): Promise<void> => {
     setFormError(null);
-    if (!subject.trim()) { setFormError('Subject is required.'); return; }
+    if (!subject.trim()) {
+      setFormError('Subject is required.');
+      return;
+    }
 
     try {
       setSaving(true);
@@ -116,10 +125,16 @@ export default function VendorCommunicationLog({ eventId, vendorId, vendorName }
         </Button>
       </Stack>
 
-      {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 1 }}>
+          {error}
+        </Alert>
+      )}
 
       {logs.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">No communication logged yet.</Typography>
+        <Typography variant="body2" color="text.secondary">
+          No communication logged yet.
+        </Typography>
       ) : (
         <Stack spacing={1}>
           {logs.map((log) => (
@@ -178,7 +193,9 @@ export default function VendorCommunicationLog({ eventId, vendorId, vendorName }
               <InputLabel>Type</InputLabel>
               <Select label="Type" value={type} onChange={(e) => setType(e.target.value)}>
                 {COMM_TYPES.map((t) => (
-                  <MenuItem key={t} value={t}>{t.replace('_', ' ')}</MenuItem>
+                  <MenuItem key={t} value={t}>
+                    {t.replace('_', ' ')}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>

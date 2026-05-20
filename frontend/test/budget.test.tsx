@@ -313,7 +313,9 @@ describe('BudgetPage', () => {
   }, 15000);
 
   it('runs OCR extract and apply from expense actions', async () => {
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('Coffee Corner\n2026-02-20\nTotal 125.25');
+    const promptSpy = vi
+      .spyOn(window, 'prompt')
+      .mockReturnValue('Coffee Corner\n2026-02-20\nTotal 125.25');
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
     const user = userEvent.setup();
@@ -407,11 +409,17 @@ describe('BudgetPage', () => {
     await user.click(screen.getByRole('button', { name: /edit venue/i }));
     const dialog = screen.getByRole('dialog', { name: /edit category/i });
 
-    fireEvent.change(within(dialog).getByLabelText(/category name/i), { target: { value: 'Venue Updated' } });
-    fireEvent.change(within(dialog).getByLabelText(/allocated amount/i), { target: { value: '50000' } });
+    fireEvent.change(within(dialog).getByLabelText(/category name/i), {
+      target: { value: 'Venue Updated' },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/allocated amount/i), {
+      target: { value: '50000' },
+    });
     fireEvent.change(within(dialog).getByLabelText(/tax rate/i), { target: { value: '9' } });
     fireEvent.change(within(dialog).getByLabelText(/gratuity rate/i), { target: { value: '12' } });
-    fireEvent.change(within(dialog).getByLabelText(/contingency rate/i), { target: { value: '4' } });
+    fireEvent.change(within(dialog).getByLabelText(/contingency rate/i), {
+      target: { value: '4' },
+    });
 
     await user.click(within(dialog).getByRole('button', { name: /^update$/i }));
 

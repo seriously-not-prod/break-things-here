@@ -66,7 +66,10 @@ export function PageLayout({
                   <Typography
                     key={crumb.label}
                     variant="caption"
-                    sx={{ fontWeight: isLast ? 600 : 400, color: isLast ? 'text.primary' : 'text.secondary' }}
+                    sx={{
+                      fontWeight: isLast ? 600 : 400,
+                      color: isLast ? 'text.primary' : 'text.secondary',
+                    }}
                   >
                     {crumb.label}
                   </Typography>
@@ -96,9 +99,7 @@ export function PageLayout({
           </Box>
         </Box>
         {actions && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-            {actions}
-          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>{actions}</Box>
         )}
       </Box>
 

@@ -1916,12 +1916,10 @@ export async function applyExpenseReceiptOcr(req: AuthRequest, res: Response): P
 
     const updatedExpense = await getExpenseForEvent(db, String(eventId), String(id));
     if (!updatedExpense) {
-      res
-        .status(500)
-        .json({
-          code: 'EXPENSE_LOAD_FAILED',
-          error: 'Failed to load updated expense after OCR apply.',
-        });
+      res.status(500).json({
+        code: 'EXPENSE_LOAD_FAILED',
+        error: 'Failed to load updated expense after OCR apply.',
+      });
       return;
     }
 
