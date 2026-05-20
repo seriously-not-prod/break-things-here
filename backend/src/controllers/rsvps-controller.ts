@@ -61,7 +61,6 @@ interface RsvpFull extends RsvpRow, GuestProfileFields {
   email?: string | null;
   checked_in?: boolean;
   checked_in_at?: string | null;
-  canonical_status?: string | null;
   late_arrival?: boolean | null;
   arrival_delay_minutes?: number | null;
   waitlist_position?: number | null;
