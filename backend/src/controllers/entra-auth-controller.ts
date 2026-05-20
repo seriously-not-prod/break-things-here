@@ -1,6 +1,12 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
-import { isEntraEnabled, getEntraConfig, isMfaRequired, resolveRoleFromEntraGroups } from '../config/entra.js';
+import {
+  isEntraEnabled,
+  getEntraConfig,
+  isMfaRequired,
+  isLocalFallbackAllowed,
+  resolveRoleFromEntraGroups,
+} from '../config/entra.js';
 import { validateEntraIdToken } from '../utils/entra-token.js';
 import { getDatabase } from '../db/database.js';
 import { generateTokens } from '../middleware/auth.js';
@@ -60,7 +66,14 @@ async function fetchGroupIdsFromGraph(accessToken: string): Promise<string[]> {
 }
 
 export function getEntraStatus(_req: Request, res: Response): void {
-  res.json({ enabled: isEntraEnabled() });
+  const enabled = isEntraEnabled();
+  // #781 — only advertise the local-fallback toggle when Entra is on. The
+  // frontend ignores `allowLocalFallback` unless `enabled` is true, but keeping
+  // the response shape stable simplifies client typing.
+  res.json({
+    enabled,
+    allowLocalFallback: enabled ? isLocalFallbackAllowed() : true,
+  });
 }
 
 export function initiateEntraLogin(_req: Request, res: Response): void {

@@ -52,6 +52,19 @@ export function isMfaRequired(): boolean {
   return process.env.ENTRA_MFA_REQUIRED === 'true';
 }
 
+/**
+ * Returns true when ENTRA_ALLOW_LOCAL_FALLBACK=true is set (#781).
+ *
+ * Scope: this flag gates the *UI affordance* for local credential login. When
+ * false (the default) the login page does not expose the email/password form
+ * even via the "Use a local account" disclosure. Server-side enforcement of
+ * the Entra-only policy on POST /api/auth/login is out of #781's scope and is
+ * tracked separately under parent story #764.
+ */
+export function isLocalFallbackAllowed(): boolean {
+  return process.env.ENTRA_ALLOW_LOCAL_FALLBACK === 'true';
+}
+
 export function validateEntraConfigAtStartup(): void {
   if (!isEntraEnabled()) return;
   getEntraConfig();
