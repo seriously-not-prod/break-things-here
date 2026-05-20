@@ -174,15 +174,15 @@ exports[`LoginForm — Entra-first copy refresh (#790) > renders MFA help text a
     <div
       class="MuiStack-root css-lbjakd-MuiStack-root"
     >
-      <a
+      <button
         aria-label="Sign in with Microsoft"
         class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-fullWidth MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-fullWidth css-wze6j6-MuiButtonBase-root-MuiButton-root"
         data-testid="entra-sign-in"
-        href="/api/auth/entra/login"
         tabindex="0"
+        type="button"
       >
         Sign in with Microsoft
-      </a>
+      </button>
       <p
         class="MuiTypography-root MuiTypography-body2 MuiTypography-alignCenter css-1r4b5bp-MuiTypography-root"
         data-testid="entra-mfa-notice"
@@ -211,15 +211,15 @@ exports[`LoginForm — Entra-first copy refresh (#790) > renders MFA help text w
     <div
       class="MuiStack-root css-lbjakd-MuiStack-root"
     >
-      <a
+      <button
         aria-label="Sign in with Microsoft"
         class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-fullWidth MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-fullWidth css-wze6j6-MuiButtonBase-root-MuiButton-root"
         data-testid="entra-sign-in"
-        href="/api/auth/entra/login"
         tabindex="0"
+        type="button"
       >
         Sign in with Microsoft
-      </a>
+      </button>
       <p
         class="MuiTypography-root MuiTypography-body2 MuiTypography-alignCenter css-1r4b5bp-MuiTypography-root"
         data-testid="entra-mfa-notice"
@@ -568,15 +568,15 @@ exports[`LoginForm — demo credentials banner (#782) > hides the demo banner wh
     <div
       class="MuiStack-root css-lbjakd-MuiStack-root"
     >
-      <a
+      <button
         aria-label="Sign in with Microsoft"
         class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-fullWidth MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-fullWidth css-wze6j6-MuiButtonBase-root-MuiButton-root"
         data-testid="entra-sign-in"
-        href="/api/auth/entra/login"
         tabindex="0"
+        type="button"
       >
         Sign in with Microsoft
-      </a>
+      </button>
       <p
         class="MuiTypography-root MuiTypography-body2 MuiTypography-alignCenter css-1r4b5bp-MuiTypography-root"
         data-testid="entra-mfa-notice"
