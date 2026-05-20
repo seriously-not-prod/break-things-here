@@ -20,6 +20,9 @@ export type CanonicalRsvpStatus =
   | 'cancelled'
   | 'checked_in'
   | 'no_show';
+
+/** @deprecated Use CanonicalRsvpStatus. Kept for backward-compat imports. */
+export type RsvpStatus = CanonicalRsvpStatus;
 export type DietaryRestriction =
   | 'None'
   | 'Vegetarian'

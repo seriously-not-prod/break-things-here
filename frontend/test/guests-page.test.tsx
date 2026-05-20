@@ -36,7 +36,7 @@ const mockGuests: RsvpGuest[] = [
     email: 'alice@example.com',
     phone: '555-1234',
     guests: 1,
-    status: 'Going',
+    canonical_status: 'confirmed',
     notes: null,
     source: 'internal',
     checked_in: false,
@@ -57,7 +57,7 @@ const mockGuests: RsvpGuest[] = [
     email: 'bob@example.com',
     phone: null,
     guests: 2,
-    status: 'Pending',
+    canonical_status: 'pending',
     notes: 'VIP',
     source: 'internal',
     checked_in: true,
@@ -82,7 +82,9 @@ const mockTables = [
     layout_x: 40,
     layout_y: 40,
     created_at: '2026-01-01T00:00:00Z',
-    guests: [{ rsvp_id: 2, name: 'Bob Jones', email: 'bob@example.com', status: 'Pending' }],
+    guests: [
+      { rsvp_id: 2, name: 'Bob Jones', email: 'bob@example.com', canonical_status: 'pending' },
+    ],
   },
 ];
 
@@ -152,7 +154,7 @@ describe('GuestsPage', () => {
 
     const statusSelect = screen.getByRole('combobox', { name: /status/i });
     await userEvent.click(statusSelect);
-    await userEvent.click(screen.getByRole('option', { name: 'Pending' }));
+    await userEvent.click(screen.getByRole('option', { name: 'pending' }));
 
     expect(screen.queryByText('Alice Smith')).not.toBeInTheDocument();
     expect(screen.getByText('Bob Jones')).toBeInTheDocument();
@@ -187,7 +189,7 @@ describe('GuestsPage', () => {
           id: 1,
           name: 'Alice Smith',
           email: 'alice@example.com',
-          status: 'Going',
+          status: 'confirmed',
           guests: 1,
           created_at: '2026-01-01T00:00:00Z',
           updated_at: '2026-01-01T00:00:00Z',
@@ -196,7 +198,7 @@ describe('GuestsPage', () => {
           id: 99,
           name: 'Alice S.',
           email: 'alice@example.com',
-          status: 'Pending',
+          status: 'pending',
           guests: 1,
           created_at: '2026-01-03T00:00:00Z',
           updated_at: '2026-01-03T00:00:00Z',
@@ -212,7 +214,10 @@ describe('GuestsPage', () => {
     await screen.findByText('Alice Smith');
     await userEvent.click(screen.getByRole('button', { name: /add guest/i }));
 
-    await userEvent.type(screen.getByRole('textbox', { name: /guest email/i }), 'alice@example.com');
+    await userEvent.type(
+      screen.getByRole('textbox', { name: /guest email/i }),
+      'alice@example.com',
+    );
 
     await waitFor(() => {
       expect(guestService.lookupRsvpsByEmail).toHaveBeenCalled();
@@ -241,7 +246,9 @@ describe('GuestsPage', () => {
 
     expect(screen.getByRole('button', { name: /import csv/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /export guest name tags as pdf/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /export guest name tags as pdf/i }),
+    ).toBeInTheDocument();
   });
 
   it('exports name tags with seating metadata from the toolbar', async () => {
