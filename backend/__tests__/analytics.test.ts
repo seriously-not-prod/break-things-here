@@ -94,19 +94,19 @@ beforeAll(async (): Promise<void> => {
   );
 
   await db.run(
-    `INSERT INTO rsvps (event_id, name, email, guests, status, checked_in)
+    `INSERT INTO rsvps (event_id, name, email, guests, canonical_status, checked_in)
      VALUES (?, ?, ?, ?, ?, ?)`,
-    [eventId, 'Alex Guest', `${seedKey}+1@example.com`, 2, 'Going', true],
+    [eventId, 'Alex Guest', `${seedKey}+1@example.com`, 2, 'checked_in', true],
   );
   await db.run(
-    `INSERT INTO rsvps (event_id, name, email, guests, status, checked_in)
+    `INSERT INTO rsvps (event_id, name, email, guests, canonical_status, checked_in)
      VALUES (?, ?, ?, ?, ?, ?)`,
-    [eventId, 'Blair Guest', `${seedKey}+2@example.com`, 1, 'Pending', false],
+    [eventId, 'Blair Guest', `${seedKey}+2@example.com`, 1, 'pending', false],
   );
   await db.run(
-    `INSERT INTO rsvps (event_id, name, email, guests, status, checked_in)
+    `INSERT INTO rsvps (event_id, name, email, guests, canonical_status, checked_in)
      VALUES (?, ?, ?, ?, ?, ?)`,
-    [eventId, 'Casey Guest', `${seedKey}+3@example.com`, 1, 'Declined', false],
+    [eventId, 'Casey Guest', `${seedKey}+3@example.com`, 1, 'declined', false],
   );
 });
 
