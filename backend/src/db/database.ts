@@ -2826,9 +2826,25 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     WHERE canonical_status IS NULL OR canonical_status = ''
   `);
 
+  // Legacy compatibility path: older revisions exposed `guests` as a view on
+  // top of `rsvps`. Once task #771 creates a real `guests` table, attempting
+  // to recreate that view errors with: "guests is not a view" and aborts the
+  // rest of migrations. Only create the view when neither table nor view exist.
   await db.exec(`
-    CREATE OR REPLACE VIEW guests AS
-    SELECT * FROM rsvps
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'guests'
+      ) AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.views
+        WHERE table_schema = 'public' AND table_name = 'guests'
+      ) THEN
+        EXECUTE 'CREATE VIEW guests AS SELECT * FROM rsvps';
+      END IF;
+    END $$;
   `);
 
   // ============================================================
@@ -3449,7 +3465,19 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   // Drops the old VIEW shim, creates the real table, adds guest_id FK to rsvps,
   // backfills one guests row per existing RSVP, and verifies no orphans remain.
   await db.exec(`
-    DROP VIEW IF EXISTS guests;
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relname = 'guests'
+          AND c.relkind = 'v'
+      ) THEN
+        EXECUTE 'DROP VIEW public.guests';
+      END IF;
+    END $$;
 
     CREATE TABLE IF NOT EXISTS guests (
       id                   SERIAL PRIMARY KEY,

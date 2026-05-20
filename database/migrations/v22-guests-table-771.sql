@@ -14,7 +14,21 @@
 -- =============================================================
 
 -- ── Step 1: Remove the VIEW so we can create a real TABLE ─────────
-DROP VIEW IF EXISTS guests;
+-- `DROP VIEW IF EXISTS` still errors when `guests` exists as a TABLE,
+-- so guard on relkind='v' to keep reruns idempotent.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname = 'guests'
+      AND c.relkind = 'v'
+  ) THEN
+    EXECUTE 'DROP VIEW public.guests';
+  END IF;
+END $$;
 
 -- ── Step 2: Create the guests table ──────────────────────────────
 CREATE TABLE IF NOT EXISTS guests (
