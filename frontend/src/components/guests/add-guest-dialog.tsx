@@ -19,11 +19,11 @@ import {
   Typography,
 } from '@mui/material';
 import type {
+  CanonicalRsvpStatus,
   DietaryRestriction,
   GuestEmailLookupResult,
   GuestGroup,
   RsvpGuestInput,
-  RsvpStatus,
 } from '../../services/guest-service';
 import { lookupRsvpsByEmail } from '../../services/guest-service';
 
@@ -48,7 +48,7 @@ const DIETARY_OPTIONS: DietaryRestriction[] = [
 
 const GROUP_OPTIONS: GuestGroup[] = ['Family', 'Friends', 'Colleagues', 'VIPs', 'Custom'];
 
-const STATUS_OPTIONS: RsvpStatus[] = ['Pending', 'Going', 'Maybe', 'Not Going', 'Declined'];
+const STATUS_OPTIONS: CanonicalRsvpStatus[] = ['pending', 'confirmed', 'maybe', 'declined', 'cancelled'];
 
 function hasLikelyEmail(value: string): boolean {
   const trimmed = value.trim();
@@ -70,7 +70,7 @@ export function AddGuestDialog({
   const [plusOne, setPlusOne] = useState(false);
   const [plusOneName, setPlusOneName] = useState('');
   const [guestGroup, setGuestGroup] = useState<GuestGroup | ''>('');
-  const [status, setStatus] = useState<RsvpStatus>('Pending');
+  const [status, setStatus] = useState<CanonicalRsvpStatus>('pending');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +131,7 @@ export function AddGuestDialog({
     setPlusOne(false);
     setPlusOneName('');
     setGuestGroup('');
-    setStatus('Pending');
+    setStatus('pending');
     setNotes('');
     setError(null);
     setLookupLoading(false);
@@ -156,7 +156,6 @@ export function AddGuestDialog({
         name: name.trim(),
         email: email.trim().toLowerCase(),
         ...(phone.trim() && { phone: phone.trim() }),
-        status,
         dietary_restriction: dietary,
         ...(accessibilityNeeds.trim() && { accessibility_needs: accessibilityNeeds.trim() }),
         plus_one: plusOne,
@@ -326,8 +325,8 @@ export function AddGuestDialog({
                 labelId="status-label"
                 value={status}
                 label="RSVP Status"
-                onChange={(e: SelectChangeEvent<RsvpStatus>) =>
-                  setStatus(e.target.value as RsvpStatus)
+                onChange={(e: SelectChangeEvent<CanonicalRsvpStatus>) =>
+                  setStatus(e.target.value as CanonicalRsvpStatus)
                 }
               >
                 {STATUS_OPTIONS.map((opt) => (

@@ -84,14 +84,14 @@ export function GuestCommunicationPanel({
   function buildPayload(): BulkSendPayload {
     if (scope === 'confirmed') {
       return {
-        rsvpIds: guests.filter((guest) => guest.status === 'Going').map((guest) => guest.id),
+        rsvpIds: guests.filter((guest) => guest.canonical_status === 'confirmed').map((guest) => guest.id),
         subject,
         body,
       };
     }
     if (scope === 'pending') {
       return {
-        rsvpIds: guests.filter((guest) => guest.status === 'Pending').map((guest) => guest.id),
+        rsvpIds: guests.filter((guest) => guest.canonical_status === 'pending').map((guest) => guest.id),
         subject,
         body,
       };
@@ -149,7 +149,7 @@ export function GuestCommunicationPanel({
     setSendResult(null);
     try {
       const confirmedPayload: BulkSendPayload = {
-        rsvpIds: guests.filter((g) => g.status === 'Going').map((g) => g.id),
+        rsvpIds: guests.filter((g) => g.canonical_status === 'confirmed').map((g) => g.id),
         subject,
         body,
       };

@@ -163,7 +163,7 @@ export default function QrScannerPage(): JSX.Element {
               </Typography>
               <Typography color="text.secondary">{lastResult.rsvp.email}</Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap">
-                <Chip label={`Status: ${lastResult.rsvp.canonical_status ?? lastResult.rsvp.status}`} size="small" />
+                <Chip label={`Status: ${lastResult.rsvp.canonical_status}`} size="small" />
                 {lastResult.rsvp.guests > 1 && <Chip label={`Party of ${lastResult.rsvp.guests}`} size="small" />}
                 {lastResult.rsvp.late_arrival && (
                   <Chip color="warning" size="small" label={`Late by ${lastResult.rsvp.arrival_delay_minutes ?? '?'} min`} />

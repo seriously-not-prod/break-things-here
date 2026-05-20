@@ -50,7 +50,7 @@ import {
   type GuestGroup,
   type RsvpGuest,
   type RsvpGuestInput,
-  type RsvpStatus,
+  type CanonicalRsvpStatus,
 } from '../../services/guest-service';
 import { generateNameTagPdf } from '../../utils/name-tag-pdf-export';
 import { AddGuestDialog } from './add-guest-dialog';
@@ -64,17 +64,20 @@ import { RsvpQrDialog } from './rsvp-qr-dialog';
 // ─── Status chip colours ──────────────────────────────────────────────────────
 
 const STATUS_COLOUR: Record<
-  RsvpStatus,
+  CanonicalRsvpStatus,
   'default' | 'success' | 'warning' | 'error' | 'info'
 > = {
-  Going: 'success',
-  Pending: 'warning',
-  Maybe: 'info',
-  'Not Going': 'error',
-  Declined: 'error',
+  confirmed: 'success',
+  pending: 'warning',
+  maybe: 'info',
+  declined: 'error',
+  cancelled: 'error',
+  no_show: 'error',
+  waitlist: 'default',
+  checked_in: 'success',
 };
 
-const ALL_STATUSES: RsvpStatus[] = ['Pending', 'Going', 'Maybe', 'Not Going', 'Declined'];
+const ALL_STATUSES: CanonicalRsvpStatus[] = ['pending', 'confirmed', 'maybe', 'declined', 'waitlist', 'cancelled', 'checked_in', 'no_show'];
 const ALL_GROUPS: GuestGroup[] = ['Family', 'Friends', 'Colleagues', 'VIPs', 'Custom'];
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -88,7 +91,7 @@ export default function GuestsPage(): JSX.Element {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<RsvpStatus | ''>('');
+  const [statusFilter, setStatusFilter] = useState<CanonicalRsvpStatus | ''>('');
   const [groupFilter, setGroupFilter] = useState<GuestGroup | ''>('');
 
   // Selection
@@ -133,7 +136,7 @@ export default function GuestsPage(): JSX.Element {
         ) {
           return false;
         }
-        if (statusFilter && g.status !== statusFilter) return false;
+        if (statusFilter && g.canonical_status !== statusFilter) return false;
         if (groupFilter && g.guest_group !== groupFilter) return false;
         return true;
       }),
@@ -223,7 +226,7 @@ export default function GuestsPage(): JSX.Element {
           name: guest.name,
           email: guest.email,
           groupLabel: guest.guest_group,
-          status: guest.status,
+          status: guest.canonical_status,
           tableName: tableLookup.get(guest.id) ?? null,
           companionName: guest.plus_one ? guest.plus_one_name : null,
           partySize: guest.guests,
@@ -293,8 +296,8 @@ export default function GuestsPage(): JSX.Element {
                 labelId="status-filter-label"
                 value={statusFilter}
                 label="Status"
-                onChange={(e: SelectChangeEvent<RsvpStatus | ''>) =>
-                  setStatusFilter(e.target.value as RsvpStatus | '')
+                onChange={(e: SelectChangeEvent<CanonicalRsvpStatus | ''>) =>
+                  setStatusFilter(e.target.value as CanonicalRsvpStatus | '')
                 }
               >
                 <MenuItem value=""><em>All statuses</em></MenuItem>
@@ -457,8 +460,8 @@ export default function GuestsPage(): JSX.Element {
                         <TableCell>{guest.phone ?? '—'}</TableCell>
                         <TableCell>
                           <Chip
-                            label={guest.status}
-                            color={STATUS_COLOUR[guest.status] ?? 'default'}
+                            label={guest.canonical_status}
+                            color={STATUS_COLOUR[guest.canonical_status] ?? 'default'}
                             size="small"
                           />
                         </TableCell>

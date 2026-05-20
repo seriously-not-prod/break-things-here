@@ -189,7 +189,7 @@ export function SeatingPage(): JSX.Element {
           id: guest.id,
           name: guest.name,
           email: guest.email,
-          status: guest.status,
+          status: guest.canonical_status,
           tableName: tableLookup.get(guest.id) ?? null,
           partySize: guest.guests,
           checkedIn: guest.checked_in,
@@ -681,7 +681,7 @@ export function SeatingPage(): JSX.Element {
                                   id: guest.rsvp_id,
                                   name: guest.name,
                                   email: guest.email,
-                                  status: guest.status,
+                                  status: guest.canonical_status,
                                 },
                                 table.id,
                                 table.name,
@@ -710,7 +710,7 @@ export function SeatingPage(): JSX.Element {
                             >
                               {unassigned.map((guest) => (
                                 <MenuItem key={guest.id} value={guest.id}>
-                                  {guest.name} — {guest.status}
+                                  {guest.name} — {guest.canonical_status}
                                 </MenuItem>
                               ))}
                             </Select>
@@ -773,7 +773,7 @@ export function SeatingPage(): JSX.Element {
                           id: guest.id,
                           name: guest.name,
                           email: guest.email,
-                          status: guest.status,
+                          status: guest.canonical_status,
                         },
                         null,
                       ),

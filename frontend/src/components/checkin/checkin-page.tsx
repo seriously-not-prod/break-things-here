@@ -38,14 +38,17 @@ import type { Rsvp } from '../../services/guest-service';
 import { ApiError } from '../../lib/api-client';
 
 const STATUS_COLORS: Record<string, 'default' | 'primary' | 'success' | 'warning' | 'error'> = {
-  Going: 'success',
-  Pending: 'warning',
-  Maybe: 'primary',
-  'Not Going': 'error',
-  Declined: 'error',
+  confirmed: 'success',
+  pending: 'warning',
+  maybe: 'primary',
+  declined: 'error',
+  cancelled: 'error',
+  no_show: 'error',
+  waitlist: 'default',
+  checked_in: 'success',
 };
 
-const RSVP_FILTER_OPTIONS = ['All', 'Going', 'Pending', 'Maybe', 'Not Going', 'Declined'];
+const RSVP_FILTER_OPTIONS = ['All', 'confirmed', 'pending', 'maybe', 'declined', 'waitlist', 'cancelled', 'checked_in', 'no_show'];
 
 /** Returns true when the browser natively supports BarcodeDetector. */
 function hasBarcodeDetector(): boolean {
@@ -116,7 +119,7 @@ export function CheckInPage(): JSX.Element {
     const q = search.toLowerCase();
     const matchesSearch =
       r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q);
-    const matchesStatus = statusFilter === 'All' || r.status === statusFilter;
+    const matchesStatus = statusFilter === 'All' || r.canonical_status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -244,8 +247,8 @@ export function CheckInPage(): JSX.Element {
                   <TableCell>{rsvp.email}</TableCell>
                   <TableCell>
                     <Chip
-                      label={rsvp.status}
-                      color={STATUS_COLORS[rsvp.status] ?? 'default'}
+                      label={rsvp.canonical_status}
+                      color={STATUS_COLORS[rsvp.canonical_status] ?? 'default'}
                       size="small"
                     />
                   </TableCell>
