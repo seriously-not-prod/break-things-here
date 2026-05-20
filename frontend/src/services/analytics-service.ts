@@ -58,6 +58,14 @@ export interface GlobalAnalytics {
   totalGuestsManaged: number;
   totalBudgetManaged: number;
   averageRsvpRate: number;
+  eventsByStatus?: {
+    draft: number;
+    planning: number;
+    confirmed: number;
+    active: number;
+    completed: number;
+    cancelled: number;
+  };
 }
 
 // ── Functions ────────────────────────────────────────────────────────────────
