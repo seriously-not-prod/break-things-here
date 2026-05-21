@@ -36,6 +36,8 @@ export interface Event {
   is_public: boolean;
   rsvp_deadline: string | null;
   tags: string | null;
+  /** Story #664 — required event start time (HH:MM) for new events */
+  event_time?: string | null;
   /** Story #414 — map-backed location */
   latitude?: number | null;
   longitude?: number | null;

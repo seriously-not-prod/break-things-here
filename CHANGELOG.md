@@ -69,6 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Task #901 — Event creation + budget comparison stability fixes**: Added required `event_time` input/validation to the Events list modal create/edit flow (`frontend/src/components/events/events-page.tsx`) so API `POST /api/events` requests always include valid `HH:MM` values. Also fixed SQL placeholder compatibility in backend similar-budget comparison prefilter query (`backend/src/controllers/budget-controller.ts`) to prevent runtime failures that surfaced as `Failed to compare budget data across similar events` (#901).
+
 - **Task #776 — Add `/api/health` TRD-compatible alias**: Backend now serves `GET /api/health` as an alias of `GET /health` using a shared handler so both endpoints always return identical payload and status. In-code OpenAPI definition now documents both routes, and smoke coverage in `backend/__tests__/health-endpoints.test.ts` asserts both endpoints return `200` and matching response bodies (#776).
 
 ### Added (Track E — Performance & Observability)

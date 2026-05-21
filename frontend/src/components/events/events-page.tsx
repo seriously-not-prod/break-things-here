@@ -86,6 +86,7 @@ interface PlannerEvent extends Omit<
     | 'latitude'
     | 'longitude'
     | 'waitlist_enabled'
+    | 'event_time'
     | 'going_count'
     | 'pending_count'
   >,
@@ -118,6 +119,7 @@ interface EventForm {
   description: string;
   location: string;
   date: string;
+  event_time: string;
   capacity: string;
   status: string;
   latitude: string;
@@ -132,6 +134,7 @@ const EMPTY_FORM: EventForm = {
   description: '',
   location: '',
   date: '',
+  event_time: '',
   capacity: '',
   status: 'Draft',
   latitude: '',
@@ -518,6 +521,7 @@ export default function EventsPage({
       description: '',
       location: event.location ?? '',
       date: event.date,
+      event_time: event.event_time ?? '',
       capacity: event.capacity == null ? '' : String(event.capacity),
       status: event.status,
       latitude: event.latitude == null ? '' : String(event.latitude),
@@ -541,6 +545,14 @@ export default function EventsPage({
       setSaveError('Event Date is required.');
       return;
     }
+    if (!form.event_time) {
+      setSaveError('Event time is required (HH:MM).');
+      return;
+    }
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(form.event_time)) {
+      setSaveError('Event time must be in HH:MM format (e.g. 09:00, 14:30).');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -548,6 +560,7 @@ export default function EventsPage({
         description: form.description,
         location: form.location,
         date: form.date,
+        event_time: form.event_time,
         capacity: form.capacity ? Number(form.capacity) : null,
         status: form.status,
         latitude: form.latitude === '' ? null : Number(form.latitude),
@@ -1435,6 +1448,17 @@ export default function EventsPage({
                 required
                 fullWidth
                 InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="Event time"
+                type="time"
+                value={form.event_time}
+                onChange={handleField('event_time')}
+                fullWidth
+                required
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ step: 300 }}
+                helperText="Start time (required)"
               />
               <TextField
                 label="Status"
