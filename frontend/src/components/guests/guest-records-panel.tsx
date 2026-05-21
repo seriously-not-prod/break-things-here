@@ -200,7 +200,11 @@ export function GuestRecordsPanel({ eventId }: Props): JSX.Element {
                   </TableCell>
                   <TableCell align="right">
                     <Tooltip title="Edit">
-                      <IconButton size="small" onClick={() => openEdit(record)} aria-label="Edit guest profile">
+                      <IconButton
+                        size="small"
+                        onClick={() => openEdit(record)}
+                        aria-label="Edit guest profile"
+                      >
                         <EditRounded fontSize="small" />
                       </IconButton>
                     </Tooltip>
@@ -226,9 +230,7 @@ export function GuestRecordsPanel({ eventId }: Props): JSX.Element {
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{editing ? 'Edit Guest Profile' : 'Add Guest Profile'}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-          {formError && (
-            <Alert severity="error">{formError}</Alert>
-          )}
+          {formError && <Alert severity="error">{formError}</Alert>}
           <TextField
             label="Name"
             required
