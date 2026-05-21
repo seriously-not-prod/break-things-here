@@ -17,7 +17,7 @@ const initialFields: FormFields = {
 
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_PATTERN = new RegExp(
-  `^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z\\d]).{${PASSWORD_MIN_LENGTH},}$`
+  `^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z\\d]).{${PASSWORD_MIN_LENGTH},}$`,
 );
 
 function isValidPassword(value: string): boolean {
@@ -62,7 +62,12 @@ export function RegistrationForm(): ReactElement {
   }
 
   return (
-    <form className="registration-form" onSubmit={handleSubmit} noValidate aria-label="User registration form">
+    <form
+      className="registration-form"
+      onSubmit={handleSubmit}
+      noValidate
+      aria-label="User registration form"
+    >
       <div>
         <label htmlFor="displayName">Display name</label>
         <input
@@ -127,8 +132,7 @@ export function RegistrationForm(): ReactElement {
       </div>
 
       <p>
-        By registering, you agree to our{' '}
-        <a href="/privacy-policy">Privacy Policy</a>.
+        By registering, you agree to our <a href="/privacy-policy">Privacy Policy</a>.
       </p>
 
       <button type="submit" disabled={!isFormValid}>

@@ -1,0 +1,88 @@
+name: Load Test — PR Smoke
+
+on:
+  pull_request:
+    branches: [develop, test, stage, main]
+
+permissions:
+  contents: read
+
+env:
+  BASE_URL: http://localhost:4000
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/festival_test
+  NODE_ENV: test
+  JWT_SECRET: test-jwt-secret-for-ci
+
+jobs:
+  load-smoke:
+    name: k6 Smoke Test (10 VU / 30s)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: festival_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Initialize database
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d festival_test -f database/init.sql || true
+          for f in database/migrations/*.sql; do
+            PGPASSWORD=postgres psql -h localhost -U postgres -d festival_test -f "$f" || true
+          done
+
+      - name: Start backend
+        run: |
+          cd backend && npx tsx src/index.ts &
+          npx wait-on http://localhost:4000/health --timeout 60000 || echo "::warning::Backend may not be fully ready"
+
+      - name: Run k6 smoke test
+        run: |
+          k6 run tests/load/k6/smoke.js \
+            --env BASE_URL=http://localhost:4000 \
+            --summary-export=k6-smoke-results.json \
+            --out json=k6-smoke-output.json
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-smoke-results
+          path: |
+            k6-smoke-results.json
+            k6-smoke-output.json
+          retention-days: 14

@@ -8,6 +8,8 @@ import {
 } from '../utils/auth-helpers.js';
 import path from 'path';
 import fs from 'fs/promises';
+import { scanFile } from '../utils/virus-scan.js';
+import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
 
 const UPLOADS_DIR = path.resolve('uploads/profile-photos');
 
@@ -28,6 +30,27 @@ interface AuthRequest extends Request {
   };
 }
 
+interface ProfilePhotoRow {
+  profile_photo_url: string | null;
+}
+
+interface UserProfileRow extends ProfilePhotoRow {
+  email: string;
+  display_name: string;
+  email_verified: number;
+  bio: string | null;
+  phone_number: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  country: string | null;
+}
+function normalizeProfilePhotoUrl(photoUrl: string | null | undefined): string | null {
+  if (!photoUrl) return null;
+  if (photoUrl.startsWith('/api/')) return photoUrl;
+  return `/api/${photoUrl.replace(/^\//, '')}`;
+}
 export async function getUserProfile(req: AuthRequest, res: Response) {
   try {
     if (!req.user) {
@@ -38,22 +61,57 @@ export async function getUserProfile(req: AuthRequest, res: Response) {
 
     // Ensure a profile row exists for this user (auto-create on first access)
     await db.run(
-      'INSERT INTO user_profiles (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING',
+      'INSERT INTO user_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING',
       [req.user.id],
     );
 
-    const profile = await db.get(
+    const profile = await db.get<UserProfileRow>(
       `SELECT up.*, u.email, u.display_name, u.email_verified
        FROM user_profiles up
        JOIN users u ON up.user_id = u.id
-       WHERE up.user_id = ?`,
+       WHERE up.user_id = $1`,
       [req.user.id],
     );
 
-    return res.json(profile);
+    return res.json({
+      ...profile,
+      profile_photo_url: normalizeProfilePhotoUrl(profile?.profile_photo_url),
+    });
   } catch (error) {
     console.error('Get profile error:', error);
     return res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+}
+
+export async function getProfilePhoto(req: AuthRequest, res: Response) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { filename } = req.params;
+    if (!filename || filename.includes('..') || filename.includes('/')) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+
+    const db = getDatabase();
+    const profile = await db.get<ProfilePhotoRow>(
+      'SELECT profile_photo_url FROM user_profiles WHERE user_id = $1',
+      [req.user.id],
+    );
+
+    const currentFileName = profile?.profile_photo_url
+      ? path.basename(profile.profile_photo_url)
+      : null;
+    if (!currentFileName || currentFileName !== filename) {
+      return res.status(404).json({ error: 'Photo not found' });
+    }
+
+    const filePath = assertSafePath(path.join(UPLOADS_DIR, filename));
+    return res.sendFile(filePath);
+  } catch (error) {
+    console.error('Get profile photo error:', error);
+    return res.status(500).json({ error: 'Failed to fetch profile photo' });
   }
 }
 
@@ -65,18 +123,22 @@ export async function updateUserProfile(req: AuthRequest, res: Response) {
       });
     }
 
-    const { bio, phoneNumber, phone_number, address, city, state, zipCode, zip_code, country } = req.body;
+    const { bio, phoneNumber, phone_number, address, city, state, zipCode, zip_code, country } =
+      req.body;
 
     const db = getDatabase();
 
     // Upsert — create profile row if it doesn't exist yet
-    await db.run('INSERT INTO user_profiles (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING', [req.user.id]);
+    await db.run(
+      'INSERT INTO user_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING',
+      [req.user.id],
+    );
 
     await db.run(
       `UPDATE user_profiles
-       SET bio = ?, phone_number = ?, address = ?, city = ?, state = ?, zip_code = ?, country = ?,
+       SET bio = $1, phone_number = $2, address = $3, city = $4, state = $5, zip_code = $6, country = $7,
            updated_at = CURRENT_TIMESTAMP
-       WHERE user_id = ?`,
+       WHERE user_id = $8`,
       [
         bio ?? null,
         phone_number ?? phoneNumber ?? null,
@@ -129,11 +191,41 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
       });
     }
 
+    // Virus / malware scan (#565, #634)
     const db = getDatabase();
+    const scanResult = await scanFile(req.file.path);
+    if (!scanResult.clean) {
+      await fs.unlink(assertSafePath(req.file.path));
+      await logAuditEvent({
+        db,
+        userId: req.user.id,
+        email: req.user.email,
+        action: AUDIT_ACTIONS.UPLOAD_SCAN_FAIL,
+        description: `Malicious file detected: ${scanResult.threat}`,
+        ipAddress: req.ip,
+        severity: 'CRITICAL',
+        targetType: 'profile-photo',
+        context: { threat: scanResult.threat, scanner: scanResult.scanner },
+      });
+      return res.status(422).json({
+        error: 'File failed security scan and was rejected.',
+      });
+    }
+    await logAuditEvent({
+      db,
+      userId: req.user.id,
+      email: req.user.email,
+      action: AUDIT_ACTIONS.UPLOAD_SCAN_PASS,
+      description: 'Profile photo passed security scan',
+      ipAddress: req.ip,
+      severity: 'INFO',
+      targetType: 'profile-photo',
+      context: { scanner: scanResult.scanner, scannedAt: scanResult.scannedAt },
+    });
 
     // Get old photo URL if exists
-    const existingProfile = await db.get(
-      'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
+    const existingProfile = await db.get<ProfilePhotoRow>(
+      'SELECT profile_photo_url FROM user_profiles WHERE user_id = $1',
       [req.user.id],
     );
 
@@ -141,7 +233,9 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
     // profile_photo_url already contains 'uploads/profile-photos/...' — do NOT prepend 'uploads' again
     if (existingProfile?.profile_photo_url) {
       try {
-        const oldFilePath = assertSafePath(path.join(process.cwd(), existingProfile.profile_photo_url));
+        const oldFilePath = assertSafePath(
+          path.join(process.cwd(), existingProfile.profile_photo_url),
+        );
         await fs.unlink(oldFilePath);
       } catch (err) {
         console.error('Failed to delete old profile photo:', err);
@@ -152,14 +246,14 @@ export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
     const relativePhotoUrl = path.join('uploads', 'profile-photos', req.file.filename);
 
     // Update database with new photo URL
-    await db.run('UPDATE user_profiles SET profile_photo_url = ? WHERE user_id = ?', [
+    await db.run('UPDATE user_profiles SET profile_photo_url = $1 WHERE user_id = $2', [
       relativePhotoUrl,
       req.user.id,
     ]);
 
     res.json({
       message: 'Profile photo uploaded successfully',
-      photoUrl: relativePhotoUrl,
+      photoUrl: `/api/${relativePhotoUrl}`,
     });
   } catch (error) {
     console.error('Upload profile photo error:', error);
@@ -178,8 +272,8 @@ export async function deleteProfilePhoto(req: AuthRequest, res: Response) {
     const db = getDatabase();
 
     // Get photo URL
-    const profile = await db.get(
-      'SELECT profile_photo_url FROM user_profiles WHERE user_id = ?',
+    const profile = await db.get<ProfilePhotoRow>(
+      'SELECT profile_photo_url FROM user_profiles WHERE user_id = $1',
       [req.user.id],
     );
 
@@ -198,7 +292,7 @@ export async function deleteProfilePhoto(req: AuthRequest, res: Response) {
     }
 
     // Update database
-    await db.run('UPDATE user_profiles SET profile_photo_url = NULL WHERE user_id = ?', [
+    await db.run('UPDATE user_profiles SET profile_photo_url = NULL WHERE user_id = $1', [
       req.user.id,
     ]);
 
@@ -223,8 +317,6 @@ export async function changeEmail(req: AuthRequest, res: Response) {
       return res.status(400).json({ error: 'newEmail and password are required' });
     }
 
-
-
     if (!validateEmailFormat(newEmail)) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
@@ -232,7 +324,7 @@ export async function changeEmail(req: AuthRequest, res: Response) {
     const db = getDatabase();
 
     const user = await db.get<{ email: string; password_hash: string }>(
-      'SELECT email, password_hash FROM users WHERE id = ? AND deleted_at IS NULL',
+      'SELECT email, password_hash FROM users WHERE id = $1 AND deleted_at IS NULL',
       [req.user.id],
     );
 
@@ -251,7 +343,7 @@ export async function changeEmail(req: AuthRequest, res: Response) {
 
     // Ensure new email is not already taken by another account
     const conflict = await db.get(
-      'SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL',
+      'SELECT id FROM users WHERE email = $1 AND id != $2 AND deleted_at IS NULL',
       [newEmail, req.user.id],
     );
     if (conflict) {
@@ -264,9 +356,9 @@ export async function changeEmail(req: AuthRequest, res: Response) {
     // Store PENDING email — current email remains active until confirmed
     await db.run(
       `UPDATE users
-       SET pending_email = ?, pending_email_token = ?, pending_email_token_expiry = ?,
+       SET pending_email = $1, pending_email_token = $2, pending_email_token_expiry = $3,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
+       WHERE id = $4`,
       [newEmail, token, expiry, req.user.id],
     );
 
@@ -298,7 +390,8 @@ export async function changeEmail(req: AuthRequest, res: Response) {
     }
 
     return res.status(200).json({
-      message: 'Confirmation sent to your new email address. Your current email remains active until confirmed.',
+      message:
+        'Confirmation sent to your new email address. Your current email remains active until confirmed.',
     });
   } catch (error) {
     console.error('Change email error:', error);
@@ -327,7 +420,7 @@ export async function confirmEmailChange(req: AuthRequest, res: Response) {
     }>(
       `SELECT id, pending_email, pending_email_token_expiry
        FROM users
-       WHERE pending_email_token = ? AND deleted_at IS NULL`,
+       WHERE pending_email_token = $1 AND deleted_at IS NULL`,
       [token],
     );
 
@@ -336,7 +429,9 @@ export async function confirmEmailChange(req: AuthRequest, res: Response) {
     }
 
     if (new Date(user.pending_email_token_expiry) < new Date()) {
-      return res.status(400).json({ error: 'Token has expired. Please request a new email change.' });
+      return res
+        .status(400)
+        .json({ error: 'Token has expired. Please request a new email change.' });
     }
 
     await db.run(
@@ -347,7 +442,7 @@ export async function confirmEmailChange(req: AuthRequest, res: Response) {
            pending_email_token_expiry = NULL,
            email_verified = 1,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
+       WHERE id = $1`,
       [user.id],
     );
 
@@ -375,14 +470,13 @@ export async function deleteAccount(req: AuthRequest, res: Response) {
       `SELECT u.password_hash, up.profile_photo_url
        FROM users u
        LEFT JOIN user_profiles up ON up.user_id = u.id
-       WHERE u.id = ? AND u.deleted_at IS NULL`,
+       WHERE u.id = $1 AND u.deleted_at IS NULL`,
       [req.user.id],
     );
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-
 
     const passwordMatch = await verifyPassword(password, user.password_hash);
     if (!passwordMatch) {
@@ -393,7 +487,9 @@ export async function deleteAccount(req: AuthRequest, res: Response) {
     if (user.profile_photo_url) {
       try {
         await fs.unlink(path.join(process.cwd(), user.profile_photo_url));
-      } catch { /* file may already be gone */ }
+      } catch {
+        /* file may already be gone */
+      }
     }
 
     // Anonymise personal data and soft-delete — issue #39
@@ -407,7 +503,7 @@ export async function deleteAccount(req: AuthRequest, res: Response) {
            pending_email = NULL,
            pending_email_token = NULL,
            pending_email_token_expiry = NULL
-       WHERE id = ?`,
+       WHERE id = $1`,
       [req.user.id],
     );
 
@@ -415,12 +511,12 @@ export async function deleteAccount(req: AuthRequest, res: Response) {
       `UPDATE user_profiles
        SET bio = NULL, phone_number = NULL, profile_photo_url = NULL,
            address = NULL, city = NULL, state = NULL, zip_code = NULL, country = NULL
-       WHERE user_id = ?`,
+       WHERE user_id = $1`,
       [req.user.id],
     );
 
     // Invalidate all sessions
-    await db.run('DELETE FROM sessions WHERE user_id = ?', [req.user.id]);
+    await db.run('DELETE FROM sessions WHERE user_id = $1', [req.user.id]);
 
     res.clearCookie('refreshToken');
 
@@ -431,4 +527,3 @@ export async function deleteAccount(req: AuthRequest, res: Response) {
     return res.status(500).json({ error: 'Failed to delete account' });
   }
 }
-

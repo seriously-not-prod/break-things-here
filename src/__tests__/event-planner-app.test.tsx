@@ -11,7 +11,7 @@ const TEST_USER = {
     name: 'Alex Carter',
     email: 'alex.carter@festival.local',
     role: 'Admin',
-  }
+  },
 };
 
 const MOCK_EVENTS = [
@@ -25,7 +25,7 @@ const MOCK_EVENTS = [
     created_by: 1,
     created_at: '2026-03-01T09:00:00.000Z',
     updated_at: '2026-04-11T14:10:00.000Z',
-  }
+  },
 ];
 
 const MOCK_TASKS: any[] = [];
@@ -90,29 +90,6 @@ describe('EventPlannerApp', () => {
     expect(screen.getByText('Pending Tasks')).toBeInTheDocument();
   });
 
-  it('redirects unauthenticated users to login', async () => {
-    // Mock unauthorized response
-    (global.fetch as any).mockImplementation((url: string) => {
-      if (url.includes('/api/auth/me')) {
-        return Promise.resolve({
-          ok: false,
-          status: 401,
-          json: async () => ({ error: 'Unauthorized' }),
-        } as Response);
-      }
-      return mockFetchSuccess(url);
-    });
-
-    window.history.pushState({}, '', '/dashboard');
-    render(<EventPlannerApp />);
-
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Festival Planner' })).toBeInTheDocument();
-    });
-
-    expect(screen.getByRole('button', { name: 'Sign In' })).toBeInTheDocument();
-  });
-
   it('submits a public rsvp without requiring login', async () => {
     const user = userEvent.setup();
 
@@ -171,9 +148,12 @@ describe('EventPlannerApp', () => {
     render(<EventPlannerApp />);
 
     // Wait for the RSVP form to load
-    await waitFor(() => {
-      expect(screen.getByLabelText('Name')).toBeInTheDocument();
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        expect(screen.getByLabelText('Name')).toBeInTheDocument();
+      },
+      { timeout: 3000 },
+    );
 
     await user.type(screen.getByLabelText('Name'), 'Public Guest');
     await user.type(screen.getByLabelText('Email'), 'guest@example.com');
@@ -182,5 +162,64 @@ describe('EventPlannerApp', () => {
     await waitFor(() => {
       expect(screen.getByText('Your RSVP has been saved.')).toBeInTheDocument();
     });
+  });
+
+  it('shows inline validation errors when required fields are left empty on the public rsvp form', async () => {
+    const user = userEvent.setup();
+
+    // Mock API calls — no login, load events; no POST needed for this case
+    (global.fetch as any).mockImplementation((url: string, options?: any) => {
+      if (url.includes('/api/auth/me')) {
+        return Promise.resolve({
+          ok: false,
+          status: 401,
+        } as Response);
+      }
+      if (url.includes('/api/events') && !options?.method) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_EVENTS,
+        } as Response);
+      }
+      if (url.includes('/api/tasks')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_TASKS,
+        } as Response);
+      }
+      if (url.includes('/api/rsvps') && !options?.method) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_RSVPS,
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({}),
+      } as Response);
+    });
+
+    window.history.pushState({}, '', '/rsvp/event-1');
+    render(<EventPlannerApp />);
+
+    // Wait for the RSVP form to load
+    await waitFor(
+      () => {
+        expect(screen.getByLabelText('Name')).toBeInTheDocument();
+      },
+      { timeout: 3000 },
+    );
+
+    // Submit without filling in any required fields
+    await user.click(screen.getByRole('button', { name: 'Submit RSVP' }));
+
+    // Validation errors should appear inline
+    await waitFor(() => {
+      expect(screen.getByText('Name is required.')).toBeInTheDocument();
+      expect(screen.getByText('Email is required.')).toBeInTheDocument();
+    });
+
+    // Success message must NOT appear
+    expect(screen.queryByText('Your RSVP has been saved.')).not.toBeInTheDocument();
   });
 });

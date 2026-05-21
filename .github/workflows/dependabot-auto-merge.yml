@@ -1,0 +1,53 @@
+# Auto-label Dependabot security updates with 'security-issue' label
+# and enable auto-merge once all required CI checks pass.
+#
+# Triggered on: PRs opened or re-opened by dependabot[bot]
+# Ref: https://docs.github.com/en/code-security/dependabot/working-with-dependabot/automating-dependabot-with-github-actions
+
+name: Dependabot – security label & auto-merge
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────
+  # Only act on PRs raised by Dependabot
+  # ───────────────────────────────────────────────────────────────────────
+  label-security-prs:
+    name: Label security updates
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Add 'security-issue' label to security updates
+      - name: Apply security-issue label
+        if: steps.meta.outputs.update-type == 'security'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              labels: ['security-issue'],
+            });
+
+      # Enable auto-merge for security updates once CI turns green
+      - name: Enable auto-merge for security PRs
+        if: steps.meta.outputs.update-type == 'security'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

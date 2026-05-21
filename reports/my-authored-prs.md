@@ -1,0 +1,19 @@
+- [#58](https://github.com/seriously-not-prod/break-things-here/pull/58) | 2026-03-20T15:02:57Z | merged | feat: implement login form with 3-attempt lockout
+- [#95](https://github.com/seriously-not-prod/break-things-here/pull/95) | 2026-04-02T11:04:29Z | closed | feat(auth): implement password reset token generation and email delivery API endpoint #77
+- [#96](https://github.com/seriously-not-prod/break-things-here/pull/96) | 2026-04-02T11:09:36Z | closed | feat(auth): implement and harden password reset endpoint for task #77
+- [#131](https://github.com/seriously-not-prod/break-things-here/pull/131) | 2026-04-10T11:55:08Z | closed | fix(backend): resolve compile errors and auth helper conflicts #28
+- [#132](https://github.com/seriously-not-prod/break-things-here/pull/132) | 2026-04-10T11:58:06Z | open | chore(sync): merge latest main into develop
+- [#134](https://github.com/seriously-not-prod/break-things-here/pull/134) | 2026-04-10T14:50:45Z | closed | chore: merge consolidated branches into develop
+- [#342](https://github.com/seriously-not-prod/break-things-here/pull/342) | 2026-04-30T11:09:04Z | merged | fix(security): tighten auth endpoint rate limits #248
+- [#343](https://github.com/seriously-not-prod/break-things-here/pull/343) | 2026-04-30T11:13:21Z | merged | fix(security): sanitize request bodies against XSS #247
+- [#345](https://github.com/seriously-not-prod/break-things-here/pull/345) | 2026-04-30T11:22:24Z | merged | fix(security): keep access token in memory #250
+- [#346](https://github.com/seriously-not-prod/break-things-here/pull/346) | 2026-04-30T11:32:48Z | merged | [STORY] Admin Restore Soft-Deleted Users
+- [#350](https://github.com/seriously-not-prod/break-things-here/pull/350) | 2026-04-30T13:36:49Z | merged | fix(auth): seed role-permission assignments #265
+- [#506](https://github.com/seriously-not-prod/break-things-here/pull/506) | 2026-05-07T10:28:39Z | merged | [TASK] Add seating chart editor
+- [#639](https://github.com/seriously-not-prod/break-things-here/pull/639) | 2026-05-12T08:44:58Z | merged | chore(db): refresh demo seed bootstrap #526
+- [#650](https://github.com/seriously-not-prod/break-things-here/pull/650) | 2026-05-12T12:50:08Z | closed | feat: OCR receipt extraction and reconciliation workflow (#550 #601)
+- [#684](https://github.com/seriously-not-prod/break-things-here/pull/684) | 2026-05-16T07:46:59Z | merged | feat(auth): close Entra/RBAC security gaps
+- [#687](https://github.com/seriously-not-prod/break-things-here/pull/687) | 2026-05-16T10:00:25Z | merged | fix(auth): harden entra oauth flow and runtime config #3
+- [#688](https://github.com/seriously-not-prod/break-things-here/pull/688) | 2026-05-16T11:14:29Z | closed | fix(security): enforce strict 3.1.3 startup controls
+- [#689](https://github.com/seriously-not-prod/break-things-here/pull/689) | 2026-05-16T11:15:34Z | merged | fix(security): enforce strict 3.1.3 startup controls
+- [#725](https://github.com/seriously-not-prod/break-things-here/pull/725) | 2026-05-18T16:16:09Z | merged | feat(guests): add RSVP import template download (#664)
