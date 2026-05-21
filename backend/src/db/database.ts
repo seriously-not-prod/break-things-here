@@ -1216,6 +1216,11 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS capacity INTEGER`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION`);
+  await db.exec(
+    `ALTER TABLE events ADD COLUMN IF NOT EXISTS waitlist_enabled BOOLEAN DEFAULT FALSE`,
+  );
 
   // ── Idempotent TZ-fixup for high-risk expiry/deadline columns (#664) ────
   // Some installations created these columns as plain TIMESTAMP before the

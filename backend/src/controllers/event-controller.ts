@@ -375,8 +375,9 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
 
     const {
       title,
-      // support both 'date' and 'start_date' as field name
+      // support both 'date', 'event_date', and 'start_date' as field name
       date: _date,
+      event_date,
       start_date,
       // support both 'location' and 'venue_name' as field name
       location: _location,
@@ -393,7 +394,7 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
       event_time,
     } = req.body as EventData & { start_date?: string; venue_name?: string };
 
-    const date = _date || start_date;
+    const date = _date || event_date || start_date;
     const location = _location || venue_name;
 
     // Validation
@@ -527,6 +528,7 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
     const {
       title,
       date: _date,
+      event_date,
       start_date,
       location: _location,
       venue_name,
@@ -546,7 +548,7 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       event_time,
     } = req.body as EventData & { start_date?: string; venue_name?: string };
 
-    const date = _date || start_date;
+    const date = _date || event_date || start_date;
     const location = _location || venue_name;
 
     // Check if event exists
