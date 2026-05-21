@@ -402,9 +402,9 @@ export async function compareSimilarEvents(req: AuthRequest, res: Response): Pro
       (comparisonFilters.minCapacity !== null && comparisonFilters.maxCapacity !== null),
     );
     const adminFilterSql = hasAdminPrefilter
-      ? `AND ((? <> '' AND lower(COALESCE(event_type, '')) = ?)
-             OR (? <> '' AND lower(location) = ?)
-             OR (?::integer IS NOT NULL AND ?::integer IS NOT NULL AND capacity BETWEEN ? AND ?))`
+      ? `AND (($2 <> '' AND lower(COALESCE(event_type, '')) = $3)
+             OR ($4 <> '' AND lower(location) = $5)
+             OR ($6::integer IS NOT NULL AND $7::integer IS NOT NULL AND capacity BETWEEN $8 AND $9))`
       : '';
 
     const candidateEvents =
