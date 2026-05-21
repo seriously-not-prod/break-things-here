@@ -1,0 +1,12 @@
+#!/bin/sh
+# Pre-commit hook — runs lint-staged to format and lint staged files.
+# Installed via: git config core.hooksPath .githooks (see package.json prepare script).
+
+set -e
+
+# Run lint-staged — formats and lints only the staged files.
+if command -v npx > /dev/null 2>&1; then
+  npx lint-staged
+else
+  echo "[pre-commit] npx not found; skipping lint-staged"
+fi

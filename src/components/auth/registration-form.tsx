@@ -101,7 +101,12 @@ export function RegistrationForm() {
   const hasValidationErrors = errorEntries.some((e) => e !== null);
 
   return (
-    <form className="registration-form" onSubmit={handleSubmit} noValidate aria-label="User registration form">
+    <form
+      className="registration-form"
+      onSubmit={handleSubmit}
+      noValidate
+      aria-label="User registration form"
+    >
       <div>
         <label htmlFor="displayName">Display name</label>
         <input

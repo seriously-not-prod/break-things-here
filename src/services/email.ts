@@ -10,7 +10,10 @@ const EMAIL_FROM = process.env.EMAIL_FROM ?? 'no-reply@example.com';
 const APP_BASE_URL = process.env.APP_BASE_URL ?? 'http://localhost:3000';
 
 export class EmailError extends Error {
-  constructor(message: string, public readonly cause?: Error) {
+  constructor(
+    message: string,
+    public readonly cause?: Error,
+  ) {
     super(message);
     this.name = 'EmailError';
     if (Error.captureStackTrace) {
@@ -29,9 +32,7 @@ function getTransporter(): Transporter {
     host: SMTP_HOST,
     port: SMTP_PORT,
     secure: SMTP_SECURE,
-    ...(SMTP_USER && SMTP_PASS
-      ? { auth: { user: SMTP_USER, pass: SMTP_PASS } }
-      : {}),
+    ...(SMTP_USER && SMTP_PASS ? { auth: { user: SMTP_USER, pass: SMTP_PASS } } : {}),
   });
 }
 

@@ -19,12 +19,12 @@ This project follows a **Kanban-based release process** with **monthly productio
 
 This project uses a **four-branch strategy** with environment progression:
 
-| Branch    | Environment   | Purpose                        | Auto-Deploy |
-|-----------|---------------|--------------------------------|-------------|
-| `develop` | Development   | Integration and active dev     | Yes         |
-| `test`    | Testing/QA    | Quality assurance testing      | Yes         |
-| `stage`   | Stage/UAT     | Pre-production validation      | Yes         |
-| `main`    | Production    | Live production environment    | Manual      |
+| Branch    | Environment | Purpose                     | Auto-Deploy |
+| --------- | ----------- | --------------------------- | ----------- |
+| `develop` | Development | Integration and active dev  | Yes         |
+| `test`    | Testing/QA  | Quality assurance testing   | Yes         |
+| `stage`   | Stage/UAT   | Pre-production validation   | Yes         |
+| `main`    | Production  | Live production environment | Manual      |
 
 **Standard Flow**: `develop` → `test` → `stage` → `main`
 
@@ -55,6 +55,7 @@ This repository uses **GitHub Projects** (Project 1) for visual workflow managem
 ### Adding Issues to Project
 
 All issues should be added to Project 1:
+
 ```bash
 # Add issue to project (via web UI or automation)
 gh issue edit <issue-number> --add-project "Project 1"
@@ -81,12 +82,14 @@ Theme (standalone issue)
 - **Sub-Tasks**: Created as sub-issues of a Task
 
 **How to Create Hierarchy:**
+
 1. Create a Theme issue using the Theme template
 2. Open the Theme → Click "Create sub-issue" → Select User Story template
 3. Open the User Story → Click "Create sub-issue" → Select Task template
 4. Open the Task → Click "Create sub-issue" → Select Sub-Task template
 
 **Adding Existing Issues:**
+
 - Click the dropdown next to "Create sub-issue"
 - Select "Add existing issue"
 - Search for and select the issue to link
@@ -243,7 +246,7 @@ For critical production issues (Defects):
    - Merge `test` → `develop`
    - This ensures hotfix flows through all environments
 
-5. **Post-Hotfix**
+6. **Post-Hotfix**
    - Document lessons learned
    - Update monitoring/alerts
 
@@ -258,24 +261,28 @@ Following Semantic Versioning (SemVer):
 ## Release Checklist
 
 ### One Week Before
+
 - [ ] Create release branch
 - [ ] Update version numbers
 - [ ] Generate preliminary release notes
 - [ ] Begin UAT testing
 
 ### Three Days Before
+
 - [ ] Code freeze in effect
 - [ ] Complete security scan
 - [ ] Complete performance testing
 - [ ] Final release notes review
 
 ### Deployment Day
+
 - [ ] Backup production
 - [ ] Deploy to production
 - [ ] Verify deployment
 - [ ] Monitor application
 
 ### Post-Deployment
+
 - [ ] Update CHANGELOG
 - [ ] Tag release in GitHub
 - [ ] Close released issues
