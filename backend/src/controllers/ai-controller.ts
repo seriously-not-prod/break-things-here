@@ -1,74 +1,84 @@
 /**
- * AI Suggestions controller — supports Azure OpenAI and OpenAI via REST API.
- * Configure one provider through environment variables; if unset, the endpoint
- * returns a graceful configuration error and the app remains functional.
+ * AI Suggestions controller — prefers Azure OpenAI and falls back to OpenAI.
+ * If neither provider is configured, returns a clear 503 response.
  */
 import { Request, Response } from 'express';
 import https from 'https';
 import { getDatabase } from '../db/database.js';
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? '';
-const OPENAI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
-
 const AZURE_OPENAI_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT ?? process.env.ENDPOINT ?? '';
 const AZURE_OPENAI_API_KEY = process.env.AZURE_OPENAI_API_KEY ?? process.env.API_KEY ?? '';
-const AZURE_OPENAI_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT ?? OPENAI_MODEL;
+const AZURE_OPENAI_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT ?? 'gpt-4o-mini';
 const AZURE_OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION ?? '2024-02-15-preview';
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? '';
+const OPENAI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 
 interface SuggestBody {
   context: 'event' | 'task' | 'rsvp' | 'general';
   prompt: string;
 }
 
-interface AiProviderConfig {
+interface AiProviderRequest {
   hostname: string;
   path: string;
   headers: Record<string, string | number>;
-  providerLabel: 'Azure OpenAI' | 'OpenAI';
+  body: string;
 }
 
-function normaliseEndpoint(endpoint: string): string {
-  if (!endpoint.trim()) return '';
-  const withProtocol = /^https?:\/\//i.test(endpoint) ? endpoint : `https://${endpoint}`;
-  return withProtocol.replace(/\/+$/, '');
-}
+type AiProviderConfig =
+  | { kind: 'azure' }
+  | { kind: 'openai' }
+  | { kind: 'misconfigured'; message: string }
+  | { kind: 'none' };
 
-function getAiProviderConfig(): AiProviderConfig | null {
-  if (AZURE_OPENAI_ENDPOINT && AZURE_OPENAI_API_KEY) {
-    const endpoint = normaliseEndpoint(AZURE_OPENAI_ENDPOINT);
-    const url = new URL(endpoint);
-    return {
-      hostname: url.host,
-      path: `${url.pathname.replace(/\/$/, '')}/openai/deployments/${encodeURIComponent(AZURE_OPENAI_DEPLOYMENT)}/chat/completions?api-version=${encodeURIComponent(AZURE_OPENAI_API_VERSION)}`,
-      headers: {
-        'api-key': AZURE_OPENAI_API_KEY,
-      },
-      providerLabel: 'Azure OpenAI',
-    };
+function resolveAiProviderConfig(): AiProviderConfig {
+  const hasAnyAzureConfig = Boolean(
+    AZURE_OPENAI_ENDPOINT ||
+    AZURE_OPENAI_API_KEY ||
+    process.env.AZURE_OPENAI_ENDPOINT ||
+    process.env.AZURE_OPENAI_API_KEY ||
+    process.env.ENDPOINT ||
+    process.env.API_KEY,
+  );
+
+  if (hasAnyAzureConfig) {
+    const missing: string[] = [];
+    if (!AZURE_OPENAI_ENDPOINT) {
+      missing.push('AZURE_OPENAI_ENDPOINT (or ENDPOINT)');
+    }
+    if (!AZURE_OPENAI_API_KEY) {
+      missing.push('AZURE_OPENAI_API_KEY (or API_KEY)');
+    }
+    if (missing.length > 0) {
+      return {
+        kind: 'misconfigured',
+        message: `Azure OpenAI is partially configured. Missing: ${missing.join(', ')}.`,
+      };
+    }
+    return { kind: 'azure' };
   }
 
   if (OPENAI_API_KEY) {
-    return {
-      hostname: 'api.openai.com',
-      path: '/v1/chat/completions',
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      providerLabel: 'OpenAI',
-    };
+    return { kind: 'openai' };
   }
 
-  return null;
+  return { kind: 'none' };
 }
 
-function callLlm(
+function buildProviderRequest(
+  provider: Extract<AiProviderConfig, { kind: 'azure' | 'openai' }>,
   systemPrompt: string,
   userMessage: string,
-  config: AiProviderConfig,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
+): AiProviderRequest {
+  if (provider.kind === 'azure') {
+    const endpoint = AZURE_OPENAI_ENDPOINT.replace(/\/+$/, '');
+    const url = new URL(
+      `${endpoint}/openai/deployments/${encodeURIComponent(
+        AZURE_OPENAI_DEPLOYMENT,
+      )}/chat/completions?api-version=${encodeURIComponent(AZURE_OPENAI_API_VERSION)}`,
+    );
     const body = JSON.stringify({
-      model: OPENAI_MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage },
@@ -77,16 +87,54 @@ function callLlm(
       temperature: 0.7,
     });
 
+    return {
+      hostname: url.hostname,
+      path: `${url.pathname}${url.search}`,
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': AZURE_OPENAI_API_KEY,
+        'Content-Length': Buffer.byteLength(body),
+      },
+      body,
+    };
+  }
+
+  const body = JSON.stringify({
+    model: OPENAI_MODEL,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userMessage },
+    ],
+    max_tokens: 400,
+    temperature: 0.7,
+  });
+
+  return {
+    hostname: 'api.openai.com',
+    path: '/v1/chat/completions',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      'Content-Length': Buffer.byteLength(body),
+    },
+    body,
+  };
+}
+
+function callAiProvider(
+  provider: Extract<AiProviderConfig, { kind: 'azure' | 'openai' }>,
+  systemPrompt: string,
+  userMessage: string,
+): Promise<string> {
+  const request = buildProviderRequest(provider, systemPrompt, userMessage);
+
+  return new Promise((resolve, reject) => {
     const req = https.request(
       {
-        hostname: config.hostname,
-        path: config.path,
+        hostname: request.hostname,
+        path: request.path,
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...config.headers,
-          'Content-Length': Buffer.byteLength(body),
-        },
+        headers: request.headers,
       },
       (res) => {
         let data = '';
@@ -98,19 +146,19 @@ function callLlm(
               error?: { message?: string };
             };
             if (parsed.error) {
-              reject(new Error(parsed.error.message ?? `${config.providerLabel} error`));
+              reject(new Error(parsed.error.message ?? 'AI provider error'));
             } else {
               resolve(parsed.choices?.[0]?.message?.content?.trim() ?? '');
             }
           } catch {
-            reject(new Error(`Failed to parse ${config.providerLabel} response`));
+            reject(new Error('Failed to parse AI provider response'));
           }
         });
       },
     );
 
     req.on('error', reject);
-    req.write(body);
+    req.write(request.body);
     req.end();
   });
 }
@@ -198,16 +246,20 @@ export async function getSuggestion(req: AuthRequest, res: Response): Promise<Re
     ? (context as SuggestBody['context'])
     : 'general';
 
-  const providerConfig = getAiProviderConfig();
-  if (!providerConfig) {
+  const provider = resolveAiProviderConfig();
+  if (provider.kind === 'misconfigured') {
+    return res.status(503).json({ error: provider.message });
+  }
+
+  if (provider.kind === 'none') {
     return res.status(503).json({
       error:
-        'AI suggestions are not configured. Set Azure OpenAI (AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY) or OPENAI_API_KEY in your .env file.',
+        'AI suggestions are not configured. Set Azure OpenAI (AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY + AZURE_OPENAI_DEPLOYMENT) or OPENAI_API_KEY.',
     });
   }
 
   try {
-    const suggestion = await callLlm(SYSTEM_PROMPTS[ctx], sanitisePrompt(prompt), providerConfig);
+    const suggestion = await callAiProvider(provider, SYSTEM_PROMPTS[ctx], sanitisePrompt(prompt));
     return res.json({ suggestion });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown AI error';
