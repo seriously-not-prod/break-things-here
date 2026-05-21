@@ -84,9 +84,7 @@ describe('ProfileEdit', () => {
     await userEvent.type(screen.getByLabelText(/display name/i), 'New Name');
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
     await waitFor(() => {
-      expect(onSave).toHaveBeenCalledWith(
-        expect.objectContaining({ displayName: 'New Name' }),
-      );
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ displayName: 'New Name' }));
     });
   });
 
@@ -107,7 +105,10 @@ describe('ProfileEdit', () => {
     // Mock validateProfilePhoto to return invalid — the actual MIME validation
     // is tested exhaustively in file-validation.test.ts. This avoids jsdom's
     // inability to set files on an input for types not matching `accept`.
-    vi.mocked(fileValidation.validateProfilePhoto).mockReturnValue({ valid: false, error: 'Invalid file type "image/gif". Only JPEG, PNG, and WebP are allowed.' });
+    vi.mocked(fileValidation.validateProfilePhoto).mockReturnValue({
+      valid: false,
+      error: 'Invalid file type "image/gif". Only JPEG, PNG, and WebP are allowed.',
+    });
 
     render(
       <ProfileEdit

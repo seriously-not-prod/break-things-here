@@ -99,10 +99,7 @@ function handleLogout(): void {
 // ---------------------------------------------------------------------------
 // Public API — drop-in replacement for fetch()
 // ---------------------------------------------------------------------------
-export async function apiFetch(
-  path: string,
-  options: RequestInit = {},
-): Promise<Response> {
+export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   // Attempt a silent refresh if the token is about to expire
   if (accessToken && isTokenExpiringSoon(accessToken)) {
     const refreshed = await refreshAccessToken();

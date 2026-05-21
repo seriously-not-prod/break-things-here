@@ -25,7 +25,7 @@ export function runStorageDiagnostic(): void {
     localStorage.setItem(testKey, testValue);
     const retrieved = localStorage.getItem(testKey);
     localStorage.removeItem(testKey);
-    
+
     if (retrieved === testValue) {
       console.log('✅ localStorage write/read test: PASSED');
     } else {

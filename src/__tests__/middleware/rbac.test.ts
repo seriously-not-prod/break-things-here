@@ -1,7 +1,9 @@
+import { vi } from 'vitest';
 import { UserRole } from '../../types/user-role';
 import { ApiRequest, ApiResponse } from '../../types/api';
 import { requireRole, requireAuth } from '../../middleware/rbac';
 import { HTTP_STATUS, AUTH_ERRORS } from '../../utils/http-errors';
+import { createUser, updateUserRole, resetUserStore, getTokenVersion } from '../../data/user-store';
 
 function createMockRes(): ApiResponse & { statusCode: number; body: unknown } {
   const res = {
@@ -135,5 +137,63 @@ describe('requireAuth middleware', () => {
 
       expect(handler).toHaveBeenCalledWith(req, res);
     }
+  });
+});
+
+describe('Token version invalidation', () => {
+  beforeEach(() => resetUserStore());
+
+  it('should reject requests with stale tokenVersion after role change', () => {
+    const handler = vi.fn();
+    const user = createUser({
+      email: 'admin@test.com',
+      displayName: 'Admin',
+      passwordHash: 'hashed',
+    });
+    updateUserRole(user.id, UserRole.Admin);
+
+    const staleVersion = getTokenVersion(user.id) - 1;
+    const wrapped = requireRole(UserRole.Admin, handler);
+    const req = createMockReq({
+      user: {
+        id: user.id,
+        email: 'admin@test.com',
+        role: UserRole.Admin,
+        tokenVersion: staleVersion,
+      },
+    });
+    const res = createMockRes();
+
+    wrapped(req, res);
+
+    expect(res.statusCode).toBe(HTTP_STATUS.UNAUTHORIZED);
+    expect(res.body).toEqual(AUTH_ERRORS.TOKEN_EXPIRED);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('should allow requests with current tokenVersion', () => {
+    const handler = vi.fn();
+    const user = createUser({
+      email: 'admin@test.com',
+      displayName: 'Admin',
+      passwordHash: 'hashed',
+    });
+    updateUserRole(user.id, UserRole.Admin);
+
+    const currentVersion = getTokenVersion(user.id);
+    const wrapped = requireRole(UserRole.Admin, handler);
+    const req = createMockReq({
+      user: {
+        id: user.id,
+        email: 'admin@test.com',
+        role: UserRole.Admin,
+        tokenVersion: currentVersion,
+      },
+    });
+    const res = createMockRes();
+
+    wrapped(req, res);
+
+    expect(handler).toHaveBeenCalledWith(req, res);
   });
 });

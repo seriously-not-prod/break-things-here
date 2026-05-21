@@ -46,9 +46,7 @@ describe('validatePassword', () => {
   });
 
   it('returns error when password is shorter than 8 characters', () => {
-    expect(validatePassword('Ab1!')).toBe(
-      'Password must be at least 8 characters long.',
-    );
+    expect(validatePassword('Ab1!')).toBe('Password must be at least 8 characters long.');
   });
 
   it('returns error when password has no uppercase letter', () => {
@@ -58,9 +56,7 @@ describe('validatePassword', () => {
   });
 
   it('returns error when password has no number', () => {
-    expect(validatePassword('Abcdefg!')).toBe(
-      'Password must contain at least one number.',
-    );
+    expect(validatePassword('Abcdefg!')).toBe('Password must contain at least one number.');
   });
 
   it('returns error when password has no special character', () => {
@@ -84,15 +80,11 @@ describe('validatePassword', () => {
 
 describe('validateConfirmPassword', () => {
   it('returns error when confirmPassword is empty', () => {
-    expect(validateConfirmPassword('Secure1!', '')).toBe(
-      'Please confirm your password.',
-    );
+    expect(validateConfirmPassword('Secure1!', '')).toBe('Please confirm your password.');
   });
 
   it('returns error when passwords do not match', () => {
-    expect(validateConfirmPassword('Secure1!', 'Different1!')).toBe(
-      'Passwords do not match.',
-    );
+    expect(validateConfirmPassword('Secure1!', 'Different1!')).toBe('Passwords do not match.');
   });
 
   it('returns null when passwords match', () => {
@@ -100,8 +92,6 @@ describe('validateConfirmPassword', () => {
   });
 
   it('returns error when confirmPassword differs by case', () => {
-    expect(validateConfirmPassword('Secure1!', 'secure1!')).toBe(
-      'Passwords do not match.',
-    );
+    expect(validateConfirmPassword('Secure1!', 'secure1!')).toBe('Passwords do not match.');
   });
 });

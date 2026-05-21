@@ -38,10 +38,7 @@ export async function hashPassword(password: string): Promise<string> {
  * @param hash - Bcrypt hash to compare against
  * @returns Promise resolving to boolean indicating match
  */
-export async function verifyPassword(
-  password: string,
-  hash: string,
-): Promise<boolean> {
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
 
@@ -106,7 +103,13 @@ const _tokenHashSecret: Buffer = (() => {
 
 const _encKey: Buffer = (() => {
   const keyBase64 = process.env.REFRESH_TOKEN_ENC_KEY;
-  if (keyBase64) return Buffer.from(keyBase64, 'base64');
+  if (keyBase64) {
+    const decoded = Buffer.from(keyBase64, 'base64');
+    if (decoded.length !== 32) {
+      throw new Error('REFRESH_TOKEN_ENC_KEY must be base64-encoded 32 bytes for AES-256-GCM.');
+    }
+    return decoded;
+  }
   if (process.env.NODE_ENV === 'production') {
     throw new Error('REFRESH_TOKEN_ENC_KEY environment variable must be set in production');
   }
