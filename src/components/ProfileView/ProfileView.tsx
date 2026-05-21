@@ -8,7 +8,12 @@ interface ProfileViewProps {
   error?: string;
 }
 
-export function ProfileView({ profile, onEditClick, isLoading = false, error }: ProfileViewProps): React.ReactElement {
+export function ProfileView({
+  profile,
+  onEditClick,
+  isLoading = false,
+  error,
+}: ProfileViewProps): React.ReactElement {
   if (isLoading) {
     return (
       <div role="status" aria-live="polite" aria-label="Loading profile">
@@ -29,7 +34,8 @@ export function ProfileView({ profile, onEditClick, isLoading = false, error }: 
   const local = profile.email.slice(0, atIndex);
   const domain = profile.email.slice(atIndex);
   const visibleChars = Math.min(2, local.length);
-  const maskedEmail = local.slice(0, visibleChars) + (local.length > visibleChars ? '***' : '') + domain;
+  const maskedEmail =
+    local.slice(0, visibleChars) + (local.length > visibleChars ? '***' : '') + domain;
 
   return (
     <main aria-labelledby="profile-heading">
@@ -62,7 +68,8 @@ export function ProfileView({ profile, onEditClick, isLoading = false, error }: 
               {maskedEmail}
               {profile.pendingEmail && (
                 <span aria-label="Email change pending confirmation">
-                  {' '}(change pending confirmation)
+                  {' '}
+                  (change pending confirmation)
                 </span>
               )}
             </dd>

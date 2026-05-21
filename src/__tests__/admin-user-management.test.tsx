@@ -17,13 +17,30 @@ function makeUser(overrides: Partial<User> & { id: string }): User {
     emailConfirmed: true,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
+    deletedAt: null,
     ...overrides,
   };
 }
 
-const adminUser = makeUser({ id: 'admin-1', displayName: 'Alice Admin', email: 'admin@test.com', role: UserRole.Admin });
-const orgUser = makeUser({ id: 'org-1', displayName: 'Organizer Jane', email: 'jane@test.com', role: UserRole.Organizer });
-const attendeeUser = makeUser({ id: 'att-1', displayName: 'Attendee Sam', email: 'sam@test.com', role: UserRole.Attendee, emailConfirmed: false });
+const adminUser = makeUser({
+  id: 'admin-1',
+  displayName: 'Alice Admin',
+  email: 'admin@test.com',
+  role: UserRole.Admin,
+});
+const orgUser = makeUser({
+  id: 'org-1',
+  displayName: 'Organizer Jane',
+  email: 'jane@test.com',
+  role: UserRole.Organizer,
+});
+const attendeeUser = makeUser({
+  id: 'att-1',
+  displayName: 'Attendee Sam',
+  email: 'sam@test.com',
+  role: UserRole.Attendee,
+  emailConfirmed: false,
+});
 
 function mockFetchUsers(users: User[]) {
   mockFetch.mockResolvedValueOnce({
@@ -41,11 +58,19 @@ function mockFetchError() {
   });
 }
 
-function mockRoleUpdate(user: User) {
+function mockRoleUpdate(_user: User) {
   mockFetch.mockResolvedValueOnce({
     ok: true,
     status: 200,
-    json: async () => user,
+    json: async () => ({ message: 'Role updated.' }),
+  });
+}
+
+function mockRestoreUser() {
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => ({ message: 'User restored.' }),
   });
 }
 
@@ -121,7 +146,9 @@ describe('AdminUserManagement', () => {
       expect(screen.getByText('Alice Admin')).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText(/filter users by role/i), { target: { value: 'Organizer' } });
+    fireEvent.change(screen.getByLabelText(/filter users by role/i), {
+      target: { value: 'Organizer' },
+    });
     expect(screen.getByText('Organizer Jane')).toBeInTheDocument();
     expect(screen.queryByText('Alice Admin')).not.toBeInTheDocument();
     expect(screen.queryByText('Attendee Sam')).not.toBeInTheDocument();
@@ -166,10 +193,13 @@ describe('AdminUserManagement', () => {
     fireEvent.click(screen.getByRole('button', { name: /change role for organizer jane/i }));
 
     // Change dropdown to Admin
-    fireEvent.change(screen.getByLabelText(/new role for organizer jane/i), { target: { value: 'Admin' } });
+    fireEvent.change(screen.getByLabelText(/new role for organizer jane/i), {
+      target: { value: 'Admin' },
+    });
 
     const updatedUser = { ...orgUser, role: UserRole.Admin };
     mockRoleUpdate(updatedUser);
+    mockFetchUsers([updatedUser]);
 
     fireEvent.click(screen.getByRole('button', { name: /confirm changing role to admin/i }));
 
@@ -187,7 +217,9 @@ describe('AdminUserManagement', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /change role for organizer jane/i }));
-    fireEvent.change(screen.getByLabelText(/new role for organizer jane/i), { target: { value: 'Admin' } });
+    fireEvent.change(screen.getByLabelText(/new role for organizer jane/i), {
+      target: { value: 'Admin' },
+    });
 
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -214,6 +246,38 @@ describe('AdminUserManagement', () => {
     expect(screen.getByText('Pending')).toBeInTheDocument();
   });
 
+  it('restores a deleted user and shows active state again', async () => {
+    const deletedUser = makeUser({
+      id: 'deleted-1',
+      displayName: 'Deleted Dana',
+      email: 'deleted@test.com',
+      deletedAt: new Date('2026-02-01'),
+    });
+    const restoredUser = { ...deletedUser, deletedAt: null };
+
+    mockFetchUsers([deletedUser]);
+    render(<AdminUserManagement />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Deleted Dana')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Deleted')).toBeInTheDocument();
+    mockRestoreUser();
+    mockFetchUsers([restoredUser]);
+
+    fireEvent.click(screen.getByRole('button', { name: /restore deleted dana/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/deleted dana's account was restored/i)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Deleted')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /change role for deleted dana/i }),
+    ).toBeInTheDocument();
+  });
+
   it('shows table headers with correct scope', async () => {
     mockFetchUsers([adminUser]);
     render(<AdminUserManagement />);
@@ -224,7 +288,13 @@ describe('AdminUserManagement', () => {
 
     const headers = screen.getAllByRole('columnheader');
     expect(headers).toHaveLength(5);
-    expect(headers.map((h) => h.textContent)).toEqual(['Name', 'Email', 'Role', 'Status', 'Actions']);
+    expect(headers.map((h) => h.textContent)).toEqual([
+      'Name',
+      'Email',
+      'Role',
+      'Status',
+      'Actions',
+    ]);
   });
 
   it('shows no users found when filter matches nothing', async () => {

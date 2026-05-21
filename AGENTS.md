@@ -15,10 +15,12 @@ This document describes the automated agents and assistants configured for this 
 GitHub Copilot is the primary AI assistant for this repository. All workspace-specific instructions, coding standards, and behavioral guidelines are configured for optimal assistance.
 
 **Configuration Files:**
+
 - **[.github/copilot-instructions.md](.github/copilot-instructions.md)** - Complete agent instructions
 - **[.github/universal-agent-guide.md](.github/universal-agent-guide.md)** - Mandatory rules for all agents
 
 **Capabilities:**
+
 - Code generation following project standards
 - TypeScript and React best practices
 - Git workflow guidance
@@ -52,5 +54,6 @@ The following automated agents are planned for future implementation:
 ## Related Documentation
 
 For complete details on GitHub Copilot configuration and agent behavior:
+
 - [GitHub Copilot Instructions](.github/copilot-instructions.md)
 - [Universal Agent Guide](.github/universal-agent-guide.md)

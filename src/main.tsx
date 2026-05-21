@@ -5,5 +5,5 @@ import { EventPlannerApp } from './components/event-planner/event-planner-app';
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <EventPlannerApp />
-  </StrictMode>
+  </StrictMode>,
 );

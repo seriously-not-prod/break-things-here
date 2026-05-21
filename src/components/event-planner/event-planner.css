@@ -91,7 +91,10 @@ textarea {
   border-radius: 1rem;
   color: rgba(248, 244, 237, 0.78);
   text-decoration: none;
-  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
 }
 
 .planner-nav-link:hover,

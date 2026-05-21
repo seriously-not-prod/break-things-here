@@ -13,8 +13,22 @@
  * - Input validation and sanitization on all fields
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createPostgresTestDatabase, type TestDatabase } from './helpers/postgres-test-db.js';
+
+// ---------------------------------------------------------------------------
+// Isolated PostgreSQL schema — replaces the real database module so the test
+// runner does not need a running server instance.
+// ---------------------------------------------------------------------------
+let testDb: TestDatabase;
+
+vi.mock('../src/db/database.js', () => ({
+  getDatabase: () => testDb,
+  initializeDatabase: async () => testDb,
+  closeDatabase: async () => testDb?.close(),
+}));
+
+import { getDatabase } from '../src/db/database.js';
 import { resetPassword } from '../src/controllers/password-reset-controller.js';
 import { hashPassword, hashResetVerifier } from '../src/utils/auth-helpers.js';
 
@@ -41,7 +55,7 @@ async function seedUser(email: string, password: string): Promise<number> {
   const db = getDatabase();
   const hash = await hashPassword(password);
   const result = await db.run(
-    `INSERT INTO users (email, password_hash, display_name, email_verified) VALUES (?, ?, ?, 1)`,
+    `INSERT INTO users (email, password_hash, display_name, email_verified) VALUES (?, ?, ?, 1) RETURNING id`,
     [email, hash, 'Test User'],
   );
   return result.lastID as number;
@@ -75,16 +89,47 @@ async function seedToken(
 
 describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
   beforeEach(async () => {
-    await initializeDatabase();
-    const db = getDatabase();
-    await db.run('DELETE FROM password_reset_tokens');
-    await db.run('DELETE FROM sessions');
-    await db.run('DELETE FROM audit_log');
-    await db.run('DELETE FROM users');
+    testDb = await createPostgresTestDatabase(`
+      CREATE TABLE users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        display_name TEXT,
+        email_verified INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMP
+      );
+      CREATE TABLE password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        email TEXT NOT NULL,
+        token_selector TEXT NOT NULL,
+        token TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        used_at TIMESTAMPTZ
+      );
+      CREATE TABLE sessions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        token TEXT UNIQUE NOT NULL,
+        refresh_token TEXT,
+        expires_at TIMESTAMPTZ NOT NULL
+      );
+      CREATE TABLE audit_log (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        email TEXT,
+        action TEXT NOT NULL,
+        description TEXT,
+        ip_address TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
   });
 
   afterEach(async () => {
-    await closeDatabase();
+    await testDb?.close();
   });
 
   // ── Input Validation ───────────────────────────────────────────────────────
@@ -131,14 +176,23 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
   describe('AC: Token Validation', () => {
     it('returns 400 for a non-existent token', async () => {
       const res = makeRes();
-      await resetPassword(makeReq({ token: 'nonexistent-token-xyz', newPassword: 'ValidPass1' }), res);
+      await resetPassword(
+        makeReq({ token: 'nonexistent-token-xyz', newPassword: 'ValidPass1' }),
+        res,
+      );
       expect(res.statusCode).toBe(400);
       expect(res.body.error).toMatch(/invalid|expired/i);
     });
 
     it('returns 400 for an already-used token', async () => {
       const userId = await seedUser('used@example.com', 'OldPass1');
-      const tok = await seedToken(userId, 'used@example.com', 'used-token-abc', 3_600_000, new Date().toISOString());
+      const tok = await seedToken(
+        userId,
+        'used@example.com',
+        'used-token-abc',
+        3_600_000,
+        new Date().toISOString(),
+      );
 
       const res = makeRes();
       await resetPassword(makeReq({ token: tok, newPassword: 'NewPass1' }), res);
@@ -210,10 +264,7 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
         [userId, 'session-token-1', 'refresh-token-1', expiresAt],
       );
 
-      await resetPassword(
-        makeReq({ token: tok, newPassword: 'NewPass1' }),
-        makeRes(),
-      );
+      await resetPassword(makeReq({ token: tok, newPassword: 'NewPass1' }), makeRes());
 
       const remaining = await db.get(`SELECT id FROM sessions WHERE user_id = ?`, [userId]);
       expect(remaining).toBeUndefined();
@@ -251,7 +302,10 @@ describe('Password Reset — Reset Password Endpoint (#79, #80)', () => {
   describe('AC: Consistent error messages (no user enumeration)', () => {
     it('gives the same error wording for invalid vs expired tokens', async () => {
       const res1 = makeRes();
-      await resetPassword(makeReq({ token: 'completely-fake-token', newPassword: 'ValidPass9' }), res1);
+      await resetPassword(
+        makeReq({ token: 'completely-fake-token', newPassword: 'ValidPass9' }),
+        res1,
+      );
 
       const userId = await seedUser('enum@example.com', 'OldPass1');
       const enumTok = await seedToken(userId, 'enum@example.com', 'expired-enum-token', -1000);
