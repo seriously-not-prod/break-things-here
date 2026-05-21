@@ -3,6 +3,15 @@ export type EventStatus = 'Active' | 'Draft' | 'Completed';
 export type TaskStatus = 'Pending' | 'Complete';
 
 export type RsvpStatus = 'Pending' | 'Confirmed' | 'Declined';
+export type CanonicalRsvpStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'declined'
+  | 'maybe'
+  | 'waitlist'
+  | 'cancelled'
+  | 'checked_in'
+  | 'no_show';
 
 export type AdminRole = 'Admin' | 'Organizer' | 'Coordinator';
 
@@ -12,6 +21,7 @@ export interface PlannerEvent {
   id: string;
   title: string;
   date: string;
+  event_time?: string | null;
   location: string;
   description: string;
   status: EventStatus;
@@ -66,6 +76,7 @@ export interface PlannerState {
 export interface EventDraft {
   title: string;
   date: string;
+  event_time?: string;
   location: string;
   description: string;
   status: EventStatus;

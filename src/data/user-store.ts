@@ -6,9 +6,17 @@ import { User, UserRecord } from '../types/user';
  * Replace with database access in production.
  */
 const users: Map<string, UserRecord> = new Map();
+const tokenVersions: Map<string, number> = new Map();
 
 export function findUserById(id: string): UserRecord | undefined {
   return users.get(id);
+}
+
+export function findUserByEmail(email: string): UserRecord | undefined {
+  for (const record of users.values()) {
+    if (record.email === email) return record;
+  }
+  return undefined;
 }
 
 export function updateUserRole(id: string, role: UserRole): User | undefined {
@@ -19,7 +27,22 @@ export function updateUserRole(id: string, role: UserRole): User | undefined {
   user.updatedAt = new Date();
   users.set(id, user);
 
+  // Invalidate existing tokens so the role change takes effect immediately
+  invalidateUserTokens(id);
+
   return toPublicUser(user);
+}
+
+/** Get the current token version for a user (0 if never invalidated). */
+export function getTokenVersion(userId: string): number {
+  return tokenVersions.get(userId) ?? 0;
+}
+
+/** Increment token version to invalidate all existing tokens for this user. */
+export function invalidateUserTokens(userId: string): number {
+  const next = (tokenVersions.get(userId) ?? 0) + 1;
+  tokenVersions.set(userId, next);
+  return next;
 }
 
 export function createUser(data: {
@@ -61,4 +84,5 @@ export function isValidRole(value: unknown): value is UserRole {
 /** Reset the store (for testing). */
 export function resetUserStore(): void {
   users.clear();
+  tokenVersions.clear();
 }

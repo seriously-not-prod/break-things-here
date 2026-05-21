@@ -18,7 +18,10 @@ describe('ForgotPasswordForm', () => {
 
   it('shows validation error when submitted with empty email', async () => {
     render(<ForgotPasswordForm />);
-    fireEvent.submit(screen.getByRole('form', { hidden: true }) ?? screen.getByRole('button', { name: /send reset link/i }).closest('form')!);
+    fireEvent.submit(
+      screen.getByRole('form', { hidden: true }) ??
+        screen.getByRole('button', { name: /send reset link/i }).closest('form')!,
+    );
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/email address is required/i);
     });

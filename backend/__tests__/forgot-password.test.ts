@@ -13,13 +13,28 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createPostgresTestDatabase, type TestDatabase } from './helpers/postgres-test-db.js';
+
+// ---------------------------------------------------------------------------
+// Isolated PostgreSQL schema — replaces the real database module so the test
+// runner does not need a running server instance.
+// ---------------------------------------------------------------------------
+let testDb: TestDatabase;
+
+vi.mock('../src/db/database.js', () => ({
+  getDatabase: () => testDb,
+  initializeDatabase: async () => testDb,
+  closeDatabase: async () => testDb?.close(),
+}));
+
 // Stub nodemailer so tests don't attempt real SMTP
 vi.mock('nodemailer', () => ({
   default: {
     createTransport: () => ({ sendMail: vi.fn().mockResolvedValue({}) }),
   },
 }));
-import { initializeDatabase, getDatabase, closeDatabase } from '../src/db/database.js';
+
+import { getDatabase } from '../src/db/database.js';
 import { forgotPassword } from '../src/controllers/password-reset-controller.js';
 
 // Mock Express response and request
@@ -47,17 +62,44 @@ function makeReq(body: any = {}, ip: string = '127.0.0.1') {
 
 describe('Password Reset — Forgot Password Endpoint (#77)', () => {
   beforeEach(async () => {
-    // Initialize test database
-    const db = await initializeDatabase();
-    // Clear test data
-    await db.run('DELETE FROM password_reset_tokens');
-    await db.run('DELETE FROM password_reset_rate_limit');
-    await db.run('DELETE FROM audit_log');
-    await db.run('DELETE FROM users');
+    testDb = await createPostgresTestDatabase(`
+      CREATE TABLE users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        display_name TEXT,
+        auth_provider TEXT DEFAULT 'local',
+        deleted_at TIMESTAMP
+      );
+      CREATE TABLE password_reset_rate_limit (
+        email TEXT PRIMARY KEY,
+        request_count INTEGER NOT NULL DEFAULT 1,
+        window_start TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        email TEXT NOT NULL,
+        token_selector TEXT NOT NULL,
+        token TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        used_at TIMESTAMPTZ
+      );
+      CREATE TABLE audit_log (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        email TEXT,
+        action TEXT NOT NULL,
+        description TEXT,
+        ip_address TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
   });
 
   afterEach(async () => {
-    await closeDatabase();
+    await testDb?.close();
   });
 
   describe('AC: Input Validation', () => {
@@ -89,10 +131,9 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
       await forgotPassword(req, res);
 
       // Check that token was stored with normalized email
-      const token = await db.get(
-        "SELECT email FROM password_reset_tokens WHERE email = ?",
-        ['test@example.com'],
-      );
+      const token = await db.get('SELECT email FROM password_reset_tokens WHERE email = ?', [
+        'test@example.com',
+      ]);
       expect(token).toBeDefined();
     });
   });
@@ -100,10 +141,11 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
   describe('AC: Cryptographic Token Generation', () => {
     it('should generate and store a cryptographically secure token', async () => {
       const db = getDatabase();
-      await db.run(
-        'INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)',
-        ['user@example.com', 'hash', 'Test User'],
-      );
+      await db.run('INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)', [
+        'user@example.com',
+        'hash',
+        'Test User',
+      ]);
 
       const res = makeRes();
       const req = makeReq({ email: 'user@example.com' });
@@ -117,17 +159,18 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
 
       expect(record).toBeDefined();
       // token column stores bcrypt hash of the verifier
-      expect((record.token as string)).toMatch(/^\$2[aby]\$\d+\$/);
+      expect(record.token as string).toMatch(/^\$2[aby]\$\d+\$/);
       // token_selector is 32 hex chars (16 random bytes)
-      expect((record.token_selector as string)).toMatch(/^[a-f0-9]{32}$/);
+      expect(record.token_selector as string).toMatch(/^[a-f0-9]{32}$/);
     });
 
     it('should generate unique tokens for each request', async () => {
       const db = getDatabase();
-      await db.run(
-        'INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)',
-        ['user@example.com', 'hash', 'Test User'],
-      );
+      await db.run('INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)', [
+        'user@example.com',
+        'hash',
+        'Test User',
+      ]);
 
       const res1 = makeRes();
       const req1 = makeReq({ email: 'user@example.com' });
@@ -155,10 +198,11 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
   describe('AC: Token Expiration (1 hour)', () => {
     it('should store token with 1-hour expiration', async () => {
       const db = getDatabase();
-      await db.run(
-        'INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)',
-        ['user@example.com', 'hash', 'Test User'],
-      );
+      await db.run('INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)', [
+        'user@example.com',
+        'hash',
+        'Test User',
+      ]);
 
       const res = makeRes();
       const req = makeReq({ email: 'user@example.com' });
@@ -167,10 +211,9 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
       await forgotPassword(req, res);
 
       const afterTime = Date.now();
-      const record = await db.get(
-        'SELECT expires_at FROM password_reset_tokens WHERE email = ?',
-        ['user@example.com'],
-      );
+      const record = await db.get('SELECT expires_at FROM password_reset_tokens WHERE email = ?', [
+        'user@example.com',
+      ]);
 
       const expiryTime = new Date(record.expires_at as string).getTime();
       const expectedMin = beforeTime + 60 * 60 * 1000 - 1000; // Allow 1 sec margin
@@ -184,10 +227,11 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
   describe('AC: Enumeration Prevention', () => {
     it('should return 200 with generic message whether email exists or not', async () => {
       const db = getDatabase();
-      await db.run(
-        'INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)',
-        ['existing@example.com', 'hash', 'Test User'],
-      );
+      await db.run('INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)', [
+        'existing@example.com',
+        'hash',
+        'Test User',
+      ]);
 
       // Existing email
       const res1 = makeRes();
@@ -255,7 +299,7 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
 
       // Manually update window start to 2 hours ago
       await db.run(
-        "UPDATE password_reset_rate_limit SET window_start = datetime('now', '-2 hours') WHERE email = ?",
+        "UPDATE password_reset_rate_limit SET window_start = CURRENT_TIMESTAMP - INTERVAL '2 hours' WHERE email = ?",
         ['test@example.com'],
       );
 
@@ -270,10 +314,11 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
   describe('AC: Security Audit Logging', () => {
     it('should log successful password reset request', async () => {
       const db = getDatabase();
-      await db.run(
-        'INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)',
-        ['user@example.com', 'hash', 'Test User'],
-      );
+      await db.run('INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)', [
+        'user@example.com',
+        'hash',
+        'Test User',
+      ]);
 
       const res = makeRes();
       const req = makeReq({ email: 'user@example.com' }, '192.168.1.1');
@@ -281,7 +326,7 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
       await forgotPassword(req, res);
 
       const log = await db.get(
-        "SELECT action, description FROM audit_log WHERE email = ? AND action = ?",
+        'SELECT action, description FROM audit_log WHERE email = ? AND action = ?',
         ['user@example.com', 'PASSWORD_RESET_REQUESTED'],
       );
 
@@ -304,10 +349,10 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
       const req = makeReq({ email: 'test@example.com' });
       await forgotPassword(req, res);
 
-      const log = await db.get(
-        "SELECT action FROM audit_log WHERE email = ? AND action = ?",
-        ['test@example.com', 'PASSWORD_RESET_RATE_LIMIT_EXCEEDED'],
-      );
+      const log = await db.get('SELECT action FROM audit_log WHERE email = ? AND action = ?', [
+        'test@example.com',
+        'PASSWORD_RESET_RATE_LIMIT_EXCEEDED',
+      ]);
 
       expect(log).toBeDefined();
     });
@@ -318,10 +363,11 @@ describe('Password Reset — Forgot Password Endpoint (#77)', () => {
       // This test verifies the email sending logic is invoked
       // In a real scenario, you'd mock the nodemailer module
       const db = getDatabase();
-      await db.run(
-        'INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)',
-        ['user@example.com', 'hash', 'Test User'],
-      );
+      await db.run('INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)', [
+        'user@example.com',
+        'hash',
+        'Test User',
+      ]);
 
       const res = makeRes();
       const req = makeReq({ email: 'user@example.com' });
