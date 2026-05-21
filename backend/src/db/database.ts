@@ -2820,20 +2820,35 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS seating_group_id INTEGER`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_rsvps_seating_group ON rsvps(seating_group_id)`);
 
-  // Backfill canonical_status from legacy free-text status on first run.
+  // Backfill canonical_status from legacy free-text status when that column exists.
   await db.exec(`
-    UPDATE rsvps SET canonical_status = CASE
-      WHEN canonical_status IS NOT NULL THEN canonical_status
-      WHEN waitlist_position IS NOT NULL THEN 'waitlist'
-      WHEN checked_in = TRUE THEN 'checked_in'
-      WHEN LOWER(status) IN ('going','yes','confirmed','accepted') THEN 'confirmed'
-      WHEN LOWER(status) IN ('not going','declined','no','rejected') THEN 'declined'
-      WHEN LOWER(status) IN ('maybe','tentative') THEN 'maybe'
-      WHEN LOWER(status) IN ('cancelled','canceled') THEN 'cancelled'
-      WHEN LOWER(status) IN ('pending','invited','sent') THEN 'pending'
-      ELSE 'pending'
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'rsvps' AND column_name = 'status'
+      ) THEN
+        EXECUTE $sql$
+          UPDATE rsvps SET canonical_status = CASE
+            WHEN canonical_status IS NOT NULL THEN canonical_status
+            WHEN waitlist_position IS NOT NULL THEN 'waitlist'
+            WHEN checked_in = TRUE THEN 'checked_in'
+            WHEN LOWER(status) IN ('going','yes','confirmed','accepted') THEN 'confirmed'
+            WHEN LOWER(status) IN ('not going','declined','no','rejected') THEN 'declined'
+            WHEN LOWER(status) IN ('maybe','tentative') THEN 'maybe'
+            WHEN LOWER(status) IN ('cancelled','canceled') THEN 'cancelled'
+            WHEN LOWER(status) IN ('pending','invited','sent') THEN 'pending'
+            ELSE 'pending'
+          END
+          WHERE canonical_status IS NULL OR canonical_status = ''
+        $sql$;
+      ELSE
+        UPDATE rsvps
+        SET canonical_status = 'pending'
+        WHERE canonical_status IS NULL OR canonical_status = '';
+      END IF;
     END
-    WHERE canonical_status IS NULL OR canonical_status = ''
+    $$;
   `);
 
   // Legacy compatibility path: older revisions exposed `guests` as a view on
