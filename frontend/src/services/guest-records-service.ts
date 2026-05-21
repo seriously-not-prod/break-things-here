@@ -36,9 +36,7 @@ export interface GuestRecordInput {
 }
 
 export async function listGuestRecords(eventId: string): Promise<GuestRecord[]> {
-  const data = await api.get<{ guests: GuestRecord[] }>(
-    `/api/events/${eventId}/guest-records`,
-  );
+  const data = await api.get<{ guests: GuestRecord[] }>(`/api/events/${eventId}/guest-records`);
   return data.guests ?? [];
 }
 

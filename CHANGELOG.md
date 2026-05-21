@@ -69,6 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Task #674 — AI assistant Azure OpenAI integration hardening**: Updated `backend/src/controllers/ai-controller.ts` to use Azure OpenAI as the primary provider (`AZURE_OPENAI_ENDPOINT`/`ENDPOINT`, `AZURE_OPENAI_API_KEY`/`API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_VERSION`) with OpenAI fallback (`OPENAI_API_KEY`). Added explicit partial-config detection (clear `503` for missing Azure fields), preserved `/api/ai/suggest` contract, and added regression tests in `backend/__tests__/ai-controller.test.ts` for Azure path, fallback behavior, and not-configured responses.
+
 - **Task #901 — Event creation + budget comparison stability fixes**: Added required `event_time` input/validation to the Events list modal create/edit flow (`frontend/src/components/events/events-page.tsx`) so API `POST /api/events` requests always include valid `HH:MM` values. Also fixed SQL placeholder compatibility in backend similar-budget comparison prefilter query (`backend/src/controllers/budget-controller.ts`) to prevent runtime failures that surfaced as `Failed to compare budget data across similar events` (#901).
 
 - **Task #776 — Add `/api/health` TRD-compatible alias**: Backend now serves `GET /api/health` as an alias of `GET /health` using a shared handler so both endpoints always return identical payload and status. In-code OpenAPI definition now documents both routes, and smoke coverage in `backend/__tests__/health-endpoints.test.ts` asserts both endpoints return `200` and matching response bodies (#776).

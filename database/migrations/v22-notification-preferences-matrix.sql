@@ -40,23 +40,33 @@ CREATE INDEX IF NOT EXISTS idx_notif_pref_user ON notification_preferences(user_
 
 -- ── Step 3: Migrate data from legacy table ───────────────────────────────────
 -- Flatten the old boolean columns into individual channel rows.
-INSERT INTO notification_preferences (user_id, channel, category, enabled)
-SELECT user_id, 'email', notification_type, email_enabled
-FROM   notification_type_preferences
-WHERE  notification_type IN (
-  'task_due', 'task_overdue', 'task_assigned', 'budget_alert',
-  'rsvp_submitted', 'event_update', 'chat_message', 'event_reminder'
-)
-ON CONFLICT (user_id, channel, category) DO NOTHING;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'notification_type_preferences'
+  ) THEN
+    INSERT INTO notification_preferences (user_id, channel, category, enabled)
+    SELECT user_id, 'email', notification_type, email_enabled
+    FROM   notification_type_preferences
+    WHERE  notification_type IN (
+      'task_due', 'task_overdue', 'task_assigned', 'budget_alert',
+      'rsvp_submitted', 'event_update', 'chat_message', 'event_reminder'
+    )
+    ON CONFLICT (user_id, channel, category) DO NOTHING;
 
-INSERT INTO notification_preferences (user_id, channel, category, enabled)
-SELECT user_id, 'in_app', notification_type, in_app_enabled
-FROM   notification_type_preferences
-WHERE  notification_type IN (
-  'task_due', 'task_overdue', 'task_assigned', 'budget_alert',
-  'rsvp_submitted', 'event_update', 'chat_message', 'event_reminder'
-)
-ON CONFLICT (user_id, channel, category) DO NOTHING;
+    INSERT INTO notification_preferences (user_id, channel, category, enabled)
+    SELECT user_id, 'in_app', notification_type, in_app_enabled
+    FROM   notification_type_preferences
+    WHERE  notification_type IN (
+      'task_due', 'task_overdue', 'task_assigned', 'budget_alert',
+      'rsvp_submitted', 'event_update', 'chat_message', 'event_reminder'
+    )
+    ON CONFLICT (user_id, channel, category) DO NOTHING;
+  END IF;
+END
+$$;
 
 -- ── Step 4: Seed default-enabled rows for all existing users ─────────────────
 -- Every user gets an enabled row for every channel × category combination that

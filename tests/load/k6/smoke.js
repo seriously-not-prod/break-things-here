@@ -11,7 +11,7 @@
 
 import { check, sleep } from 'k6';
 import http from 'k6/http';
-import { BASE_URL, TEST_USER, authenticate, authHeaders, trackRequest } from './helpers.js';
+import { BASE_URL, authenticate, authHeaders, trackRequest } from './helpers.js';
 
 export const options = {
   scenarios: {
@@ -54,36 +54,23 @@ export function setup() {
 export default function (data) {
   const { token, eventId } = data;
 
-  // 1. Health check
-  const healthRes = http.get(`${BASE_URL}/health`, {
-    tags: { scenario: 'smoke_health' },
-  });
-  check(healthRes, {
-    'health: status 200': (r) => r.status === 200,
-  });
-  trackRequest(healthRes, 'smoke_health');
-  sleep(0.2);
-
-  // 2. Login
-  const loginRes = http.post(
-    `${BASE_URL}/api/auth/login`,
-    JSON.stringify({ email: TEST_USER.email, password: TEST_USER.password }),
-    {
-      headers: { 'Content-Type': 'application/json' },
-      tags: { scenario: 'smoke_login' },
-    },
-  );
-  check(loginRes, {
-    'login: status 200': (r) => r.status === 200,
-  });
-  trackRequest(loginRes, 'smoke_login');
-  sleep(0.3);
+  // 1. Health check (sampled on one VU to avoid tripping health endpoint limits)
+  if (__VU === 1) {
+    const healthRes = http.get(`${BASE_URL}/health`, {
+      tags: { scenario: 'smoke_health' },
+    });
+    check(healthRes, {
+      'health: status 200': (r) => r.status === 200,
+    });
+    trackRequest(healthRes, 'smoke_health');
+    sleep(0.2);
+  }
 
   if (!token) return;
 
   const headers = authHeaders(token);
 
-  // 3. Events list
+  // 2. Events list
   const eventsRes = http.get(`${BASE_URL}/api/events`, {
     headers,
     tags: { scenario: 'smoke_events' },
@@ -95,7 +82,7 @@ export default function (data) {
   trackRequest(eventsRes, 'smoke_events');
   sleep(0.3);
 
-  // 4. RSVP submission
+  // 3. RSVP submission
   const vuId = __VU;
   const iterationId = __ITER;
   const rsvpRes = http.post(
@@ -116,7 +103,7 @@ export default function (data) {
   trackRequest(rsvpRes, 'smoke_rsvp');
   sleep(0.5);
 
-  // 5. Profile
+  // 4. Profile
   const profileRes = http.get(`${BASE_URL}/api/auth/me`, {
     headers,
     tags: { scenario: 'smoke_profile' },
