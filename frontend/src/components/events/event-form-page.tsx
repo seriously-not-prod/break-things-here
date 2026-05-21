@@ -123,7 +123,7 @@ export default function EventFormPage(): JSX.Element {
         description: form.description.trim() || null,
         event_type: form.event_type,
         status: form.status,
-        date: form.date,
+        event_date: form.date,
         event_time: form.event_time,
         location: form.location.trim(),
         capacity: form.capacity ? Number(form.capacity) : null,

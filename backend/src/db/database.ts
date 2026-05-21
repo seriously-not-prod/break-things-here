@@ -1216,6 +1216,11 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS capacity INTEGER`);
   await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION`);
+  await db.exec(`ALTER TABLE events ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION`);
+  await db.exec(
+    `ALTER TABLE events ADD COLUMN IF NOT EXISTS waitlist_enabled BOOLEAN DEFAULT FALSE`,
+  );
 
   // ── Idempotent TZ-fixup for high-risk expiry/deadline columns (#664) ────
   // Some installations created these columns as plain TIMESTAMP before the
@@ -2820,7 +2825,10 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
   await db.exec(`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS seating_group_id INTEGER`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_rsvps_seating_group ON rsvps(seating_group_id)`);
 
-  // Backfill canonical_status from legacy free-text status when that column exists.
+  // Backfill canonical_status from legacy free-text status on first run.
+  // The legacy `status` column was dropped in issue #770. Use dynamic SQL inside
+  // a PL/pgSQL block so the LOWER(status) references are only resolved at runtime
+  // when the column is confirmed to still exist (pre-#770 databases).
   await db.exec(`
     DO $$
     BEGIN
@@ -2830,7 +2838,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       ) THEN
         EXECUTE $sql$
           UPDATE rsvps SET canonical_status = CASE
-            WHEN canonical_status IS NOT NULL THEN canonical_status
+            WHEN canonical_status IS NOT NULL AND canonical_status <> '' THEN canonical_status
             WHEN waitlist_position IS NOT NULL THEN 'waitlist'
             WHEN checked_in = TRUE THEN 'checked_in'
             WHEN LOWER(status) IN ('going','yes','confirmed','accepted') THEN 'confirmed'
@@ -2843,8 +2851,7 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
           WHERE canonical_status IS NULL OR canonical_status = ''
         $sql$;
       ELSE
-        UPDATE rsvps
-        SET canonical_status = 'pending'
+        UPDATE rsvps SET canonical_status = 'pending'
         WHERE canonical_status IS NULL OR canonical_status = '';
       END IF;
     END

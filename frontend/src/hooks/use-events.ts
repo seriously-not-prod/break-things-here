@@ -35,8 +35,8 @@ export function useEvents(filters?: Record<string, unknown>) {
       const params = filters
         ? '?' + new URLSearchParams(filters as Record<string, string>).toString()
         : '';
-      const data = await api.get<EventDetail[]>(`/events${params}`);
-      return data;
+      const data = await api.get<{ events: EventDetail[] }>(`/api/events${params}`);
+      return data.events ?? [];
     },
   });
 }
@@ -44,7 +44,10 @@ export function useEvents(filters?: Record<string, unknown>) {
 export function useEvent(id: number) {
   return useQuery({
     queryKey: EVENT_QUERY_KEYS.detail(id),
-    queryFn: () => api.get<EventDetail>(`/events/${id}`),
+    queryFn: async () => {
+      const data = await api.get<{ event: EventDetail }>(`/api/events/${id}`);
+      return data.event;
+    },
     enabled: id > 0,
   });
 }
@@ -52,7 +55,11 @@ export function useEvent(id: number) {
 export function useCreateEvent() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Partial<EventDetail>) => api.post<EventDetail>('/events', payload),
+    mutationFn: (payload: Partial<EventDetail> & { date?: string; event_date?: string }) =>
+      api.post<EventDetail>('/api/events', {
+        ...payload,
+        event_date: payload.event_date ?? payload.date,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: EVENT_QUERY_KEYS.all });
     },
@@ -62,7 +69,11 @@ export function useCreateEvent() {
 export function useUpdateEvent(id: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Partial<EventDetail>) => api.patch<EventDetail>(`/events/${id}`, payload),
+    mutationFn: (payload: Partial<EventDetail> & { date?: string; event_date?: string }) =>
+      api.patch<EventDetail>(`/api/events/${id}`, {
+        ...payload,
+        event_date: payload.event_date ?? payload.date,
+      }),
     onSuccess: (updated) => {
       queryClient.setQueryData(EVENT_QUERY_KEYS.detail(id), updated);
       queryClient.invalidateQueries({ queryKey: EVENT_QUERY_KEYS.all });
@@ -73,7 +84,7 @@ export function useUpdateEvent(id: number) {
 export function useDeleteEvent() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.delete(`/events/${id}`),
+    mutationFn: (id: number) => api.delete(`/api/events/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: EVENT_QUERY_KEYS.all });
     },

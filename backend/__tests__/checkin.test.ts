@@ -68,6 +68,27 @@ CREATE TABLE IF NOT EXISTS attendance_events (
   actor_id    INTEGER,
   metadata    JSONB
 );
+CREATE TABLE IF NOT EXISTS entity_versions (
+  id          SERIAL PRIMARY KEY,
+  entity_type TEXT NOT NULL,
+  entity_id   INTEGER NOT NULL,
+  version     INTEGER NOT NULL,
+  snapshot    JSONB NOT NULL,
+  changed_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  change_note TEXT,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_entity_versions_lookup
+  ON entity_versions(entity_type, entity_id, version DESC);
+CREATE TABLE IF NOT EXISTS activity_feed (
+  id          SERIAL PRIMARY KEY,
+  event_id    INTEGER REFERENCES events(id) ON DELETE CASCADE,
+  user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  action_type TEXT NOT NULL,
+  description TEXT NOT NULL,
+  link        TEXT,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 `;
 
 // ── Test database ────────────────────────────────────────────────────────────
