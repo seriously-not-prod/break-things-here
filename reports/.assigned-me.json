@@ -1,0 +1,100 @@
+[
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-04-02T11:04:29Z",
+    "number": 95,
+    "state": "closed",
+    "title": "feat(auth): implement password reset token generation and email delivery API endpoint #77",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/95"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-04-02T11:09:36Z",
+    "number": 96,
+    "state": "closed",
+    "title": "feat(auth): implement and harden password reset endpoint for task #77",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/96"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-04T03:40:05Z",
+    "number": 103,
+    "state": "merged",
+    "title": "fix: [BUG] TypeScript error: Property 'file' does not exist on type 'AuthRequest' in profile-controller.ts",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/103"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-04-30T11:13:21Z",
+    "number": 343,
+    "state": "merged",
+    "title": "fix(security): sanitize request bodies against XSS #247",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/343"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-04-30T13:44:19Z",
+    "number": 351,
+    "state": "merged",
+    "title": "fix: [TASK] Seed role-permission assignments in DB migration",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/351"
+  },
+  {
+    "author": {
+      "id": "MDM6Qm90NDE4OTgyODI=",
+      "is_bot": false,
+      "login": "github-actions[bot]",
+      "type": "Bot",
+      "url": "https://github.com/apps/github-actions"
+    },
+    "createdAt": "2026-05-04T10:15:39Z",
+    "number": 392,
+    "state": "merged",
+    "title": "feat: feat(db): Migrate database from SQLite to PostgreSQL",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/392"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjg4MTM1ODMz",
+      "is_bot": false,
+      "login": "SmitRAmoliya",
+      "type": "User",
+      "url": "https://github.com/SmitRAmoliya"
+    },
+    "createdAt": "2026-05-16T07:46:59Z",
+    "number": 684,
+    "state": "merged",
+    "title": "feat(auth): close Entra/RBAC security gaps",
+    "url": "https://github.com/seriously-not-prod/break-things-here/pull/684"
+  }
+]

@@ -22,19 +22,19 @@ export async function getAllTasks(req: Request, res: Response): Promise<void> {
   try {
     const db = getDatabase();
     const { event_id } = req.query;
-    
+
     let query = 'SELECT * FROM tasks';
     const params: any[] = [];
-    
+
     if (event_id) {
-      query += ' WHERE event_id = ?';
+      query += ' WHERE event_id = $1';
       params.push(event_id);
     }
-    
+
     query += ' ORDER BY due_date ASC, created_at DESC';
-    
+
     const tasks = await db.all(query, params);
-    
+
     res.json(tasks);
   } catch (error) {
     console.error('Error fetching tasks:', error);
@@ -49,14 +49,14 @@ export async function getTaskById(req: Request, res: Response): Promise<void> {
   try {
     const db = getDatabase();
     const { id } = req.params;
-    
-    const task = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
-    
+
+    const task = await db.get('SELECT * FROM tasks WHERE id = $1', [id]);
+
     if (!task) {
       res.status(404).json({ error: 'Task not found' });
       return;
     }
-    
+
     res.json(task);
   } catch (error) {
     console.error('Error fetching task:', error);
@@ -71,40 +71,43 @@ export async function createTask(req: Request, res: Response): Promise<void> {
   try {
     const db = getDatabase();
     const userId = (req as any).user?.id;
-    
+
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
       return;
     }
-    
+
     const { event_id, title, description, assignee, due_date, status }: TaskData = req.body;
-    
+
     // Validation
     if (!event_id || !title) {
       res.status(400).json({ error: 'Event ID and title are required' });
       return;
     }
-    
+
     // Check if event exists
-    const event = await db.get('SELECT id FROM events WHERE id = ?', [event_id]);
+    const event = await db.get('SELECT id FROM events WHERE id = $1', [event_id]);
     if (!event) {
       res.status(404).json({ error: 'Event not found' });
       return;
     }
-    
+
     if (status && !['Pending', 'Complete'].includes(status)) {
       res.status(400).json({ error: 'Invalid status' });
       return;
     }
-    
-    const result = await db.run(`
+
+    const result = await db.run(
+      `
       INSERT INTO tasks (event_id, title, description, assignee, due_date, status)
-      VALUES (?, ?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id
-    `, [event_id, title, description || '', assignee || '', due_date || null, status || 'Pending']);
-    
-    const newTask = await db.get('SELECT * FROM tasks WHERE id = ?', [result.lastID]);
-    
+    `,
+      [event_id, title, description || '', assignee || '', due_date || null, status || 'Pending'],
+    );
+
+    const newTask = await db.get('SELECT * FROM tasks WHERE id = $1', [result.lastID]);
+
     res.status(201).json(newTask);
   } catch (error) {
     console.error('Error creating task:', error);
@@ -120,42 +123,45 @@ export async function updateTask(req: Request, res: Response): Promise<void> {
     const db = getDatabase();
     const { id } = req.params;
     const userId = (req as any).user?.id;
-    
+
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
       return;
     }
-    
+
     const { title, description, assignee, due_date, status } = req.body;
-    
+
     // Check if task exists
-    const existingTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+    const existingTask = await db.get('SELECT * FROM tasks WHERE id = $1', [id]);
     if (!existingTask) {
       res.status(404).json({ error: 'Task not found' });
       return;
     }
-    
+
     // Validation
     if (status && !['Pending', 'Complete'].includes(status)) {
       res.status(400).json({ error: 'Invalid status' });
       return;
     }
-    
-    await db.run(`
+
+    await db.run(
+      `
       UPDATE tasks 
-      SET title = ?, description = ?, assignee = ?, due_date = ?, status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [
-      title || existingTask.title,
-      description !== undefined ? description : existingTask.description,
-      assignee !== undefined ? assignee : existingTask.assignee,
-      due_date !== undefined ? due_date : existingTask.due_date,
-      status || existingTask.status,
-      id
-    ]);
-    
-    const updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
-    
+      SET title = $1, description = $2, assignee = $3, due_date = $4, status = $5, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6
+    `,
+      [
+        title || existingTask.title,
+        description !== undefined ? description : existingTask.description,
+        assignee !== undefined ? assignee : existingTask.assignee,
+        due_date !== undefined ? due_date : existingTask.due_date,
+        status || existingTask.status,
+        id,
+      ],
+    );
+
+    const updatedTask = await db.get('SELECT * FROM tasks WHERE id = $1', [id]);
+
     res.json(updatedTask);
   } catch (error) {
     console.error('Error updating task:', error);
@@ -171,20 +177,20 @@ export async function deleteTask(req: Request, res: Response): Promise<void> {
     const db = getDatabase();
     const { id } = req.params;
     const userId = (req as any).user?.id;
-    
+
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
       return;
     }
-    
-    const task = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+
+    const task = await db.get('SELECT * FROM tasks WHERE id = $1', [id]);
     if (!task) {
       res.status(404).json({ error: 'Task not found' });
       return;
     }
-    
-    await db.run('DELETE FROM tasks WHERE id = ?', [id]);
-    
+
+    await db.run('DELETE FROM tasks WHERE id = $1', [id]);
+
     res.json({ message: 'Task deleted successfully' });
   } catch (error) {
     console.error('Error deleting task:', error);
@@ -200,28 +206,31 @@ export async function toggleTaskStatus(req: Request, res: Response): Promise<voi
     const db = getDatabase();
     const { id } = req.params;
     const userId = (req as any).user?.id;
-    
+
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
       return;
     }
-    
-    const task = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+
+    const task = await db.get('SELECT * FROM tasks WHERE id = $1', [id]);
     if (!task) {
       res.status(404).json({ error: 'Task not found' });
       return;
     }
-    
+
     const newStatus = task.status === 'Complete' ? 'Pending' : 'Complete';
-    
-    await db.run(`
+
+    await db.run(
+      `
       UPDATE tasks 
-      SET status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [newStatus, id]);
-    
-    const updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
-    
+      SET status = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+    `,
+      [newStatus, id],
+    );
+
+    const updatedTask = await db.get('SELECT * FROM tasks WHERE id = $1', [id]);
+
     res.json(updatedTask);
   } catch (error) {
     console.error('Error toggling task status:', error);

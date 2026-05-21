@@ -68,7 +68,9 @@ describe('ResetPasswordForm', () => {
     await userEvent.type(getConfirmPasswordInput(), 'weak');
     fireEvent.submit(getNewPasswordInput().closest('form')!);
     await waitFor(() => {
-      expect(screen.getAllByRole('alert').some(el => el.textContent?.includes('at least 8'))).toBe(true);
+      expect(
+        screen.getAllByRole('alert').some((el) => el.textContent?.includes('at least 8')),
+      ).toBe(true);
     });
   });
 

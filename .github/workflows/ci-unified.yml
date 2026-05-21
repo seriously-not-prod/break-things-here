@@ -51,6 +51,12 @@ jobs:
         working-directory: backend
         run: npx tsc --noEmit
 
+      # Defensive mirror of the .githooks/pre-commit checks.
+      # Ensures format and lint regressions are caught even when the local hook
+      # was bypassed (e.g. git commit --no-verify or a fresh clone without npm install).
+      - name: Prettier format check (pre-commit mirror)
+        run: npm run format:check
+
   test-root:
     name: Test - Root (Vitest)
     runs-on: ubuntu-latest
@@ -87,6 +93,19 @@ jobs:
     needs: lint-and-typecheck
     permissions:
       contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: festival_planner_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d festival_planner_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -101,155 +120,26 @@ jobs:
         working-directory: backend
         run: npm ci
 
-      - name: Run backend tests
+      - name: Run backend tests with coverage
         working-directory: backend
-        run: npm test
+        run: npm run test:coverage
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/festival_planner_test
 
-  test-frontend:
-    name: Test - Frontend (Vite)
-    runs-on: ubuntu-latest
-    needs: lint-and-typecheck
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: TypeScript type check (frontend)
-        working-directory: frontend
-        run: npx tsc --noEmit
-
-  build-check:
-    name: Build Check
-    runs-on: ubuntu-latest
-    needs: [test-root, test-backend, test-frontend]
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Build frontend
-        working-directory: frontend
-        run: npm run build
-
-  ci-complete:
-    name: CI Complete
-    runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, test-root, test-backend, test-frontend, build-check]
-    if: always()
-    steps:
-      - name: Check all jobs passed
-        run: |
-          if [[ "${{ needs.lint-and-typecheck.result }}" != "success" || \
-                "${{ needs.test-root.result }}" != "success" || \
-                "${{ needs.test-backend.result }}" != "success" || \
-                "${{ needs.test-frontend.result }}" != "success" || \
-                "${{ needs.build-check.result }}" != "success" ]]; then
-            echo "❌ One or more CI jobs failed"
-            exit 1
-          fi
-          echo "✅ All CI checks passed"
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: TypeScript type check (root)
-        run: npx tsc --noEmit
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: TypeScript type check (backend)
-        working-directory: backend
-        run: npx tsc --noEmit
-  test-root:
-    name: Test - Root (Vitest)
-    runs-on: ubuntu-latest
-    needs: lint-and-typecheck
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests with coverage
-        run: npm test -- --coverage --reporter=verbose
-
-      - name: Upload coverage report
+      - name: Upload backend coverage report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-root
-          path: coverage/
-          retention-days: 7
-
-  test-backend:
-    name: Test - Backend (Vitest)
-    runs-on: ubuntu-latest
-    needs: lint-and-typecheck
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: Run backend tests
-        working-directory: backend
-        run: npm test
+          name: coverage-backend
+          path: backend/coverage/
+          retention-days: 14
 
   test-frontend:
     name: Test - Frontend (Vite)
     runs-on: ubuntu-latest
     needs: lint-and-typecheck
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -268,10 +158,97 @@ jobs:
         working-directory: frontend
         run: npx tsc --noEmit
 
+      - name: Run frontend tests with coverage
+        working-directory: frontend
+        run: npm run test:coverage
+
+      - name: Upload frontend coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-frontend
+          path: frontend/coverage/
+          retention-days: 14
+
+  coverage-comment:
+    name: Coverage Delta Comment
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: [test-frontend, test-backend]
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Download frontend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-frontend
+          path: coverage/frontend
+
+      - name: Download backend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-backend
+          path: coverage/backend
+
+      - name: Fetch base branch coverage artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_BRANCH: ${{ github.base_ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Find the latest successful CI - Unified Pipeline run on the base branch
+          RUN_ID=$(gh api "repos/$REPO/actions/runs?branch=$BASE_BRANCH&status=success&per_page=50" \
+            --jq '[.workflow_runs[] | select(.name == "CI - Unified Pipeline")] | first | .id // empty' 2>/dev/null || true)
+          if [ -n "$RUN_ID" ]; then
+            echo "Base run found: $RUN_ID"
+            # Download frontend base coverage
+            ARTIFACT_ID=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" \
+              --jq '.artifacts[] | select(.name == "coverage-frontend") | .id' 2>/dev/null | head -1 || true)
+            if [ -n "$ARTIFACT_ID" ]; then
+              gh api "repos/$REPO/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/base-frontend.zip 2>/dev/null && \
+                unzip -q /tmp/base-frontend.zip -d coverage/base-frontend && \
+                echo "Base frontend coverage downloaded" || true
+            fi
+            # Download backend base coverage
+            ARTIFACT_ID=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" \
+              --jq '.artifacts[] | select(.name == "coverage-backend") | .id' 2>/dev/null | head -1 || true)
+            if [ -n "$ARTIFACT_ID" ]; then
+              gh api "repos/$REPO/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/base-backend.zip 2>/dev/null && \
+                unzip -q /tmp/base-backend.zip -d coverage/base-backend && \
+                echo "Base backend coverage downloaded" || true
+            fi
+          else
+            echo "No base branch coverage run found; delta will be omitted."
+          fi
+
+      - name: Post coverage delta comment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          FRONTEND_COVERAGE: coverage/frontend/coverage-summary.json
+          BACKEND_COVERAGE: coverage/backend/coverage-summary.json
+          BASE_FRONTEND_COVERAGE: coverage/base-frontend/coverage-summary.json
+          BASE_BACKEND_COVERAGE: coverage/base-backend/coverage-summary.json
+        run: node scripts/post-coverage-comment.js
+
   build-check:
     name: Build Check
     runs-on: ubuntu-latest
     needs: [test-root, test-backend, test-frontend]
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -293,20 +270,110 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # High-severity advisories block the merge. `--audit-level=high` ignores
+      # informational/moderate findings so the gate is enforceable without
+      # noise. Run in every workspace so each lock file is covered.
+      - name: npm audit (root)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (backend)
+        working-directory: backend
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (frontend)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+  schema-doc-drift:
+    name: Schema Doc Drift (Warning)
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: festival_planner
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d festival_planner"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Load schema
+        run: psql "postgresql://postgres:postgres@localhost:5432/festival_planner" -v ON_ERROR_STOP=1 -f database/init.sql
+
+      - name: Regenerate ERD and schema docs
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/festival_planner
+        run: ./scripts/generate-erd.sh
+
+      - name: Warn if generated docs drift
+        run: |
+          if ! git diff --quiet -- docs/database; then
+            echo "::warning title=Database documentation drift detected::Run ./scripts/generate-erd.sh and commit updated docs/database artifacts."
+            git --no-pager diff -- docs/database | head -n 200
+          else
+            echo "No schema documentation drift detected."
+          fi
+
   ci-complete:
+    # NOTE: This is the job to mark as a Required status check in branch
+    # protection for `develop` / `test` / `stage` / `main`. It fails fast
+    # whenever any upstream job fails, so requiring `ci-complete` is enough
+    # to gate merges on the entire pipeline (tests, lint, build, audit).
     name: CI Complete
     runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, test-root, test-backend, test-frontend, build-check]
+    needs: [lint-and-typecheck, test-root, test-backend, test-frontend, build-check, security-audit]
     if: always()
     steps:
       - name: Check all jobs passed
         run: |
-          if [[ "${{ needs.lint-and-typecheck.result }}" != "success" || \
-                "${{ needs.test-root.result }}" != "success" || \
-                "${{ needs.test-backend.result }}" != "success" || \
-                "${{ needs.test-frontend.result }}" != "success" || \
-                "${{ needs.build-check.result }}" != "success" ]]; then
+          if [[ "${{ needs['lint-and-typecheck'].result }}" != "success" || \
+                "${{ needs['test-root'].result }}" != "success" || \
+                "${{ needs['test-backend'].result }}" != "success" || \
+                "${{ needs['test-frontend'].result }}" != "success" || \
+                "${{ needs['build-check'].result }}" != "success" || \
+                "${{ needs['security-audit'].result }}" != "success" ]]; then
             echo "❌ One or more CI jobs failed"
             exit 1
           fi
           echo "✅ All CI checks passed"
+

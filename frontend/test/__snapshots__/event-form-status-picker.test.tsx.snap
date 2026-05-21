@@ -1,0 +1,66 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`EventFormPage - Status Picker > should snapshot the status selector options > event-status-dropdown-options 1`] = `
+<ul
+  aria-labelledby=":rm:-label"
+  class="MuiList-root MuiList-padding MuiMenu-list css-1toxriw-MuiList-root-MuiMenu-list"
+  id=":rn:"
+  role="listbox"
+  tabindex="-1"
+>
+  <li
+    aria-selected="true"
+    class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters Mui-selected MuiMenuItem-root MuiMenuItem-gutters Mui-selected css-1rju2q6-MuiButtonBase-root-MuiMenuItem-root"
+    data-value="Draft"
+    role="option"
+    tabindex="0"
+  >
+    Draft
+  </li>
+  <li
+    aria-selected="false"
+    class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-1rju2q6-MuiButtonBase-root-MuiMenuItem-root"
+    data-value="Planning"
+    role="option"
+    tabindex="-1"
+  >
+    Planning
+  </li>
+  <li
+    aria-selected="false"
+    class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-1rju2q6-MuiButtonBase-root-MuiMenuItem-root"
+    data-value="Confirmed"
+    role="option"
+    tabindex="-1"
+  >
+    Confirmed
+  </li>
+  <li
+    aria-selected="false"
+    class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-1rju2q6-MuiButtonBase-root-MuiMenuItem-root"
+    data-value="Active"
+    role="option"
+    tabindex="-1"
+  >
+    Active
+  </li>
+  <li
+    aria-selected="false"
+    class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-1rju2q6-MuiButtonBase-root-MuiMenuItem-root"
+    data-value="Completed"
+    role="option"
+    tabindex="-1"
+  >
+    Completed
+  </li>
+  <li
+    aria-selected="false"
+    class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-1rju2q6-MuiButtonBase-root-MuiMenuItem-root"
+    data-value="Cancelled"
+    role="option"
+    tabindex="-1"
+  >
+    Cancelled
+  </li>
+</ul>
+`;

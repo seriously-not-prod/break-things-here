@@ -1,0 +1,169 @@
+# Dependabot configuration for automated dependency updates
+# Covers: npm (root, backend, frontend), GitHub Actions, Docker base images
+# Ref: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+
+updates:
+  # ─────────────────────────────────────────────────────────────────────────
+  # npm – repository root
+  # ─────────────────────────────────────────────────────────────────────────
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 10
+    labels:
+      - 'dependencies'
+      - 'npm'
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(dev-deps)'
+      include: 'scope'
+    # Group non-breaking dev-dependency updates into a single PR
+    groups:
+      non-breaking-dev-deps:
+        applies-to: version-updates
+        dependency-type: 'development'
+        update-types:
+          - 'minor'
+          - 'patch'
+    # Security updates get the security-issue label and auto-merge when CI passes
+    ignore: []
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # npm – backend
+  # ─────────────────────────────────────────────────────────────────────────
+  - package-ecosystem: 'npm'
+    directory: '/backend'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 10
+    labels:
+      - 'dependencies'
+      - 'npm'
+      - 'backend'
+    commit-message:
+      prefix: 'chore(deps/backend)'
+      prefix-development: 'chore(dev-deps/backend)'
+      include: 'scope'
+    groups:
+      non-breaking-dev-deps-backend:
+        applies-to: version-updates
+        dependency-type: 'development'
+        update-types:
+          - 'minor'
+          - 'patch'
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # npm – frontend
+  # ─────────────────────────────────────────────────────────────────────────
+  - package-ecosystem: 'npm'
+    directory: '/frontend'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 10
+    labels:
+      - 'dependencies'
+      - 'npm'
+      - 'frontend'
+    commit-message:
+      prefix: 'chore(deps/frontend)'
+      prefix-development: 'chore(dev-deps/frontend)'
+      include: 'scope'
+    groups:
+      non-breaking-dev-deps-frontend:
+        applies-to: version-updates
+        dependency-type: 'development'
+        update-types:
+          - 'minor'
+          - 'patch'
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # GitHub Actions
+  # ─────────────────────────────────────────────────────────────────────────
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+    commit-message:
+      prefix: 'chore(ci)'
+      include: 'scope'
+    groups:
+      github-actions-all:
+        applies-to: version-updates
+        update-types:
+          - 'minor'
+          - 'patch'
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Docker – root (Dockerfile.frontend)
+  # ─────────────────────────────────────────────────────────────────────────
+  - package-ecosystem: 'docker'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+      - 'docker'
+    commit-message:
+      prefix: 'chore(docker)'
+      include: 'scope'
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Docker – backend
+  # ─────────────────────────────────────────────────────────────────────────
+  - package-ecosystem: 'docker'
+    directory: '/backend'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+      - 'docker'
+      - 'backend'
+    commit-message:
+      prefix: 'chore(docker/backend)'
+      include: 'scope'
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Docker – frontend
+  # ─────────────────────────────────────────────────────────────────────────
+  - package-ecosystem: 'docker'
+    directory: '/frontend'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+      - 'docker'
+      - 'frontend'
+    commit-message:
+      prefix: 'chore(docker/frontend)'
+      include: 'scope'

@@ -1,8 +1,20 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
+import { parse as parseCookies } from 'cookie';
 import { getDatabase } from '../db/database.js';
-import { verifyPassword, validateEmailFormat, hashPassword, generateVerificationToken, hashToken, encryptToken, decryptToken } from '../utils/auth-helpers.js';
+import {
+  verifyPassword,
+  validateEmailFormat,
+  hashPassword,
+  generateVerificationToken,
+  hashToken,
+  encryptToken,
+  decryptToken,
+} from '../utils/auth-helpers.js';
 import { generateTokens, verifyToken, SESSION_TIMEOUT_MS } from '../middleware/auth.js';
+import { logAuditEvent, AUDIT_ACTIONS } from '../utils/audit-log.js';
+import { sendVerificationEmail } from '../utils/mailer.js';
+import { isEntraEnabled, isLocalFallbackAllowed } from '../config/entra.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -32,6 +44,15 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
  * Returns 429 for locked accounts.
  */
 export async function login(req: Request, res: Response): Promise<Response> {
+  // Block local-auth fallback in production when Entra is the required auth provider (#783)
+  if (process.env.NODE_ENV === 'production' && isEntraEnabled() && !isLocalFallbackAllowed()) {
+    return res.status(410).json({
+      error:
+        "Local authentication is disabled. Please use your organisation's single sign-on (Entra ID) to log in.",
+      code: 'LOCAL_AUTH_DISABLED',
+    });
+  }
+
   const { email, password } = req.body as { email?: string; password?: string };
 
   if (!email || !password) {
@@ -48,7 +69,7 @@ export async function login(req: Request, res: Response): Promise<Response> {
   const user = await db.get<UserRow>(
     `SELECT id, email, password_hash, display_name, email_verified,
             role_id, account_locked, locked_until, login_attempts
-     FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL`,
+     FROM users WHERE LOWER(email) = $1 AND deleted_at IS NULL`,
     [normalizedEmail],
   );
 
@@ -73,7 +94,7 @@ export async function login(req: Request, res: Response): Promise<Response> {
     // Lock has expired — reset
     await db.run(
       `UPDATE users SET account_locked = 0, locked_until = NULL, login_attempts = 0,
-                        updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                        updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [user.id],
     );
     user.account_locked = 0;
@@ -83,7 +104,8 @@ export async function login(req: Request, res: Response): Promise<Response> {
   // Check if email is verified
   if (!user.email_verified) {
     return res.status(403).json({
-      error: 'Email address has not been verified. Please check your inbox for a confirmation link.',
+      error:
+        'Email address has not been verified. Please check your inbox for a confirmation link.',
     });
   }
 
@@ -95,16 +117,36 @@ export async function login(req: Request, res: Response): Promise<Response> {
     if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
       const lockedUntil = new Date(Date.now() + LOCKOUT_DURATION_MS).toISOString();
       await db.run(
-        `UPDATE users SET login_attempts = ?, account_locked = 1, locked_until = ?,
-                          updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE users SET login_attempts = $1, account_locked = 1, locked_until = $2,
+                          updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
         [newAttempts, lockedUntil, user.id],
       );
+      await logAuditEvent({
+        db,
+        userId: user.id,
+        email: normalizedEmail,
+        action: AUDIT_ACTIONS.LOGIN_ACCOUNT_LOCKED,
+        description: `Account locked after ${newAttempts} failed attempts`,
+        ipAddress: req.ip,
+        severity: 'WARN',
+        context: { attempts: newAttempts },
+      });
     } else {
       await db.run(
-        `UPDATE users SET login_attempts = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE users SET login_attempts = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
         [newAttempts, user.id],
       );
     }
+    await logAuditEvent({
+      db,
+      userId: user.id,
+      email: normalizedEmail,
+      action: AUDIT_ACTIONS.LOGIN_FAILURE,
+      description: 'Invalid password',
+      ipAddress: req.ip,
+      severity: 'WARN',
+      context: { attempts: newAttempts },
+    });
 
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
@@ -112,21 +154,26 @@ export async function login(req: Request, res: Response): Promise<Response> {
   // Successful login — reset attempts and issue tokens
   await db.run(
     `UPDATE users SET login_attempts = 0, account_locked = 0, locked_until = NULL,
-                      updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                      updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
     [user.id],
   );
 
   // Create a server-side session identifier (random opaque id). This session id is
   // embedded in the access token `jti` claim and a hash of it is stored in the DB.
   const sessionId = crypto.randomBytes(16).toString('hex');
-  const { accessToken, refreshToken } = generateTokens(user.id, user.email, user.role_id, sessionId);
+  const { accessToken, refreshToken } = generateTokens(
+    user.id,
+    user.email,
+    user.role_id,
+    sessionId,
+  );
 
   const tokenHash = hashToken(sessionId);
   const refreshTokenHash = hashToken(refreshToken);
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   await db.run(
     `INSERT INTO sessions (user_id, token, refresh_token, expires_at, last_activity)
-     VALUES (?, ?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4, $5)`,
     [user.id, tokenHash, refreshTokenHash, expiresAt, new Date().toISOString()],
   );
 
@@ -162,9 +209,22 @@ export async function login(req: Request, res: Response): Promise<Response> {
   };
 
   if (process.env.NODE_ENV !== 'production') {
+    // Only return accessToken in dev for Authorization-header fallback.
+    // refreshToken is NEVER returned in the JSON body — it lives
+    // exclusively in the HttpOnly cookie set above. (#289)
     resp.accessToken = accessToken;
-    resp.refreshToken = refreshToken;
   }
+
+  await logAuditEvent({
+    db,
+    userId: user.id,
+    email: user.email,
+    action: AUDIT_ACTIONS.LOGIN_SUCCESS,
+    description: 'Successful login',
+    ipAddress: req.ip,
+    severity: 'INFO',
+    context: { roleId: user.role_id },
+  });
 
   return res.status(200).json(resp);
 }
@@ -191,7 +251,7 @@ export async function register(req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
   const normalizedEmail = email.trim().toLowerCase();
 
-  const exists = await db.get('SELECT id FROM users WHERE LOWER(email) = ?', [normalizedEmail]);
+  const exists = await db.get('SELECT id FROM users WHERE LOWER(email) = $1', [normalizedEmail]);
   if (exists) {
     return res.status(409).json({ error: 'An account with this email already exists.' });
   }
@@ -201,10 +261,20 @@ export async function register(req: Request, res: Response): Promise<Response> {
 
   const result = await db.run(
     `INSERT INTO users (email, password_hash, display_name, email_verification_token)
-     VALUES (?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4)
      RETURNING id`,
     [normalizedEmail, passwordHash, displayName.trim(), verificationToken],
   );
+
+  // Send the verification email. sendVerificationEmail falls back to a
+  // console.info stub when SMTP_HOST is unset (preserves dev/test behaviour);
+  // we don't want a transport failure to wedge registration, so swallow and
+  // log — the user can use POST /auth/resend-verification to retry.
+  try {
+    await sendVerificationEmail(normalizedEmail, verificationToken);
+  } catch (err) {
+    console.error('[Auth] Failed to send verification email at registration:', err);
+  }
 
   return res.status(201).json({
     message: 'Registration successful. Please check your email to verify your account.',
@@ -225,7 +295,7 @@ export async function verifyEmail(req: Request, res: Response): Promise<Response
 
   const db = getDatabase();
   const user = await db.get(
-    'SELECT id FROM users WHERE email_verification_token = ? AND deleted_at IS NULL',
+    'SELECT id FROM users WHERE email_verification_token = $1 AND deleted_at IS NULL',
     [token],
   );
 
@@ -236,7 +306,7 @@ export async function verifyEmail(req: Request, res: Response): Promise<Response
   await db.run(
     `UPDATE users SET email_verified = 1, email_verified_at = CURRENT_TIMESTAMP,
                       email_verification_token = NULL, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
+     WHERE id = $1`,
     [user.id],
   );
 
@@ -254,9 +324,10 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
 
   const db = getDatabase();
   // Prefer revoking session by the refresh token cookie (server-side session).
-  let refreshToken = req.cookies?.refreshToken;
+  let refreshToken = parseCookies(req.headers.cookie ?? '').refreshToken as string | undefined;
   const authHeader = req.headers?.['authorization'];
-  const authToken = authHeader && typeof authHeader === 'string' ? authHeader.split(' ')[1] : undefined;
+  const authToken =
+    authHeader && typeof authHeader === 'string' ? authHeader.split(' ')[1] : undefined;
   if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
     try {
       refreshToken = decryptToken(refreshToken);
@@ -266,17 +337,33 @@ export async function logout(req: AuthRequest, res: Response): Promise<Response>
   }
 
   if (refreshToken) {
-    await db.run('DELETE FROM sessions WHERE refresh_token = ? AND user_id = ?', [hashToken(refreshToken), req.user.id]);
+    await db.run('DELETE FROM sessions WHERE refresh_token = $1 AND user_id = $2', [
+      hashToken(refreshToken),
+      req.user.id,
+    ]);
   }
 
   // If no refresh cookie present, fall back to Authorization header token (tests use this flow).
   if (!refreshToken && authToken) {
-    await db.run('DELETE FROM sessions WHERE token = ? AND user_id = ?', [hashToken(authToken), req.user.id]);
+    await db.run('DELETE FROM sessions WHERE token = $1 AND user_id = $2', [
+      hashToken(authToken),
+      req.user.id,
+    ]);
   }
 
   // Clear authentication cookies
   res.clearCookie('refreshToken');
   res.clearCookie('accessToken');
+
+  await logAuditEvent({
+    db,
+    userId: req.user.id,
+    email: req.user.email,
+    action: AUDIT_ACTIONS.LOGOUT,
+    description: 'User logged out',
+    ipAddress: req.ip,
+    severity: 'INFO',
+  });
 
   return res.status(200).json({ message: 'Logged out successfully.' });
 }
@@ -292,8 +379,17 @@ export async function getCurrentUser(req: AuthRequest, res: Response): Promise<R
 
   const db = getDatabase();
   const user = await db.get(
-    `SELECT id, email, display_name, email_verified, role_id, created_at, updated_at
-     FROM users WHERE id = ? AND deleted_at IS NULL`,
+    `SELECT u.id,
+            u.email,
+            u.display_name,
+            u.email_verified,
+            u.role_id,
+            r.name AS role_name,
+            u.created_at,
+            u.updated_at
+     FROM users u
+     LEFT JOIN roles r ON r.id = u.role_id
+     WHERE u.id = $1 AND u.deleted_at IS NULL`,
     [req.user.id],
   );
 
@@ -309,7 +405,8 @@ export async function getCurrentUser(req: AuthRequest, res: Response): Promise<R
  * Rotates the refresh token and issues a new access token.
  */
 export async function refreshTokenEndpoint(req: Request, res: Response): Promise<Response> {
-  let refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+  // AC #289/#290: refresh token must come from HttpOnly cookie only, never from body
+  let refreshToken = parseCookies(req.headers.cookie ?? '').refreshToken as string | undefined;
 
   // If cookie contains an encrypted token, decrypt it first
   if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
@@ -324,33 +421,38 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
     return res.status(401).json({ error: 'Refresh token is required.' });
   }
 
-  const payload = verifyToken(refreshToken);
-  if (!payload) {
-    return res.status(403).json({ error: 'Invalid or expired refresh token.' });
-  }
-
+  // Refresh tokens are opaque hex strings (not JWTs) — validate by DB lookup only
   const db = getDatabase();
 
   // Verify refresh token is in the sessions table
   // Stored refresh tokens are hashed — compare hashes
   const session = await db.get<{ id: number; user_id: number }>(
-    'SELECT id, user_id FROM sessions WHERE refresh_token = ?',
+    'SELECT id, user_id FROM sessions WHERE refresh_token = $1',
     [hashToken(refreshToken)],
   );
 
   if (!session) {
+    await logAuditEvent({
+      db: getDatabase(),
+      userId: null,
+      email: null,
+      action: AUDIT_ACTIONS.TOKEN_REFRESH_FAILURE,
+      description: 'Refresh token not found or revoked',
+      ipAddress: req.ip,
+      severity: 'WARN',
+    });
     return res.status(403).json({ error: 'Refresh token has been revoked.' });
   }
 
   // Verify user still exists
   const user = await db.get<{ id: number; email: string; role_id: number }>(
-    'SELECT id, email, role_id FROM users WHERE id = ? AND deleted_at IS NULL',
+    'SELECT id, email, role_id FROM users WHERE id = $1 AND deleted_at IS NULL',
     [session.user_id],
   );
 
   if (!user) {
     // Clean up orphaned session
-    await db.run('DELETE FROM sessions WHERE id = ?', [session.id]);
+    await db.run('DELETE FROM sessions WHERE id = $1', [session.id]);
     return res.status(403).json({ error: 'User account no longer exists.' });
   }
 
@@ -369,8 +471,14 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   await db.run(
-    'UPDATE sessions SET token = ?, refresh_token = ?, expires_at = ?, last_activity = ? WHERE id = ?',
-    [hashToken(newSessionId), hashToken(newRefreshToken), expiresAt, new Date().toISOString(), session.id],
+    'UPDATE sessions SET token = $1, refresh_token = $2, expires_at = $3, last_activity = $4 WHERE id = $5',
+    [
+      hashToken(newSessionId),
+      hashToken(newRefreshToken),
+      expiresAt,
+      new Date().toISOString(),
+      session.id,
+    ],
   );
 
   // Set httpOnly cookie for the new refresh token (encrypt before sending)
@@ -391,9 +499,25 @@ export async function refreshTokenEndpoint(req: Request, res: Response): Promise
     maxAge: 60 * 60 * 1000,
   });
 
-  return res.status(200).json({
-    message: 'Token refreshed successfully.',
+  await logAuditEvent({
+    db,
+    userId: user.id,
+    email: user.email,
+    action: AUDIT_ACTIONS.TOKEN_REFRESH_SUCCESS,
+    description: 'Access token refreshed',
+    ipAddress: req.ip,
+    severity: 'INFO',
   });
+
+  const payload: { message: string; accessToken?: string } = {
+    message: 'Token refreshed successfully.',
+  };
+
+  if (process.env.NODE_ENV !== 'production') {
+    payload.accessToken = newAccessToken;
+  }
+
+  return res.status(200).json(payload);
 }
 
 /**
@@ -407,7 +531,7 @@ export async function sessionHeartbeat(req: AuthRequest, res: Response): Promise
 
   const db = getDatabase();
   // Update last_activity by refresh token stored in cookie (sessions keep refresh token hashes)
-  let refreshToken = req.cookies?.refreshToken;
+  let refreshToken = parseCookies(req.headers.cookie ?? '').refreshToken as string | undefined;
   if (refreshToken && typeof refreshToken === 'string' && !refreshToken.includes('.')) {
     try {
       refreshToken = decryptToken(refreshToken);
@@ -418,7 +542,7 @@ export async function sessionHeartbeat(req: AuthRequest, res: Response): Promise
 
   if (refreshToken) {
     await db.run(
-      'UPDATE sessions SET last_activity = ? WHERE refresh_token = ? AND user_id = ?',
+      'UPDATE sessions SET last_activity = $1 WHERE refresh_token = $2 AND user_id = $3',
       [new Date().toISOString(), hashToken(refreshToken), req.user.id],
     );
   }
@@ -427,4 +551,130 @@ export async function sessionHeartbeat(req: AuthRequest, res: Response): Promise
     message: 'Session activity updated.',
     sessionTimeoutMs: SESSION_TIMEOUT_MS,
   });
+}
+
+/**
+ * POST /api/auth/resend-verification
+ * Resends verification email — max 3 attempts per hour per email.
+ */
+export async function resendVerification(req: Request, res: Response): Promise<Response> {
+  const { email } = req.body as { email?: string };
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required.' });
+  }
+
+  if (!validateEmailFormat(email)) {
+    return res.status(400).json({ error: 'Invalid email format.' });
+  }
+
+  const db = getDatabase();
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const user = await db.get<{
+    id: number;
+    email_verified: number;
+    resend_count: number;
+    resend_window_start: string | null;
+  }>(
+    `SELECT id, email_verified,
+            COALESCE(resend_verification_count, 0) AS resend_count,
+            resend_verification_window_start AS resend_window_start
+     FROM users WHERE LOWER(email) = $1 AND deleted_at IS NULL`,
+    [normalizedEmail],
+  );
+
+  // Always return 200 to prevent user enumeration
+  if (!user) {
+    return res.status(200).json({
+      message: 'If the email is registered and unverified, a new verification email has been sent.',
+    });
+  }
+
+  if (user.email_verified) {
+    return res.status(200).json({
+      message: 'If the email is registered and unverified, a new verification email has been sent.',
+    });
+  }
+
+  // Rate-limit: max 3 resends per hour
+  const now = Date.now();
+  const windowStart = user.resend_window_start ? new Date(user.resend_window_start).getTime() : 0;
+  const windowElapsed = now - windowStart;
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+
+  let count = windowElapsed > ONE_HOUR_MS ? 0 : user.resend_count;
+
+  if (count >= 3) {
+    return res
+      .status(429)
+      .json({ error: 'Too many resend attempts. Please wait up to an hour before trying again.' });
+  }
+
+  const newToken = generateVerificationToken();
+  const newWindowStart =
+    windowElapsed > ONE_HOUR_MS ? new Date().toISOString() : user.resend_window_start;
+
+  await db.run(
+    `UPDATE users
+     SET email_verification_token = $1,
+         resend_verification_count = $2,
+         resend_verification_window_start = $3,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $4`,
+    [newToken, count + 1, newWindowStart, user.id],
+  );
+
+  // Same fail-soft posture as registration: the token has already been
+  // persisted, so a transport failure here is logged but doesn't break the
+  // user-facing flow. The caller can retry; per-email rate-limit above will
+  // still apply on the retried attempt.
+  try {
+    await sendVerificationEmail(normalizedEmail, newToken);
+  } catch (err) {
+    console.error('[Auth] Failed to send resend-verification email:', err);
+  }
+
+  return res.status(200).json({
+    message: 'If the email is registered and unverified, a new verification email has been sent.',
+  });
+}
+
+/**
+ * POST /api/auth/entra/backchannel-logout
+ * Microsoft Entra ID back-channel logout — invalidates all sessions for the user
+ * identified in the logout_token JWT.
+ */
+export async function entraBackchannelLogout(req: Request, res: Response): Promise<Response> {
+  // In production: validate the logout_token JWT using Entra JWKS endpoint.
+  // For now we accept the sid claim and revoke matching sessions.
+  const { logout_token } = req.body as { logout_token?: string };
+  if (!logout_token) {
+    return res.status(400).json({ error: 'logout_token is required.' });
+  }
+
+  try {
+    // Decode (without full signature verification — use JWKS in production)
+    const parts = logout_token.split('.');
+    if (parts.length !== 3) throw new Error('Invalid JWT structure');
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    const sid: string | undefined = payload.sid;
+    const sub: string | undefined = payload.sub;
+
+    if (!sid && !sub) {
+      return res.status(400).json({ error: 'logout_token missing sid/sub claim.' });
+    }
+
+    const db = getDatabase();
+    // Revoke sessions by entra_sid or entra_sub columns (added in v9 migration)
+    if (sid) {
+      await db.run('DELETE FROM sessions WHERE entra_sid = $1', [sid]);
+    } else if (sub) {
+      await db.run('DELETE FROM sessions WHERE entra_sub = $1', [sub]);
+    }
+
+    return res.status(200).json({ message: 'Logout processed.' });
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid logout_token.' });
+  }
 }

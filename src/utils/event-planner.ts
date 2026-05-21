@@ -87,7 +87,7 @@ export function sortEventsByDate(events: PlannerEvent[]): PlannerEvent[] {
 export function getDashboardStats(
   events: PlannerEvent[],
   tasks: PlannerTask[],
-  rsvps: PlannerRsvp[]
+  rsvps: PlannerRsvp[],
 ): DashboardStats {
   const sortedEvents = sortEventsByDate(events);
   const recentRsvps = [...rsvps]
@@ -99,7 +99,9 @@ export function getDashboardStats(
   return {
     totalEvents: events.length,
     activeEvents: events.filter((event: PlannerEvent) => event.status === 'Active').length,
-    upcomingEvents: sortedEvents.filter((event: PlannerEvent) => event.status !== 'Completed').slice(0, 4),
+    upcomingEvents: sortedEvents
+      .filter((event: PlannerEvent) => event.status !== 'Completed')
+      .slice(0, 4),
     recentRsvps,
     pendingTasks: tasks.filter((task: PlannerTask) => task.status === 'Pending').length,
   };
@@ -130,7 +132,9 @@ export function formatRelativeTimestamp(value: string): string {
   return `${deltaDays}d ago`;
 }
 
-export function groupEventsByMonth(events: PlannerEvent[]): Array<{ month: string; events: PlannerEvent[] }> {
+export function groupEventsByMonth(
+  events: PlannerEvent[],
+): Array<{ month: string; events: PlannerEvent[] }> {
   const buckets = new Map<string, PlannerEvent[]>();
 
   sortEventsByDate(events).forEach((event: PlannerEvent) => {

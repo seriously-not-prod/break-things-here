@@ -5,6 +5,7 @@
 **You MUST read the [Universal Agent Guide](universal-agent-guide.md) before responding to any request.**
 
 This guide contains critical rules that must be followed, including:
+
 - Single README.md policy (only at repository root)
 - Project context and conventions
 - Work item hierarchy enforcement
@@ -13,23 +14,27 @@ This guide contains critical rules that must be followed, including:
 ## Agent Instructions
 
 ### Primary Directive
+
 You are assisting with a **fake/demo Festival Event Planner** training repository. This project teaches Git workflows, Kanban processes, and collaborative development practices.
 
 ### Code Generation Standards
 
 **TypeScript:**
+
 - Use strict mode configuration
 - Prefer `interface` over `type` for object shapes
 - Explicit return types for functions
 - Avoid `any` - use proper types or `unknown`
 
 **React:**
+
 - Functional components with hooks only
 - Named exports preferred
 - PascalCase for components, camelCase for utilities
 - Keep components under 200 lines
 
 **File Organization:**
+
 ```
 src/
 ├── components/ComponentName/ComponentName.tsx
@@ -40,6 +45,7 @@ src/
 ```
 
 **Naming:**
+
 - Components: `PascalCase` (e.g., `EventCard`)
 - Variables/Functions: `camelCase` (e.g., `handleSubmit`)
 - Constants: `UPPER_SNAKE_CASE` (e.g., `API_BASE_URL`)
@@ -48,11 +54,13 @@ src/
 ### Git Workflow Instructions
 
 **Branch Naming:**
+
 - `feature/issue-number-description`
 - `bugfix/issue-number-description`
 - `hotfix/issue-number-description`
 
 **Commit Format (Conventional Commits):**
+
 ```
 type(scope): description #issue-number
 
@@ -62,11 +70,13 @@ Closes #123
 ```
 
 **Branch Progression:**
+
 ```
 develop → test → stage → main
 ```
 
 **Pull Requests:**
+
 - Always link to related issue (Theme/Story/Task)
 - Include issue number in branch name
 - Use `Closes #123` in commit messages
@@ -129,7 +139,7 @@ const fetchData = async (): Promise<DataType[]> => {
 ```typescript
 /**
  * Brief description of component/function
- * 
+ *
  * @param paramName - Description
  * @returns Description of return value
  */
@@ -145,12 +155,14 @@ Theme (standalone issue)
 ```
 
 **How to Create:**
+
 - Themes: Create directly using Theme template
 - User Stories: Create as sub-issue of Theme (click "Create sub-issue" in Theme)
 - Tasks: Create as sub-issue of User Story
 - Sub-Tasks: Create as sub-issue of Task
 
 **Separate Issues:**
+
 - Defects: Production faults (requires release number)
 - Bugs: Non-production faults (requires release number)
 - Security Issues: Vulnerabilities
@@ -159,6 +171,7 @@ Theme (standalone issue)
 ### Reference Documentation
 
 When providing guidance, reference:
+
 - [Universal Agent Guide](universal-agent-guide.md) - MANDATORY
 - [Branching Strategy](../docs/processes/branching-strategy.md) - Git workflow
 - [Release Process](../docs/processes/release-process.md) - Deployment process
