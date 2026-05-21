@@ -3434,6 +3434,28 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     `);
   }
 
+  // v18 — Task #810: message_mentions table for @mention analytics.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS message_mentions (
+      id                   SERIAL PRIMARY KEY,
+      source_type          TEXT        NOT NULL CHECK (source_type IN ('chat_message', 'task_comment')),
+      source_id            INTEGER     NOT NULL,
+      mentioned_user_id    INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      mentioned_by_user_id INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      raw_token            TEXT        NOT NULL,
+      created_at           TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      created_by           INTEGER     REFERENCES users(id) ON DELETE SET NULL,
+      updated_at           TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_by           INTEGER     REFERENCES users(id) ON DELETE SET NULL,
+      CONSTRAINT uq_message_mentions_source_user
+        UNIQUE (source_type, source_id, mentioned_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_message_mentions_mentioned_user
+      ON message_mentions(mentioned_user_id);
+    CREATE INDEX IF NOT EXISTS idx_message_mentions_source
+      ON message_mentions(source_type, source_id);
+  `);
+
   // v19 — Task #811: user_presence table for online/offline status.
   await db.exec(`
     CREATE TABLE IF NOT EXISTS user_presence (

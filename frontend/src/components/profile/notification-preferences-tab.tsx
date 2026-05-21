@@ -34,6 +34,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   event_update: 'Event Updated',
   chat_message: 'Chat Message',
   event_reminder: 'Event Reminder',
+  mention: '@Mentions',
 };
 
 const CHANNELS = ['in_app_enabled', 'email_enabled', 'push_enabled'] as const;

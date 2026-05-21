@@ -7,6 +7,7 @@ import { Request, Response } from 'express';
 import { getDatabase } from '../db/database.js';
 import { requireEventAccess } from '../utils/event-access.js';
 import { publishRealtimeEvent } from '../utils/realtime-bus.js';
+import { processMentions } from '../services/mentions/fanout.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -95,6 +96,17 @@ export async function postChatMessage(req: Request, res: Response): Promise<Resp
     entityId: result.lastID as number | null,
     actorId: authReq.user!.id,
     payload: { message },
+  });
+
+  // Fire-and-forget: parse @mentions and notify mentioned users (#810).
+  void processMentions({
+    sourceType: 'chat_message',
+    sourceId: result.lastID!,
+    authorId: authReq.user!.id,
+    body: body.trim(),
+    contextLabel: `event chat`,
+    link: `/events/${eventId}/chat`,
+    eventId: Number(eventId),
   });
 
   return res.status(201).json({ message });
