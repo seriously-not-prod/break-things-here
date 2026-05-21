@@ -392,7 +392,7 @@ export async function createEvent(req: Request, res: Response): Promise<void> {
       longitude,
       waitlist_enabled,
       event_time,
-    } = req.body as EventData & { start_date?: string; venue_name?: string };
+    } = req.body as EventData & { start_date?: string; venue_name?: string; event_date?: string };
 
     const date = _date || event_date || start_date;
     const location = _location || venue_name;
@@ -546,7 +546,7 @@ export async function updateEvent(req: Request, res: Response): Promise<void> {
       gallery_public,
       storage_quota_bytes,
       event_time,
-    } = req.body as EventData & { start_date?: string; venue_name?: string };
+    } = req.body as EventData & { start_date?: string; venue_name?: string; event_date?: string };
 
     const date = _date || event_date || start_date;
     const location = _location || venue_name;
