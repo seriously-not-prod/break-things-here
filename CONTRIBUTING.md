@@ -11,6 +11,7 @@ Thank you for considering contributing to this project! We welcome contributions
 ### Reporting Bugs
 
 If you find a bug, please open an issue with:
+
 - A clear description of the problem
 - Steps to reproduce the issue
 - Expected vs actual behavior
@@ -20,6 +21,7 @@ If you find a bug, please open an issue with:
 ### Suggesting Enhancements
 
 We welcome feature requests! Please open an issue with:
+
 - A clear description of the enhancement
 - Use cases and benefits
 - Any relevant examples or mockups
@@ -40,11 +42,13 @@ We welcome feature requests! Please open an issue with:
 **All commits MUST reference an open GitHub issue.**
 
 **Format**: Use Conventional Commits with issue reference:
+
 ```
 type(scope): description #issue-number
 ```
 
 **Allowed Types**:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -54,6 +58,7 @@ type(scope): description #issue-number
 - `chore`: Maintenance tasks
 
 **Examples**:
+
 ```bash
 git commit -m "feat(auth): add login validation #42"
 git commit -m "fix(payment): resolve checkout crash #123"
@@ -61,6 +66,7 @@ git commit -m "docs(readme): update setup instructions #89"
 ```
 
 **Requirements**:
+
 - ✅ Every commit must include an issue number (#123)
 - ✅ Issue must be open (not closed)
 - ✅ Issue must exist in the repository
@@ -68,6 +74,7 @@ git commit -m "docs(readme): update setup instructions #89"
 - ❌ No commits referencing closed issues
 
 **Additional Best Practices**:
+
 - ✅ **Subject line**: Keep under 72 characters
 - ✅ **Imperative mood**: Use "add" not "added" or "adds"
 - ✅ **No trailing period** in subject line
@@ -78,16 +85,42 @@ git commit -m "docs(readme): update setup instructions #89"
 - ⚠️ **Breaking changes**: Mark with `BREAKING CHANGE:` in footer
 
 **Breaking Change Example**:
+
 ```
 feat(api): update authentication endpoint #123
 
 Change authentication to use JWT tokens instead of sessions.
 
-BREAKING CHANGE: Session-based auth endpoints removed. 
+BREAKING CHANGE: Session-based auth endpoints removed.
 Clients must migrate to JWT authentication.
 
 Closes #123
 ```
+
+### Pre-commit Hooks
+
+This repository uses git hooks managed from the `.githooks/` directory.
+Running `npm install` at the repo root automatically configures git via the
+`prepare` lifecycle script:
+
+```bash
+# Verify the hook is installed
+git config core.hooksPath
+# Expected: .githooks
+```
+
+The **pre-commit** hook runs [lint-staged](https://github.com/lint-staged/lint-staged),
+which formats and lints every staged file before the commit is recorded:
+
+- **`*.{ts,tsx,js,jsx}`** — `prettier --write` then `eslint --fix`
+- **`*.{json,css,md}`** — `prettier --write`
+
+If the hook catches errors, fix them, re-stage the files (`git add .`), and retry.
+Use `git commit --no-verify` only in genuine emergencies — CI will catch the same
+checks.
+
+For full setup instructions and expected hook output, see
+[docs/operations/local-dev.md](docs/operations/local-dev.md).
 
 ### Code Style
 
@@ -95,7 +128,7 @@ Closes #123
 - Use TypeScript for all new code
 - Write meaningful commit messages
 - Add comments for complex logic
-- Ensure your code passes linting (`npm run lint`)
+- Ensure your code passes linting and formatting checks
 
 ### Testing
 

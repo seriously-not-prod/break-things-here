@@ -1,13 +1,5 @@
 import { ChangeEvent, FormEvent, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  CircularProgress,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Alert, Box, Button, CircularProgress, Stack, TextField, Typography } from '@mui/material';
 import { useAuth } from '../../contexts/auth-context';
 
 interface RegisterFormProps {

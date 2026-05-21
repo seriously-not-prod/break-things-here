@@ -59,13 +59,15 @@ describe('Email Service', () => {
     it('should wrap SMTP errors in EmailError without leaking internals', async () => {
       mockSendMail.mockRejectedValueOnce(new Error('ECONNREFUSED smtp.example.com:587'));
 
-      await expect(
-        sendConfirmationEmail('user@example.com', 'd'.repeat(64))
-      ).rejects.toThrow(EmailError);
+      await expect(sendConfirmationEmail('user@example.com', 'd'.repeat(64))).rejects.toThrow(
+        EmailError,
+      );
     });
 
     it('should use setTransporter injection when provided', async () => {
-      const mockTransporter = { sendMail: mockSendMail } as unknown as Parameters<typeof setTransporter>[0];
+      const mockTransporter = { sendMail: mockSendMail } as unknown as Parameters<
+        typeof setTransporter
+      >[0];
       setTransporter(mockTransporter);
 
       await sendConfirmationEmail('inject@example.com', 'e'.repeat(64));

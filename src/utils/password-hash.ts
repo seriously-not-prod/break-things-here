@@ -9,10 +9,13 @@ const SALT_ROUNDS = 12; // Work factor >= 12 as per requirements
  * Custom error class for password hashing operations
  */
 export class PasswordHashError extends Error {
-  constructor(message: string, public readonly cause?: Error) {
+  constructor(
+    message: string,
+    public readonly cause?: Error,
+  ) {
     super(message);
     this.name = 'PasswordHashError';
-    
+
     // Maintain proper stack trace
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, PasswordHashError);
@@ -22,11 +25,11 @@ export class PasswordHashError extends Error {
 
 /**
  * Hash a plain-text password using bcrypt
- * 
+ *
  * @param plainPassword - The plain-text password to hash
  * @returns Promise<string> - The hashed password
  * @throws {PasswordHashError} If hashing fails or input is invalid
- * 
+ *
  * @example
  * ```typescript
  * const hashed = await hashPassword('mySecurePassword123');
@@ -46,33 +49,33 @@ export async function hashPassword(plainPassword: string): Promise<string> {
   // Prevent logging of plain-text password by not including it in error messages
   try {
     const hash = await bcrypt.hash(plainPassword, SALT_ROUNDS);
-    
+
     if (!hash) {
       throw new PasswordHashError('Failed to generate password hash');
     }
-    
+
     return hash;
   } catch (error) {
     if (error instanceof PasswordHashError) {
       throw error;
     }
-    
+
     // Wrap bcrypt errors without exposing sensitive info
     throw new PasswordHashError(
       'An error occurred during password hashing',
-      error instanceof Error ? error : undefined
+      error instanceof Error ? error : undefined,
     );
   }
 }
 
 /**
  * Verify a plain-text password against a hashed password
- * 
+ *
  * @param plainPassword - The plain-text password to verify
  * @param hashedPassword - The hashed password to compare against
  * @returns Promise<boolean> - True if password matches, false otherwise
  * @throws {PasswordHashError} If verification fails due to invalid input or an internal error (for example, an invalid hash format)
- * 
+ *
  * @example
  * ```typescript
  * const isValid = await verifyPassword('mySecurePassword123', hashedPassword);
@@ -83,7 +86,7 @@ export async function hashPassword(plainPassword: string): Promise<string> {
  */
 export async function verifyPassword(
   plainPassword: string,
-  hashedPassword: string
+  hashedPassword: string,
 ): Promise<boolean> {
   // Input validation
   if (!plainPassword || !hashedPassword) {
@@ -108,7 +111,7 @@ export async function verifyPassword(
     // Throwing is safer to detect implementation issues
     throw new PasswordHashError(
       'An error occurred during password verification',
-      error instanceof Error ? error : undefined
+      error instanceof Error ? error : undefined,
     );
   }
 }

@@ -20,7 +20,13 @@ export const handleUpdateUserRole = requireRole(
   UserRole.Admin,
   (req: ApiRequest, res: ApiResponse) => {
     const targetUserId = req.params.id;
-    const { role } = req.body as { role?: unknown };
+
+    const body = req.body;
+    if (body === null || typeof body !== 'object') {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(AUTH_ERRORS.INVALID_ROLE);
+    }
+
+    const { role } = body as { role?: unknown };
 
     if (!isValidRole(role)) {
       return res.status(HTTP_STATUS.BAD_REQUEST).json(AUTH_ERRORS.INVALID_ROLE);
@@ -37,6 +43,6 @@ export const handleUpdateUserRole = requireRole(
     }
 
     const updatedUser = updateUserRole(targetUserId, role);
-    return res.status(HTTP_STATUS.OK).json(updatedUser);
+    return res.status(HTTP_STATUS.OK).json({ ...updatedUser, tokenRefreshRequired: true });
   },
 );

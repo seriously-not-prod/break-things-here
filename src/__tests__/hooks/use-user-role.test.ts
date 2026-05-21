@@ -70,22 +70,16 @@ describe('isVisibleForRole', () => {
   });
 
   it('should return true when role is in array of required roles', () => {
-    expect(
-      isVisibleForRole([UserRole.Admin, UserRole.Organizer], UserRole.Organizer),
-    ).toBe(true);
+    expect(isVisibleForRole([UserRole.Admin, UserRole.Organizer], UserRole.Organizer)).toBe(true);
   });
 
   it('should return false when role is not in array of required roles', () => {
-    expect(
-      isVisibleForRole([UserRole.Admin, UserRole.Organizer], UserRole.Attendee),
-    ).toBe(false);
+    expect(isVisibleForRole([UserRole.Admin, UserRole.Organizer], UserRole.Attendee)).toBe(false);
   });
 
   // Admin can see organizer-only elements
   it('should show organizer content to Admin when Admin is in allowed list', () => {
-    expect(
-      isVisibleForRole([UserRole.Admin, UserRole.Organizer], UserRole.Admin),
-    ).toBe(true);
+    expect(isVisibleForRole([UserRole.Admin, UserRole.Organizer], UserRole.Admin)).toBe(true);
   });
 });
 

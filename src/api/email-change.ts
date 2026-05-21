@@ -23,10 +23,10 @@ export async function confirmEmailChange(token: string): Promise<{ email: string
   }
 
   const params = new URLSearchParams({ token: token.trim() });
-  const response = await fetch(
-    `${API_BASE_URL}/auth/confirm-email-change?${params.toString()}`,
-    { method: 'GET', credentials: 'include' },
-  );
+  const response = await fetch(`${API_BASE_URL}/auth/confirm-email-change?${params.toString()}`, {
+    method: 'GET',
+    credentials: 'include',
+  });
 
   if (response.status === 400) {
     const body = await response.json().catch(() => ({ message: 'Invalid or expired token.' }));

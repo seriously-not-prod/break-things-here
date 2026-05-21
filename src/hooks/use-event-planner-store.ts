@@ -68,7 +68,12 @@ function mapApiRsvpToPlanner(rsvp: api.Rsvp): PlannerRsvp {
 }
 
 export function useEventPlannerStore(): EventPlannerStore {
-  const [state, setState] = useState<{ events: PlannerEvent[]; tasks: PlannerTask[]; rsvps: PlannerRsvp[]; activities: PlannerActivity[] }>({
+  const [state, setState] = useState<{
+    events: PlannerEvent[];
+    tasks: PlannerTask[];
+    rsvps: PlannerRsvp[];
+    activities: PlannerActivity[];
+  }>({
     events: [],
     tasks: [],
     rsvps: [],
@@ -83,20 +88,20 @@ export function useEventPlannerStore(): EventPlannerStore {
       setLoading(true);
       setError(null);
       console.log('[EventPlanner] 🔄 Loading data from backend database...');
-      
+
       const [events, tasks, rsvps] = await Promise.all([
         api.getAllEvents(),
         api.getAllTasks(),
         api.getAllRsvps(),
       ]);
-      
+
       setState({
         events: events.map(mapApiEventToPlanner),
         tasks: tasks.map(mapApiTaskToPlanner),
         rsvps: rsvps.map(mapApiRsvpToPlanner),
         activities: [],
       });
-      
+
       console.log('[EventPlanner] ✅ Loaded from database:', {
         events: events.length,
         tasks: tasks.length,
@@ -125,7 +130,7 @@ export function useEventPlannerStore(): EventPlannerStore {
 
   const createEvent = useCallback(async (draft: EventDraft): Promise<PlannerEvent> => {
     console.log('[EventPlanner] 💾 Creating event in database:', draft.title);
-    
+
     const apiEvent = await api.createEvent({
       title: draft.title,
       date: draft.date,
@@ -133,9 +138,9 @@ export function useEventPlannerStore(): EventPlannerStore {
       description: draft.description,
       status: draft.status,
     });
-    
+
     const newEvent = mapApiEventToPlanner(apiEvent);
-    
+
     setState((current) => ({
       ...current,
       events: [...current.events, newEvent],
@@ -144,36 +149,37 @@ export function useEventPlannerStore(): EventPlannerStore {
         ...current.activities,
       ].slice(0, 25),
     }));
-    
+
     console.log('[EventPlanner] ✅ Event saved to database with ID:', apiEvent.id);
     return newEvent;
   }, []);
 
-  const updateEvent = useCallback(async (eventId: string, updates: Partial<EventDraft>): Promise<void> => {
-    const numericId = parseInt(eventId.replace('event-', ''));
-    console.log('[EventPlanner] 💾 Updating event in database:', numericId);
-    
-    const apiEvent = await api.updateEvent(numericId, updates);
-    const updatedEvent = mapApiEventToPlanner(apiEvent);
-    
-    setState((current) => ({
-      ...current,
-      events: current.events.map((event) => 
-        event.id === eventId ? updatedEvent : event
-      ),
-      activities: [
-        createActivity('event', `Updated event ${updatedEvent.title}.`),
-        ...current.activities,
-      ].slice(0, 25),
-    }));
-    
-    console.log('[EventPlanner] ✅ Event updated in database');
-  }, []);
+  const updateEvent = useCallback(
+    async (eventId: string, updates: Partial<EventDraft>): Promise<void> => {
+      const numericId = parseInt(eventId.replace('event-', ''));
+      console.log('[EventPlanner] 💾 Updating event in database:', numericId);
+
+      const apiEvent = await api.updateEvent(numericId, updates);
+      const updatedEvent = mapApiEventToPlanner(apiEvent);
+
+      setState((current) => ({
+        ...current,
+        events: current.events.map((event) => (event.id === eventId ? updatedEvent : event)),
+        activities: [
+          createActivity('event', `Updated event ${updatedEvent.title}.`),
+          ...current.activities,
+        ].slice(0, 25),
+      }));
+
+      console.log('[EventPlanner] ✅ Event updated in database');
+    },
+    [],
+  );
 
   const createTask = useCallback(async (draft: TaskDraft): Promise<PlannerTask> => {
     const eventNumericId = parseInt(draft.eventId.replace('event-', ''));
     console.log('[EventPlanner] 💾 Creating task in database');
-    
+
     const apiTask = await api.createTask({
       event_id: eventNumericId,
       title: draft.title,
@@ -182,9 +188,9 @@ export function useEventPlannerStore(): EventPlannerStore {
       due_date: draft.dueDate,
       status: 'Pending',
     });
-    
+
     const newTask = mapApiTaskToPlanner(apiTask);
-    
+
     setState((current) => {
       const event = current.events.find((e) => e.id === draft.eventId);
       return {
@@ -196,7 +202,7 @@ export function useEventPlannerStore(): EventPlannerStore {
         ].slice(0, 25),
       };
     });
-    
+
     console.log('[EventPlanner] ✅ Task saved to database with ID:', apiTask.id);
     return newTask;
   }, []);
@@ -204,28 +210,26 @@ export function useEventPlannerStore(): EventPlannerStore {
   const toggleTask = useCallback(async (taskId: string): Promise<void> => {
     const numericId = parseInt(taskId.replace('task-', ''));
     console.log('[EventPlanner] 💾 Toggling task status in database:', numericId);
-    
+
     const apiTask = await api.toggleTaskStatus(numericId);
     const updatedTask = mapApiTaskToPlanner(apiTask);
-    
+
     setState((current) => ({
       ...current,
-      tasks: current.tasks.map((task) =>
-        task.id === taskId ? updatedTask : task
-      ),
+      tasks: current.tasks.map((task) => (task.id === taskId ? updatedTask : task)),
       activities: [
         createActivity('task', `${updatedTask.title} marked ${updatedTask.status.toLowerCase()}.`),
         ...current.activities,
       ].slice(0, 25),
     }));
-    
+
     console.log('[EventPlanner] ✅ Task status updated in database');
   }, []);
 
   const submitRsvp = useCallback(async (draft: RsvpDraft): Promise<PlannerRsvp> => {
     const eventNumericId = parseInt(draft.eventId.replace('event-', ''));
     console.log('[EventPlanner] 💾 Submitting RSVP to database');
-    
+
     const apiRsvp = await api.submitRsvp({
       event_id: eventNumericId,
       name: draft.name,
@@ -233,45 +237,52 @@ export function useEventPlannerStore(): EventPlannerStore {
       guests: draft.guests,
       status: draft.status,
     });
-    
+
     const newRsvp = mapApiRsvpToPlanner(apiRsvp);
-    
+
     setState((current) => {
       const event = current.events.find((e) => e.id === draft.eventId);
       return {
         ...current,
         rsvps: [...current.rsvps, newRsvp],
         activities: [
-          createActivity('rsvp', `${draft.name} responded ${draft.status.toLowerCase()} for ${event?.title ?? 'an event'}.`),
+          createActivity(
+            'rsvp',
+            `${draft.name} responded ${draft.status.toLowerCase()} for ${event?.title ?? 'an event'}.`,
+          ),
           ...current.activities,
         ].slice(0, 25),
       };
     });
-    
+
     console.log('[EventPlanner] ✅ RSVP saved to database with ID:', apiRsvp.id);
     return newRsvp;
   }, []);
 
-  const updateRsvpStatus = useCallback(async (rsvpId: string, status: RsvpStatus): Promise<void> => {
-    const numericId = parseInt(rsvpId.replace('rsvp-', ''));
-    console.log('[EventPlanner] 💾 Updating RSVP status in database:', numericId);
-    
-    const apiRsvp = await api.updateRsvp(numericId, { status });
-    const updatedRsvp = mapApiRsvpToPlanner(apiRsvp);
-    
-    setState((current) => ({
-      ...current,
-      rsvps: current.rsvps.map((rsvp) =>
-        rsvp.id === rsvpId ? updatedRsvp : rsvp
-      ),
-      activities: [
-        createActivity('rsvp', `RSVP for ${updatedRsvp.name} updated to ${status.toLowerCase()}.`),
-        ...current.activities,
-      ].slice(0, 25),
-    }));
-    
-    console.log('[EventPlanner] ✅ RSVP status updated in database');
-  }, []);
+  const updateRsvpStatus = useCallback(
+    async (rsvpId: string, status: RsvpStatus): Promise<void> => {
+      const numericId = parseInt(rsvpId.replace('rsvp-', ''));
+      console.log('[EventPlanner] 💾 Updating RSVP status in database:', numericId);
+
+      const apiRsvp = await api.updateRsvp(numericId, { status });
+      const updatedRsvp = mapApiRsvpToPlanner(apiRsvp);
+
+      setState((current) => ({
+        ...current,
+        rsvps: current.rsvps.map((rsvp) => (rsvp.id === rsvpId ? updatedRsvp : rsvp)),
+        activities: [
+          createActivity(
+            'rsvp',
+            `RSVP for ${updatedRsvp.name} updated to ${status.toLowerCase()}.`,
+          ),
+          ...current.activities,
+        ].slice(0, 25),
+      }));
+
+      console.log('[EventPlanner] ✅ RSVP status updated in database');
+    },
+    [],
+  );
 
   return {
     activities: state.activities,

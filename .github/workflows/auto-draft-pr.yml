@@ -1,10 +1,12 @@
 name: Auto Create Draft PR
 
+# Disabled: the previous `push` trigger caused auto-created PRs to be authored
+# by `github-actions[bot]` instead of the engineer pushing the branch. The
+# workflow is retained for reference and can still be invoked manually via the
+# Actions tab. To re-enable automatic draft-PR creation, restore the `push`
+# trigger and supply a user-scoped PAT so PRs are attributed to a person.
 on:
-  push:
-    branches:
-      - 'feature/**'
-      - 'bugfix/**'
+  workflow_dispatch:
 
 permissions:
   pull-requests: write
@@ -70,10 +72,25 @@ jobs:
 
           echo "Creating draft PR: $PR_TITLE"
 
-          gh pr create \
+          set +e
+          CREATE_OUTPUT=$(gh pr create \
             --repo "${{ github.repository }}" \
             --head "$BRANCH" \
             --base develop \
             --title "$PR_TITLE" \
             --body "$PR_BODY" \
-            --draft
+            --draft 2>&1)
+          CREATE_STATUS=$?
+          set -e
+
+          echo "$CREATE_OUTPUT"
+
+          if [[ $CREATE_STATUS -ne 0 ]]; then
+            # Race condition: a PR may have been created between the existence
+            # check and this step. Treat that as a success rather than failing.
+            if echo "$CREATE_OUTPUT" | grep -qiE "a pull request already exists"; then
+              echo "PR already exists — nothing to do."
+              exit 0
+            fi
+            exit $CREATE_STATUS
+          fi
