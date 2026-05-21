@@ -6,13 +6,23 @@ import { Request, Response } from 'express';
 import https from 'https';
 import { getDatabase } from '../db/database.js';
 
-const AZURE_OPENAI_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT ?? process.env.ENDPOINT ?? '';
-const AZURE_OPENAI_API_KEY = process.env.AZURE_OPENAI_API_KEY ?? process.env.API_KEY ?? '';
-const AZURE_OPENAI_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT ?? 'gpt-4o-mini';
-const AZURE_OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION ?? '2024-02-15-preview';
+function readEnv(...keys: string[]): string {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (typeof value === 'string' && value.trim() !== '') {
+      return value.trim();
+    }
+  }
+  return '';
+}
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? '';
-const OPENAI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
+const AZURE_OPENAI_ENDPOINT = readEnv('AZURE_OPENAI_ENDPOINT', 'ENDPOINT');
+const AZURE_OPENAI_API_KEY = readEnv('AZURE_OPENAI_API_KEY', 'API_KEY');
+const AZURE_OPENAI_DEPLOYMENT = readEnv('AZURE_OPENAI_DEPLOYMENT') || 'gpt-4o-mini';
+const AZURE_OPENAI_API_VERSION = readEnv('AZURE_OPENAI_API_VERSION') || '2024-02-15-preview';
+
+const OPENAI_API_KEY = readEnv('OPENAI_API_KEY');
+const OPENAI_MODEL = readEnv('OPENAI_MODEL') || 'gpt-4o-mini';
 
 interface SuggestBody {
   context: 'event' | 'task' | 'rsvp' | 'general';
@@ -33,14 +43,7 @@ type AiProviderConfig =
   | { kind: 'none' };
 
 function resolveAiProviderConfig(): AiProviderConfig {
-  const hasAnyAzureConfig = Boolean(
-    AZURE_OPENAI_ENDPOINT ||
-    AZURE_OPENAI_API_KEY ||
-    process.env.AZURE_OPENAI_ENDPOINT ||
-    process.env.AZURE_OPENAI_API_KEY ||
-    process.env.ENDPOINT ||
-    process.env.API_KEY,
-  );
+  const hasAnyAzureConfig = Boolean(AZURE_OPENAI_ENDPOINT || AZURE_OPENAI_API_KEY);
 
   if (hasAnyAzureConfig) {
     const missing: string[] = [];
