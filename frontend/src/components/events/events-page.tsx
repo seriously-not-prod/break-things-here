@@ -559,7 +559,7 @@ export default function EventsPage({
         title: form.title,
         description: form.description,
         location: form.location,
-        date: form.date,
+        event_date: form.date,
         event_time: form.event_time,
         capacity: form.capacity ? Number(form.capacity) : null,
         status: form.status,

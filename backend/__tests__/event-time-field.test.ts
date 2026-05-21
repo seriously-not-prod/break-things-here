@@ -197,6 +197,26 @@ describe('createEvent — event_time validation', () => {
     expect(insertParams).toContain('09:30');
   });
 
+  it('accepts event_date as a compatibility alias on create', async () => {
+    const returnedEvent = { ...BASE_EVENT, event_time: '09:30' };
+    mockDb.run.mockResolvedValue({ lastID: 42 });
+    mockDb.get.mockResolvedValueOnce(returnedEvent);
+
+    const req = makeCreateReq({
+      title: 'Alias Festival',
+      event_date: FUTURE_DATE,
+      location: 'City Park',
+      event_time: '09:30',
+    });
+    const res = makeRes();
+
+    await createEvent(req, res as unknown as import('express').Response);
+
+    expect(res.statusCode).toBe(201);
+    const insertCall = mockDb.run.mock.calls[0] as [string, unknown[]];
+    expect(insertCall[1]).toContain(FUTURE_DATE);
+  });
+
   it('accepts midnight (00:00) as a valid event_time', async () => {
     const returnedEvent = { ...BASE_EVENT, event_time: '00:00' };
     mockDb.run.mockResolvedValue({ lastID: 42 });
@@ -290,6 +310,22 @@ describe('updateEvent — event_time validation', () => {
     expect(res.statusCode).toBe(200);
     const updateCall = mockDb.run.mock.calls[0] as [string, unknown[]];
     expect(updateCall[1]).toContain('18:30');
+  });
+
+  it('accepts event_date as a compatibility alias on update', async () => {
+    mockDb.get
+      .mockResolvedValueOnce(BASE_EVENT)
+      .mockResolvedValueOnce({ ...BASE_EVENT, event_time: '18:30' });
+    mockDb.run.mockResolvedValue({});
+
+    const req = makeUpdateReq('42', { event_date: FUTURE_DATE, event_time: '18:30' });
+    const res = makeRes();
+
+    await updateEvent(req, res as unknown as import('express').Response);
+
+    expect(res.statusCode).toBe(200);
+    const updateCall = mockDb.run.mock.calls[0] as [string, unknown[]];
+    expect(updateCall[1]).toContain(FUTURE_DATE);
   });
 });
 
