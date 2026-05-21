@@ -166,12 +166,12 @@ async function getGoingGuestsTotal(
   eventId: string,
   excludeRsvpId?: string,
 ): Promise<number> {
-  // Waitlisted entries keep status='Going' but are not occupying a confirmed
-  // seat — exclude them so capacity checks measure actual confirmed guests.
+  // Waitlisted entries keep canonical_status='waitlist' but are not occupying a
+  // confirmed seat — exclude them so capacity checks measure actual confirmed guests.
   const rows = await db.all<{ total_guests: number }>(
     `SELECT COALESCE(SUM(guests), 0) AS total_guests
      FROM rsvps
-     WHERE event_id = $1 AND status = 'Going' AND waitlist_position IS NULL${excludeRsvpId ? ' AND id <> $3' : ''}`,
+     WHERE event_id = $1 AND canonical_status = 'confirmed' AND waitlist_position IS NULL${excludeRsvpId ? ' AND id <> $3' : ''}`,
     excludeRsvpId ? [eventId, excludeRsvpId] : [eventId],
   );
   return rows[0]?.total_guests ?? 0;
@@ -187,7 +187,7 @@ const IMPORT_TEMPLATE_COLUMNS = [
   'email',
   'phone',
   'guests',
-  'status',
+  'canonical_status',
   'notes',
   'dietary_restriction',
   'accessibility_needs',
@@ -672,7 +672,7 @@ export async function exportRsvpsCsv(req: Request, res: Response): Promise<Respo
   if (!event) return res as Response;
 
   const rows = await db.all<Record<string, unknown>>(
-    `SELECT name, email, phone, status, canonical_status, guests, notes,
+    `SELECT name, email, phone, canonical_status, guests, notes,
             dietary_restriction, accessibility_needs, meal_choice,
             plus_one, plus_one_name, guest_group,
             company, title, relation_type, age_group,
@@ -688,7 +688,6 @@ export async function exportRsvpsCsv(req: Request, res: Response): Promise<Respo
     'name',
     'email',
     'phone',
-    'status',
     'canonical_status',
     'guests',
     'notes',
@@ -950,7 +949,8 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
     'email',
     'phone',
     'guests',
-    'status',
+    'canonical_status',
+    'status', // kept for backward-compat: old CSVs may map a column to 'status'
     'notes',
     'dietary_restriction',
     'accessibility_needs',
@@ -1042,7 +1042,7 @@ export async function importCsv(req: Request, res: Response): Promise<Response> 
           name,
           email,
           parseGuests(row['guests']),
-          row['canonical_status'] || row['status'] || 'pending',
+          row['canonical_status'] || row['status'] /* legacy CSV compat */ || 'pending',
           row['notes'] || null,
           row['phone'] || null,
           row['dietary_restriction'] || 'None',

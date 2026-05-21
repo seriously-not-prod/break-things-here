@@ -20,7 +20,7 @@ export interface DuplicateCandidateRow {
   name: string;
   email: string;
   phone: string | null;
-  status: string;
+  canonical_status: string;
   guests: number;
   created_at: string;
   updated_at: string;

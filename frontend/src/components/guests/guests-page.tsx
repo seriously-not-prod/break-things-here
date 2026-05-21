@@ -60,6 +60,7 @@ import { DuplicatesPanel } from './duplicates-panel';
 import { WaitlistPanel } from './waitlist-panel';
 import { RsvpQuestionsPanel } from './rsvp-questions-panel';
 import { RsvpQrDialog } from './rsvp-qr-dialog';
+import { GuestRecordsPanel } from './guest-records-panel';
 
 // ─── Status chip colours ──────────────────────────────────────────────────────
 
@@ -110,7 +111,7 @@ export default function GuestsPage(): JSX.Element {
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
 
-  // Tab: 0 = Guest List, 1 = Communication, 2 = Duplicates, 3 = Waitlist, 4 = Questions
+  // Tab: 0 = Guest List, 1 = Communication, 2 = Duplicates, 3 = Waitlist, 4 = Questions, 5 = Guest Profiles
   const [tab, setTab] = useState(0);
   const [exportingNameTags, setExportingNameTags] = useState(false);
 
@@ -276,11 +277,13 @@ export default function GuestsPage(): JSX.Element {
         <Tab label="Duplicates" aria-label="Duplicate guests tab" />
         <Tab label="Waitlist" aria-label="Waitlist tab" />
         <Tab label="Custom questions" aria-label="Custom RSVP questions tab" />
+        <Tab label="Guest Profiles" aria-label="Guest profiles tab" />
       </Tabs>
 
       {tab === 2 && eventId && <DuplicatesPanel eventId={eventId} onChanged={load} />}
       {tab === 3 && eventId && <WaitlistPanel eventId={eventId} onChanged={load} />}
       {tab === 4 && eventId && <RsvpQuestionsPanel eventId={eventId} />}
+      {tab === 5 && eventId && <GuestRecordsPanel eventId={eventId} />}
 
       {tab === 0 && (
         <>

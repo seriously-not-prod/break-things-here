@@ -32,7 +32,7 @@ This repository is designed to teach:
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18+)
+- [Node.js](https://nodejs.org/) (v20+ — required for frontend test runner; use `.nvmrc`)
 - npm
 - Git
 - GitHub account

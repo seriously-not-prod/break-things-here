@@ -81,7 +81,7 @@ describe('exportRsvpsImportTemplateCsv', () => {
     expect(res.headers['Content-Type']).toContain('text/csv');
     expect(res.headers['Content-Disposition']).toContain('event-123-rsvp-import-template.csv');
     expect(String(res.body)).toBe(
-      'name,email,phone,guests,status,notes,dietary_restriction,accessibility_needs,plus_one,plus_one_name,guest_group,company,title,relation_type,age_group,address_line1,address_line2,city,state_region,postal_code,country,emergency_contact_name,emergency_contact_phone,meal_choice\n',
+      'name,email,phone,guests,canonical_status,notes,dietary_restriction,accessibility_needs,plus_one,plus_one_name,guest_group,company,title,relation_type,age_group,address_line1,address_line2,city,state_region,postal_code,country,emergency_contact_name,emergency_contact_phone,meal_choice\n',
     );
   });
 });
