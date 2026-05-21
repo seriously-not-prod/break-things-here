@@ -7,7 +7,7 @@ import {
   FormControlLabel,
   Stack,
   TextField,
-  Typography
+  Typography,
 } from '@mui/material';
 
 interface LoginResponse {
@@ -94,9 +94,9 @@ export function LoginForm(): JSX.Element {
       const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, rememberMe })
+        body: JSON.stringify({ email, password, rememberMe }),
       });
 
       if (!response.ok) {
@@ -178,7 +178,9 @@ export function LoginForm(): JSX.Element {
         </Button>
 
         <Typography aria-live="polite" variant="body2" color="text.secondary">
-          {isSubmitting ? 'Submitting your login request.' : 'Use your email and password to sign in.'}
+          {isSubmitting
+            ? 'Submitting your login request.'
+            : 'Use your email and password to sign in.'}
         </Typography>
       </Stack>
     </Box>
