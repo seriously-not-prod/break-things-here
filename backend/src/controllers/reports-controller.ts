@@ -312,12 +312,12 @@ export async function renderPayload(
     case 'rsvp_summary': {
       const counts = await db.get(
         `SELECT
-            COUNT(*) FILTER (WHERE status = 'Going')::int      AS going,
-            COUNT(*) FILTER (WHERE status = 'Maybe')::int      AS maybe,
-            COUNT(*) FILTER (WHERE status = 'Pending')::int    AS pending,
-            COUNT(*) FILTER (WHERE status = 'Declined')::int   AS declined,
-            COUNT(*) FILTER (WHERE checked_in = TRUE)::int     AS checked_in,
-            COUNT(*)::int                                      AS total
+            COUNT(*) FILTER (WHERE canonical_status = 'confirmed')::int  AS going,
+            COUNT(*) FILTER (WHERE canonical_status = 'maybe')::int      AS maybe,
+            COUNT(*) FILTER (WHERE canonical_status = 'pending')::int    AS pending,
+            COUNT(*) FILTER (WHERE canonical_status = 'declined')::int   AS declined,
+            COUNT(*) FILTER (WHERE checked_in = TRUE)::int               AS checked_in,
+            COUNT(*)::int                                                 AS total
            FROM rsvps WHERE event_id = $1`,
         [eventId],
       );

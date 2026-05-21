@@ -32,7 +32,7 @@ interface RsvpRow extends DuplicateCandidateRow {
 }
 
 const RSVP_COLUMNS =
-  'id, event_id, name, email, phone, status, guests, notes, source, ' +
+  'id, event_id, name, email, phone, canonical_status, guests, notes, source, ' +
   'dietary_restriction, accessibility_needs, plus_one, plus_one_name, ' +
   'guest_group, rsvp_deadline, checked_in, checked_in_at, waitlist_position, ' +
   'created_at, updated_at';
@@ -40,7 +40,7 @@ const RSVP_COLUMNS =
 interface DuplicateEmailLookupMatch {
   id: number;
   email: string;
-  status: string;
+  canonical_status: string;
   guests: number;
   created_at: string | Date;
   updated_at: string | Date;
@@ -77,7 +77,7 @@ export async function lookupRsvpsByEmail(req: Request, res: Response): Promise<R
   const normalizedEmail = rawEmail.toLowerCase();
   const db = getDatabase();
   const matches = await db.all<DuplicateEmailLookupMatch>(
-    `SELECT id, name, email, status, guests, created_at, updated_at
+    `SELECT id, name, email, canonical_status, guests, created_at, updated_at
      FROM rsvps
      WHERE event_id = $1 AND LOWER(email) = $2
      ORDER BY updated_at DESC, id DESC`,
@@ -111,7 +111,7 @@ export async function listDuplicates(req: Request, res: Response): Promise<Respo
 
   const db = getDatabase();
   const rows = await db.all<DuplicateCandidateRow>(
-    `SELECT id, name, email, phone, status, guests, created_at, updated_at
+    `SELECT id, name, email, phone, canonical_status, guests, created_at, updated_at
      FROM rsvps WHERE event_id = $1`,
     [eventId],
   );
@@ -234,8 +234,8 @@ export async function mergeGuests(req: Request, res: Response): Promise<Response
       0,
     );
     const goingAfterMerge =
-      sources.some((s) => s.status === 'Going') || survivorRow.status === 'Going';
-    const finalStatus = goingAfterMerge ? 'Going' : survivorRow.status;
+      sources.some((s) => s.canonical_status === 'confirmed') || survivorRow.canonical_status === 'confirmed';
+    const finalStatus = goingAfterMerge ? 'confirmed' : survivorRow.canonical_status;
 
     // Capacity check: sum of all 'Going' guests for the event after the merge
     // must fit within event.capacity (if set). We exclude all sources (they are
@@ -245,10 +245,10 @@ export async function mergeGuests(req: Request, res: Response): Promise<Response
       [eventId],
     );
     const capacity = cap.rows[0]?.capacity ?? null;
-    if (capacity !== null && finalStatus === 'Going') {
+    if (capacity !== null && finalStatus === 'confirmed') {
       const otherGoing = await client.query<{ total: number }>(
         `SELECT COALESCE(SUM(guests), 0)::int AS total FROM rsvps
-         WHERE event_id = $1 AND status = 'Going' AND id NOT IN (${ids.map((_, i) => `$${i + 2}`).join(', ')})`,
+         WHERE event_id = $1 AND canonical_status = 'confirmed' AND id NOT IN (${ids.map((_, i) => `$${i + 2}`).join(', ')})`,
         [eventId, ...ids],
       );
       const projected = (otherGoing.rows[0]?.total ?? 0) + totalGuests;
@@ -325,7 +325,7 @@ export async function mergeGuests(req: Request, res: Response): Promise<Response
          guest_group = $8,
          rsvp_deadline = $9,
          guests = $10,
-         status = $11,
+         canonical_status = $11,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = $12`,
       [
