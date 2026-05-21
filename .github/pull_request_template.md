@@ -49,9 +49,7 @@ Closes #
 - [ ] Seed data updated in `database/seeds/` if applicable
 
 ## Database Changes
-
 <!-- Complete this section if your PR includes database schema changes -->
-
 - [ ] No database changes in this PR
 - [ ] New migration file added to `database/migrations/` (timestamped `YYYYMMDDHHMMSS_description.sql`)
 - [ ] Migration includes `-- DOWN` rollback block
@@ -60,20 +58,7 @@ Closes #
 - [ ] Seed data updated in `database/seeds/` if applicable
 
 ## Database Changes
-
 <!-- Complete this section if your PR includes database schema changes -->
-
-- [ ] No database changes in this PR
-- [ ] New migration file added to `database/migrations/` (timestamped `YYYYMMDDHHMMSS_description.sql`)
-- [ ] Migration includes `-- DOWN` rollback block
-- [ ] Migration tested locally against PostgreSQL
-- [ ] `DATABASE_URL` uses correct environment-specific connection string
-- [ ] Seed data updated in `database/seeds/` if applicable
-
-## Database Changes
-
-<!-- Complete this section if your PR includes database schema changes -->
-
 - [ ] No database changes in this PR
 - [ ] New migration file added to `database/migrations/` (timestamped `YYYYMMDDHHMMSS_description.sql`)
 - [ ] Migration includes `-- DOWN` rollback block

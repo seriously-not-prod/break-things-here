@@ -234,8 +234,7 @@ export async function mergeGuests(req: Request, res: Response): Promise<Response
       0,
     );
     const goingAfterMerge =
-      sources.some((s) => s.canonical_status === 'confirmed') ||
-      survivorRow.canonical_status === 'confirmed';
+      sources.some((s) => s.canonical_status === 'confirmed') || survivorRow.canonical_status === 'confirmed';
     const finalStatus = goingAfterMerge ? 'confirmed' : survivorRow.canonical_status;
 
     // Capacity check: sum of all 'Going' guests for the event after the merge
