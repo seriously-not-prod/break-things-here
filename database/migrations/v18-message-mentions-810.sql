@@ -10,7 +10,7 @@
 CREATE TABLE IF NOT EXISTS message_mentions (
   id                   SERIAL PRIMARY KEY,
   -- 'chat_message' | 'task_comment'
-  source_type          TEXT        NOT NULL,
+  source_type          TEXT        NOT NULL CHECK (source_type IN ('chat_message', 'task_comment')),
   source_id            INTEGER     NOT NULL,
   mentioned_user_id    INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   mentioned_by_user_id INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,

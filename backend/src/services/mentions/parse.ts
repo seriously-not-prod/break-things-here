@@ -39,9 +39,12 @@ export interface ParsedMention {
 // ---------------------------------------------------------------------------
 
 /**
- * Negative lookbehind `(?<![\w\\])`:
+ * Negative lookbehind `(?<![\w.\-+\\])`:
  *   - `\w`  — word character: prevents matching `@` inside email addresses
  *             (e.g. `alice@example.com` — the `@` follows `e`, a word char).
+ *   - `.`   — period: blocks `foo.@example.com` style false positives.
+ *   - `-`   — hyphen: blocks `foo-@example.com` style false positives.
+ *   - `+`   — plus: blocks `foo+@example.com` style false positives.
  *   - `\\`  — backslash: `\@alice` is treated as an escaped, non-mention token.
  *
  * Capture groups:

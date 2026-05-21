@@ -17,6 +17,7 @@ export const NOTIFICATION_TYPES = [
   'event_update',
   'chat_message',
   'event_reminder',
+  'mention',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
