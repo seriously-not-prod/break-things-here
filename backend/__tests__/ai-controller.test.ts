@@ -147,6 +147,33 @@ describe('ai-controller provider selection', () => {
     }
   });
 
+  it('uses ENDPOINT/API_KEY aliases when AZURE_OPENAI_* vars are empty', async () => {
+    process.env.AZURE_OPENAI_ENDPOINT = '';
+    process.env.AZURE_OPENAI_API_KEY = '';
+    process.env.ENDPOINT = 'https://example-resource.cognitiveservices.azure.com';
+    process.env.API_KEY = 'alias-key';
+    process.env.AZURE_OPENAI_DEPLOYMENT = 'gpt-4-1';
+    process.env.AZURE_OPENAI_API_VERSION = '2024-02-15-preview';
+
+    const { getSuggestion } = await loadController();
+    const { captured, restore } = mockHttpsJsonReply({
+      choices: [{ message: { content: 'Alias answer' } }],
+    });
+
+    try {
+      const req = makeReq({ context: 'general', prompt: 'Alias config test.' });
+      const res = makeRes();
+      await getSuggestion(req, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toEqual({ suggestion: 'Alias answer' });
+      expect(captured.hostname).toBe('example-resource.cognitiveservices.azure.com');
+      expect(captured.headers?.['api-key']).toBe('alias-key');
+    } finally {
+      restore();
+    }
+  });
+
   it('returns 503 when Azure is partially configured', async () => {
     process.env.AZURE_OPENAI_ENDPOINT = 'https://example-resource.cognitiveservices.azure.com';
 
