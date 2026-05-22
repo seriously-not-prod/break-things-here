@@ -368,6 +368,11 @@ export function createAppTheme(mode: PaletteMode) {
           bar: { borderRadius: 4 },
         },
       },
+      MuiCircularProgress: {
+        defaultProps: {
+          'aria-label': 'Loading',
+        },
+      },
       MuiSkeleton: {
         defaultProps: { animation: 'wave' },
         styleOverrides: {

@@ -134,6 +134,16 @@ Current implementation includes:
 
 For local development, `backend/.env` is loaded automatically when present. If no database URL is set, the backend falls back to `postgresql://postgres:postgres@127.0.0.1:5432/festival_planner`, so `docker compose up -d db` plus `cd backend && npm run dev` is enough for the standard local path.
 
+### AI Assistant Configuration
+
+The AI assistant endpoint (`POST /api/ai/suggest`) prefers Azure OpenAI and falls back to OpenAI only when Azure config is not provided.
+
+- Azure (preferred): set `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_VERSION`
+- Azure compatibility aliases: `ENDPOINT` (for `AZURE_OPENAI_ENDPOINT`), `API_KEY` (for `AZURE_OPENAI_API_KEY`)
+- OpenAI fallback: set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`)
+
+If Azure is partially configured (for example endpoint without key), the backend returns a clear `503` config error so misconfiguration is visible immediately.
+
 In development, the Postgres-backed backend auto-seeds these demo users on startup:
 
 - `admin@festival.local` / `festivalAdmin2025`
