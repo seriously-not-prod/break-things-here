@@ -19,7 +19,7 @@ test.describe('Accessibility — Authenticated pages', () => {
     // Authenticate as admin user
     await page.goto('/login');
     await page.getByLabel(/email/i).fill('admin@festival.local');
-    await page.getByLabel(/password/i).fill('festivalAdmin2025');
+    await page.getByLabel(/^password$/i).fill('festivalAdmin2025');
     await page.getByRole('button', { name: /sign in|log in/i }).click();
     await page.waitForURL(/\/events|\/dashboard/, { timeout: 10000 });
   });

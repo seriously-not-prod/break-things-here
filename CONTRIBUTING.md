@@ -37,6 +37,26 @@ We welcome feature requests! Please open an issue with:
 7. Push to the branch (`git push origin feature/your-feature-name`)
 8. Open a Pull Request
 
+### Work Item Hierarchy (Required Before PR)
+
+All development PRs must trace back to the required hierarchy:
+
+1. Create a `Theme` issue first.
+2. Create a `User Story` as a sub-issue of that Theme.
+3. Create a `Task` as a sub-issue of that User Story.
+4. Reference the open Task issue number in every commit message (`#123`).
+5. Include Theme/Story/Task links in the PR description.
+
+Use the templates under `.github/ISSUE_TEMPLATE/`:
+
+- `theme.yml`
+- `user-story.yml`
+- `task.yml`
+
+Important: GitHub CLI does not provide first-class sub-issue creation commands,
+so create/link sub-issues from the GitHub issue web UI (`Create sub-issue` or
+`Add existing issue`) when needed.
+
 ### Commit Message Requirements
 
 **All commits MUST reference an open GitHub issue.**
