@@ -13,6 +13,13 @@
  * tags, end_date, event_time, location) and omits null/empty fields from the
  * prompt to reduce noise.  Adds contextSummary to the response for
  * traceability.  Fixes canonical_status usage for RSVP statistics queries.
+ *
+ * Story #952 — Add Budget Insight Assistance for Variance and Risk:
+ * POST /api/ai/budget-insight fetches live budget categories and expenses for
+ * an event, computes variance, overspend flags, spend totals, and threshold
+ * state before calling the AI model.  Returns structured JSON containing at
+ * least 3 actionable recommendations, a risk level, anomalies, and a summary.
+ * Handles missing/partial budget data safely (empty categories, no expenses).
  */
 import { Request, Response } from 'express';
 import https from 'https';
@@ -1024,6 +1031,404 @@ export async function getTaskBreakdown(req: AuthRequest, res: Response): Promise
     void logAiRequest({
       userId,
       workflowType: 'task-breakdown',
+      entityId: parsedEventId,
+      provider: provider.kind,
+      durationMs,
+      status: 'error',
+      errorMessage: message,
+    });
+    return res.status(502).json({ error: `AI request failed: ${message}` });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Budget Insight Assistance — Story #952
+// Analyse live budget categories and expenses for an event, compute variance
+// and overspend flags, then call the AI model with full financial context to
+// produce structured, actionable budget insight recommendations.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One category's financial snapshot used to build the AI prompt. */
+export interface BudgetCategorySnapshot {
+  name: string;
+  allocated: number;
+  spent: number;
+  variance: number;        // allocated - spent  (negative = overspend)
+  variancePct: number;     // variance / allocated * 100  (NaN when allocated = 0)
+  isOverspent: boolean;
+  expenseCount: number;
+}
+
+/** A single actionable budget recommendation returned by the AI. */
+export interface BudgetRecommendation {
+  category: string;
+  insight: string;
+  action: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+}
+
+/** Full structured response from POST /api/ai/budget-insight. */
+export interface BudgetInsightResponse {
+  workflowType: 'budget-insight';
+  eventId: number;
+  eventTitle: string;
+  summary: string;
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  totalAllocated: number;
+  totalSpent: number;
+  totalVariance: number;
+  overspentCategories: string[];
+  anomalies: string[];
+  recommendations: BudgetRecommendation[];
+  raw: string;
+  contextSummary: {
+    groundedFields: string[];
+    categoryCount: number;
+    expenseCount: number;
+  };
+}
+
+interface BudgetInsightContext {
+  eventId: number;
+  eventTitle: string;
+  eventDate: string | null;
+  eventStatus: string;
+  categories: BudgetCategorySnapshot[];
+  totalAllocated: number;
+  totalSpent: number;
+  totalVariance: number;
+  overspentCategories: string[];
+  expenseCount: number;
+}
+
+interface BudgetInsightBody {
+  eventId: number;
+  prompt?: string;
+}
+
+async function fetchBudgetInsightContext(eventId: number): Promise<BudgetInsightContext | null> {
+  const db = getDatabase();
+
+  const event = await db.get<{ id: number; title: string; date: string | null; status: string }>(
+    `SELECT id, title, date, status FROM events WHERE id = $1 AND deleted_at IS NULL`,
+    [eventId],
+  );
+  if (!event) return null;
+
+  // Fetch budget categories with their allocated amounts.
+  const categories = await db.all<{
+    id: number;
+    name: string;
+    allocated_amount: number;
+  }>(
+    `SELECT id, name, COALESCE(allocated_amount, 0) AS allocated_amount
+     FROM budget_categories
+     WHERE event_id = $1
+     ORDER BY name`,
+    [eventId],
+  );
+
+  // Fetch approved/pending expense totals per category (exclude rejected).
+  const expenseTotals = await db.all<{
+    category_id: number | null;
+    total_spent: number;
+    expense_count: number;
+  }>(
+    `SELECT category_id,
+            COALESCE(SUM(amount), 0)::numeric AS total_spent,
+            COUNT(*)::int AS expense_count
+     FROM expenses
+     WHERE event_id = $1
+       AND approval_status IN ('approved', 'pending')
+     GROUP BY category_id`,
+    [eventId],
+  );
+
+  const spendByCategory = new Map<number | null, { spent: number; count: number }>();
+  for (const row of expenseTotals) {
+    spendByCategory.set(row.category_id, {
+      spent: Number(row.total_spent),
+      count: row.expense_count,
+    });
+  }
+
+  // Uncategorised expenses (category_id IS NULL)
+  const uncategorised = spendByCategory.get(null);
+
+  const snapshots: BudgetCategorySnapshot[] = categories.map((cat) => {
+    const spend = spendByCategory.get(cat.id) ?? { spent: 0, count: 0 };
+    const allocated = Number(cat.allocated_amount);
+    const spent = spend.spent;
+    const variance = allocated - spent;
+    const variancePct = allocated !== 0 ? (variance / allocated) * 100 : NaN;
+    return {
+      name: cat.name,
+      allocated,
+      spent,
+      variance,
+      variancePct,
+      isOverspent: spent > allocated,
+      expenseCount: spend.count,
+    };
+  });
+
+  // Add a synthetic "Uncategorised" entry when uncategorised spend exists.
+  if (uncategorised && uncategorised.spent > 0) {
+    snapshots.push({
+      name: 'Uncategorised',
+      allocated: 0,
+      spent: uncategorised.spent,
+      variance: -uncategorised.spent,
+      variancePct: NaN,
+      isOverspent: true,
+      expenseCount: uncategorised.count,
+    });
+  }
+
+  const totalAllocated = snapshots.reduce((s, c) => s + c.allocated, 0);
+  const totalSpent = snapshots.reduce((s, c) => s + c.spent, 0);
+  const totalVariance = totalAllocated - totalSpent;
+  const overspentCategories = snapshots.filter((c) => c.isOverspent).map((c) => c.name);
+  const expenseCount = snapshots.reduce((s, c) => s + c.expenseCount, 0);
+
+  return {
+    eventId: event.id,
+    eventTitle: event.title,
+    eventDate: event.date,
+    eventStatus: event.status,
+    categories: snapshots,
+    totalAllocated,
+    totalSpent,
+    totalVariance,
+    overspentCategories,
+    expenseCount,
+  };
+}
+
+function resolveBudgetGroundedFields(ctx: BudgetInsightContext): string[] {
+  const fields: string[] = ['eventTitle', 'eventStatus'];
+  if (ctx.eventDate) fields.push('eventDate');
+  if (ctx.categories.length > 0) fields.push('budgetCategories');
+  if (ctx.expenseCount > 0) fields.push('expenses');
+  if (ctx.overspentCategories.length > 0) fields.push('overspendFlags');
+  if (ctx.totalAllocated > 0) fields.push('totalAllocated');
+  if (ctx.totalSpent > 0) fields.push('totalSpent');
+  return fields;
+}
+
+const BUDGET_INSIGHT_SYSTEM_PROMPT = `You are a financial risk analyst AI for festival event management.
+You will receive live budget data for an event: category allocations, actual spend, variance figures, and overspend flags.
+Analyse the data and return ONLY a valid JSON object (no markdown, no explanation):
+{
+  "summary": "2-3 sentence overall budget health summary",
+  "riskLevel": "low|medium|high|critical",
+  "anomalies": ["anomaly 1", "anomaly 2"],
+  "recommendations": [
+    {"category":"category name or Overall","insight":"what the data shows","action":"specific action to take","priority":"low|medium|high|critical"},
+    ...at least 3 recommendations...
+  ]
+}
+Rules:
+- riskLevel must be one of: low, medium, high, critical
+- priority must be one of: low, medium, high, critical
+- Include at least 3 recommendations. When categories are overspent or at risk, provide category-specific recommendations.
+- anomalies should flag unusual patterns: sudden large expenses, zero allocation with spend, categories >90% spent, etc.
+- When budget data is empty or partial, still return valid JSON with recommendations about setting up budgets.`;
+
+function buildBudgetInsightUserMessage(ctx: BudgetInsightContext, userPrompt: string): string {
+  const lines: string[] = ['Event budget data:'];
+  lines.push(`Event: ${ctx.eventTitle}`);
+  lines.push(`Status: ${ctx.eventStatus}`);
+  if (ctx.eventDate) lines.push(`Date: ${ctx.eventDate}`);
+  lines.push(`Total Allocated: $${ctx.totalAllocated.toFixed(2)}`);
+  lines.push(`Total Spent: $${ctx.totalSpent.toFixed(2)}`);
+  lines.push(
+    `Total Variance: $${ctx.totalVariance.toFixed(2)} (${ctx.totalVariance >= 0 ? 'under budget' : 'OVER BUDGET'})`,
+  );
+
+  if (ctx.categories.length > 0) {
+    lines.push('');
+    lines.push('Category breakdown:');
+    for (const cat of ctx.categories) {
+      const pct =
+        !isNaN(cat.variancePct) ? ` (${cat.variancePct >= 0 ? '' : '-'}${Math.abs(cat.variancePct).toFixed(1)}% variance)` : '';
+      const flag = cat.isOverspent ? ' ⚠ OVERSPENT' : '';
+      lines.push(
+        `- ${cat.name}: allocated $${cat.allocated.toFixed(2)}, spent $${cat.spent.toFixed(2)}, variance $${cat.variance.toFixed(2)}${pct}${flag}`,
+      );
+    }
+  } else {
+    lines.push('');
+    lines.push('No budget categories defined yet.');
+  }
+
+  if (ctx.overspentCategories.length > 0) {
+    lines.push('');
+    lines.push(`Overspent categories: ${ctx.overspentCategories.join(', ')}`);
+  }
+
+  lines.push('');
+  lines.push(`User request: ${userPrompt}`);
+  return lines.join('\n');
+}
+
+/**
+ * Parse raw AI model output into a structured BudgetInsightResponse payload.
+ * Returns null if parsing fails or the output does not match the expected schema.
+ */
+export function parseBudgetInsightOutput(raw: string): {
+  summary: string;
+  riskLevel: BudgetInsightResponse['riskLevel'];
+  anomalies: string[];
+  recommendations: BudgetRecommendation[];
+} | null {
+  try {
+    const cleaned = raw
+      .replace(/```(?:json)?\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+
+    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+    if (typeof parsed !== 'object' || parsed === null) return null;
+
+    const VALID_RISK = new Set(['low', 'medium', 'high', 'critical']);
+    const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
+
+    const summary = typeof parsed.summary === 'string' ? parsed.summary : '';
+    const riskLevel = VALID_RISK.has(parsed.riskLevel as string)
+      ? (parsed.riskLevel as BudgetInsightResponse['riskLevel'])
+      : 'medium';
+
+    const anomalies = Array.isArray(parsed.anomalies)
+      ? (parsed.anomalies as unknown[]).filter((a): a is string => typeof a === 'string')
+      : [];
+
+    if (!Array.isArray(parsed.recommendations)) return null;
+
+    const recommendations: BudgetRecommendation[] = [];
+    for (const item of parsed.recommendations as unknown[]) {
+      if (typeof item !== 'object' || item === null) continue;
+      const r = item as Record<string, unknown>;
+      if (typeof r.insight !== 'string' || !r.insight) continue;
+      recommendations.push({
+        category: typeof r.category === 'string' ? r.category : 'Overall',
+        insight: r.insight,
+        action: typeof r.action === 'string' ? r.action : '',
+        priority: VALID_PRIORITY.has(r.priority as string)
+          ? (r.priority as BudgetRecommendation['priority'])
+          : 'medium',
+      });
+    }
+
+    if (recommendations.length === 0) return null;
+
+    return { summary, riskLevel, anomalies, recommendations };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * POST /api/ai/budget-insight
+ *
+ * Fetches live budget categories and expense totals for an event, computes
+ * variance, overspend flags, and spend ratios, then calls the AI model to
+ * produce structured budget insights.  Returns a BudgetInsightResponse with:
+ * - overall summary and risk level
+ * - at least 3 actionable category-level recommendations
+ * - detected anomalies (large spikes, zero-allocation spend, near-threshold categories)
+ * - raw model output for traceability
+ * Handles missing/partial budget data safely (empty categories, no expenses).
+ */
+export async function getBudgetInsight(req: AuthRequest, res: Response): Promise<Response> {
+  const { eventId, prompt } = req.body as Partial<BudgetInsightBody>;
+
+  const effectivePrompt =
+    prompt?.trim() || 'Analyse the budget for this event and provide risk and variance insights.';
+
+  const parsedEventId = typeof eventId === 'string' ? parseInt(eventId, 10) : eventId;
+  if (
+    !parsedEventId ||
+    typeof parsedEventId !== 'number' ||
+    !Number.isInteger(parsedEventId) ||
+    parsedEventId <= 0
+  ) {
+    return res.status(400).json({ error: 'eventId must be a positive integer.' });
+  }
+
+  const userId = req.user?.id;
+  if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    return res
+      .status(429)
+      .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
+  }
+
+  const provider = resolveAiProviderConfig();
+  if (provider.kind === 'misconfigured') {
+    return res.status(503).json({ error: provider.message });
+  }
+  if (provider.kind === 'none') {
+    return res.status(503).json({
+      error:
+        'AI suggestions are not configured. Set Azure OpenAI (AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY + AZURE_OPENAI_DEPLOYMENT) or OPENAI_API_KEY.',
+    });
+  }
+
+  let context: BudgetInsightContext | null = null;
+  try {
+    context = await fetchBudgetInsightContext(parsedEventId);
+  } catch {
+    return res.status(500).json({ error: 'Failed to fetch budget context.' });
+  }
+
+  if (!context) {
+    return res.status(404).json({ error: `Event ${parsedEventId} not found.` });
+  }
+
+  const userMessage = buildBudgetInsightUserMessage(context, sanitisePrompt(effectivePrompt));
+
+  const startTime = Date.now();
+  try {
+    const raw = await callAiProvider(provider, BUDGET_INSIGHT_SYSTEM_PROMPT, userMessage);
+    const durationMs = Date.now() - startTime;
+
+    void logAiRequest({
+      userId,
+      workflowType: 'budget_insight',
+      entityId: parsedEventId,
+      provider: provider.kind,
+      durationMs,
+      status: 'success',
+    });
+
+    const parsed = parseBudgetInsightOutput(raw);
+
+    const response: BudgetInsightResponse = {
+      workflowType: 'budget-insight',
+      eventId: parsedEventId,
+      eventTitle: context.eventTitle,
+      summary: parsed?.summary ?? '',
+      riskLevel: parsed?.riskLevel ?? 'medium',
+      totalAllocated: context.totalAllocated,
+      totalSpent: context.totalSpent,
+      totalVariance: context.totalVariance,
+      overspentCategories: context.overspentCategories,
+      anomalies: parsed?.anomalies ?? [],
+      recommendations: parsed?.recommendations ?? [],
+      raw,
+      contextSummary: {
+        groundedFields: resolveBudgetGroundedFields(context),
+        categoryCount: context.categories.length,
+        expenseCount: context.expenseCount,
+      },
+    };
+    return res.json(response);
+  } catch (err) {
+    const durationMs = Date.now() - startTime;
+    const message = err instanceof Error ? err.message : 'Unknown AI error';
+    void logAiRequest({
+      userId,
+      workflowType: 'budget_insight',
       entityId: parsedEventId,
       provider: provider.kind,
       durationMs,
