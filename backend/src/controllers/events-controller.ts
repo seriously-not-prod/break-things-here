@@ -40,15 +40,17 @@ export async function listEvents(req: Request, res: Response): Promise<Response>
     WHERE e.deleted_at IS NULL
   `;
   const params: (string | number)[] = [];
+  let paramIndex = 1;
 
   if (status) {
-    query += ' AND e.status = ?';
+    query += ` AND e.status = $${paramIndex++}`;
     params.push(status);
   }
   if (q) {
-    query += ' AND (e.title LIKE ? OR e.description LIKE ? OR e.location LIKE ?)';
+    query += ` AND (e.title LIKE $${paramIndex} OR e.description LIKE $${paramIndex + 1} OR e.location LIKE $${paramIndex + 2})`;
     const like = `%${q}%`;
     params.push(like, like, like);
+    paramIndex += 3;
   }
 
   query += ' ORDER BY e.event_date ASC';
@@ -70,17 +72,18 @@ export async function getEvent(req: Request, res: Response): Promise<Response> {
   );
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
-  const tasks = await db.all('SELECT * FROM tasks WHERE event_id = $1 ORDER BY due_date ASC', [id]);
-  const rsvps = await db.all('SELECT * FROM rsvps WHERE event_id = $1 ORDER BY created_at DESC', [
-    id,
+  // Parallelize independent queries to reduce response latency
+  const [tasks, rsvps, documents] = await Promise.all([
+    db.all('SELECT * FROM tasks WHERE event_id = $1 ORDER BY due_date ASC', [id]),
+    db.all('SELECT * FROM rsvps WHERE event_id = $1 ORDER BY created_at DESC', [id]),
+    db.all<EventDocumentRow[]>(
+      `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at
+       FROM event_documents
+       WHERE event_id = $1
+       ORDER BY created_at DESC`,
+      [id],
+    ),
   ]);
-  const documents = await db.all<EventDocumentRow[]>(
-    `SELECT id, event_id, original_name, file_name, mime_type, file_size, created_at
-     FROM event_documents
-     WHERE event_id = $1
-     ORDER BY created_at DESC`,
-    [id],
-  );
 
   return res.json({ event, tasks, rsvps, documents });
 }
@@ -136,25 +139,26 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<Resp
   const { title, description, location, event_date, status } = req.body as Record<string, string>;
   const fields: string[] = [];
   const params: (string | number | null)[] = [];
+  let paramIndex = 1;
 
   if (title !== undefined) {
-    fields.push('title = ?');
+    fields.push(`title = $${paramIndex++}`);
     params.push(title.trim());
   }
   if (description !== undefined) {
-    fields.push('description = ?');
+    fields.push(`description = $${paramIndex++}`);
     params.push(description.trim() || null);
   }
   if (location !== undefined) {
-    fields.push('location = ?');
+    fields.push(`location = $${paramIndex++}`);
     params.push(location.trim() || null);
   }
   if (event_date !== undefined) {
-    fields.push('event_date = ?');
+    fields.push(`event_date = $${paramIndex++}`);
     params.push(event_date);
   }
   if (status !== undefined) {
-    fields.push('status = ?');
+    fields.push(`status = $${paramIndex++}`);
     params.push(status);
   }
 
@@ -163,7 +167,7 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<Resp
   fields.push('updated_at = CURRENT_TIMESTAMP');
   params.push(id);
 
-  await db.run(`UPDATE events SET ${fields.join(', ')} WHERE id = $1`, params);
+  await db.run(`UPDATE events SET ${fields.join(', ')} WHERE id = $${paramIndex}`, params);
   const updated = await db.get('SELECT * FROM events WHERE id = $1', [id]);
   return res.json({ event: updated });
 }
@@ -191,20 +195,21 @@ export async function deleteEvent(req: AuthRequest, res: Response): Promise<Resp
 export async function getEventStats(_req: Request, res: Response): Promise<Response> {
   const db = getDatabase();
 
-  const totalEvents = await db.get<{ count: number }>(
-    'SELECT COUNT(*) AS count FROM events WHERE deleted_at IS NULL',
-  );
-  const activeEvents = await db.get<{ count: number }>(
-    "SELECT COUNT(*) AS count FROM events WHERE status = 'Active' AND deleted_at IS NULL",
-  );
-  const totalTasks = await db.get<{ count: number }>('SELECT COUNT(*) AS count FROM tasks');
-  const pendingTasks = await db.get<{ count: number }>(
-    "SELECT COUNT(*) AS count FROM tasks WHERE status = 'Pending'",
-  );
-  const totalRsvps = await db.get<{ count: number }>('SELECT COUNT(*) AS count FROM rsvps');
-  const goingRsvps = await db.get<{ count: number }>(
-    "SELECT COUNT(*) AS count FROM rsvps WHERE canonical_status = 'confirmed'",
-  );
+  const [totalEvents, activeEvents, totalTasks, pendingTasks, totalRsvps, goingRsvps] =
+    await Promise.all([
+      db.get<{ count: number }>('SELECT COUNT(*) AS count FROM events WHERE deleted_at IS NULL'),
+      db.get<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM events WHERE status = 'Active' AND deleted_at IS NULL",
+      ),
+      db.get<{ count: number }>('SELECT COUNT(*) AS count FROM tasks'),
+      db.get<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM tasks WHERE status = 'Pending'",
+      ),
+      db.get<{ count: number }>('SELECT COUNT(*) AS count FROM rsvps'),
+      db.get<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM rsvps WHERE canonical_status = 'confirmed'",
+      ),
+    ]);
 
   return res.json({
     totalEvents: totalEvents?.count ?? 0,

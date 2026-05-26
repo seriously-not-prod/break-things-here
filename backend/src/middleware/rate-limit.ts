@@ -1,9 +1,22 @@
 import rateLimit from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
+import { getRedisClient } from '../lib/redis.js';
+
+function createStore(prefix: string): RedisStore | undefined {
+  const client = getRedisClient();
+  if (!client) return undefined; // Falls back to express-rate-limit's built-in MemoryStore
+  return new RedisStore({
+    sendCommand: (...args: string[]) =>
+      client.call(args[0], ...args.slice(1)) as never,
+    prefix: `rl:${prefix}:`,
+  });
+}
 
 export const apiLimiter = rateLimit({
   windowMs: 60_000,
   max: process.env.NODE_ENV === 'production' ? 100 : 1000,
   skip: (req) => req.path.startsWith('/auth/'),
+  store: createStore('api'),
 });
 
 export const healthLimiter = rateLimit({
@@ -12,6 +25,7 @@ export const healthLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many health check requests.' },
+  store: createStore('health'),
 });
 
 // #784 — dedicated limiter for the /metrics endpoint; Prometheus scrapers may
@@ -22,6 +36,7 @@ export const metricsLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many metrics requests.' },
+  store: createStore('metrics'),
 });
 
 // Per-IP limit for unauthenticated, user-facing public surfaces:
@@ -37,6 +52,7 @@ export const publicLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Please slow down and try again shortly.' },
+  store: createStore('public'),
 });
 
 // Tracking pixel + click redirect throughput is dominated by recipients
@@ -51,6 +67,7 @@ export const trackingLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many tracking requests.' },
+  store: createStore('tracking'),
 });
 
 // GDPR export and right-to-erasure endpoints generate full user data dumps
@@ -62,6 +79,7 @@ export const gdprLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'GDPR export/erasure rate limit reached. Try again later.' },
+  store: createStore('gdpr'),
 });
 
 export const csrfLimiter = rateLimit({
@@ -70,6 +88,7 @@ export const csrfLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many CSRF token requests. Please try again later.' },
+  store: createStore('csrf'),
 });
 
 export const createAuthLimiter = () =>
@@ -79,4 +98,5 @@ export const createAuthLimiter = () =>
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many auth requests. Please try again later.' },
+    store: createStore('auth'),
   });
