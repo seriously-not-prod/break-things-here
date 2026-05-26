@@ -18,7 +18,14 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { AutoAwesomeRounded, CloseRounded, HubRounded, SendRounded } from '@mui/icons-material';
+import {
+  AutoAwesomeRounded,
+  CloseRounded,
+  ContentCopyRounded,
+  HubRounded,
+  ListAltRounded,
+  SendRounded,
+} from '@mui/icons-material';
 import { api, ApiError } from '../../lib/api-client';
 
 type Context = 'general' | 'event' | 'task' | 'rsvp';
@@ -47,6 +54,29 @@ interface RsvpSuggestion {
   confirmationMessage: string;
   reminderMessage: string;
   capacityTip: string;
+}
+
+/** #950 — Structured task item from AI task breakdown */
+interface TaskBreakdownItem {
+  title: string;
+  owner: string;
+  dueWindow: string;
+  dependencies: string[];
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  timelineConstraint: string;
+}
+
+/** #950 — Full task breakdown response */
+interface TaskBreakdownResponse {
+  workflowType: 'task-breakdown';
+  eventId: number;
+  eventTitle: string;
+  tasks: TaskBreakdownItem[];
+  raw: string;
+  contextSummary: {
+    groundedFields: string[];
+    totalExistingTasks: number;
+  };
 }
 
 type GroundedSuggestion = EventSuggestion | TaskSuggestion | RsvpSuggestion;
@@ -216,9 +246,102 @@ function GroundedOutputCard({ response }: { response: GroundedResponse }): JSX.E
   );
 }
 
+const PRIORITY_COLORS: Record<TaskBreakdownItem['priority'], string> = {
+  low: 'default',
+  medium: 'info',
+  high: 'warning',
+  urgent: 'error',
+};
+
+/** #950 — Renders a single generated task card with a copy button. */
+function TaskBreakdownCard({
+  item,
+  index,
+}: {
+  item: TaskBreakdownItem;
+  index: number;
+}): JSX.Element {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy(): void {
+    const text = [
+      `Task: ${item.title}`,
+      item.owner ? `Owner: ${item.owner}` : '',
+      item.dueWindow ? `Due: ${item.dueWindow}` : '',
+      item.priority ? `Priority: ${item.priority}` : '',
+      item.timelineConstraint ? `Timeline: ${item.timelineConstraint}` : '',
+      item.dependencies.length > 0 ? `Dependencies: ${item.dependencies.join(', ')}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <Box
+      sx={{
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 2,
+        p: 1.5,
+        bgcolor: index % 2 === 0 ? 'grey.50' : 'background.paper',
+      }}
+    >
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={0.5}>
+        <Typography variant="body2" fontWeight={600} flexGrow={1}>
+          {index + 1}. {item.title}
+        </Typography>
+        <Stack direction="row" spacing={0.5} alignItems="center" flexShrink={0}>
+          <Chip
+            label={item.priority}
+            size="small"
+            color={PRIORITY_COLORS[item.priority] as 'default' | 'info' | 'warning' | 'error'}
+            variant="outlined"
+            sx={{ fontSize: '0.65rem', height: 18 }}
+          />
+          <Tooltip title={copied ? 'Copied!' : 'Copy task'}>
+            <IconButton size="small" onClick={handleCopy} aria-label={`Copy task ${index + 1}`}>
+              <ContentCopyRounded sx={{ fontSize: 14 }} />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      </Stack>
+      {item.owner && (
+        <Typography variant="caption" color="text.secondary" display="block">
+          Owner: {item.owner}
+        </Typography>
+      )}
+      {item.dueWindow && (
+        <Typography variant="caption" color="text.secondary" display="block">
+          Due: {item.dueWindow}
+        </Typography>
+      )}
+      {item.timelineConstraint && (
+        <Typography variant="caption" color="text.disabled" display="block" sx={{ fontStyle: 'italic' }}>
+          {item.timelineConstraint}
+        </Typography>
+      )}
+      {item.dependencies.length > 0 && (
+        <Box mt={0.5}>
+          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+            Depends on:{' '}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {item.dependencies.join(' → ')}
+          </Typography>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 export function AiAssistant(): JSX.Element {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<0 | 1>(0);
+  const [activeTab, setActiveTab] = useState<0 | 1 | 2>(0);
 
   // Chat mode state
   const [context, setContext] = useState<Context>('general');
@@ -233,6 +356,14 @@ export function AiAssistant(): JSX.Element {
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const [workflowResult, setWorkflowResult] = useState<GroundedResponse | null>(null);
   const [workflowError, setWorkflowError] = useState<string | null>(null);
+
+  // #950 — Task breakdown state
+  const [breakdownEventId, setBreakdownEventId] = useState('');
+  const [breakdownPrompt, setBreakdownPrompt] = useState('');
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const [breakdownResult, setBreakdownResult] = useState<TaskBreakdownResponse | null>(null);
+  const [breakdownError, setBreakdownError] = useState<string | null>(null);
+  const [allCopied, setAllCopied] = useState(false);
 
   async function sendMessage(): Promise<void> {
     const text = prompt.trim();
@@ -293,6 +424,59 @@ export function AiAssistant(): JSX.Element {
     }
   }
 
+  // #950 — Task breakdown functions
+  async function runTaskBreakdown(): Promise<void> {
+    const eid = parseInt(breakdownEventId, 10);
+    if (!Number.isFinite(eid) || eid <= 0) return;
+
+    setBreakdownLoading(true);
+    setBreakdownError(null);
+    setBreakdownResult(null);
+
+    try {
+      const data = await api.post<TaskBreakdownResponse>('/api/ai/task-breakdown', {
+        eventId: eid,
+        prompt: breakdownPrompt.trim() || undefined,
+      });
+      setBreakdownResult(data);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'AI request failed.';
+      setBreakdownError(message);
+    } finally {
+      setBreakdownLoading(false);
+    }
+  }
+
+  function handleBreakdownKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void runTaskBreakdown();
+    }
+  }
+
+  function handleCopyAllTasks(): void {
+    if (!breakdownResult) return;
+    const text = breakdownResult.tasks
+      .map(
+        (t, i) =>
+          [
+            `${i + 1}. ${t.title}`,
+            t.owner ? `   Owner: ${t.owner}` : '',
+            t.dueWindow ? `   Due: ${t.dueWindow}` : '',
+            t.priority ? `   Priority: ${t.priority}` : '',
+            t.timelineConstraint ? `   Timeline: ${t.timelineConstraint}` : '',
+            t.dependencies.length > 0 ? `   Depends on: ${t.dependencies.join(', ')}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+      )
+      .join('\n\n');
+    void navigator.clipboard.writeText(text).then(() => {
+      setAllCopied(true);
+      setTimeout(() => setAllCopied(false), 2000);
+    });
+  }
+
   return (
     <>
       {/* Floating button */}
@@ -347,7 +531,7 @@ export function AiAssistant(): JSX.Element {
           {/* Mode tabs */}
           <Tabs
             value={activeTab}
-            onChange={(_e, v: number) => setActiveTab(v as 0 | 1)}
+            onChange={(_e, v: number) => setActiveTab(v as 0 | 1 | 2)}
             variant="fullWidth"
             sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 40 }}
           >
@@ -355,13 +539,19 @@ export function AiAssistant(): JSX.Element {
               label="Chat"
               icon={<AutoAwesomeRounded fontSize="small" />}
               iconPosition="start"
-              sx={{ minHeight: 40, py: 0, fontSize: '0.75rem' }}
+              sx={{ minHeight: 40, py: 0, fontSize: '0.7rem' }}
             />
             <Tab
-              label="Grounded Workflow"
+              label="Grounded"
               icon={<HubRounded fontSize="small" />}
               iconPosition="start"
-              sx={{ minHeight: 40, py: 0, fontSize: '0.75rem' }}
+              sx={{ minHeight: 40, py: 0, fontSize: '0.7rem' }}
+            />
+            <Tab
+              label="Task Plan"
+              icon={<ListAltRounded fontSize="small" />}
+              iconPosition="start"
+              sx={{ minHeight: 40, py: 0, fontSize: '0.7rem' }}
             />
           </Tabs>
 
@@ -581,6 +771,154 @@ export function AiAssistant(): JSX.Element {
                       </Typography>
                     </Divider>
                     <GroundedOutputCard response={workflowResult} />
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          )}
+
+          {/* ── Tab 2: Task Breakdown (#950) ───────────────────────── */}
+          {activeTab === 2 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
+              {/* Form */}
+              <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+                <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+                  Generate a full task breakdown grounded in live event data — includes owner
+                  suggestions, due-windows, priorities, dependencies, and timeline constraints.
+                </Typography>
+                <Stack spacing={1}>
+                  <TextField
+                    size="small"
+                    label="Event ID"
+                    type="number"
+                    value={breakdownEventId}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                      setBreakdownEventId(e.target.value)
+                    }
+                    inputProps={{ min: 1, 'aria-label': 'Event ID for task breakdown' }}
+                    fullWidth
+                  />
+                  <TextField
+                    size="small"
+                    multiline
+                    maxRows={2}
+                    placeholder="Optional: focus area or instructions"
+                    value={breakdownPrompt}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                      setBreakdownPrompt(e.target.value)
+                    }
+                    onKeyDown={handleBreakdownKeyDown}
+                    fullWidth
+                    disabled={breakdownLoading}
+                    inputProps={{ 'aria-label': 'Task breakdown prompt' }}
+                  />
+                  <Button
+                    variant="contained"
+                    size="small"
+                    endIcon={
+                      breakdownLoading ? (
+                        <CircularProgress size={14} color="inherit" />
+                      ) : (
+                        <ListAltRounded />
+                      )
+                    }
+                    onClick={runTaskBreakdown}
+                    disabled={
+                      breakdownLoading ||
+                      !breakdownEventId ||
+                      parseInt(breakdownEventId, 10) <= 0
+                    }
+                    aria-label="Generate task breakdown"
+                  >
+                    {breakdownLoading ? 'Generating breakdown…' : 'Generate Task Breakdown'}
+                  </Button>
+                </Stack>
+              </Box>
+
+              {/* Results */}
+              <Box
+                role="region"
+                aria-label="Task breakdown result"
+                aria-live="polite"
+                sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}
+              >
+                {!breakdownLoading && !breakdownResult && !breakdownError && (
+                  <Typography variant="body2" color="text.secondary" textAlign="center" mt={1}>
+                    Enter an Event ID and click Generate to receive an AI task breakdown grounded in
+                    your event context.
+                  </Typography>
+                )}
+
+                {breakdownLoading && (
+                  <Box
+                    sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'center' }}
+                    aria-label="Loading task breakdown"
+                  >
+                    <CircularProgress size={18} />
+                    <Typography variant="caption" color="text.secondary">
+                      Fetching event context and generating tasks…
+                    </Typography>
+                  </Box>
+                )}
+
+                {breakdownError && !breakdownLoading && (
+                  <Alert severity="error" sx={{ fontSize: '0.75rem' }}>
+                    {breakdownError}
+                  </Alert>
+                )}
+
+                {breakdownResult && !breakdownLoading && (
+                  <Box>
+                    <Stack
+                      direction="row"
+                      justifyContent="space-between"
+                      alignItems="center"
+                      mb={1}
+                    >
+                      <Typography variant="caption" fontWeight={700} color="text.secondary">
+                        {breakdownResult.eventTitle} — {breakdownResult.tasks.length} task
+                        {breakdownResult.tasks.length !== 1 ? 's' : ''} generated
+                      </Typography>
+                      <Tooltip title={allCopied ? 'Copied all!' : 'Copy all tasks'}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<ContentCopyRounded sx={{ fontSize: 13 }} />}
+                          onClick={handleCopyAllTasks}
+                          disabled={breakdownResult.tasks.length === 0}
+                          sx={{ fontSize: '0.7rem', py: 0.25, px: 0.75 }}
+                          aria-label="Copy all tasks"
+                        >
+                          {allCopied ? 'Copied!' : 'Copy All'}
+                        </Button>
+                      </Tooltip>
+                    </Stack>
+
+                    {breakdownResult.tasks.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">
+                        No tasks were generated. Try a more specific prompt.
+                      </Typography>
+                    ) : (
+                      <Stack spacing={1}>
+                        {breakdownResult.tasks.map((item, i) => (
+                          <TaskBreakdownCard key={i} item={item} index={i} />
+                        ))}
+                      </Stack>
+                    )}
+
+                    {breakdownResult.contextSummary.groundedFields.length > 0 && (
+                      <Typography
+                        variant="caption"
+                        color="text.disabled"
+                        display="block"
+                        mt={1}
+                        textAlign="right"
+                      >
+                        Grounded on: {breakdownResult.contextSummary.groundedFields.join(', ')}
+                        {breakdownResult.contextSummary.totalExistingTasks > 0 &&
+                          ` · ${breakdownResult.contextSummary.totalExistingTasks} existing task(s)`}
+                      </Typography>
+                    )}
                   </Box>
                 )}
               </Box>
