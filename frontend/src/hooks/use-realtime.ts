@@ -132,9 +132,15 @@ export function useRealtime(
       if (reconnectAttemptsRef.current >= maxReconnectAttempts) return;
 
       reconnectAttemptsRef.current += 1;
+      // Exponential backoff with jitter to avoid thundering herd on sustained failures.
+      const backoff = Math.min(
+        reconnectDelay * Math.pow(2, reconnectAttemptsRef.current - 1),
+        30_000,
+      );
+      const jitter = backoff * (0.5 + Math.random() * 0.5);
       reconnectTimerRef.current = setTimeout(() => {
         if (!unmountedRef.current) connect();
-      }, reconnectDelay);
+      }, jitter);
     };
 
     function parseAndDispatch(raw: string): void {

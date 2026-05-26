@@ -916,6 +916,13 @@ export async function initializeDatabase(): Promise<DatabaseAdapter> {
     statement_timeout: 30000,
     query_timeout: 30000,
   });
+
+  // Handle unexpected pool-level errors (e.g., backend terminations) to
+  // prevent unhandled 'error' events from crashing the process.
+  pool.on('error', (err) => {
+    console.error('[DATABASE] Unexpected pool error on idle client:', err.message);
+  });
+
   const client = await pool.connect();
   client.release();
   dbWrapper = new PgWrapper(pool);
