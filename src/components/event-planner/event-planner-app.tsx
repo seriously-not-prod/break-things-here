@@ -1276,6 +1276,162 @@ function PublicRsvpPage(): React.JSX.Element {
   );
 }
 
+function LoginPage(): React.JSX.Element {
+  const { isAuthenticated, login } = useAuth();
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>): Promise<void> {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const ok = await login(email, password);
+      if (ok) {
+        navigate('/dashboard', { replace: true });
+      } else {
+        setError('Invalid email or password. Try the demo credentials below.');
+      }
+    } catch {
+      setError('Login failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background:
+          'radial-gradient(circle at top left, rgba(213,145,79,0.2), transparent 28%), linear-gradient(180deg,#f9f5ee 0%,#f0e9df 100%)',
+        padding: '2rem',
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 420,
+          background: '#fff',
+          borderRadius: '1.25rem',
+          boxShadow: '0 16px 60px rgba(0,0,0,0.12)',
+          padding: '2.5rem',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', marginBottom: '2rem' }}>
+          <span className="planner-brand-mark">FE</span>
+          <div>
+            <strong style={{ display: 'block', fontSize: '1rem' }}>Festival Planner</strong>
+            <span style={{ display: 'block', fontSize: '0.8rem', color: '#718096' }}>Operations workspace</span>
+          </div>
+        </div>
+        <h1 style={{ margin: '0 0 0.25rem', fontSize: '1.4rem', fontWeight: 700 }}>Sign in</h1>
+        <p style={{ margin: '0 0 1.5rem', fontSize: '0.9rem', color: '#718096' }}>
+          Access your festival event planning workspace.
+        </p>
+        {error && (
+          <div
+            style={{
+              marginBottom: '1rem',
+              padding: '0.75rem 1rem',
+              background: '#fff5f5',
+              border: '1px solid #feb2b2',
+              borderRadius: '0.5rem',
+              color: '#c53030',
+              fontSize: '0.875rem',
+            }}
+          >
+            {error}
+          </div>
+        )}
+        <form onSubmit={handleSubmit} noValidate style={{ display: 'grid', gap: '1rem' }}>
+          <label style={{ display: 'grid', gap: '0.35rem', fontSize: '0.875rem', fontWeight: 600 }}>
+            Email
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              required
+              placeholder="admin@festival.local"
+              style={{
+                padding: '0.65rem 0.85rem',
+                borderRadius: '0.5rem',
+                border: '1px solid #e2e8f0',
+                fontSize: '0.95rem',
+                outline: 'none',
+              }}
+            />
+          </label>
+          <label style={{ display: 'grid', gap: '0.35rem', fontSize: '0.875rem', fontWeight: 600 }}>
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+              placeholder="••••••••••••••"
+              style={{
+                padding: '0.65rem 0.85rem',
+                borderRadius: '0.5rem',
+                border: '1px solid #e2e8f0',
+                fontSize: '0.95rem',
+                outline: 'none',
+              }}
+            />
+          </label>
+          <button
+            className="planner-button"
+            type="submit"
+            disabled={submitting}
+            style={{ marginTop: '0.25rem', width: '100%', justifyContent: 'center' }}
+          >
+            {submitting ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+        <div
+          style={{
+            marginTop: '1.5rem',
+            padding: '1rem',
+            background: '#f0f4ff',
+            borderRadius: '0.6rem',
+            border: '1px solid #c7d2fe',
+          }}
+        >
+          <strong
+            style={{
+              display: 'block',
+              fontSize: '0.75rem',
+              letterSpacing: '0.07em',
+              color: '#3730a3',
+              marginBottom: '0.5rem',
+            }}
+          >
+            DEMO CREDENTIALS
+          </strong>
+          <p style={{ margin: '0 0 0.25rem', fontSize: '0.875rem' }}>
+            <strong>Admin:</strong> admin@festival.local / festivalAdmin2025
+          </p>
+          <p style={{ margin: 0, fontSize: '0.875rem' }}>
+            <strong>User:</strong> alice@email.com / password123
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Toast(props: { message: string | null }): React.JSX.Element | null {
   if (!props.message) {
     return null;
@@ -1317,7 +1473,8 @@ function PlannerRoutes(props: { notify: (message: string) => void }): React.JSX.
           <Route path="/admin" element={<AdminPage />} />
         </Route>
       </Route>
-      <Route path="*" element={<Navigate replace to="/" />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="*" element={<Navigate replace to="/login" />} />
     </Routes>
   );
 }
