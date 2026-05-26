@@ -249,9 +249,13 @@ describe('getGroundedSuggestion — event workflow', () => {
       title: 'Summer Music Festival',
       description: 'A great festival',
       date: '2026-08-10',
+      end_date: null,
+      event_time: null,
       capacity: 1000,
       status: 'Active',
+      event_type: null,
       venue_name: 'Riverside Park',
+      tags: null,
     };
     const rsvpStats = { confirmed: 250, total: 300 };
 
@@ -437,9 +441,13 @@ describe('getGroundedSuggestion — malformed structured output', () => {
       title: 'Test Event',
       description: null,
       date: null,
+      end_date: null,
+      event_time: null,
       capacity: null,
       status: 'Draft',
+      event_type: null,
       venue_name: null,
+      tags: null,
     };
     const rsvpStats = { confirmed: 0, total: 0 };
 
@@ -483,9 +491,13 @@ describe('getGroundedSuggestion — AI provider failure', () => {
       title: 'Test',
       description: null,
       date: null,
+      end_date: null,
+      event_time: null,
       capacity: null,
       status: 'Draft',
+      event_type: null,
       venue_name: null,
+      tags: null,
     };
 
     mockDb.get

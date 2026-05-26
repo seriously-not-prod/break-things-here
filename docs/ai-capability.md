@@ -1,6 +1,6 @@
 # AI Capability — Festival Event Planner
 
-> **Task #947 — Expand AI Assistant With Grounded Workflow Support**
+> **Task #947 / Story #949 — Grounded AI Workflow Support**
 >
 > This document captures environment variables, feature boundaries, rollout
 > constraints, and observability requirements for the AI capabilities delivered
@@ -49,12 +49,22 @@ optional context hint.
 
 ---
 
-### `POST /api/ai/grounded` _(new — Task #947)_
+### `POST /api/ai/grounded` _(new — Task #947 / Story #949)_
 
 Grounded workflow endpoint. Fetches live application data (event details,
 task list, or RSVP statistics) **before** calling the AI model so suggestions
 are anchored to real planner context. Returns both a validated **structured
 JSON object** and the raw model response for traceability.
+
+**Story #949 enhancements:**
+
+- Event context now includes normalized fields: `event_type`, `location`,
+  `event_time`, `end_date`, `tags` in addition to the baseline fields.
+- Null / empty fields are **omitted** from the grounded prompt to avoid
+  injecting noise and improve response relevance.
+- RSVP statistics now use `canonical_status` (v21+ schema) for accurate counts.
+- Response includes `contextSummary.groundedFields` listing the event fields
+  that were populated and included in the prompt (traceability).
 
 **Request body:**
 
@@ -78,9 +88,16 @@ JSON object** and the raw model response for traceability.
     "venueType": "...",
     "promotionalTips": ["...", "...", "..."]
   },
-  "raw": "raw model output string"
+  "raw": "raw model output string",
+  "contextSummary": {
+    "groundedFields": ["title", "status", "description", "event_type", "date", "location", "capacity", "rsvp_stats"]
+  }
 }
 ```
+
+> `contextSummary` is only present for `event` workflow requests.
+> It lists the event fields that had non-null values and were included in the
+> grounded prompt, supporting auditability requirements.
 
 **Structured output schemas by workflow type:**
 
@@ -150,9 +167,13 @@ Log writes are **best-effort** — a log failure will not fail the AI request.
 | Feature                               | Status                                |
 | ------------------------------------- | ------------------------------------- |
 | Free-form chat (prompt-only)          | ✅ Implemented                        |
-| Grounded event workflow               | ✅ Implemented                        |
+| Grounded event workflow               | ✅ Implemented (#947 / #949)          |
 | Grounded task workflow                | ✅ Implemented                        |
 | Grounded RSVP workflow                | ✅ Implemented                        |
+| Normalized event fields in prompt     | ✅ Implemented (#949)                 |
+| Noise omission (null field filtering) | ✅ Implemented (#949)                 |
+| contextSummary traceability field     | ✅ Implemented (#949)                 |
+| canonical_status RSVP stats           | ✅ Implemented (#949)                 |
 | Structured JSON output validation     | ✅ Implemented                        |
 | AI request observability logging      | ✅ Implemented                        |
 | Per-user rate limiting (DB-persisted) | ✅ Implemented                        |
@@ -190,5 +211,6 @@ Log writes are **best-effort** — a log failure will not fail the AI request.
 - Theme #945 — AI Assistance for Festival Planning
 - Story #946 — AI Assistant for Event Planners
 - Story #948 — Define AI Requirement Baseline and Traceability
-- Task #947 — Expand AI Assistant With Grounded Workflow Support _(this PR)_
+- Story #949 — Ground Event Assistant Responses in Live Event Data _(this story)_
+- Task #947 — Expand AI Assistant With Grounded Workflow Support
 - Task #925/#926 — Previous AI hardening work

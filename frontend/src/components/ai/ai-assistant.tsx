@@ -56,6 +56,8 @@ interface GroundedResponse {
   entityId: number;
   structured: GroundedSuggestion;
   raw: string;
+  /** #949: Traceability — event context fields included in the grounded prompt. */
+  contextSummary?: { groundedFields: string[] };
 }
 
 const CONTEXT_LABELS: Record<Context, string> = {
@@ -72,7 +74,7 @@ const WORKFLOW_LABELS: Record<WorkflowType, string> = {
 };
 
 function GroundedOutputCard({ response }: { response: GroundedResponse }): JSX.Element {
-  const { workflowType, structured } = response;
+  const { workflowType, structured, contextSummary } = response;
 
   if (workflowType === 'event') {
     const s = structured as EventSuggestion;
@@ -112,6 +114,13 @@ function GroundedOutputCard({ response }: { response: GroundedResponse }): JSX.E
                 • {tip}
               </Typography>
             ))}
+          </Box>
+        )}
+        {contextSummary?.groundedFields && contextSummary.groundedFields.length > 0 && (
+          <Box mt={0.75}>
+            <Typography variant="caption" color="text.disabled">
+              Grounded on: {contextSummary.groundedFields.join(', ')}
+            </Typography>
           </Box>
         )}
       </Box>

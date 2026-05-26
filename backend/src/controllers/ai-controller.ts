@@ -2,11 +2,17 @@
  * AI Suggestions controller — prefers Azure OpenAI and falls back to OpenAI.
  * If neither provider is configured, returns a clear 503 response.
  *
- * Grounded Workflow Support (#947):
+ * Grounded Workflow Support (#947 / #949):
  * POST /api/ai/grounded fetches live event/task/RSVP data before calling the
  * model so suggestions are anchored to real planner context.  All AI requests
  * are logged to ai_request_logs for observability.  Structured JSON output is
  * validated and returned alongside the raw model response.
+ *
+ * Story #949 — Ground Event Assistant Responses in Live Event Data:
+ * Extends the event context fetch to include normalized fields (event_type,
+ * tags, end_date, event_time, location) and omits null/empty fields from the
+ * prompt to reduce noise.  Adds contextSummary to the response for
+ * traceability.  Fixes canonical_status usage for RSVP statistics queries.
  */
 import { Request, Response } from 'express';
 import https from 'https';
@@ -317,6 +323,10 @@ interface GroundedSuggestionResponse {
   entityId: number;
   structured: GroundedSuggestion;
   raw: string;
+  /** Traceability: lists the event context fields that were included in the
+   *  grounded prompt so consumers can audit what data the model received.
+   *  Present only for event workflow requests. */
+  contextSummary?: { groundedFields: string[] };
 }
 
 // ── Observability ─────────────────────────────────────────────────────────────
@@ -358,9 +368,13 @@ interface EventContext {
   title: string;
   description: string | null;
   date: string | null;
+  end_date: string | null;
+  event_time: string | null;
   capacity: number | null;
   status: string;
+  event_type: string | null;
   venue_name: string | null;
+  tags: string | null;
   confirmedRsvps: number;
   totalRsvps: number;
 }
@@ -391,19 +405,25 @@ async function fetchEventContext(entityId: number): Promise<EventContext | null>
     title: string;
     description: string | null;
     date: string | null;
+    end_date: string | null;
+    event_time: string | null;
     capacity: number | null;
     status: string;
+    event_type: string | null;
     venue_name: string | null;
+    tags: string | null;
   }>(
-    `SELECT id, title, description, date, capacity, status, venue_name
+    `SELECT id, title, description, date, end_date, event_time, capacity, status,
+            event_type, location AS venue_name, tags
      FROM events WHERE id = $1 AND deleted_at IS NULL`,
     [entityId],
   );
   if (!event) return null;
 
+  // Use canonical_status for accurate confirmed RSVP counts (v21+ schema).
   const rsvpStats = await db.get<{ confirmed: number; total: number }>(
     `SELECT
-       COUNT(*) FILTER (WHERE status = 'confirmed')::int AS confirmed,
+       COUNT(*) FILTER (WHERE canonical_status = 'confirmed')::int AS confirmed,
        COUNT(*)::int AS total
      FROM rsvps WHERE event_id = $1`,
     [entityId],
@@ -446,6 +466,7 @@ async function fetchRsvpContext(entityId: number): Promise<RsvpContext | null> {
   );
   if (!event) return null;
 
+  // Use canonical_status for accurate RSVP statistics (v21+ schema).
   const stats = await db.get<{
     confirmed: number;
     declined: number;
@@ -453,9 +474,9 @@ async function fetchRsvpContext(entityId: number): Promise<RsvpContext | null> {
     total: number;
   }>(
     `SELECT
-       COUNT(*) FILTER (WHERE status = 'confirmed')::int AS confirmed,
-       COUNT(*) FILTER (WHERE status = 'declined')::int AS declined,
-       COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+       COUNT(*) FILTER (WHERE canonical_status = 'confirmed')::int AS confirmed,
+       COUNT(*) FILTER (WHERE canonical_status = 'declined')::int AS declined,
+       COUNT(*) FILTER (WHERE canonical_status = 'pending')::int AS pending,
        COUNT(*)::int AS total
      FROM rsvps WHERE event_id = $1`,
     [entityId],
@@ -476,8 +497,8 @@ async function fetchRsvpContext(entityId: number): Promise<RsvpContext | null> {
 // System prompts instruct the model to return ONLY a JSON object so that
 // the response can be deterministically parsed into a typed structure.
 const GROUNDED_SYSTEM_PROMPTS: Record<WorkflowType, string> = {
-  event: `You are a festival event planning AI assistant. You will receive details about a real event.
-Analyze the event and return ONLY a valid JSON object with this exact schema (no markdown, no explanation):
+  event: `You are a festival event planning AI assistant. You will receive details about a real event including its title, description, type, dates, location, capacity, tags, and current RSVP numbers.
+Use ALL provided fields to tailor your response specifically to this event. Return ONLY a valid JSON object with this exact schema (no markdown, no explanation):
 {"title":"improved title suggestion","description":"improved description","venueType":"ideal venue type","promotionalTips":["tip 1","tip 2","tip 3"]}`,
   task: `You are a task management AI for festival events. You will receive an event title and its current task list.
 Suggest the next best task and return ONLY a valid JSON object (no markdown, no explanation):
@@ -487,6 +508,24 @@ Analyze and return ONLY a valid JSON object (no markdown, no explanation):
 {"confirmationMessage":"suggested confirmation message","reminderMessage":"suggested reminder message","capacityTip":"capacity management tip"}`,
 };
 
+/**
+ * Returns the set of event context field names that have non-null, non-empty
+ * values.  Used for the contextSummary traceability field in the response.
+ */
+function resolvePopulatedEventFields(ctx: EventContext): string[] {
+  const fields: string[] = ['title', 'status'];
+  if (ctx.description) fields.push('description');
+  if (ctx.event_type && ctx.event_type !== 'Other') fields.push('event_type');
+  if (ctx.date) fields.push('date');
+  if (ctx.end_date) fields.push('end_date');
+  if (ctx.event_time) fields.push('event_time');
+  if (ctx.venue_name) fields.push('location');
+  if (ctx.capacity !== null) fields.push('capacity');
+  if (ctx.tags) fields.push('tags');
+  if (ctx.totalRsvps > 0) fields.push('rsvp_stats');
+  return fields;
+}
+
 function buildGroundedUserMessage(
   workflowType: WorkflowType,
   context: EventContext | TaskContext | RsvpContext,
@@ -495,18 +534,26 @@ function buildGroundedUserMessage(
   switch (workflowType) {
     case 'event': {
       const ctx = context as EventContext;
-      return [
-        'Event details:',
-        `Title: ${ctx.title}`,
-        `Description: ${ctx.description ?? 'None'}`,
-        `Date: ${ctx.date ?? 'Not set'}`,
-        `Capacity: ${ctx.capacity ?? 'Not set'}`,
-        `Status: ${ctx.status}`,
-        `Venue: ${ctx.venue_name ?? 'Not set'}`,
-        `Confirmed RSVPs: ${ctx.confirmedRsvps} / ${ctx.totalRsvps} total`,
-        '',
-        `User request: ${userPrompt}`,
-      ].join('\n');
+      // Only include fields with real values to avoid injecting noise.
+      const lines: string[] = ['Event details:'];
+      lines.push(`Title: ${ctx.title}`);
+      if (ctx.event_type && ctx.event_type !== 'Other') {
+        lines.push(`Type: ${ctx.event_type}`);
+      }
+      if (ctx.description) lines.push(`Description: ${ctx.description}`);
+      if (ctx.date) {
+        const dateRange = ctx.end_date ? `${ctx.date} – ${ctx.end_date}` : ctx.date;
+        lines.push(`Date: ${dateRange}`);
+      }
+      if (ctx.event_time) lines.push(`Time: ${ctx.event_time}`);
+      if (ctx.venue_name) lines.push(`Location: ${ctx.venue_name}`);
+      if (ctx.capacity !== null) lines.push(`Capacity: ${ctx.capacity}`);
+      if (ctx.tags) lines.push(`Tags: ${ctx.tags}`);
+      lines.push(`Status: ${ctx.status}`);
+      lines.push(`RSVPs: ${ctx.confirmedRsvps} confirmed / ${ctx.totalRsvps} total`);
+      lines.push('');
+      lines.push(`User request: ${userPrompt}`);
+      return lines.join('\n');
     }
     case 'task': {
       const ctx = context as TaskContext;
@@ -686,6 +733,10 @@ export async function getGroundedSuggestion(req: AuthRequest, res: Response): Pr
       entityId: parsedEntityId,
       structured: structured ?? ({} as GroundedSuggestion),
       raw,
+      // Traceability: include the event fields that were grounded into the prompt.
+      ...(workflowType === 'event' && {
+        contextSummary: { groundedFields: resolvePopulatedEventFields(context as EventContext) },
+      }),
     };
     return res.json(response);
   } catch (err) {
