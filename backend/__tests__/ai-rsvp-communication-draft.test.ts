@@ -249,8 +249,7 @@ describe('getRsvpCommunicationDraft — successful draft generation', () => {
     const aiPayload = {
       reminderVariant: 'Hi! Just a reminder to confirm your RSVP for Summer Beats Festival.',
       confirmationVariant: "You're confirmed! We can't wait to see you at Summer Beats.",
-      deadlineReminder:
-        'RSVP deadline is July 10th — please respond ASAP to secure your spot!',
+      deadlineReminder: 'RSVP deadline is July 10th — please respond ASAP to secure your spot!',
     };
 
     const { captured, restore } = mockHttpsJsonReply({

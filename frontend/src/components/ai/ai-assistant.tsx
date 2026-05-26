@@ -1612,8 +1612,8 @@ export function AiAssistant(): JSX.Element {
               >
                 {!draftLoading && !draftResult && !draftError && (
                   <Typography variant="body2" color="text.secondary" textAlign="center" mt={1}>
-                    Enter an Event ID and select tone/length, then generate drafts to get
-                    AI-written RSVP messages you can edit and send.
+                    Enter an Event ID and select tone/length, then generate drafts to get AI-written
+                    RSVP messages you can edit and send.
                   </Typography>
                 )}
                 {draftLoading && (
@@ -1637,7 +1637,12 @@ export function AiAssistant(): JSX.Element {
                       </Typography>
                     </Divider>
                     <Box>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.5}>
+                      <Stack
+                        direction="row"
+                        alignItems="center"
+                        justifyContent="space-between"
+                        mb={0.5}
+                      >
                         <Typography variant="caption" fontWeight={700} color="warning.dark">
                           Reminder (pending / maybe guests)
                         </Typography>
@@ -1663,7 +1668,12 @@ export function AiAssistant(): JSX.Element {
                       />
                     </Box>
                     <Box>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.5}>
+                      <Stack
+                        direction="row"
+                        alignItems="center"
+                        justifyContent="space-between"
+                        mb={0.5}
+                      >
                         <Typography variant="caption" fontWeight={700} color="success.dark">
                           Confirmation (confirmed guests)
                         </Typography>
@@ -1689,7 +1699,12 @@ export function AiAssistant(): JSX.Element {
                       />
                     </Box>
                     <Box>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.5}>
+                      <Stack
+                        direction="row"
+                        alignItems="center"
+                        justifyContent="space-between"
+                        mb={0.5}
+                      >
                         <Typography variant="caption" fontWeight={700} color="error.dark">
                           Deadline Reminder (non-responders)
                         </Typography>
