@@ -637,7 +637,7 @@ export function AiAssistant(): JSX.Element {
   return (
     <>
       {/* Floating button */}
-      <Tooltip title="AI Planning Assistant" placement="left">
+      <Tooltip title="AI Planning Assistant" placement="left" disableFocusListener>
         <Fab
           color="primary"
           aria-label="AI assistant"
