@@ -3681,6 +3681,25 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       END IF;
     END $$;
   `);
+
+  // v25 — Task #947: AI request observability logging table.
+  // Stores per-request audit records for grounded AI workflow calls so that
+  // provider usage, latency, and failure patterns remain observable.
+  // All writes are best-effort (failures are swallowed in the controller),
+  // so ON DELETE SET NULL is used for the user FK to avoid cascaded loss.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_request_logs (
+      id            SERIAL PRIMARY KEY,
+      user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      workflow_type TEXT NOT NULL,
+      entity_id     INTEGER,
+      provider      TEXT NOT NULL,
+      duration_ms   INTEGER NOT NULL DEFAULT 0,
+      status        TEXT NOT NULL CHECK (status IN ('success', 'error')),
+      error_message TEXT,
+      requested_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
 }
 
 async function seedTimelineTemplates(db: DatabaseAdapter): Promise<void> {

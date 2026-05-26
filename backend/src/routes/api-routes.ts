@@ -170,6 +170,7 @@ router.post('/auth/entra/callback', createAuthLimiter(), entraAuthController.han
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
 router.post('/ai/suggest', authenticateToken, aiController.getSuggestion);
+router.post('/ai/grounded', authenticateToken, aiController.getGroundedSuggestion);
 
 // ============ PUBLIC RSVP ROUTES ==========
 // All unauthenticated public endpoints share a tighter per-IP limiter
