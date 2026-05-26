@@ -20,12 +20,14 @@ import {
 } from '@mui/material';
 import {
   AutoAwesomeRounded,
+  BarChartRounded,
   CloseRounded,
   ContentCopyRounded,
   HubRounded,
   ListAltRounded,
   SendRounded,
 } from '@mui/icons-material';
+import { fetchBudgetInsight, BudgetInsightResponse } from '../../services/budget-insight-service';
 import { api, ApiError } from '../../lib/api-client';
 
 type Context = 'general' | 'event' | 'task' | 'rsvp';
@@ -341,7 +343,7 @@ function TaskBreakdownCard({
 
 export function AiAssistant(): JSX.Element {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<0 | 1 | 2>(0);
+  const [activeTab, setActiveTab] = useState<0 | 1 | 2 | 3>(0);
 
   // Chat mode state
   const [context, setContext] = useState<Context>('general');
@@ -356,6 +358,13 @@ export function AiAssistant(): JSX.Element {
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const [workflowResult, setWorkflowResult] = useState<GroundedResponse | null>(null);
   const [workflowError, setWorkflowError] = useState<string | null>(null);
+
+  // #952 — Budget insight state
+  const [budgetEventId, setBudgetEventId] = useState('');
+  const [budgetPrompt, setBudgetPrompt] = useState('');
+  const [budgetLoading, setBudgetLoading] = useState(false);
+  const [budgetResult, setBudgetResult] = useState<BudgetInsightResponse | null>(null);
+  const [budgetError, setBudgetError] = useState<string | null>(null);
 
   // #950 — Task breakdown state
   const [breakdownEventId, setBreakdownEventId] = useState('');
@@ -447,6 +456,36 @@ export function AiAssistant(): JSX.Element {
     }
   }
 
+  // #952 — Budget insight functions
+  async function runBudgetInsight(): Promise<void> {
+    const eid = parseInt(budgetEventId, 10);
+    if (!Number.isFinite(eid) || eid <= 0) return;
+
+    setBudgetLoading(true);
+    setBudgetError(null);
+    setBudgetResult(null);
+
+    try {
+      const data = await fetchBudgetInsight({
+        eventId: eid,
+        prompt: budgetPrompt.trim() || undefined,
+      });
+      setBudgetResult(data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'AI request failed.';
+      setBudgetError(message);
+    } finally {
+      setBudgetLoading(false);
+    }
+  }
+
+  function handleBudgetKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void runBudgetInsight();
+    }
+  }
+
   function handleBreakdownKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -531,7 +570,7 @@ export function AiAssistant(): JSX.Element {
           {/* Mode tabs */}
           <Tabs
             value={activeTab}
-            onChange={(_e, v: number) => setActiveTab(v as 0 | 1 | 2)}
+            onChange={(_e, v: number) => setActiveTab(v as 0 | 1 | 2 | 3)}
             variant="fullWidth"
             sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 40 }}
           >
@@ -550,6 +589,12 @@ export function AiAssistant(): JSX.Element {
             <Tab
               label="Task Plan"
               icon={<ListAltRounded fontSize="small" />}
+              iconPosition="start"
+              sx={{ minHeight: 40, py: 0, fontSize: '0.7rem' }}
+            />
+            <Tab
+              label="Budget"
+              icon={<BarChartRounded fontSize="small" />}
               iconPosition="start"
               sx={{ minHeight: 40, py: 0, fontSize: '0.7rem' }}
             />
@@ -917,6 +962,235 @@ export function AiAssistant(): JSX.Element {
                         Grounded on: {breakdownResult.contextSummary.groundedFields.join(', ')}
                         {breakdownResult.contextSummary.totalExistingTasks > 0 &&
                           ` · ${breakdownResult.contextSummary.totalExistingTasks} existing task(s)`}
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          )}
+          {/* ── Tab 3: Budget Insight (#952) ─────────────────────── */}
+          {activeTab === 3 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
+              {/* Form */}
+              <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+                <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+                  Analyse live budget data for an event — get AI-powered variance analysis, risk
+                  level, spending anomalies, and at least 3 actionable recommendations.
+                </Typography>
+                <Stack spacing={1}>
+                  <TextField
+                    size="small"
+                    label="Event ID"
+                    type="number"
+                    value={budgetEventId}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setBudgetEventId(e.target.value)}
+                    inputProps={{ min: 1, 'aria-label': 'Event ID for budget insight' }}
+                    fullWidth
+                  />
+                  <TextField
+                    size="small"
+                    multiline
+                    maxRows={2}
+                    placeholder="Optional: focus area or question"
+                    value={budgetPrompt}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setBudgetPrompt(e.target.value)}
+                    onKeyDown={handleBudgetKeyDown}
+                    fullWidth
+                    disabled={budgetLoading}
+                    inputProps={{ 'aria-label': 'Budget insight prompt' }}
+                  />
+                  <Button
+                    variant="contained"
+                    size="small"
+                    endIcon={
+                      budgetLoading ? (
+                        <CircularProgress size={14} color="inherit" />
+                      ) : (
+                        <BarChartRounded />
+                      )
+                    }
+                    onClick={runBudgetInsight}
+                    disabled={budgetLoading || !budgetEventId || parseInt(budgetEventId, 10) <= 0}
+                    aria-label="Analyse budget"
+                  >
+                    {budgetLoading ? 'Analysing budget…' : 'Analyse Budget'}
+                  </Button>
+                </Stack>
+              </Box>
+
+              {/* Results */}
+              <Box
+                role="region"
+                aria-label="Budget insight result"
+                aria-live="polite"
+                sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}
+              >
+                {!budgetLoading && !budgetResult && !budgetError && (
+                  <Typography variant="body2" color="text.secondary" textAlign="center" mt={1}>
+                    Enter an Event ID and click Analyse Budget to receive AI-powered financial
+                    variance and risk insights.
+                  </Typography>
+                )}
+
+                {budgetLoading && (
+                  <Box
+                    sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'center' }}
+                    aria-label="Loading budget insight"
+                  >
+                    <CircularProgress size={18} />
+                    <Typography variant="caption" color="text.secondary">
+                      Fetching budget data and generating insights…
+                    </Typography>
+                  </Box>
+                )}
+
+                {budgetError && !budgetLoading && (
+                  <Alert severity="error" sx={{ fontSize: '0.75rem' }}>
+                    {budgetError}
+                  </Alert>
+                )}
+
+                {budgetResult && !budgetLoading && (
+                  <Box>
+                    {/* Risk chip + summary */}
+                    <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                      <Chip
+                        label={`Risk: ${budgetResult.riskLevel.toUpperCase()}`}
+                        size="small"
+                        color={
+                          budgetResult.riskLevel === 'low'
+                            ? 'success'
+                            : budgetResult.riskLevel === 'medium'
+                              ? 'warning'
+                              : 'error'
+                        }
+                        variant="filled"
+                        icon={<BarChartRounded />}
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        {budgetResult.eventTitle}
+                      </Typography>
+                    </Stack>
+
+                    {budgetResult.summary && (
+                      <Typography variant="body2" color="text.secondary" mb={1} sx={{ fontSize: '0.75rem' }}>
+                        {budgetResult.summary}
+                      </Typography>
+                    )}
+
+                    {/* Spend totals */}
+                    <Box
+                      sx={{
+                        border: 1,
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        p: 1,
+                        mb: 1,
+                        bgcolor: 'grey.50',
+                      }}
+                    >
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Allocated: <strong>${budgetResult.totalAllocated.toFixed(2)}</strong> · Spent:{' '}
+                        <strong>${budgetResult.totalSpent.toFixed(2)}</strong> · Variance:{' '}
+                        <strong
+                          style={{ color: budgetResult.totalVariance >= 0 ? 'inherit' : '#d32f2f' }}
+                        >
+                          ${budgetResult.totalVariance.toFixed(2)}
+                        </strong>
+                      </Typography>
+                      {budgetResult.overspentCategories.length > 0 && (
+                        <Typography variant="caption" color="error" display="block" mt={0.25}>
+                          Overspent: {budgetResult.overspentCategories.join(', ')}
+                        </Typography>
+                      )}
+                    </Box>
+
+                    {/* Anomalies */}
+                    {budgetResult.anomalies.length > 0 && (
+                      <Box mb={1}>
+                        <Typography variant="caption" fontWeight={700} color="warning.dark" display="block" mb={0.25}>
+                          Anomalies detected:
+                        </Typography>
+                        {budgetResult.anomalies.map((a, i) => (
+                          <Typography key={i} variant="caption" color="text.secondary" display="block">
+                            ⚠ {a}
+                          </Typography>
+                        ))}
+                      </Box>
+                    )}
+
+                    {/* Recommendations */}
+                    {budgetResult.recommendations.length > 0 && (
+                      <Box>
+                        <Divider sx={{ mb: 0.75 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Recommendations
+                          </Typography>
+                        </Divider>
+                        <Stack spacing={0.75}>
+                          {budgetResult.recommendations.map((rec, i) => (
+                            <Box
+                              key={i}
+                              sx={{
+                                border: 1,
+                                borderColor:
+                                  rec.priority === 'critical' || rec.priority === 'high'
+                                    ? 'error.light'
+                                    : 'divider',
+                                borderRadius: 1,
+                                p: 0.75,
+                                bgcolor:
+                                  rec.priority === 'critical'
+                                    ? 'error.50'
+                                    : rec.priority === 'high'
+                                      ? 'warning.50'
+                                      : 'background.paper',
+                              }}
+                            >
+                              <Stack direction="row" spacing={0.5} alignItems="center" mb={0.25}>
+                                <Chip
+                                  label={rec.priority}
+                                  size="small"
+                                  color={
+                                    rec.priority === 'critical' || rec.priority === 'high'
+                                      ? 'error'
+                                      : rec.priority === 'medium'
+                                        ? 'warning'
+                                        : 'default'
+                                  }
+                                  sx={{ fontSize: '0.6rem', height: 16 }}
+                                />
+                                <Typography variant="caption" fontWeight={700}>
+                                  {rec.category}
+                                </Typography>
+                              </Stack>
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                {rec.insight}
+                              </Typography>
+                              {rec.action && (
+                                <Typography variant="caption" color="primary" display="block" mt={0.25}>
+                                  → {rec.action}
+                                </Typography>
+                              )}
+                            </Box>
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {budgetResult.contextSummary.groundedFields.length > 0 && (
+                      <Typography
+                        variant="caption"
+                        color="text.disabled"
+                        display="block"
+                        mt={1}
+                        textAlign="right"
+                      >
+                        Grounded on: {budgetResult.contextSummary.groundedFields.join(', ')}
+                        {` · ${budgetResult.contextSummary.categoryCount} category(s)`}
+                        {budgetResult.contextSummary.expenseCount > 0 &&
+                          ` · ${budgetResult.contextSummary.expenseCount} expense(s)`}
                       </Typography>
                     )}
                   </Box>
