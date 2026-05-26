@@ -1,6 +1,18 @@
 /**
  * AI Suggestions controller — prefers Azure OpenAI and falls back to OpenAI.
  * If neither provider is configured, returns a clear 503 response.
+ *
+ * Grounded Workflow Support (#947 / #949):
+ * POST /api/ai/grounded fetches live event/task/RSVP data before calling the
+ * model so suggestions are anchored to real planner context.  All AI requests
+ * are logged to ai_request_logs for observability.  Structured JSON output is
+ * validated and returned alongside the raw model response.
+ *
+ * Story #949 — Ground Event Assistant Responses in Live Event Data:
+ * Extends the event context fetch to include normalized fields (event_type,
+ * tags, end_date, event_time, location) and omits null/empty fields from the
+ * prompt to reduce noise.  Adds contextSummary to the response for
+ * traceability.  Fixes canonical_status usage for RSVP statistics queries.
  */
 import { Request, Response } from 'express';
 import https from 'https';
@@ -266,6 +278,758 @@ export async function getSuggestion(req: AuthRequest, res: Response): Promise<Re
     return res.json({ suggestion });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown AI error';
+    return res.status(502).json({ error: `AI request failed: ${message}` });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Grounded Workflow Support — Task #947
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type WorkflowType = 'event' | 'task' | 'rsvp';
+
+interface GroundedWorkflowBody {
+  workflowType: WorkflowType;
+  entityId: number;
+  prompt: string;
+}
+
+// ── Structured output types ──────────────────────────────────────────────────
+
+export interface EventSuggestion {
+  title: string;
+  description: string;
+  venueType: string;
+  promotionalTips: string[];
+}
+
+export interface TaskSuggestion {
+  actionTitle: string;
+  dueDateRange: string;
+  owner: string;
+  dependencies: string[];
+}
+
+export interface RsvpSuggestion {
+  confirmationMessage: string;
+  reminderMessage: string;
+  capacityTip: string;
+}
+
+export type GroundedSuggestion = EventSuggestion | TaskSuggestion | RsvpSuggestion;
+
+interface GroundedSuggestionResponse {
+  workflowType: WorkflowType;
+  entityId: number;
+  structured: GroundedSuggestion;
+  raw: string;
+  /** Traceability: lists the event context fields that were included in the
+   *  grounded prompt so consumers can audit what data the model received.
+   *  Present only for event workflow requests. */
+  contextSummary?: { groundedFields: string[] };
+}
+
+// ── Observability ─────────────────────────────────────────────────────────────
+
+async function logAiRequest(params: {
+  userId: number | undefined;
+  workflowType: string;
+  entityId: number | null;
+  provider: string;
+  durationMs: number;
+  status: 'success' | 'error';
+  errorMessage?: string;
+}): Promise<void> {
+  try {
+    const db = getDatabase();
+    await db.run(
+      `INSERT INTO ai_request_logs
+         (user_id, workflow_type, entity_id, provider, duration_ms, status, error_message, requested_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+      [
+        params.userId ?? null,
+        params.workflowType,
+        params.entityId,
+        params.provider,
+        params.durationMs,
+        params.status,
+        params.errorMessage ?? null,
+      ],
+    );
+  } catch {
+    // Observability is best-effort; a log failure must not fail the request.
+  }
+}
+
+// ── Grounded context fetch helpers ────────────────────────────────────────────
+
+interface EventContext {
+  id: number;
+  title: string;
+  description: string | null;
+  date: string | null;
+  end_date: string | null;
+  event_time: string | null;
+  capacity: number | null;
+  status: string;
+  event_type: string | null;
+  venue_name: string | null;
+  tags: string | null;
+  confirmedRsvps: number;
+  totalRsvps: number;
+}
+
+interface TaskContext {
+  eventTitle: string;
+  tasks: Array<{
+    title: string;
+    status: string;
+    due_date: string | null;
+    description: string | null;
+  }>;
+}
+
+interface RsvpContext {
+  eventTitle: string;
+  capacity: number | null;
+  confirmed: number;
+  declined: number;
+  pending: number;
+  total: number;
+}
+
+async function fetchEventContext(entityId: number): Promise<EventContext | null> {
+  const db = getDatabase();
+  const event = await db.get<{
+    id: number;
+    title: string;
+    description: string | null;
+    date: string | null;
+    end_date: string | null;
+    event_time: string | null;
+    capacity: number | null;
+    status: string;
+    event_type: string | null;
+    venue_name: string | null;
+    tags: string | null;
+  }>(
+    `SELECT id, title, description, date, end_date, event_time, capacity, status,
+            event_type, location AS venue_name, tags
+     FROM events WHERE id = $1 AND deleted_at IS NULL`,
+    [entityId],
+  );
+  if (!event) return null;
+
+  // Use canonical_status for accurate confirmed RSVP counts (v21+ schema).
+  const rsvpStats = await db.get<{ confirmed: number; total: number }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE canonical_status = 'confirmed')::int AS confirmed,
+       COUNT(*)::int AS total
+     FROM rsvps WHERE event_id = $1`,
+    [entityId],
+  );
+
+  return {
+    ...event,
+    confirmedRsvps: rsvpStats?.confirmed ?? 0,
+    totalRsvps: rsvpStats?.total ?? 0,
+  };
+}
+
+async function fetchTaskContext(entityId: number): Promise<TaskContext | null> {
+  const db = getDatabase();
+  const event = await db.get<{ title: string }>(
+    `SELECT title FROM events WHERE id = $1 AND deleted_at IS NULL`,
+    [entityId],
+  );
+  if (!event) return null;
+
+  const tasks = await db.all<{
+    title: string;
+    status: string;
+    due_date: string | null;
+    description: string | null;
+  }>(
+    `SELECT title, status, due_date, description
+     FROM tasks WHERE event_id = $1 ORDER BY created_at DESC LIMIT 20`,
+    [entityId],
+  );
+
+  return { eventTitle: event.title, tasks };
+}
+
+async function fetchRsvpContext(entityId: number): Promise<RsvpContext | null> {
+  const db = getDatabase();
+  const event = await db.get<{ title: string; capacity: number | null }>(
+    `SELECT title, capacity FROM events WHERE id = $1 AND deleted_at IS NULL`,
+    [entityId],
+  );
+  if (!event) return null;
+
+  // Use canonical_status for accurate RSVP statistics (v21+ schema).
+  const stats = await db.get<{
+    confirmed: number;
+    declined: number;
+    pending: number;
+    total: number;
+  }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE canonical_status = 'confirmed')::int AS confirmed,
+       COUNT(*) FILTER (WHERE canonical_status = 'declined')::int AS declined,
+       COUNT(*) FILTER (WHERE canonical_status = 'pending')::int AS pending,
+       COUNT(*)::int AS total
+     FROM rsvps WHERE event_id = $1`,
+    [entityId],
+  );
+
+  return {
+    eventTitle: event.title,
+    capacity: event.capacity,
+    confirmed: stats?.confirmed ?? 0,
+    declined: stats?.declined ?? 0,
+    pending: stats?.pending ?? 0,
+    total: stats?.total ?? 0,
+  };
+}
+
+// ── Grounded prompt builders ───────────────────────────────────────────────────
+
+// System prompts instruct the model to return ONLY a JSON object so that
+// the response can be deterministically parsed into a typed structure.
+const GROUNDED_SYSTEM_PROMPTS: Record<WorkflowType, string> = {
+  event: `You are a festival event planning AI assistant. You will receive details about a real event including its title, description, type, dates, location, capacity, tags, and current RSVP numbers.
+Use ALL provided fields to tailor your response specifically to this event. Return ONLY a valid JSON object with this exact schema (no markdown, no explanation):
+{"title":"improved title suggestion","description":"improved description","venueType":"ideal venue type","promotionalTips":["tip 1","tip 2","tip 3"]}`,
+  task: `You are a task management AI for festival events. You will receive an event title and its current task list.
+Suggest the next best task and return ONLY a valid JSON object (no markdown, no explanation):
+{"actionTitle":"task title","dueDateRange":"suggested due date range","owner":"suggested role/person type","dependencies":["dep1","dep2"]}`,
+  rsvp: `You are an RSVP management AI for festival events. You will receive attendance statistics for a real event.
+Analyze and return ONLY a valid JSON object (no markdown, no explanation):
+{"confirmationMessage":"suggested confirmation message","reminderMessage":"suggested reminder message","capacityTip":"capacity management tip"}`,
+};
+
+/**
+ * Returns the set of event context field names that have non-null, non-empty
+ * values.  Used for the contextSummary traceability field in the response.
+ */
+function resolvePopulatedEventFields(ctx: EventContext): string[] {
+  const fields: string[] = ['title', 'status'];
+  if (ctx.description) fields.push('description');
+  if (ctx.event_type && ctx.event_type !== 'Other') fields.push('event_type');
+  if (ctx.date) fields.push('date');
+  if (ctx.end_date) fields.push('end_date');
+  if (ctx.event_time) fields.push('event_time');
+  if (ctx.venue_name) fields.push('location');
+  if (ctx.capacity !== null) fields.push('capacity');
+  if (ctx.tags) fields.push('tags');
+  if (ctx.totalRsvps > 0) fields.push('rsvp_stats');
+  return fields;
+}
+
+function buildGroundedUserMessage(
+  workflowType: WorkflowType,
+  context: EventContext | TaskContext | RsvpContext,
+  userPrompt: string,
+): string {
+  switch (workflowType) {
+    case 'event': {
+      const ctx = context as EventContext;
+      // Only include fields with real values to avoid injecting noise.
+      const lines: string[] = ['Event details:'];
+      lines.push(`Title: ${ctx.title}`);
+      if (ctx.event_type && ctx.event_type !== 'Other') {
+        lines.push(`Type: ${ctx.event_type}`);
+      }
+      if (ctx.description) lines.push(`Description: ${ctx.description}`);
+      if (ctx.date) {
+        const dateRange = ctx.end_date ? `${ctx.date} – ${ctx.end_date}` : ctx.date;
+        lines.push(`Date: ${dateRange}`);
+      }
+      if (ctx.event_time) lines.push(`Time: ${ctx.event_time}`);
+      if (ctx.venue_name) lines.push(`Location: ${ctx.venue_name}`);
+      if (ctx.capacity !== null) lines.push(`Capacity: ${ctx.capacity}`);
+      if (ctx.tags) lines.push(`Tags: ${ctx.tags}`);
+      lines.push(`Status: ${ctx.status}`);
+      lines.push(`RSVPs: ${ctx.confirmedRsvps} confirmed / ${ctx.totalRsvps} total`);
+      lines.push('');
+      lines.push(`User request: ${userPrompt}`);
+      return lines.join('\n');
+    }
+    case 'task': {
+      const ctx = context as TaskContext;
+      const taskList =
+        ctx.tasks.length > 0
+          ? ctx.tasks
+              .map((t) => `- [${t.status}] ${t.title}${t.due_date ? ` (due: ${t.due_date})` : ''}`)
+              .join('\n')
+          : 'No tasks yet';
+      return [
+        `Event: ${ctx.eventTitle}`,
+        'Existing tasks:',
+        taskList,
+        '',
+        `User request: ${userPrompt}`,
+      ].join('\n');
+    }
+    case 'rsvp': {
+      const ctx = context as RsvpContext;
+      const fillRate =
+        ctx.capacity && ctx.capacity > 0
+          ? `${Math.round((ctx.confirmed / ctx.capacity) * 100)}%`
+          : 'N/A';
+      return [
+        `Event: ${ctx.eventTitle}`,
+        `Capacity: ${ctx.capacity ?? 'Unlimited'}`,
+        `RSVPs — Confirmed: ${ctx.confirmed}, Declined: ${ctx.declined}, Pending: ${ctx.pending}, Total: ${ctx.total}`,
+        `Fill rate: ${fillRate}`,
+        '',
+        `User request: ${userPrompt}`,
+      ].join('\n');
+    }
+  }
+}
+
+// ── Structured output parser ───────────────────────────────────────────────────
+
+export function parseStructuredOutput(
+  workflowType: WorkflowType,
+  raw: string,
+): GroundedSuggestion | null {
+  try {
+    // Strip any accidental markdown fences the model may have added.
+    const cleaned = raw
+      .replace(/```(?:json)?\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+
+    if (workflowType === 'event') {
+      const s = parsed as Partial<EventSuggestion>;
+      if (typeof s.title === 'string' && typeof s.description === 'string') {
+        return {
+          title: s.title,
+          description: s.description,
+          venueType: typeof s.venueType === 'string' ? s.venueType : '',
+          promotionalTips: Array.isArray(s.promotionalTips) ? (s.promotionalTips as string[]) : [],
+        };
+      }
+    }
+
+    if (workflowType === 'task') {
+      const s = parsed as Partial<TaskSuggestion>;
+      if (typeof s.actionTitle === 'string') {
+        return {
+          actionTitle: s.actionTitle,
+          dueDateRange: typeof s.dueDateRange === 'string' ? s.dueDateRange : '',
+          owner: typeof s.owner === 'string' ? s.owner : '',
+          dependencies: Array.isArray(s.dependencies) ? (s.dependencies as string[]) : [],
+        };
+      }
+    }
+
+    if (workflowType === 'rsvp') {
+      const s = parsed as Partial<RsvpSuggestion>;
+      if (typeof s.confirmationMessage === 'string') {
+        return {
+          confirmationMessage: s.confirmationMessage,
+          reminderMessage: typeof s.reminderMessage === 'string' ? s.reminderMessage : '',
+          capacityTip: typeof s.capacityTip === 'string' ? s.capacityTip : '',
+        };
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Controller ────────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/ai/grounded
+ *
+ * Grounded workflow endpoint that fetches live application data (event, task list,
+ * or RSVP statistics) before calling the AI model, so suggestions are anchored
+ * to real planner context rather than prompt-only text.  Returns both a validated
+ * structured JSON object and the raw model response for traceability.
+ */
+export async function getGroundedSuggestion(req: AuthRequest, res: Response): Promise<Response> {
+  const { workflowType, entityId, prompt } = req.body as Partial<GroundedWorkflowBody>;
+
+  if (!prompt?.trim()) {
+    return res.status(400).json({ error: 'prompt is required.' });
+  }
+
+  const VALID_WORKFLOW_TYPES = new Set<WorkflowType>(['event', 'task', 'rsvp']);
+  if (!workflowType || !VALID_WORKFLOW_TYPES.has(workflowType)) {
+    return res.status(400).json({ error: 'workflowType must be one of: event, task, rsvp.' });
+  }
+
+  const parsedEntityId = typeof entityId === 'string' ? parseInt(entityId, 10) : entityId;
+  if (
+    !parsedEntityId ||
+    typeof parsedEntityId !== 'number' ||
+    !Number.isInteger(parsedEntityId) ||
+    parsedEntityId <= 0
+  ) {
+    return res.status(400).json({ error: 'entityId must be a positive integer.' });
+  }
+
+  const userId = req.user?.id;
+  if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    return res
+      .status(429)
+      .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
+  }
+
+  const provider = resolveAiProviderConfig();
+  if (provider.kind === 'misconfigured') {
+    return res.status(503).json({ error: provider.message });
+  }
+  if (provider.kind === 'none') {
+    return res.status(503).json({
+      error:
+        'AI suggestions are not configured. Set Azure OpenAI (AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY + AZURE_OPENAI_DEPLOYMENT) or OPENAI_API_KEY.',
+    });
+  }
+
+  // Fetch live application context to ground the AI request.
+  let context: EventContext | TaskContext | RsvpContext | null = null;
+  try {
+    if (workflowType === 'event') context = await fetchEventContext(parsedEntityId);
+    else if (workflowType === 'task') context = await fetchTaskContext(parsedEntityId);
+    else context = await fetchRsvpContext(parsedEntityId);
+  } catch {
+    return res.status(500).json({ error: 'Failed to fetch workflow context.' });
+  }
+
+  if (!context) {
+    return res.status(404).json({
+      error: `Entity ${parsedEntityId} not found for workflow type '${workflowType}'.`,
+    });
+  }
+
+  const systemPrompt = GROUNDED_SYSTEM_PROMPTS[workflowType];
+  const userMessage = buildGroundedUserMessage(workflowType, context, sanitisePrompt(prompt));
+
+  const startTime = Date.now();
+  try {
+    const raw = await callAiProvider(provider, systemPrompt, userMessage);
+    const durationMs = Date.now() - startTime;
+
+    void logAiRequest({
+      userId,
+      workflowType,
+      entityId: parsedEntityId,
+      provider: provider.kind,
+      durationMs,
+      status: 'success',
+    });
+
+    const structured = parseStructuredOutput(workflowType, raw);
+    const response: GroundedSuggestionResponse = {
+      workflowType,
+      entityId: parsedEntityId,
+      structured: structured ?? ({} as GroundedSuggestion),
+      raw,
+      // Traceability: include the event fields that were grounded into the prompt.
+      ...(workflowType === 'event' && {
+        contextSummary: { groundedFields: resolvePopulatedEventFields(context as EventContext) },
+      }),
+    };
+    return res.json(response);
+  } catch (err) {
+    const durationMs = Date.now() - startTime;
+    const message = err instanceof Error ? err.message : 'Unknown AI error';
+    void logAiRequest({
+      userId,
+      workflowType,
+      entityId: parsedEntityId,
+      provider: provider.kind,
+      durationMs,
+      status: 'error',
+      errorMessage: message,
+    });
+    return res.status(502).json({ error: `AI request failed: ${message}` });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task Breakdown — Story #950
+// Generate task breakdowns from event context with timeline constraints,
+// dependency hints, priority, and owner suggestions.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A single task item in an AI-generated task breakdown. */
+export interface TaskBreakdownItem {
+  title: string;
+  owner: string;
+  dueWindow: string;
+  dependencies: string[];
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  timelineConstraint: string;
+}
+
+/** Full task breakdown response returned by POST /api/ai/task-breakdown. */
+export interface TaskBreakdownResponse {
+  workflowType: 'task-breakdown';
+  eventId: number;
+  eventTitle: string;
+  tasks: TaskBreakdownItem[];
+  raw: string;
+  contextSummary: {
+    groundedFields: string[];
+    totalExistingTasks: number;
+  };
+}
+
+interface TaskBreakdownContext {
+  eventId: number;
+  eventTitle: string;
+  eventDate: string | null;
+  endDate: string | null;
+  eventTime: string | null;
+  eventType: string | null;
+  status: string;
+  capacity: number | null;
+  tags: string | null;
+  existingTasks: Array<{ title: string; status: string; due_date: string | null }>;
+}
+
+interface TaskBreakdownBody {
+  eventId: number;
+  prompt?: string;
+}
+
+async function fetchTaskBreakdownContext(eventId: number): Promise<TaskBreakdownContext | null> {
+  const db = getDatabase();
+  const event = await db.get<{
+    id: number;
+    title: string;
+    date: string | null;
+    end_date: string | null;
+    event_time: string | null;
+    event_type: string | null;
+    status: string;
+    capacity: number | null;
+    tags: string | null;
+  }>(
+    `SELECT id, title, date, end_date, event_time, event_type, status, capacity, tags
+     FROM events WHERE id = $1 AND deleted_at IS NULL`,
+    [eventId],
+  );
+  if (!event) return null;
+
+  const tasks = await db.all<{ title: string; status: string; due_date: string | null }>(
+    `SELECT title, status, due_date
+     FROM tasks WHERE event_id = $1 ORDER BY created_at DESC LIMIT 30`,
+    [eventId],
+  );
+
+  return {
+    eventId: event.id,
+    eventTitle: event.title,
+    eventDate: event.date,
+    endDate: event.end_date,
+    eventTime: event.event_time,
+    eventType: event.event_type,
+    status: event.status,
+    capacity: event.capacity,
+    tags: event.tags,
+    existingTasks: tasks,
+  };
+}
+
+function resolveTaskBreakdownGroundedFields(ctx: TaskBreakdownContext): string[] {
+  const fields: string[] = ['eventTitle', 'status'];
+  if (ctx.eventType) fields.push('eventType');
+  if (ctx.eventDate) fields.push('eventDate');
+  if (ctx.endDate) fields.push('endDate');
+  if (ctx.eventTime) fields.push('eventTime');
+  if (ctx.capacity !== null) fields.push('capacity');
+  if (ctx.tags) fields.push('tags');
+  if (ctx.existingTasks.length > 0) fields.push('existingTasks');
+  return fields;
+}
+
+const TASK_BREAKDOWN_SYSTEM_PROMPT = `You are a festival event planning AI specializing in task management and project planning.
+You will receive event details (title, type, dates, capacity, status, tags) and the current task list.
+Generate a comprehensive task breakdown for the organizer. Return ONLY a valid JSON array of up to 8 tasks (no markdown, no explanation):
+[{"title":"task title","owner":"suggested role or person type","dueWindow":"e.g. 6-8 weeks before event","dependencies":["existing or prior task name"],"priority":"high","timelineConstraint":"must be completed before venue booking"},...]
+Rules:
+- priority must be one of: low, medium, high, urgent
+- dueWindow must reference the event date when known (e.g. "4 weeks before event" or a date range like "2026-07-01 to 2026-07-07")
+- timelineConstraint must explain the scheduling rationale
+- dependencies must reference either existing tasks or other generated tasks by title
+- owner should be a role or person type (e.g. "Event coordinator", "AV team", "Marketing lead")`;
+
+function buildTaskBreakdownUserMessage(ctx: TaskBreakdownContext, userPrompt: string): string {
+  const lines: string[] = ['Event details:'];
+  lines.push(`Title: ${ctx.eventTitle}`);
+  if (ctx.eventType) lines.push(`Type: ${ctx.eventType}`);
+  lines.push(`Status: ${ctx.status}`);
+  if (ctx.eventDate) {
+    const dateRange = ctx.endDate ? `${ctx.eventDate} – ${ctx.endDate}` : ctx.eventDate;
+    lines.push(`Date: ${dateRange}`);
+  }
+  if (ctx.eventTime) lines.push(`Time: ${ctx.eventTime}`);
+  if (ctx.capacity !== null) lines.push(`Capacity: ${ctx.capacity}`);
+  if (ctx.tags) lines.push(`Tags: ${ctx.tags}`);
+
+  lines.push('');
+  if (ctx.existingTasks.length > 0) {
+    lines.push('Existing tasks:');
+    for (const t of ctx.existingTasks) {
+      const due = t.due_date ? ` (due: ${t.due_date})` : '';
+      lines.push(`- [${t.status}] ${t.title}${due}`);
+    }
+  } else {
+    lines.push('Existing tasks: none');
+  }
+
+  lines.push('');
+  lines.push(`User request: ${userPrompt}`);
+  return lines.join('\n');
+}
+
+/**
+ * Parse raw AI model output into an array of TaskBreakdownItem objects.
+ * Returns null if parsing fails or the output does not match the expected schema.
+ */
+export function parseTaskBreakdownOutput(raw: string): TaskBreakdownItem[] | null {
+  try {
+    const cleaned = raw
+      .replace(/```(?:json)?\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+
+    const parsed = JSON.parse(cleaned) as unknown;
+    if (!Array.isArray(parsed)) return null;
+
+    const VALID_PRIORITIES = new Set<string>(['low', 'medium', 'high', 'urgent']);
+
+    const items: TaskBreakdownItem[] = [];
+    for (const item of parsed) {
+      if (typeof item !== 'object' || item === null) continue;
+      const t = item as Record<string, unknown>;
+      if (typeof t.title !== 'string' || !t.title) continue;
+
+      items.push({
+        title: t.title,
+        owner: typeof t.owner === 'string' ? t.owner : '',
+        dueWindow: typeof t.dueWindow === 'string' ? t.dueWindow : '',
+        dependencies: Array.isArray(t.dependencies) ? (t.dependencies as string[]) : [],
+        priority: VALID_PRIORITIES.has(t.priority as string)
+          ? (t.priority as TaskBreakdownItem['priority'])
+          : 'medium',
+        timelineConstraint: typeof t.timelineConstraint === 'string' ? t.timelineConstraint : '',
+      });
+    }
+
+    return items.length > 0 ? items : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * POST /api/ai/task-breakdown
+ *
+ * Generates a structured task breakdown grounded in live event context.
+ * Fetches event details (title, type, dates, capacity, tags) and the current
+ * task list before calling the AI model.  Returns a JSON array of TaskBreakdownItem
+ * objects — each with title, owner suggestion, due-window, dependency hints,
+ * priority, and timeline constraints — alongside the raw model response and
+ * a contextSummary for traceability.  Users can copy or manually apply the
+ * generated tasks.
+ */
+export async function getTaskBreakdown(req: AuthRequest, res: Response): Promise<Response> {
+  const { eventId, prompt } = req.body as Partial<TaskBreakdownBody>;
+
+  const effectivePrompt =
+    prompt?.trim() || 'Generate a comprehensive task breakdown for this event.';
+
+  const parsedEventId = typeof eventId === 'string' ? parseInt(eventId, 10) : eventId;
+  if (
+    !parsedEventId ||
+    typeof parsedEventId !== 'number' ||
+    !Number.isInteger(parsedEventId) ||
+    parsedEventId <= 0
+  ) {
+    return res.status(400).json({ error: 'eventId must be a positive integer.' });
+  }
+
+  const userId = req.user?.id;
+  if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    return res
+      .status(429)
+      .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
+  }
+
+  const provider = resolveAiProviderConfig();
+  if (provider.kind === 'misconfigured') {
+    return res.status(503).json({ error: provider.message });
+  }
+  if (provider.kind === 'none') {
+    return res.status(503).json({
+      error:
+        'AI suggestions are not configured. Set Azure OpenAI (AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY + AZURE_OPENAI_DEPLOYMENT) or OPENAI_API_KEY.',
+    });
+  }
+
+  let context: TaskBreakdownContext | null = null;
+  try {
+    context = await fetchTaskBreakdownContext(parsedEventId);
+  } catch {
+    return res.status(500).json({ error: 'Failed to fetch event context.' });
+  }
+
+  if (!context) {
+    return res.status(404).json({ error: `Event ${parsedEventId} not found.` });
+  }
+
+  const userMessage = buildTaskBreakdownUserMessage(context, sanitisePrompt(effectivePrompt));
+
+  const startTime = Date.now();
+  try {
+    const raw = await callAiProvider(provider, TASK_BREAKDOWN_SYSTEM_PROMPT, userMessage);
+    const durationMs = Date.now() - startTime;
+
+    void logAiRequest({
+      userId,
+      workflowType: 'task-breakdown',
+      entityId: parsedEventId,
+      provider: provider.kind,
+      durationMs,
+      status: 'success',
+    });
+
+    const tasks = parseTaskBreakdownOutput(raw) ?? [];
+    const response: TaskBreakdownResponse = {
+      workflowType: 'task-breakdown',
+      eventId: parsedEventId,
+      eventTitle: context.eventTitle,
+      tasks,
+      raw,
+      contextSummary: {
+        groundedFields: resolveTaskBreakdownGroundedFields(context),
+        totalExistingTasks: context.existingTasks.length,
+      },
+    };
+    return res.json(response);
+  } catch (err) {
+    const durationMs = Date.now() - startTime;
+    const message = err instanceof Error ? err.message : 'Unknown AI error';
+    void logAiRequest({
+      userId,
+      workflowType: 'task-breakdown',
+      entityId: parsedEventId,
+      provider: provider.kind,
+      durationMs,
+      status: 'error',
+      errorMessage: message,
+    });
     return res.status(502).json({ error: `AI request failed: ${message}` });
   }
 }

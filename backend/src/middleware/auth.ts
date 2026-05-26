@@ -141,11 +141,15 @@ export async function authenticateToken(
     }
   }
 
-  // Update last_activity
-  await db.run('UPDATE sessions SET last_activity = $1 WHERE id = $2', [
-    new Date().toISOString(),
-    session.id,
-  ]);
+  // Throttle last_activity updates to reduce write amplification.
+  // Only update if more than 60 seconds have elapsed since last recorded activity.
+  const lastActivityMs = session.last_activity ? new Date(session.last_activity).getTime() : 0;
+  if (Date.now() - lastActivityMs > 60_000) {
+    await db.run('UPDATE sessions SET last_activity = $1 WHERE id = $2', [
+      new Date().toISOString(),
+      session.id,
+    ]);
+  }
 
   // Check if user account has been deactivated (#677)
   const userRecord = await db.get<{ deactivated_at: string | null }>(
