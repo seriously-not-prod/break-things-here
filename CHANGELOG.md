@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Track E — AI Requirement Traceability)
+
+- **Story #948 — Define AI Requirement Baseline and Traceability**: Created `docs/requirements/ai-requirement-baseline.md` establishing a structured AI requirement baseline for the current Vite + React Router + Express + PostgreSQL stack. Documents 12 AI requirements (AI-REQ-001 through AI-REQ-012) with measurable acceptance criteria, implementation status classification (7 Implemented, 4 Partial, 0 Missing), and a full traceability matrix linking requirements to GitHub issues (#945, #946, #947, #925, #926, #908). Clarifies four previously ambiguous requirement statements including the distinction between the in-scope interactive AI Planning Assistant and the out-of-scope automated recommendations engine. Updated `docs/requirements/REQUIREMENTS_BASELINE.md` §6.3 to correct the AI out-of-scope entry and added §6.4 referencing the new AI baseline document (#948).
+
 ### Added (Track A — Core Data Model)
 
 - **Task #810 — @mentions parser + notification fanout**: Added `backend/src/services/mentions/parse.ts` with a regex-based `parseMentions()` function supporting `@handle` and `@"Quoted Name"` syntax, email false-positive guards, and deduplication. Added `backend/src/services/mentions/fanout.ts` with `processMentions()` that resolves handles scoped to event members, persists rows in the new `message_mentions` table, and fans out in-app notifications respecting per-user `mention` preferences. Added migration `database/migrations/v18-message-mentions-810.sql` with audit columns, UNIQUE constraint, and a `CHECK` constraint on `source_type`. Integrated fanout into `event-chat-controller.ts` and `tasks-controller.ts`. Added `'mention'` to the allowed notification preference types in `notifications-controller.ts` and `NOTIFICATION_TYPES` in the frontend `collaboration-service.ts` (with labels in both preferences UI components) (#810).
