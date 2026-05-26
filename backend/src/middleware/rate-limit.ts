@@ -6,8 +6,7 @@ function createStore(prefix: string): RedisStore | undefined {
   const client = getRedisClient();
   if (!client) return undefined; // Falls back to express-rate-limit's built-in MemoryStore
   return new RedisStore({
-    sendCommand: (...args: string[]) =>
-      client.call(args[0], ...args.slice(1)) as never,
+    sendCommand: (...args: string[]) => client.call(args[0], ...args.slice(1)) as never,
     prefix: `rl:${prefix}:`,
   });
 }

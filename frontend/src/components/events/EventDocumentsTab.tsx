@@ -145,11 +145,23 @@ export function EventDocumentsTab({
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell><strong>Name</strong></TableCell>
-                <TableCell><strong>Type</strong></TableCell>
-                <TableCell><strong>Size</strong></TableCell>
-                <TableCell><strong>Uploaded</strong></TableCell>
-                {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
+                <TableCell>
+                  <strong>Name</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Type</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Size</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Uploaded</strong>
+                </TableCell>
+                {canEdit && (
+                  <TableCell align="right">
+                    <strong>Actions</strong>
+                  </TableCell>
+                )}
               </TableRow>
             </TableHead>
             <TableBody>

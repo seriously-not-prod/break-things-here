@@ -143,9 +143,7 @@ export async function authenticateToken(
 
   // Throttle last_activity updates to reduce write amplification.
   // Only update if more than 60 seconds have elapsed since last recorded activity.
-  const lastActivityMs = session.last_activity
-    ? new Date(session.last_activity).getTime()
-    : 0;
+  const lastActivityMs = session.last_activity ? new Date(session.last_activity).getTime() : 0;
   if (Date.now() - lastActivityMs > 60_000) {
     await db.run('UPDATE sessions SET last_activity = $1 WHERE id = $2', [
       new Date().toISOString(),

@@ -160,12 +160,26 @@ export function EventTasksTab({
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell><strong>Title</strong></TableCell>
-                <TableCell><strong>Assignee</strong></TableCell>
-                <TableCell><strong>Due Date</strong></TableCell>
-                <TableCell><strong>Priority</strong></TableCell>
-                <TableCell><strong>Status</strong></TableCell>
-                {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
+                <TableCell>
+                  <strong>Title</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Assignee</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Due Date</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Priority</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Status</strong>
+                </TableCell>
+                {canEdit && (
+                  <TableCell align="right">
+                    <strong>Actions</strong>
+                  </TableCell>
+                )}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -197,10 +211,19 @@ export function EventTasksTab({
                   {canEdit && (
                     <TableCell align="right">
                       <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                        <Button size="small" startIcon={<EditRounded />} onClick={() => openEditTask(t)}>
+                        <Button
+                          size="small"
+                          startIcon={<EditRounded />}
+                          onClick={() => openEditTask(t)}
+                        >
                           Edit
                         </Button>
-                        <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => deleteTask(t.id)}>
+                        <Button
+                          size="small"
+                          color="error"
+                          startIcon={<DeleteRounded />}
+                          onClick={() => deleteTask(t.id)}
+                        >
                           Delete
                         </Button>
                       </Stack>

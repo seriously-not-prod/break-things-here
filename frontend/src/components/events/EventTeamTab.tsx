@@ -77,7 +77,9 @@ export function EventTeamTab({
 
   async function removeMember(userId: number): Promise<void> {
     if (!window.confirm('Remove this team member?')) return;
-    await api.delete(`/api/events/${eventId}/members/${userId}`).catch((err) => onError(err.message));
+    await api
+      .delete(`/api/events/${eventId}/members/${userId}`)
+      .catch((err) => onError(err.message));
     await onRefresh();
   }
 
@@ -127,11 +129,23 @@ export function EventTeamTab({
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell><strong>Name</strong></TableCell>
-                <TableCell><strong>Email</strong></TableCell>
-                <TableCell><strong>Role</strong></TableCell>
-                <TableCell><strong>Joined</strong></TableCell>
-                {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
+                <TableCell>
+                  <strong>Name</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Email</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Role</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Joined</strong>
+                </TableCell>
+                {canEdit && (
+                  <TableCell align="right">
+                    <strong>Actions</strong>
+                  </TableCell>
+                )}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -143,7 +157,11 @@ export function EventTeamTab({
                   <TableCell>{new Date(member.joined_at).toLocaleString()}</TableCell>
                   {canEdit && (
                     <TableCell align="right">
-                      <Button size="small" color="error" onClick={() => removeMember(member.user_id)}>
+                      <Button
+                        size="small"
+                        color="error"
+                        onClick={() => removeMember(member.user_id)}
+                      >
                         Remove
                       </Button>
                     </TableCell>
