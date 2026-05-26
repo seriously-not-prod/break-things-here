@@ -754,3 +754,282 @@ export async function getGroundedSuggestion(req: AuthRequest, res: Response): Pr
     return res.status(502).json({ error: `AI request failed: ${message}` });
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task Breakdown — Story #950
+// Generate task breakdowns from event context with timeline constraints,
+// dependency hints, priority, and owner suggestions.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A single task item in an AI-generated task breakdown. */
+export interface TaskBreakdownItem {
+  title: string;
+  owner: string;
+  dueWindow: string;
+  dependencies: string[];
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  timelineConstraint: string;
+}
+
+/** Full task breakdown response returned by POST /api/ai/task-breakdown. */
+export interface TaskBreakdownResponse {
+  workflowType: 'task-breakdown';
+  eventId: number;
+  eventTitle: string;
+  tasks: TaskBreakdownItem[];
+  raw: string;
+  contextSummary: {
+    groundedFields: string[];
+    totalExistingTasks: number;
+  };
+}
+
+interface TaskBreakdownContext {
+  eventId: number;
+  eventTitle: string;
+  eventDate: string | null;
+  endDate: string | null;
+  eventTime: string | null;
+  eventType: string | null;
+  status: string;
+  capacity: number | null;
+  tags: string | null;
+  existingTasks: Array<{ title: string; status: string; due_date: string | null }>;
+}
+
+interface TaskBreakdownBody {
+  eventId: number;
+  prompt?: string;
+}
+
+async function fetchTaskBreakdownContext(eventId: number): Promise<TaskBreakdownContext | null> {
+  const db = getDatabase();
+  const event = await db.get<{
+    id: number;
+    title: string;
+    date: string | null;
+    end_date: string | null;
+    event_time: string | null;
+    event_type: string | null;
+    status: string;
+    capacity: number | null;
+    tags: string | null;
+  }>(
+    `SELECT id, title, date, end_date, event_time, event_type, status, capacity, tags
+     FROM events WHERE id = $1 AND deleted_at IS NULL`,
+    [eventId],
+  );
+  if (!event) return null;
+
+  const tasks = await db.all<{ title: string; status: string; due_date: string | null }>(
+    `SELECT title, status, due_date
+     FROM tasks WHERE event_id = $1 ORDER BY created_at DESC LIMIT 30`,
+    [eventId],
+  );
+
+  return {
+    eventId: event.id,
+    eventTitle: event.title,
+    eventDate: event.date,
+    endDate: event.end_date,
+    eventTime: event.event_time,
+    eventType: event.event_type,
+    status: event.status,
+    capacity: event.capacity,
+    tags: event.tags,
+    existingTasks: tasks,
+  };
+}
+
+function resolveTaskBreakdownGroundedFields(ctx: TaskBreakdownContext): string[] {
+  const fields: string[] = ['eventTitle', 'status'];
+  if (ctx.eventType) fields.push('eventType');
+  if (ctx.eventDate) fields.push('eventDate');
+  if (ctx.endDate) fields.push('endDate');
+  if (ctx.eventTime) fields.push('eventTime');
+  if (ctx.capacity !== null) fields.push('capacity');
+  if (ctx.tags) fields.push('tags');
+  if (ctx.existingTasks.length > 0) fields.push('existingTasks');
+  return fields;
+}
+
+const TASK_BREAKDOWN_SYSTEM_PROMPT = `You are a festival event planning AI specializing in task management and project planning.
+You will receive event details (title, type, dates, capacity, status, tags) and the current task list.
+Generate a comprehensive task breakdown for the organizer. Return ONLY a valid JSON array of up to 8 tasks (no markdown, no explanation):
+[{"title":"task title","owner":"suggested role or person type","dueWindow":"e.g. 6-8 weeks before event","dependencies":["existing or prior task name"],"priority":"high","timelineConstraint":"must be completed before venue booking"},...]
+Rules:
+- priority must be one of: low, medium, high, urgent
+- dueWindow must reference the event date when known (e.g. "4 weeks before event" or a date range like "2026-07-01 to 2026-07-07")
+- timelineConstraint must explain the scheduling rationale
+- dependencies must reference either existing tasks or other generated tasks by title
+- owner should be a role or person type (e.g. "Event coordinator", "AV team", "Marketing lead")`;
+
+function buildTaskBreakdownUserMessage(ctx: TaskBreakdownContext, userPrompt: string): string {
+  const lines: string[] = ['Event details:'];
+  lines.push(`Title: ${ctx.eventTitle}`);
+  if (ctx.eventType) lines.push(`Type: ${ctx.eventType}`);
+  lines.push(`Status: ${ctx.status}`);
+  if (ctx.eventDate) {
+    const dateRange = ctx.endDate ? `${ctx.eventDate} – ${ctx.endDate}` : ctx.eventDate;
+    lines.push(`Date: ${dateRange}`);
+  }
+  if (ctx.eventTime) lines.push(`Time: ${ctx.eventTime}`);
+  if (ctx.capacity !== null) lines.push(`Capacity: ${ctx.capacity}`);
+  if (ctx.tags) lines.push(`Tags: ${ctx.tags}`);
+
+  lines.push('');
+  if (ctx.existingTasks.length > 0) {
+    lines.push('Existing tasks:');
+    for (const t of ctx.existingTasks) {
+      const due = t.due_date ? ` (due: ${t.due_date})` : '';
+      lines.push(`- [${t.status}] ${t.title}${due}`);
+    }
+  } else {
+    lines.push('Existing tasks: none');
+  }
+
+  lines.push('');
+  lines.push(`User request: ${userPrompt}`);
+  return lines.join('\n');
+}
+
+/**
+ * Parse raw AI model output into an array of TaskBreakdownItem objects.
+ * Returns null if parsing fails or the output does not match the expected schema.
+ */
+export function parseTaskBreakdownOutput(raw: string): TaskBreakdownItem[] | null {
+  try {
+    const cleaned = raw
+      .replace(/```(?:json)?\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+
+    const parsed = JSON.parse(cleaned) as unknown;
+    if (!Array.isArray(parsed)) return null;
+
+    const VALID_PRIORITIES = new Set<string>(['low', 'medium', 'high', 'urgent']);
+
+    const items: TaskBreakdownItem[] = [];
+    for (const item of parsed) {
+      if (typeof item !== 'object' || item === null) continue;
+      const t = item as Record<string, unknown>;
+      if (typeof t.title !== 'string' || !t.title) continue;
+
+      items.push({
+        title: t.title,
+        owner: typeof t.owner === 'string' ? t.owner : '',
+        dueWindow: typeof t.dueWindow === 'string' ? t.dueWindow : '',
+        dependencies: Array.isArray(t.dependencies) ? (t.dependencies as string[]) : [],
+        priority: VALID_PRIORITIES.has(t.priority as string)
+          ? (t.priority as TaskBreakdownItem['priority'])
+          : 'medium',
+        timelineConstraint: typeof t.timelineConstraint === 'string' ? t.timelineConstraint : '',
+      });
+    }
+
+    return items.length > 0 ? items : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * POST /api/ai/task-breakdown
+ *
+ * Generates a structured task breakdown grounded in live event context.
+ * Fetches event details (title, type, dates, capacity, tags) and the current
+ * task list before calling the AI model.  Returns a JSON array of TaskBreakdownItem
+ * objects — each with title, owner suggestion, due-window, dependency hints,
+ * priority, and timeline constraints — alongside the raw model response and
+ * a contextSummary for traceability.  Users can copy or manually apply the
+ * generated tasks.
+ */
+export async function getTaskBreakdown(req: AuthRequest, res: Response): Promise<Response> {
+  const { eventId, prompt } = req.body as Partial<TaskBreakdownBody>;
+
+  const effectivePrompt =
+    prompt?.trim() || 'Generate a comprehensive task breakdown for this event.';
+
+  const parsedEventId = typeof eventId === 'string' ? parseInt(eventId, 10) : eventId;
+  if (
+    !parsedEventId ||
+    typeof parsedEventId !== 'number' ||
+    !Number.isInteger(parsedEventId) ||
+    parsedEventId <= 0
+  ) {
+    return res.status(400).json({ error: 'eventId must be a positive integer.' });
+  }
+
+  const userId = req.user?.id;
+  if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    return res
+      .status(429)
+      .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
+  }
+
+  const provider = resolveAiProviderConfig();
+  if (provider.kind === 'misconfigured') {
+    return res.status(503).json({ error: provider.message });
+  }
+  if (provider.kind === 'none') {
+    return res.status(503).json({
+      error:
+        'AI suggestions are not configured. Set Azure OpenAI (AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY + AZURE_OPENAI_DEPLOYMENT) or OPENAI_API_KEY.',
+    });
+  }
+
+  let context: TaskBreakdownContext | null = null;
+  try {
+    context = await fetchTaskBreakdownContext(parsedEventId);
+  } catch {
+    return res.status(500).json({ error: 'Failed to fetch event context.' });
+  }
+
+  if (!context) {
+    return res.status(404).json({ error: `Event ${parsedEventId} not found.` });
+  }
+
+  const userMessage = buildTaskBreakdownUserMessage(context, sanitisePrompt(effectivePrompt));
+
+  const startTime = Date.now();
+  try {
+    const raw = await callAiProvider(provider, TASK_BREAKDOWN_SYSTEM_PROMPT, userMessage);
+    const durationMs = Date.now() - startTime;
+
+    void logAiRequest({
+      userId,
+      workflowType: 'task-breakdown',
+      entityId: parsedEventId,
+      provider: provider.kind,
+      durationMs,
+      status: 'success',
+    });
+
+    const tasks = parseTaskBreakdownOutput(raw) ?? [];
+    const response: TaskBreakdownResponse = {
+      workflowType: 'task-breakdown',
+      eventId: parsedEventId,
+      eventTitle: context.eventTitle,
+      tasks,
+      raw,
+      contextSummary: {
+        groundedFields: resolveTaskBreakdownGroundedFields(context),
+        totalExistingTasks: context.existingTasks.length,
+      },
+    };
+    return res.json(response);
+  } catch (err) {
+    const durationMs = Date.now() - startTime;
+    const message = err instanceof Error ? err.message : 'Unknown AI error';
+    void logAiRequest({
+      userId,
+      workflowType: 'task-breakdown',
+      entityId: parsedEventId,
+      provider: provider.kind,
+      durationMs,
+      status: 'error',
+      errorMessage: message,
+    });
+    return res.status(502).json({ error: `AI request failed: ${message}` });
+  }
+}
