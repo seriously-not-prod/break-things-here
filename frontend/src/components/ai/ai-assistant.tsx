@@ -31,6 +31,12 @@ import {
 } from '@mui/icons-material';
 import { fetchBudgetInsight, BudgetInsightResponse } from '../../services/budget-insight-service';
 import { api, ApiError } from '../../lib/api-client';
+import {
+  generateRsvpCommunicationDraft,
+  type RsvpCommunicationDraft,
+  type RsvpDraftLength,
+  type RsvpDraftTone,
+} from '../../services/rsvp-communication-draft-service';
 
 type Context = 'general' | 'event' | 'task' | 'rsvp';
 type WorkflowType = 'event' | 'task' | 'rsvp';
@@ -409,6 +415,19 @@ export function AiAssistant(): JSX.Element {
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
   const [allCopied, setAllCopied] = useState(false);
 
+  // #951 — RSVP communication drafting state
+  const [draftEntityId, setDraftEntityId] = useState('');
+  const [draftTone, setDraftTone] = useState<RsvpDraftTone>('friendly');
+  const [draftLength, setDraftLength] = useState<RsvpDraftLength>('medium');
+  const [draftPrompt, setDraftPrompt] = useState('');
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftResult, setDraftResult] = useState<RsvpCommunicationDraft | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [editableReminder, setEditableReminder] = useState('');
+  const [editableConfirmation, setEditableConfirmation] = useState('');
+  const [editableDeadlineReminder, setEditableDeadlineReminder] = useState('');
+  const [copiedDraftField, setCopiedDraftField] = useState<string | null>(null);
+
   // Fetch shared event list once when the panel opens
   useEffect(() => {
     if (!open || events.length > 0) return;
@@ -577,6 +596,44 @@ export function AiAssistant(): JSX.Element {
     });
   }
 
+  // #951 — RSVP Communication Drafting functions
+  async function generateDraft(): Promise<void> {
+    const eid = parseInt(draftEntityId, 10);
+    if (!Number.isFinite(eid) || eid <= 0) return;
+
+    setDraftLoading(true);
+    setDraftError(null);
+    setDraftResult(null);
+    setEditableReminder('');
+    setEditableConfirmation('');
+    setEditableDeadlineReminder('');
+
+    try {
+      const data = await generateRsvpCommunicationDraft({
+        entityId: eid,
+        tone: draftTone,
+        draftLength,
+        prompt: draftPrompt.trim() || undefined,
+      });
+      setDraftResult(data.drafts);
+      setEditableReminder(data.drafts.reminderVariant);
+      setEditableConfirmation(data.drafts.confirmationVariant);
+      setEditableDeadlineReminder(data.drafts.deadlineReminder);
+    } catch (err) {
+      const message = resolveAiErrorMessage(err);
+      setDraftError(message);
+    } finally {
+      setDraftLoading(false);
+    }
+  }
+
+  function copyDraftToClipboard(text: string, field: string): void {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopiedDraftField(field);
+      setTimeout(() => setCopiedDraftField(null), 2000);
+    });
+  }
+
   return (
     <>
       {/* Floating button */}
@@ -671,6 +728,12 @@ export function AiAssistant(): JSX.Element {
               icon={<BarChartRounded fontSize="small" />}
               iconPosition="start"
               sx={{ minHeight: 40, py: 0, fontSize: '0.7rem' }}
+            />
+            <Tab
+              label="RSVP Drafts"
+              icon={<EmailRounded fontSize="small" />}
+              iconPosition="start"
+              sx={{ minHeight: 40, py: 0, fontSize: '0.75rem' }}
             />
           </Tabs>
 
@@ -1460,6 +1523,198 @@ export function AiAssistant(): JSX.Element {
                       </Typography>
                     )}
                   </Box>
+                )}
+              </Box>
+            </Box>
+          )}
+
+          {/* ── Tab 4: RSVP Communication Drafts (#951) ─────────────────── */}
+          {activeTab === 4 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
+              <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+                <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+                  Generate AI-drafted RSVP communication messages grounded in live attendee data.
+                  Edit the drafts before sending.
+                </Typography>
+                <Stack spacing={1}>
+                  <TextField
+                    size="small"
+                    label="Event ID"
+                    type="number"
+                    value={draftEntityId}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setDraftEntityId(e.target.value)}
+                    inputProps={{ min: 1, 'aria-label': 'Event ID for RSVP draft' }}
+                    fullWidth
+                  />
+                  <Stack direction="row" spacing={1}>
+                    <Box flex={1}>
+                      <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                        Tone
+                      </Typography>
+                      <Select
+                        size="small"
+                        value={draftTone}
+                        onChange={(e) => setDraftTone(e.target.value as RsvpDraftTone)}
+                        fullWidth
+                        aria-label="Draft tone"
+                      >
+                        <MenuItem value="friendly">Friendly</MenuItem>
+                        <MenuItem value="formal">Formal</MenuItem>
+                        <MenuItem value="casual">Casual</MenuItem>
+                        <MenuItem value="urgent">Urgent</MenuItem>
+                      </Select>
+                    </Box>
+                    <Box flex={1}>
+                      <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                        Length
+                      </Typography>
+                      <Select
+                        size="small"
+                        value={draftLength}
+                        onChange={(e) => setDraftLength(e.target.value as RsvpDraftLength)}
+                        fullWidth
+                        aria-label="Draft length"
+                      >
+                        <MenuItem value="short">Short</MenuItem>
+                        <MenuItem value="medium">Medium</MenuItem>
+                        <MenuItem value="long">Long</MenuItem>
+                      </Select>
+                    </Box>
+                  </Stack>
+                  <TextField
+                    size="small"
+                    multiline
+                    maxRows={2}
+                    placeholder="Optional: additional context (e.g. venue change, special instructions)"
+                    value={draftPrompt}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setDraftPrompt(e.target.value)}
+                    fullWidth
+                    disabled={draftLoading}
+                    inputProps={{ 'aria-label': 'Additional context for RSVP draft' }}
+                  />
+                  <Button
+                    variant="contained"
+                    size="small"
+                    endIcon={draftLoading ? <CircularProgress size={14} color="inherit" /> : undefined}
+                    onClick={() => void generateDraft()}
+                    disabled={draftLoading || !draftEntityId || parseInt(draftEntityId, 10) <= 0}
+                    aria-label="Generate RSVP communication drafts"
+                  >
+                    {draftLoading ? 'Generating drafts…' : 'Generate Drafts'}
+                  </Button>
+                </Stack>
+              </Box>
+              <Box
+                role="region"
+                aria-label="RSVP communication drafts"
+                aria-live="polite"
+                sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}
+              >
+                {!draftLoading && !draftResult && !draftError && (
+                  <Typography variant="body2" color="text.secondary" textAlign="center" mt={1}>
+                    Enter an Event ID and select tone/length, then generate drafts to get
+                    AI-written RSVP messages you can edit and send.
+                  </Typography>
+                )}
+                {draftLoading && (
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <CircularProgress size={18} />
+                    <Typography variant="caption" color="text.secondary">
+                      Fetching RSVP context and drafting messages…
+                    </Typography>
+                  </Box>
+                )}
+                {draftError && !draftLoading && (
+                  <Alert severity="error" sx={{ fontSize: '0.75rem' }}>
+                    {draftError}
+                  </Alert>
+                )}
+                {draftResult && !draftLoading && (
+                  <Stack spacing={1.5}>
+                    <Divider>
+                      <Typography variant="caption" color="text.secondary">
+                        Editable Drafts
+                      </Typography>
+                    </Divider>
+                    <Box>
+                      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.5}>
+                        <Typography variant="caption" fontWeight={700} color="warning.dark">
+                          Reminder (pending / maybe guests)
+                        </Typography>
+                        <Tooltip title={copiedDraftField === 'reminder' ? 'Copied!' : 'Copy'}>
+                          <IconButton
+                            size="small"
+                            onClick={() => copyDraftToClipboard(editableReminder, 'reminder')}
+                            aria-label="Copy reminder draft"
+                          >
+                            <ContentCopyRounded fontSize="inherit" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                      <TextField
+                        size="small"
+                        multiline
+                        minRows={3}
+                        maxRows={6}
+                        value={editableReminder}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setEditableReminder(e.target.value)}
+                        fullWidth
+                        inputProps={{ 'aria-label': 'Edit reminder draft' }}
+                      />
+                    </Box>
+                    <Box>
+                      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.5}>
+                        <Typography variant="caption" fontWeight={700} color="success.dark">
+                          Confirmation (confirmed guests)
+                        </Typography>
+                        <Tooltip title={copiedDraftField === 'confirmation' ? 'Copied!' : 'Copy'}>
+                          <IconButton
+                            size="small"
+                            onClick={() => copyDraftToClipboard(editableConfirmation, 'confirmation')}
+                            aria-label="Copy confirmation draft"
+                          >
+                            <ContentCopyRounded fontSize="inherit" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                      <TextField
+                        size="small"
+                        multiline
+                        minRows={3}
+                        maxRows={6}
+                        value={editableConfirmation}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setEditableConfirmation(e.target.value)}
+                        fullWidth
+                        inputProps={{ 'aria-label': 'Edit confirmation draft' }}
+                      />
+                    </Box>
+                    <Box>
+                      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.5}>
+                        <Typography variant="caption" fontWeight={700} color="error.dark">
+                          Deadline Reminder (non-responders)
+                        </Typography>
+                        <Tooltip title={copiedDraftField === 'deadline' ? 'Copied!' : 'Copy'}>
+                          <IconButton
+                            size="small"
+                            onClick={() => copyDraftToClipboard(editableDeadlineReminder, 'deadline')}
+                            aria-label="Copy deadline reminder draft"
+                          >
+                            <ContentCopyRounded fontSize="inherit" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                      <TextField
+                        size="small"
+                        multiline
+                        minRows={3}
+                        maxRows={6}
+                        value={editableDeadlineReminder}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setEditableDeadlineReminder(e.target.value)}
+                        fullWidth
+                        inputProps={{ 'aria-label': 'Edit deadline reminder draft' }}
+                      />
+                    </Box>
+                  </Stack>
                 )}
               </Box>
             </Box>
