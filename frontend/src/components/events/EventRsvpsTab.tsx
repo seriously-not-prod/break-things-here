@@ -179,12 +179,26 @@ export function EventRsvpsTab({
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell><strong>Name</strong></TableCell>
-                <TableCell><strong>Email</strong></TableCell>
-                <TableCell><strong>Guests</strong></TableCell>
-                <TableCell><strong>Status</strong></TableCell>
-                <TableCell><strong>Source</strong></TableCell>
-                {canEdit && <TableCell align="right"><strong>Actions</strong></TableCell>}
+                <TableCell>
+                  <strong>Name</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Email</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Guests</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Status</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Source</strong>
+                </TableCell>
+                {canEdit && (
+                  <TableCell align="right">
+                    <strong>Actions</strong>
+                  </TableCell>
+                )}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -212,10 +226,19 @@ export function EventRsvpsTab({
                   {canEdit && (
                     <TableCell align="right">
                       <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                        <Button size="small" startIcon={<EditRounded />} onClick={() => openEditRsvp(r)}>
+                        <Button
+                          size="small"
+                          startIcon={<EditRounded />}
+                          onClick={() => openEditRsvp(r)}
+                        >
                           Edit
                         </Button>
-                        <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => deleteRsvp(r.id)}>
+                        <Button
+                          size="small"
+                          color="error"
+                          startIcon={<DeleteRounded />}
+                          onClick={() => deleteRsvp(r.id)}
+                        >
                           Delete
                         </Button>
                       </Stack>

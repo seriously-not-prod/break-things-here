@@ -202,9 +202,7 @@ export async function getEventStats(_req: Request, res: Response): Promise<Respo
         "SELECT COUNT(*) AS count FROM events WHERE status = 'Active' AND deleted_at IS NULL",
       ),
       db.get<{ count: number }>('SELECT COUNT(*) AS count FROM tasks'),
-      db.get<{ count: number }>(
-        "SELECT COUNT(*) AS count FROM tasks WHERE status = 'Pending'",
-      ),
+      db.get<{ count: number }>("SELECT COUNT(*) AS count FROM tasks WHERE status = 'Pending'"),
       db.get<{ count: number }>('SELECT COUNT(*) AS count FROM rsvps'),
       db.get<{ count: number }>(
         "SELECT COUNT(*) AS count FROM rsvps WHERE canonical_status = 'confirmed'",

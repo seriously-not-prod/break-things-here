@@ -41,13 +41,13 @@ interface PlannerEvent {
   creator_name: string | null;
   event_type: string | null;
   tags: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  waitlist_enabled: boolean | null;
-  event_time: string | null;
-  going_count: number | null;
-  pending_count: number | null;
-  created_by: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  waitlist_enabled?: boolean | null;
+  event_time?: string | null;
+  going_count?: number | null;
+  pending_count?: number | null;
+  created_by: number;
 }
 
 function capacityLabel(event: PlannerEvent): string {
@@ -159,12 +159,7 @@ export function EventListTable({
                 <TableCell>
                   {event.title}
                   {event.event_type && (
-                    <Chip
-                      label={event.event_type}
-                      size="small"
-                      variant="outlined"
-                      sx={{ ml: 1 }}
-                    />
+                    <Chip label={event.event_type} size="small" variant="outlined" sx={{ ml: 1 }} />
                   )}
                   {event.waitlist_enabled && (
                     <Tooltip title="Waitlist enabled for this event">
@@ -193,12 +188,7 @@ export function EventListTable({
                   <Stack direction="row" spacing={0.5} alignItems="center">
                     <Typography variant="body2">{capacityLabel(event)}</Typography>
                     {overflow && (
-                      <Chip
-                        label="Over capacity"
-                        size="small"
-                        color="error"
-                        variant="outlined"
-                      />
+                      <Chip label="Over capacity" size="small" color="error" variant="outlined" />
                     )}
                   </Stack>
                 </TableCell>

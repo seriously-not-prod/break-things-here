@@ -172,8 +172,16 @@ router.get(
 );
 
 // ============ GUEST GROUPS & BULK OPS — #667 ============
-router.get('/events/:eventId/guest-groups', authenticateToken, guestGroupsController.listGuestGroups);
-router.post('/events/:eventId/guest-groups', authenticateToken, guestGroupsController.createGuestGroup);
+router.get(
+  '/events/:eventId/guest-groups',
+  authenticateToken,
+  guestGroupsController.listGuestGroups,
+);
+router.post(
+  '/events/:eventId/guest-groups',
+  authenticateToken,
+  guestGroupsController.createGuestGroup,
+);
 router.put(
   '/events/:eventId/guest-groups/:id',
   authenticateToken,
@@ -216,7 +224,11 @@ router.delete(
 );
 
 // ============ MEAL OPTIONS (#591) ============
-router.get('/events/:eventId/meal-options', authenticateToken, mealOptionsController.listMealOptions);
+router.get(
+  '/events/:eventId/meal-options',
+  authenticateToken,
+  mealOptionsController.listMealOptions,
+);
 router.post(
   '/events/:eventId/meal-options',
   authenticateToken,

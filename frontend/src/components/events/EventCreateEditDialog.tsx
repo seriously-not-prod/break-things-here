@@ -61,7 +61,7 @@ export function EventCreateEditDialog({
   initialForm,
   onClose,
   onSaved,
-  onError,
+  onError: _onError,
 }: EventCreateEditDialogProps): JSX.Element {
   const [form, setForm] = useState<EventForm>({ ...EMPTY_FORM, ...initialForm });
   const [saving, setSaving] = useState(false);
