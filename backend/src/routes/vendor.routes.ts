@@ -207,18 +207,6 @@ router.delete(
   storeSuggestionsController.deleteStoreSuggestion,
 );
 
-// Additional shopping-budget-sync routes
-router.post(
-  '/events/:eventId/shopping-lists/:listId/items/:itemId/sync-to-budget',
-  authenticateToken,
-  shoppingBudgetSyncController.syncItemToBudget,
-);
-router.delete(
-  '/events/:eventId/shopping-lists/:listId/items/:itemId/sync-to-budget',
-  authenticateToken,
-  shoppingBudgetSyncController.unsyncItemFromBudget,
-);
-
 // Event-level store suggestions routes
 router.get(
   '/events/:eventId/store-suggestions',

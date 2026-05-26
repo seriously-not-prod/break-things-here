@@ -609,7 +609,6 @@ export default function EventDetailPage(): JSX.Element {
           rsvps={rsvps}
           canEdit={!!canEdit}
           capacity={event.capacity ?? null}
-          goingHeadcount={goingHeadcount}
           remainingCapacity={remainingCapacity}
           onRefresh={load}
           onError={setError}

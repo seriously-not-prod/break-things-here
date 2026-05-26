@@ -5,6 +5,10 @@ let redisClient: Redis | null = null;
 /**
  * Returns a shared Redis client if REDIS_URL is configured.
  * Returns null when Redis is not available (falls back to in-memory store).
+ *
+ * ioredis automatically reconnects on transient failures. The `lazyConnect`
+ * option means the TCP socket opens on the first command, not at construction
+ * time — so we can safely hand the client to RedisStore immediately.
  */
 export function getRedisClient(): Redis | null {
   if (redisClient) return redisClient;
@@ -15,17 +19,15 @@ export function getRedisClient(): Redis | null {
   redisClient = new Redis(url, {
     maxRetriesPerRequest: 3,
     enableReadyCheck: true,
-    lazyConnect: true,
+    lazyConnect: false, // connect immediately so errors surface early
+    retryStrategy(times) {
+      // Exponential backoff capped at 3 seconds
+      return Math.min(times * 200, 3000);
+    },
   });
 
   redisClient.on('error', (err) => {
     console.error('[Redis] Connection error:', err.message);
-  });
-
-  void redisClient.connect().catch(() => {
-    // Silently degrade — rate limiting falls back to in-memory store
-    console.warn('[Redis] Failed to connect; rate limiting will use in-memory store.');
-    redisClient = null;
   });
 
   return redisClient;

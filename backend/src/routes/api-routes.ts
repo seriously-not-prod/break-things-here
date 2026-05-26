@@ -7,21 +7,17 @@ import * as passwordResetController from '../controllers/password-reset-controll
 import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
 import * as tasksController from '../controllers/tasks-controller.js';
-import * as legacyRsvpController from '../controllers/rsvp-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
 import * as adminController from '../controllers/admin-controller.js';
 import * as gdprController from '../controllers/gdpr-controller.js';
 import * as announcementController from '../controllers/announcement-controller.js';
 import * as budgetController from '../controllers/budget-controller.js';
-import * as guestGroupsController from '../controllers/guest-groups-controller.js';
 import * as eventDocumentsController from '../controllers/event-documents-controller.js';
 import * as analyticsController from '../controllers/analytics-controller.js';
 import * as notificationsController from '../controllers/notifications-controller.js';
 import * as notificationPreferencesController from '../controllers/notification-preferences-controller.js';
 import * as activityFeedController from '../controllers/activity-feed-controller.js';
-import * as vendorsController from '../controllers/vendors-controller.js';
-import * as shoppingController from '../controllers/shopping-controller.js';
 import * as timelineController from '../controllers/timeline-controller.js';
 import * as seatingController from '../controllers/seating-controller.js';
 import * as communicationController from '../controllers/guest-communication-controller.js';
@@ -35,16 +31,9 @@ import * as budgetTemplatesController from '../controllers/budget-templates-cont
 import * as taskDepsController from '../controllers/task-dependencies-controller.js';
 import * as taskTemplatesController from '../controllers/task-templates-controller.js';
 import * as workloadController from '../controllers/workload-controller.js';
-import * as shoppingBudgetSyncController from '../controllers/shopping-budget-sync-controller.js';
-import * as vendorCommController from '../controllers/vendor-communication-controller.js';
-import * as vendorPerfController from '../controllers/vendor-performance-controller.js';
-import * as storeSuggestionsController from '../controllers/store-suggestions-controller.js';
 import * as entraAuthController from '../controllers/entra-auth-controller.js';
 import * as trackingController from '../controllers/tracking-controller.js';
-import * as guestMergeController from '../controllers/guest-merge-controller.js';
-import * as rsvpConfirmationController from '../controllers/rsvp-confirmation-controller.js';
 import * as rsvpTokenController from '../controllers/rsvp-token-controller.js';
-import * as waitlistController from '../controllers/waitlist-controller.js';
 import * as rsvpQuestionsController from '../controllers/rsvp-questions-controller.js';
 import * as currencyController from '../controllers/currency-controller.js';
 import * as budgetForecastController from '../controllers/budget-forecast-controller.js';
@@ -63,14 +52,13 @@ import * as realtimeController from '../controllers/realtime-controller.js';
 import * as presenceController from '../controllers/presence-controller.js';
 import * as eventChatController from '../controllers/event-chat-controller.js';
 import * as entityVersionsController from '../controllers/entity-versions-controller.js';
-import * as guestExportController from '../controllers/guest-export-controller.js';
-import * as mealOptionsController from '../controllers/meal-options-controller.js';
+
 import * as commTemplatesController from '../controllers/communication-templates-controller.js';
 import * as unsubscribeController from '../controllers/unsubscribe-controller.js';
 import * as qrCheckinController from '../controllers/qr-checkin-controller.js';
 import * as attendanceBoardController from '../controllers/attendance-board-controller.js';
 import * as seatingGroupsController from '../controllers/seating-groups-controller.js';
-import * as guestsController from '../controllers/guests-controller.js';
+
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import {
   apiLimiter,
@@ -102,33 +90,6 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const DOCUMENTS_DIR = path.resolve('uploads/event-documents');
 if (!fs.existsSync(DOCUMENTS_DIR)) fs.mkdirSync(DOCUMENTS_DIR, { recursive: true });
-
-const VENDOR_CONTRACTS_DIR = path.resolve('uploads/vendor-contracts');
-if (!fs.existsSync(VENDOR_CONTRACTS_DIR)) fs.mkdirSync(VENDOR_CONTRACTS_DIR, { recursive: true });
-
-// In-memory multer for CSV / XLSX imports (no disk write needed)
-const csvUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const lower = file.originalname.toLowerCase();
-    const acceptedMimes = new Set([
-      'text/csv',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ]);
-    if (
-      acceptedMimes.has(file.mimetype) ||
-      lower.endsWith('.csv') ||
-      lower.endsWith('.xlsx') ||
-      lower.endsWith('.xls')
-    ) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only CSV and Excel files (.csv, .xlsx, .xls) are accepted'));
-    }
-  },
-});
 
 // Configure multer for profile photo uploads
 const storage = multer.diskStorage({
@@ -176,27 +137,6 @@ const documentUpload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only PDF, JPEG, PNG, WebP, HEIC, and HEIF files are accepted'));
-    }
-  },
-});
-
-const contractStorage = multer.diskStorage({
-  destination: VENDOR_CONTRACTS_DIR,
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, 'contract-' + uniqueSuffix + ext);
-  },
-});
-
-const contractUpload = multer({
-  storage: contractStorage,
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only PDF files are accepted for contracts'));
     }
   },
 });

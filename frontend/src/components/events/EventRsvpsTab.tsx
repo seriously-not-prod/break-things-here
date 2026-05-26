@@ -39,7 +39,6 @@ interface EventRsvpsTabProps {
   rsvps: Rsvp[];
   canEdit: boolean;
   capacity: number | null | undefined;
-  goingHeadcount: number;
   remainingCapacity: number | null;
   onRefresh: () => Promise<void>;
   onError: (msg: string) => void;
