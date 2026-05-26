@@ -84,11 +84,17 @@ import path from 'path';
 import fs from 'fs';
 import { hashPassword } from '../utils/auth-helpers.js';
 import { getDatabase } from '../db/database.js';
+import vendorRoutes from './vendor.routes.js';
+import guestRoutes from './guest.routes.js';
 
 const router = Router();
 
 // Apply rate limiting to all API routes
 router.use(apiLimiter);
+
+// Mount extracted sub-routers
+router.use(vendorRoutes);
+router.use(guestRoutes);
 
 // Ensure uploads directory exists outside web root
 const UPLOADS_DIR = path.resolve('uploads/profile-photos');
@@ -290,135 +296,6 @@ router.patch(
   authenticateToken,
   notificationPreferencesController.patchPreferences,
 );
-router.get('/rsvps', authenticateToken, legacyRsvpController.getAllRsvps);
-router.get('/rsvps/:id', authenticateToken, legacyRsvpController.getRsvpById);
-router.post('/rsvps', legacyRsvpController.submitRsvp);
-router.put('/rsvps/:id', authenticateToken, legacyRsvpController.updateRsvp);
-router.delete('/rsvps/:id', authenticateToken, legacyRsvpController.deleteRsvp);
-router.get('/events/:eventId/guests', authenticateToken, rsvpController.listRsvps);
-router.post('/events/:eventId/guests', authenticateToken, rsvpController.createRsvp);
-router.get('/events/:eventId/rsvps', authenticateToken, rsvpController.listRsvps);
-router.post('/events/:eventId/rsvps', rsvpController.createRsvp);
-// Specific sub-paths must be registered BEFORE /:id parameterized routes
-router.get('/events/:eventId/guests/export', authenticateToken, rsvpController.exportRsvpsCsv);
-router.post(
-  '/events/:eventId/guests/import',
-  authenticateToken,
-  csvUpload.single('file'),
-  rsvpController.importCsv,
-);
-router.patch('/events/:eventId/guests/:id', authenticateToken, rsvpController.updateRsvp);
-router.delete('/events/:eventId/guests/:id', authenticateToken, rsvpController.deleteRsvp);
-router.patch('/events/:eventId/guests/:id/checkin', authenticateToken, rsvpController.checkInGuest);
-router.get('/events/:eventId/rsvps/export', authenticateToken, rsvpController.exportRsvpsCsv);
-router.get(
-  '/events/:eventId/rsvps/import/template.csv',
-  authenticateToken,
-  rsvpController.exportRsvpsImportTemplateCsv,
-);
-router.get(
-  '/events/:eventId/rsvps/export.xlsx',
-  authenticateToken,
-  guestExportController.exportRsvpsXlsx,
-);
-router.get(
-  '/events/:eventId/rsvps/export.pdf',
-  authenticateToken,
-  guestExportController.exportRsvpsPdfData,
-);
-router.post(
-  '/events/:eventId/rsvps/import',
-  authenticateToken,
-  csvUpload.single('file'),
-  rsvpController.importCsv,
-);
-router.get(
-  '/events/:eventId/rsvps/duplicates',
-  authenticateToken,
-  guestMergeController.listDuplicates,
-);
-router.get(
-  '/events/:eventId/rsvps/lookup',
-  authenticateToken,
-  guestMergeController.lookupRsvpsByEmail,
-);
-router.get('/events/:eventId/guest-merges', authenticateToken, guestMergeController.listMergeAudit);
-router.post(
-  '/events/:eventId/rsvps/:id/merge',
-  authenticateToken,
-  guestMergeController.mergeGuests,
-);
-router.post(
-  '/events/:eventId/rsvps/:id/send-confirmation',
-  authenticateToken,
-  rsvpConfirmationController.sendRsvpConfirmation,
-);
-router.get(
-  '/events/:eventId/rsvps/:id/ics',
-  authenticateToken,
-  rsvpConfirmationController.downloadRsvpIcs,
-);
-router.get(
-  '/events/:eventId/rsvps/:id/qr.svg',
-  authenticateToken,
-  rsvpConfirmationController.getRsvpQr,
-);
-router.post(
-  '/events/:eventId/rsvps/:id/token',
-  authenticateToken,
-  rsvpTokenController.issueRsvpToken,
-);
-router.patch('/events/:eventId/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
-router.patch('/events/:eventId/rsvps/:id/checkin', authenticateToken, rsvpController.checkInGuest);
-// Planner-side unsubscribe toggle (#444)
-router.patch(
-  '/events/:eventId/rsvps/:id/unsubscribe',
-  authenticateToken,
-  rsvpController.setUnsubscribed,
-);
-router.delete('/events/:eventId/rsvps/:id', authenticateToken, rsvpController.deleteRsvp);
-
-// ============ WAITLIST ROUTES — #413, #442 ============
-router.get('/events/:eventId/waitlist', authenticateToken, waitlistController.listWaitlist);
-router.post('/events/:eventId/waitlist', authenticateToken, waitlistController.addRsvpToWaitlist);
-router.post(
-  '/events/:eventId/waitlist/promote',
-  authenticateToken,
-  waitlistController.promoteWaitlist,
-);
-router.delete(
-  '/events/:eventId/waitlist/:id',
-  authenticateToken,
-  waitlistController.removeFromWaitlist,
-);
-
-// ============ CUSTOM RSVP QUESTIONS — #413, #443 ============
-router.get(
-  '/events/:eventId/rsvp-questions',
-  authenticateToken,
-  rsvpQuestionsController.listQuestions,
-);
-router.post(
-  '/events/:eventId/rsvp-questions',
-  authenticateToken,
-  rsvpQuestionsController.createQuestion,
-);
-router.patch(
-  '/events/:eventId/rsvp-questions/:id',
-  authenticateToken,
-  rsvpQuestionsController.updateQuestion,
-);
-router.delete(
-  '/events/:eventId/rsvp-questions/:id',
-  authenticateToken,
-  rsvpQuestionsController.deleteQuestion,
-);
-router.get(
-  '/events/:eventId/rsvp-questions/responses',
-  authenticateToken,
-  rsvpQuestionsController.listResponses,
-);
-
 // ============ CURRENCY & EXCHANGE RATES — #418, #461 ============
 router.get('/currency/supported', currencyController.listSupportedCurrencies);
 router.get('/currency/rates', authenticateToken, currencyController.listRates);
@@ -480,28 +357,6 @@ router.post(
   '/events/:eventId/communication/templates/:id/preview',
   authenticateToken,
   commTemplatesController.previewTemplate,
-);
-
-// ============ MEAL OPTIONS (#591) ============
-router.get(
-  '/events/:eventId/meal-options',
-  authenticateToken,
-  mealOptionsController.listMealOptions,
-);
-router.post(
-  '/events/:eventId/meal-options',
-  authenticateToken,
-  mealOptionsController.createMealOption,
-);
-router.patch(
-  '/events/:eventId/meal-options/:id',
-  authenticateToken,
-  mealOptionsController.updateMealOption,
-);
-router.delete(
-  '/events/:eventId/meal-options/:id',
-  authenticateToken,
-  mealOptionsController.deleteMealOption,
 );
 
 // ============ QR CHECK-IN + ATTENDANCE BOARD (#546, #589, #594, #595) ============
@@ -1042,124 +897,6 @@ router.delete('/notifications/:id', authenticateToken, notificationsController.d
 router.post('/notifications/mark-all-read', authenticateToken, notificationsController.markAllRead);
 router.get('/notifications/digest', authenticateToken, notificationsController.getDueTaskAlerts);
 
-// ============ VENDOR ROUTES — BRD 3.6 ============
-// Static sub-paths must be registered BEFORE parameterised /:id routes
-router.get('/events/:eventId/vendors', authenticateToken, vendorsController.listVendors);
-router.post('/events/:eventId/vendors', authenticateToken, vendorsController.createVendor);
-router.get(
-  '/events/:eventId/vendors/favorites',
-  authenticateToken,
-  vendorsController.listFavoriteVendors,
-);
-router.get(
-  '/events/:eventId/vendors/compare',
-  authenticateToken,
-  vendorCommController.compareVendors,
-);
-router.get(
-  '/events/:eventId/vendors/performance',
-  authenticateToken,
-  vendorPerfController.listVendorPerformance,
-);
-router.put('/events/:eventId/vendors/:id', authenticateToken, vendorsController.updateVendor);
-router.delete('/events/:eventId/vendors/:id', authenticateToken, vendorsController.deleteVendor);
-router.put(
-  '/events/:eventId/vendors/:id/favorite',
-  authenticateToken,
-  vendorsController.setVendorFavorite,
-);
-router.post(
-  '/events/:eventId/vendors/:id/contract',
-  authenticateToken,
-  contractUpload.single('file'),
-  vendorsController.uploadContract,
-);
-router.get(
-  '/events/:eventId/vendors/:id/booking',
-  authenticateToken,
-  vendorsController.getVendorBooking,
-);
-router.put(
-  '/events/:eventId/vendors/:id/booking',
-  authenticateToken,
-  vendorsController.upsertVendorBooking,
-);
-router.get(
-  '/events/:eventId/vendors/:id/payment-schedules',
-  authenticateToken,
-  vendorsController.listVendorPaymentSchedules,
-);
-router.post(
-  '/events/:eventId/vendors/:id/payment-schedules',
-  authenticateToken,
-  vendorsController.createVendorPaymentSchedule,
-);
-router.get(
-  '/events/:eventId/vendors/:vendorId/communication',
-  authenticateToken,
-  vendorCommController.listVendorCommunication,
-);
-router.post(
-  '/events/:eventId/vendors/:vendorId/communication',
-  authenticateToken,
-  vendorCommController.addVendorCommunication,
-);
-router.delete(
-  '/events/:eventId/vendors/:vendorId/communication/:logId',
-  authenticateToken,
-  vendorCommController.deleteVendorCommunication,
-);
-router.get(
-  '/events/:eventId/vendors/:vendorId/performance',
-  authenticateToken,
-  vendorPerfController.getVendorPerformance,
-);
-
-// ============ SHOPPING LIST ROUTES — BRD 3.7 ============
-router.get('/events/:eventId/shopping-lists', authenticateToken, shoppingController.listLists);
-router.post('/events/:eventId/shopping-lists', authenticateToken, shoppingController.createList);
-router.delete(
-  '/events/:eventId/shopping-lists/:listId',
-  authenticateToken,
-  shoppingController.deleteList,
-);
-router.get(
-  '/events/:eventId/shopping-lists/:listId/items',
-  authenticateToken,
-  shoppingController.listItems,
-);
-router.post(
-  '/events/:eventId/shopping-lists/:listId/items',
-  authenticateToken,
-  shoppingController.createItem,
-);
-router.put(
-  '/events/:eventId/shopping-lists/:listId/items/:itemId',
-  authenticateToken,
-  shoppingController.updateItem,
-);
-router.delete(
-  '/events/:eventId/shopping-lists/:listId/items/:itemId',
-  authenticateToken,
-  shoppingController.deleteItem,
-);
-// #552/#608 — price comparison endpoints
-router.patch(
-  '/events/:eventId/shopping-lists/:listId/items/:itemId/price-data',
-  authenticateToken,
-  shoppingController.updateItemPriceData,
-);
-router.get(
-  '/events/:eventId/shopping-lists/:listId/price-comparison',
-  authenticateToken,
-  shoppingController.getListPriceComparison,
-);
-router.get(
-  '/events/:eventId/shopping/price-comparison',
-  authenticateToken,
-  shoppingController.getEventPriceComparison,
-);
-
 // ============ TIMELINE ROUTES — BRD 3.8 ============
 // /conflicts and /comparison must be before /:id to avoid being swallowed by a future parameterised GET
 router.get(
@@ -1359,60 +1096,6 @@ router.delete(
 
 // ============ WORKLOAD DASHBOARD — #451 ============
 router.get('/events/:eventId/workload', authenticateToken, workloadController.getWorkload);
-
-// ============ SHOPPING → BUDGET SYNC — #439 / #800 ============
-router.post(
-  '/events/:eventId/shopping-lists/:listId/items/:itemId/sync-to-budget',
-  authenticateToken,
-  shoppingBudgetSyncController.syncItemToBudget,
-);
-router.delete(
-  '/events/:eventId/shopping-lists/:listId/items/:itemId/sync-to-budget',
-  authenticateToken,
-  shoppingBudgetSyncController.unsyncItemFromBudget,
-);
-
-// ============ VENDOR COMMUNICATION LOG & COMPARE — #452 (registered in vendor section above)
-
-// ============ VENDOR PERFORMANCE METRICS — #463 (registered in vendor section above)
-
-// ============ STORE SUGGESTIONS — #464
-router.get(
-  '/events/:eventId/store-suggestions',
-  authenticateToken,
-  storeSuggestionsController.listStoreSuggestions,
-);
-router.post(
-  '/events/:eventId/store-suggestions',
-  authenticateToken,
-  storeSuggestionsController.createStoreSuggestion,
-);
-router.patch(
-  '/events/:eventId/store-suggestions/:id',
-  authenticateToken,
-  storeSuggestionsController.updateStoreSuggestionStatus,
-);
-router.delete(
-  '/events/:eventId/store-suggestions/:id',
-  authenticateToken,
-  storeSuggestionsController.deleteStoreSuggestion,
-);
-// #607 — store suggestion engine
-router.get(
-  '/events/:eventId/store-suggestions/recommendations',
-  authenticateToken,
-  storeSuggestionsController.getStoreSuggestionRecommendations,
-);
-router.get(
-  '/events/:eventId/store-suggestions/categories',
-  authenticateToken,
-  storeSuggestionsController.listStoreSuggestionCategories,
-);
-router.post(
-  '/events/:eventId/store-suggestions/:id/select',
-  authenticateToken,
-  storeSuggestionsController.selectStoreSuggestion,
-);
 
 // ============ TIMELINE CONFLICT DETECTION — #441 (registered in timeline section above)
 
@@ -1645,58 +1328,6 @@ router.post(
   '/events/:eventId/entities/:entityId/rollback',
   authenticateToken,
   entityVersionsController.rollbackEntityVersion,
-);
-
-// ============ GUEST GROUPS & BULK OPS — #667 ============
-router.get(
-  '/events/:eventId/guest-groups',
-  authenticateToken,
-  guestGroupsController.listGuestGroups,
-);
-router.post(
-  '/events/:eventId/guest-groups',
-  authenticateToken,
-  guestGroupsController.createGuestGroup,
-);
-router.put(
-  '/events/:eventId/guest-groups/:id',
-  authenticateToken,
-  guestGroupsController.updateGuestGroup,
-);
-router.delete(
-  '/events/:eventId/guest-groups/:id',
-  authenticateToken,
-  guestGroupsController.deleteGuestGroup,
-);
-router.post(
-  '/events/:eventId/guest-groups/:id/members',
-  authenticateToken,
-  guestGroupsController.addGroupMembers,
-);
-router.delete(
-  '/events/:eventId/guest-groups/:id/members',
-  authenticateToken,
-  guestGroupsController.removeGroupMembers,
-);
-router.post(
-  '/events/:eventId/guest-groups/csv-import',
-  authenticateToken,
-  guestGroupsController.csvImportGuests,
-);
-router.post(
-  '/events/:eventId/guest-groups/bulk-checkin',
-  authenticateToken,
-  guestGroupsController.bulkCheckIn,
-);
-
-router.get('/events/:eventId/guest-records', authenticateToken, guestsController.listGuests);
-router.get('/events/:eventId/guest-records/:id', authenticateToken, guestsController.getGuest);
-router.post('/events/:eventId/guest-records', authenticateToken, guestsController.createGuest);
-router.put('/events/:eventId/guest-records/:id', authenticateToken, guestsController.updateGuest);
-router.delete(
-  '/events/:eventId/guest-records/:id',
-  authenticateToken,
-  guestsController.deleteGuest,
 );
 
 // ============ GDPR — #680 ============
