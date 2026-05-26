@@ -1585,6 +1585,9 @@ router.get('/realtime/stream', authenticateToken, realtimeController.streamRealt
 // ── #811: User presence (online/offline/idle) ─────────────────────────────────────────────
 router.post('/user-presence/heartbeat', authenticateToken, presenceController.heartbeat);
 router.delete('/user-presence/leave', authenticateToken, presenceController.leave);
+// POST alias for leave — navigator.sendBeacon can only send POST requests,
+// so tab-close / page-unload signals arrive as POST.
+router.post('/user-presence/leave', authenticateToken, presenceController.leave);
 router.get('/user-presence/online', authenticateToken, presenceController.online);
 
 // ── #628: Event team chat ─────────────────────────────────────────────────────────────────

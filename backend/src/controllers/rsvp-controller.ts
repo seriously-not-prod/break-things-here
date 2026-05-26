@@ -5,6 +5,12 @@ import {
   normalizeLegacyRsvpStatusInput,
   RSVP_STATUS_INPUT_ALIAS_LIST,
 } from '../utils/rsvp-taxonomy';
+import { logger } from '../utils/logger';
+import { validateEmailFormat } from '../utils/auth-helpers';
+
+interface AuthRequest extends Request {
+  user?: { id: number; email: string; role_id: number };
+}
 
 export interface RsvpData {
   event_id: number;
@@ -23,11 +29,11 @@ export async function getAllRsvps(req: Request, res: Response): Promise<void> {
     const { event_id } = req.query;
 
     let query = 'SELECT * FROM rsvps';
-    const params: any[] = [];
+    const params: (string | number)[] = [];
 
     if (event_id) {
       query += ' WHERE event_id = $1';
-      params.push(event_id);
+      params.push(String(event_id));
     }
 
     query += ' ORDER BY created_at DESC';
@@ -36,7 +42,7 @@ export async function getAllRsvps(req: Request, res: Response): Promise<void> {
 
     res.json(rsvps);
   } catch (error) {
-    console.error('Error fetching RSVPs:', error);
+    logger.error('Error fetching RSVPs', { error });
     res.status(500).json({ error: 'Failed to fetch RSVPs' });
   }
 }
@@ -58,7 +64,7 @@ export async function getRsvpById(req: Request, res: Response): Promise<void> {
 
     res.json(rsvp);
   } catch (error) {
-    console.error('Error fetching RSVP:', error);
+    logger.error('Error fetching RSVP', { error, id: req.params.id });
     res.status(500).json({ error: 'Failed to fetch RSVP' });
   }
 }
@@ -77,19 +83,7 @@ export async function submitRsvp(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // Email validation without regex to prevent ReDoS
-    const atIndex = email.indexOf('@');
-    const lastAtIndex = email.lastIndexOf('@');
-    const lastDotIndex = email.lastIndexOf('.');
-
-    if (
-      email.length > 254 ||
-      atIndex === -1 ||
-      atIndex !== lastAtIndex ||
-      atIndex === 0 ||
-      lastDotIndex <= atIndex ||
-      lastDotIndex === email.length - 1
-    ) {
+    if (!validateEmailFormat(email)) {
       res.status(400).json({ error: 'Invalid email format' });
       return;
     }
@@ -141,7 +135,7 @@ export async function submitRsvp(req: Request, res: Response): Promise<void> {
 
     res.status(201).json(newRsvp);
   } catch (error) {
-    console.error('Error submitting RSVP:', error);
+    logger.error('Error submitting RSVP', { error });
     res.status(500).json({ error: 'Failed to submit RSVP' });
   }
 }
@@ -153,7 +147,7 @@ export async function updateRsvp(req: Request, res: Response): Promise<void> {
   try {
     const db = getDatabase();
     const { id } = req.params;
-    const userId = (req as any).user?.id;
+    const userId = (req as AuthRequest).user?.id;
 
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
@@ -183,23 +177,9 @@ export async function updateRsvp(req: Request, res: Response): Promise<void> {
       canonicalStatus = toCanonicalStatus(legacyForm);
     }
 
-    if (email) {
-      // Email validation without regex to prevent ReDoS
-      const atIndex = email.indexOf('@');
-      const lastAtIndex = email.lastIndexOf('@');
-      const lastDotIndex = email.lastIndexOf('.');
-
-      if (
-        email.length > 254 ||
-        atIndex === -1 ||
-        atIndex !== lastAtIndex ||
-        atIndex === 0 ||
-        lastDotIndex <= atIndex ||
-        lastDotIndex === email.length - 1
-      ) {
-        res.status(400).json({ error: 'Invalid email format' });
-        return;
-      }
+    if (email && !validateEmailFormat(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
+      return;
     }
 
     await db.run(
@@ -221,36 +201,51 @@ export async function updateRsvp(req: Request, res: Response): Promise<void> {
 
     res.json(updatedRsvp);
   } catch (error) {
-    console.error('Error updating RSVP:', error);
+    logger.error('Error updating RSVP', { error, id: req.params.id });
     res.status(500).json({ error: 'Failed to update RSVP' });
   }
 }
 
 /**
- * Delete an RSVP (requires auth)
+ * Delete an RSVP (requires auth — user must own the RSVP or be an event admin)
  */
 export async function deleteRsvp(req: Request, res: Response): Promise<void> {
   try {
     const db = getDatabase();
     const { id } = req.params;
-    const userId = (req as any).user?.id;
+    const user = (req as AuthRequest).user;
 
-    if (!userId) {
+    if (!user) {
       res.status(401).json({ error: 'User not authenticated' });
       return;
     }
 
-    const rsvp = await db.get('SELECT * FROM rsvps WHERE id = $1', [id]);
+    const rsvp = await db.get<{ id: number; event_id: number; email: string }>(
+      'SELECT id, event_id, email FROM rsvps WHERE id = $1',
+      [id],
+    );
     if (!rsvp) {
       res.status(404).json({ error: 'RSVP not found' });
       return;
+    }
+
+    // Authorization: allow if user is admin (role_id >= 3) or event creator
+    if (user.role_id < 3) {
+      const event = await db.get<{ created_by: number }>(
+        'SELECT created_by FROM events WHERE id = $1',
+        [rsvp.event_id],
+      );
+      if (!event || event.created_by !== user.id) {
+        res.status(403).json({ error: 'Not authorised to delete this RSVP' });
+        return;
+      }
     }
 
     await db.run('DELETE FROM rsvps WHERE id = $1', [id]);
 
     res.json({ message: 'RSVP deleted successfully' });
   } catch (error) {
-    console.error('Error deleting RSVP:', error);
+    logger.error('Error deleting RSVP', { error, id: req.params.id });
     res.status(500).json({ error: 'Failed to delete RSVP' });
   }
 }

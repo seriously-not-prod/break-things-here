@@ -33,7 +33,12 @@ export function useEvents(filters?: Record<string, unknown>) {
     queryKey: EVENT_QUERY_KEYS.list(filters),
     queryFn: async () => {
       const params = filters
-        ? '?' + new URLSearchParams(filters as Record<string, string>).toString()
+        ? '?' + new URLSearchParams(
+            Object.entries(filters).reduce<Record<string, string>>((acc, [k, v]) => {
+              if (v != null && v !== '') acc[k] = String(v);
+              return acc;
+            }, {}),
+          ).toString()
         : '';
       const data = await api.get<{ events: EventDetail[] }>(`/api/events${params}`);
       return data.events ?? [];
