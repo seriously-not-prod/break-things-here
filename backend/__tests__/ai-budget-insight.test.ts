@@ -343,9 +343,24 @@ describe('getBudgetInsight — successful insight generation', () => {
               riskLevel: 'high',
               anomalies: [],
               recommendations: [
-                { category: 'Overall', insight: 'No budget set up.', action: 'Create budget categories.', priority: 'high' },
-                { category: 'Overall', insight: 'Allocate funds to at least 3 categories.', action: 'Set up venue, food, and marketing budgets.', priority: 'high' },
-                { category: 'Overall', insight: 'Without budget tracking, overspend risk is high.', action: 'Enable expense tracking immediately.', priority: 'critical' },
+                {
+                  category: 'Overall',
+                  insight: 'No budget set up.',
+                  action: 'Create budget categories.',
+                  priority: 'high',
+                },
+                {
+                  category: 'Overall',
+                  insight: 'Allocate funds to at least 3 categories.',
+                  action: 'Set up venue, food, and marketing budgets.',
+                  priority: 'high',
+                },
+                {
+                  category: 'Overall',
+                  insight: 'Without budget tracking, overspend risk is high.',
+                  action: 'Enable expense tracking immediately.',
+                  priority: 'critical',
+                },
               ],
             }),
           },
@@ -405,9 +420,24 @@ describe('getBudgetInsight — successful insight generation', () => {
               riskLevel: 'critical',
               anomalies: ['Venue spend is 25% over allocation'],
               recommendations: [
-                { category: 'Venue', insight: 'Overspent by $500.', action: 'Negotiate refund or cut other costs.', priority: 'critical' },
-                { category: 'Lighting', insight: 'Under budget — good.', action: 'Maintain current spend rate.', priority: 'low' },
-                { category: 'Overall', insight: 'Total overspend of $400.', action: 'Review all vendor invoices.', priority: 'high' },
+                {
+                  category: 'Venue',
+                  insight: 'Overspent by $500.',
+                  action: 'Negotiate refund or cut other costs.',
+                  priority: 'critical',
+                },
+                {
+                  category: 'Lighting',
+                  insight: 'Under budget — good.',
+                  action: 'Maintain current spend rate.',
+                  priority: 'low',
+                },
+                {
+                  category: 'Overall',
+                  insight: 'Total overspend of $400.',
+                  action: 'Review all vendor invoices.',
+                  priority: 'high',
+                },
               ],
             }),
           },
@@ -487,9 +517,24 @@ describe('parseBudgetInsightOutput', () => {
       riskLevel: 'low',
       anomalies: ['Category X near threshold'],
       recommendations: [
-        { category: 'Stage', insight: 'On track.', action: 'Continue monitoring.', priority: 'low' },
-        { category: 'Food', insight: 'High spend.', action: 'Reduce catering cost.', priority: 'high' },
-        { category: 'Overall', insight: 'Reserve contingency.', action: 'Set aside 10%.', priority: 'medium' },
+        {
+          category: 'Stage',
+          insight: 'On track.',
+          action: 'Continue monitoring.',
+          priority: 'low',
+        },
+        {
+          category: 'Food',
+          insight: 'High spend.',
+          action: 'Reduce catering cost.',
+          priority: 'high',
+        },
+        {
+          category: 'Overall',
+          insight: 'Reserve contingency.',
+          action: 'Set aside 10%.',
+          priority: 'medium',
+        },
       ],
     });
 
@@ -505,16 +550,24 @@ describe('parseBudgetInsightOutput', () => {
   it('strips markdown code fences before parsing', async () => {
     const { parseBudgetInsightOutput } = await loadController();
 
-    const raw = '```json\n' + JSON.stringify({
-      summary: 'OK',
-      riskLevel: 'medium',
-      anomalies: [],
-      recommendations: [
-        { category: 'Overall', insight: 'Fine.', action: 'Monitor.', priority: 'low' },
-        { category: 'Venue', insight: 'Watch spend.', action: 'Check weekly.', priority: 'medium' },
-        { category: 'Food', insight: 'On track.', action: 'Keep going.', priority: 'low' },
-      ],
-    }) + '\n```';
+    const raw =
+      '```json\n' +
+      JSON.stringify({
+        summary: 'OK',
+        riskLevel: 'medium',
+        anomalies: [],
+        recommendations: [
+          { category: 'Overall', insight: 'Fine.', action: 'Monitor.', priority: 'low' },
+          {
+            category: 'Venue',
+            insight: 'Watch spend.',
+            action: 'Check weekly.',
+            priority: 'medium',
+          },
+          { category: 'Food', insight: 'On track.', action: 'Keep going.', priority: 'low' },
+        ],
+      }) +
+      '\n```';
 
     const result = parseBudgetInsightOutput(raw);
 
@@ -568,9 +621,7 @@ describe('parseBudgetInsightOutput', () => {
       summary: 'Test',
       riskLevel: 'extreme', // invalid value
       anomalies: [],
-      recommendations: [
-        { category: 'Overall', insight: 'Fine.', action: 'OK.', priority: 'low' },
-      ],
+      recommendations: [{ category: 'Overall', insight: 'Fine.', action: 'OK.', priority: 'low' }],
     });
 
     const result = parseBudgetInsightOutput(input);
