@@ -54,9 +54,7 @@ function reasonLabel(reason: string): string {
   }
 }
 
-function reasonColor(
-  reason: string,
-): 'error' | 'warning' | 'default' {
+function reasonColor(reason: string): 'error' | 'warning' | 'default' {
   if (reason === 'overlap' || reason === 'resource_double_book') return 'error';
   if (reason === 'adjacent_no_buffer' || reason === 'sort_dependency') return 'warning';
   return 'default';
