@@ -33,6 +33,14 @@ import { api, ApiError } from '../../lib/api-client';
 type Context = 'general' | 'event' | 'task' | 'rsvp';
 type WorkflowType = 'event' | 'task' | 'rsvp';
 
+/** Returns a user-facing error message, with a specific denial copy for 403. */
+function resolveAiErrorMessage(err: unknown): string {
+  if (err instanceof ApiError && err.status === 403) {
+    return 'You do not have permission to use AI features. Contact your administrator.';
+  }
+  return err instanceof ApiError ? err.message : 'AI request failed.';
+}
+
 interface Message {
   role: 'user' | 'assistant';
   text: string;
@@ -389,7 +397,7 @@ export function AiAssistant(): JSX.Element {
       });
       setMessages((prev) => [...prev, { role: 'assistant', text: data.suggestion }]);
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'AI request failed.';
+      const message = resolveAiErrorMessage(err);
       setMessages((prev) => [...prev, { role: 'assistant', text: `⚠️ ${message}` }]);
     } finally {
       setLoading(false);
@@ -412,7 +420,7 @@ export function AiAssistant(): JSX.Element {
       });
       setWorkflowResult(data);
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'AI request failed.';
+      const message = resolveAiErrorMessage(err);
       setWorkflowError(message);
     } finally {
       setWorkflowLoading(false);
@@ -449,7 +457,7 @@ export function AiAssistant(): JSX.Element {
       });
       setBreakdownResult(data);
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'AI request failed.';
+      const message = resolveAiErrorMessage(err);
       setBreakdownError(message);
     } finally {
       setBreakdownLoading(false);
@@ -472,7 +480,7 @@ export function AiAssistant(): JSX.Element {
       });
       setBudgetResult(data);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'AI request failed.';
+      const message = resolveAiErrorMessage(err);
       setBudgetError(message);
     } finally {
       setBudgetLoading(false);
