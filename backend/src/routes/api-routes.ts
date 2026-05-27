@@ -194,6 +194,13 @@ router.post(
   applyAiPrivacyControls,
   aiController.getVendorRecommendation,
 );
+router.post(
+  '/ai/conflict-resolution',
+  authenticateToken,
+  requireAiAccess,
+  applyAiPrivacyControls,
+  aiController.getConflictResolutionSuggestions,
+);
 
 // ============ PUBLIC RSVP ROUTES ==========
 // All unauthenticated public endpoints share a tighter per-IP limiter

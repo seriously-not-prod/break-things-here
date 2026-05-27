@@ -63,12 +63,18 @@ import {
   parseBudgetInsightOutput as parseBudgetInsightSchema,
   parseTaskBreakdownOutput as parseTaskBreakdownSchema,
   parseVendorRecommendationOutput as parseVendorRecommendationSchema,
+  parseConflictResolutionOutput as parseConflictResolutionSchema,
   formatValidationErrors,
   type EventSuggestionSchema,
   type TaskSuggestionSchema,
   type RsvpSuggestionSchema,
   type VendorRecommendationItemSchema,
+  type ConflictResolutionSuggestionSchema,
 } from '../lib/ai-schemas.js';
+import {
+  detectTimelineConflicts,
+  type TimelineActivitySnapshot,
+} from '../services/timeline-conflict.js';
 import {
   sanitiseInput,
   validateAiOutput,
@@ -1935,6 +1941,337 @@ export async function getVendorRecommendation(req: AuthRequest, res: Response): 
         userId,
         eventType: 'provider_timeout',
         workflowType: 'vendor_recommendation',
+        entityId: parsedEventId,
+        threatCategories: [],
+        detail: message,
+      });
+    }
+    return res.status(502).json({ error: `AI request failed: ${message}` });
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// Timeline Conflict Resolution Suggestions — Story #954
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ConflictResolutionBody {
+  eventId: number;
+  prompt?: string;
+}
+
+interface ConflictActivityRow {
+  id: number;
+  title: string;
+  start_time: string | null;
+  end_time: string | null;
+  planned_start_time: string | null;
+  planned_end_time: string | null;
+  sort_order: number;
+  vendor_id: number | null;
+  location: string | null;
+  buffer_before_mins: number;
+  buffer_after_mins: number;
+}
+
+/** Full response returned by POST /api/ai/conflict-resolution. */
+export interface ConflictResolutionResponse {
+  workflowType: 'conflict-resolution';
+  eventId: number;
+  eventTitle: string;
+  conflictCount: number;
+  suggestions: ConflictResolutionSuggestionSchema[];
+  summary: string;
+  advisoryLabel: string;
+  raw: string;
+  contextSummary: {
+    activityCount: number;
+    groundedConflicts: number;
+  };
+}
+
+async function fetchConflictResolutionContext(eventId: number): Promise<{
+  eventTitle: string;
+  activities: TimelineActivitySnapshot[];
+} | null> {
+  const db = getDatabase();
+
+  const event = await db.get<{ title: string }>(
+    `SELECT title FROM events WHERE id = $1 AND deleted_at IS NULL`,
+    [eventId],
+  );
+  if (!event) return null;
+
+  const rows = await db.all<ConflictActivityRow>(
+    `SELECT id, title, start_time, end_time, planned_start_time, planned_end_time,
+            sort_order, vendor_id, location,
+            COALESCE(buffer_before_mins, 0) AS buffer_before_mins,
+            COALESCE(buffer_after_mins, 0) AS buffer_after_mins
+     FROM timeline_activities
+     WHERE event_id = $1
+     ORDER BY sort_order ASC, start_time ASC NULLS LAST`,
+    [eventId],
+  );
+
+  const activities: TimelineActivitySnapshot[] = rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    start_time: r.start_time,
+    end_time: r.end_time,
+    planned_start_time: r.planned_start_time,
+    planned_end_time: r.planned_end_time,
+    sort_order: r.sort_order,
+    vendor_id: r.vendor_id,
+    location: r.location,
+    buffer_before_mins: r.buffer_before_mins,
+    buffer_after_mins: r.buffer_after_mins,
+  }));
+
+  return { eventTitle: event.title, activities };
+}
+
+const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `You are a timeline conflict resolution advisory AI for festival event management.
+You will receive a list of timeline activities for an event and the detected scheduling conflicts between them.
+Your task is to suggest advisory resolution options for each conflict based ONLY on the data provided.
+
+CRITICAL RULES — you MUST follow these without exception:
+1. ONLY reference activities that appear in the provided data using their exact IDs and titles. Do NOT invent activities.
+2. Use ONLY the fields provided. Do NOT fabricate time constraints, vendor names, or resource details not given.
+3. All suggestions must be advisory-only. Do NOT instruct the system to automatically apply any changes.
+4. Each suggestion must address: the proposed resolution, dependency impact, and resource impact.
+5. The advisoryLabel must clearly state these are AI-generated suggestions for review only.
+
+Return ONLY a valid JSON object (no markdown, no explanation):
+{
+  "summary": "2-3 sentence overview of all detected conflicts and general resolution strategy",
+  "conflictCount": <integer matching the number of conflicts provided>,
+  "advisoryLabel": "AI advisory only — suggestions are based solely on detected timeline conflict data. Review each proposal carefully before making any scheduling changes.",
+  "suggestions": [
+    {
+      "activityAId": <exact id from conflict data>,
+      "activityATitle": "<exact title from conflict data>",
+      "activityBId": <exact id from conflict data>,
+      "activityBTitle": "<exact title from conflict data>",
+      "reason": "<conflict reason from data: overlap|adjacent_no_buffer|resource_double_book|sort_dependency>",
+      "suggestion": "<specific, actionable advisory suggestion using only the supplied data>",
+      "dependencyImpact": "<notes on how this resolution affects dependent activities>",
+      "resourceImpact": "<notes on shared vendor or location impact>",
+      "alternativeSlots": ["<concrete time slot proposal 1>", "<concrete time slot proposal 2>"]
+    }
+  ]
+}`;
+
+function buildConflictResolutionUserMessage(
+  eventTitle: string,
+  activities: TimelineActivitySnapshot[],
+  conflicts: Array<{
+    activity_a_id: number;
+    activity_a_title: string;
+    activity_b_id: number;
+    activity_b_title: string;
+    reason: string;
+    message: string;
+  }>,
+  userPrompt: string,
+): string {
+  const lines: string[] = [`Event: ${eventTitle}`, ''];
+
+  lines.push(`Activities (${activities.length} total):`);
+  for (const a of activities) {
+    const start = a.start_time ?? a.planned_start_time ?? 'unscheduled';
+    const end = a.end_time ?? a.planned_end_time ?? 'unscheduled';
+    const resource =
+      a.location && a.vendor_id
+        ? `location:"${a.location}" vendor_id:${a.vendor_id}`
+        : a.location
+          ? `location:"${a.location}"`
+          : a.vendor_id
+            ? `vendor_id:${a.vendor_id}`
+            : 'no shared resource';
+    const buffer =
+      a.buffer_before_mins > 0 || a.buffer_after_mins > 0
+        ? ` buffer_before:${a.buffer_before_mins}min buffer_after:${a.buffer_after_mins}min`
+        : '';
+    lines.push(
+      `- id:${a.id} | title:"${a.title}" | start:${start} | end:${end} | ${resource}${buffer}`,
+    );
+  }
+
+  lines.push('');
+  lines.push(`Detected conflicts (${conflicts.length}):`);
+  if (conflicts.length === 0) {
+    lines.push('- No conflicts detected.');
+  } else {
+    for (const c of conflicts) {
+      lines.push(
+        `- [${c.reason}] activity_a id:${c.activity_a_id} "${c.activity_a_title}" vs activity_b id:${c.activity_b_id} "${c.activity_b_title}" — ${c.message}`,
+      );
+    }
+  }
+
+  lines.push('');
+  lines.push(`User request: ${userPrompt}`);
+  return lines.join('\n');
+}
+
+/**
+ * POST /api/ai/conflict-resolution
+ *
+ * Fetches live timeline activity data for an event, runs deterministic conflict
+ * detection via the timeline-conflict service, then calls the AI model with
+ * the grounded conflict data to generate advisory resolution suggestions.
+ *
+ * Returns a structured JSON response with:
+ * - one advisory suggestion per detected conflict
+ * - dependency and resource impact notes per suggestion
+ * - alternative scheduling proposals per suggestion
+ * - explicit advisory-only label (must be surfaced in the UI)
+ * - raw model output for traceability
+ *
+ * Grounding guarantee: all activity IDs in suggestions are cross-validated
+ * against the fetched activity set; fabricated IDs are silently dropped.
+ * When no conflicts exist the endpoint returns an empty suggestions array
+ * rather than fabricating issues.
+ */
+export async function getConflictResolutionSuggestions(
+  req: AuthRequest,
+  res: Response,
+): Promise<Response> {
+  const { eventId, prompt } = req.body as Partial<ConflictResolutionBody>;
+
+  const effectivePrompt =
+    prompt?.trim() ||
+    'Suggest how to resolve each detected timeline conflict with minimal disruption to the event schedule.';
+
+  const parsedEventId = typeof eventId === 'string' ? parseInt(eventId, 10) : eventId;
+  if (
+    !parsedEventId ||
+    typeof parsedEventId !== 'number' ||
+    !Number.isInteger(parsedEventId) ||
+    parsedEventId <= 0
+  ) {
+    return res.status(400).json({ error: 'eventId must be a positive integer.' });
+  }
+
+  const userId = req.user?.id;
+  if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    return res
+      .status(429)
+      .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
+  }
+
+  const provider = resolveAiProviderConfig();
+  if (provider.kind === 'misconfigured') {
+    return res.status(503).json({ error: provider.message });
+  }
+  if (provider.kind === 'none') {
+    return res.status(503).json({
+      error:
+        'AI suggestions are not configured. Set Azure OpenAI (AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY + AZURE_OPENAI_DEPLOYMENT) or OPENAI_API_KEY.',
+    });
+  }
+
+  let context: { eventTitle: string; activities: TimelineActivitySnapshot[] } | null = null;
+  try {
+    context = await fetchConflictResolutionContext(parsedEventId);
+  } catch {
+    return res.status(500).json({ error: 'Failed to fetch timeline context.' });
+  }
+
+  if (!context) {
+    return res.status(404).json({ error: `Event ${parsedEventId} not found.` });
+  }
+
+  // Run deterministic conflict detection — grounded in real timeline data.
+  const conflicts = detectTimelineConflicts(context.activities);
+
+  // Build the grounded set of valid activity IDs for hallucination prevention.
+  const validActivityIds = new Set(context.activities.map((a) => a.id));
+
+  const userMessage = buildConflictResolutionUserMessage(
+    context.eventTitle,
+    context.activities,
+    conflicts,
+    sanitisePrompt(effectivePrompt, 'conflict_resolution', userId, parsedEventId),
+  );
+
+  const startTime = Date.now();
+  try {
+    const raw = await withProviderTimeout(
+      callAiProvider(
+        provider,
+        hardenSystemPrompt(CONFLICT_RESOLUTION_SYSTEM_PROMPT),
+        userMessage,
+      ),
+    );
+    const durationMs = Date.now() - startTime;
+
+    void logAiRequest({
+      userId,
+      workflowType: 'conflict_resolution',
+      entityId: parsedEventId,
+      provider: provider.kind,
+      durationMs,
+      status: 'success',
+    });
+
+    const outputCheck = validateAiOutput(raw);
+    if (!outputCheck.safe) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'output_rejected',
+        workflowType: 'conflict_resolution',
+        entityId: parsedEventId,
+        threatCategories: [],
+        detail: `Output safety issues: ${outputCheck.issues.join('; ')}`,
+      });
+    }
+
+    // Parse with hallucination guard: only return suggestions for grounded activity IDs.
+    const schemaResult = parseConflictResolutionSchema(outputCheck.text, validActivityIds);
+
+    if (!schemaResult.ok) {
+      const errorSummary = formatValidationErrors(schemaResult.errors);
+      console.warn(
+        `[ai-schemas] getConflictResolutionSuggestions schema validation failed: ${errorSummary}`,
+      );
+    }
+
+    const ADVISORY_FALLBACK =
+      'AI advisory only — suggestions are based solely on detected timeline conflict data. Review each proposal carefully before making any scheduling changes.';
+
+    const response: ConflictResolutionResponse = {
+      workflowType: 'conflict-resolution',
+      eventId: parsedEventId,
+      eventTitle: context.eventTitle,
+      conflictCount: conflicts.length,
+      suggestions: schemaResult.ok ? schemaResult.data.suggestions : [],
+      summary: schemaResult.ok ? schemaResult.data.summary : '',
+      advisoryLabel: schemaResult.ok
+        ? (schemaResult.data.advisoryLabel || ADVISORY_FALLBACK)
+        : ADVISORY_FALLBACK,
+      raw: outputCheck.text,
+      contextSummary: {
+        activityCount: context.activities.length,
+        groundedConflicts: conflicts.length,
+      },
+    };
+    return res.json(response);
+  } catch (err) {
+    const durationMs = Date.now() - startTime;
+    const message = err instanceof Error ? err.message : 'Unknown AI error';
+    void logAiRequest({
+      userId,
+      workflowType: 'conflict_resolution',
+      entityId: parsedEventId,
+      provider: provider.kind,
+      durationMs,
+      status: 'error',
+      errorMessage: message,
+    });
+    if (message.includes('timed out')) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'provider_timeout',
+        workflowType: 'conflict_resolution',
         entityId: parsedEventId,
         threatCategories: [],
         detail: message,
