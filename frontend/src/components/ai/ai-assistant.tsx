@@ -739,6 +739,7 @@ export function AiAssistant(): JSX.Element {
                     }}
                     fullWidth
                     aria-label="Workflow type"
+                    inputProps={{ 'aria-label': 'Workflow type' }}
                   >
                     {(Object.keys(WORKFLOW_LABELS) as WorkflowType[]).map((k) => (
                       <MenuItem key={k} value={k}>
