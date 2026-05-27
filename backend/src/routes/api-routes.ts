@@ -187,6 +187,13 @@ router.post(
   applyAiPrivacyControls,
   aiController.getBudgetInsight,
 );
+router.post(
+  '/ai/vendor-recommendation',
+  authenticateToken,
+  requireAiAccess,
+  applyAiPrivacyControls,
+  aiController.getVendorRecommendation,
+);
 
 // ============ PUBLIC RSVP ROUTES ==========
 // All unauthenticated public endpoints share a tighter per-IP limiter
