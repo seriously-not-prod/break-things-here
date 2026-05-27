@@ -20,10 +20,27 @@
  * state before calling the AI model.  Returns structured JSON containing at
  * least 3 actionable recommendations, a risk level, anomalies, and a summary.
  * Handles missing/partial budget data safely (empty categories, no expenses).
+ *
+ * Story #964 — Introduce Structured AI Output Schemas:
+ * All parser functions now delegate to the shared `ai-schemas` module which
+ * provides typed ParseResult<T> responses with actionable validation errors,
+ * provider-safe JSON extraction, and reusable schema validators.  Backward-
+ * compatible shim exports keep the existing `null`-on-failure contract for
+ * the controller's public API surface while internally surfacing structured
+ * validation errors for observability.
  */
 import { Request, Response } from 'express';
 import https from 'https';
 import { getDatabase } from '../db/database.js';
+import {
+  parseGroundedOutput,
+  parseBudgetInsightOutput as parseBudgetInsightSchema,
+  parseTaskBreakdownOutput as parseTaskBreakdownSchema,
+  formatValidationErrors,
+  type EventSuggestionSchema,
+  type TaskSuggestionSchema,
+  type RsvpSuggestionSchema,
+} from '../lib/ai-schemas.js';
 
 function readEnv(...keys: string[]): string {
   for (const key of keys) {
@@ -301,27 +318,25 @@ interface GroundedWorkflowBody {
   prompt: string;
 }
 
-// ── Structured output types ──────────────────────────────────────────────────
+// ── Structured output types (re-exported for backward compatibility) ──────────
 
-export interface EventSuggestion {
-  title: string;
-  description: string;
-  venueType: string;
-  promotionalTips: string[];
-}
+/**
+ * @deprecated Use `EventSuggestionSchema` from `../lib/ai-schemas` directly.
+ * Kept here for backward compatibility with existing consumers.
+ */
+export type EventSuggestion = EventSuggestionSchema;
 
-export interface TaskSuggestion {
-  actionTitle: string;
-  dueDateRange: string;
-  owner: string;
-  dependencies: string[];
-}
+/**
+ * @deprecated Use `TaskSuggestionSchema` from `../lib/ai-schemas` directly.
+ * Kept here for backward compatibility with existing consumers.
+ */
+export type TaskSuggestion = TaskSuggestionSchema;
 
-export interface RsvpSuggestion {
-  confirmationMessage: string;
-  reminderMessage: string;
-  capacityTip: string;
-}
+/**
+ * @deprecated Use `RsvpSuggestionSchema` from `../lib/ai-schemas` directly.
+ * Kept here for backward compatibility with existing consumers.
+ */
+export type RsvpSuggestion = RsvpSuggestionSchema;
 
 export type GroundedSuggestion = EventSuggestion | TaskSuggestion | RsvpSuggestion;
 
@@ -598,57 +613,30 @@ function buildGroundedUserMessage(
 
 // ── Structured output parser ───────────────────────────────────────────────────
 
+/**
+ * Parse raw AI model output into a typed `GroundedSuggestion`.
+ *
+ * Delegates to the shared `ai-schemas` module for runtime validation with
+ * actionable error details.  Returns `null` on failure to maintain backward
+ * compatibility with existing consumers; validation errors are emitted to the
+ * logger for observability.
+ *
+ * @deprecated Prefer `parseGroundedOutput` from `../lib/ai-schemas` directly
+ * to access the full `ParseResult<T>` with structured validation errors.
+ */
 export function parseStructuredOutput(
   workflowType: WorkflowType,
   raw: string,
 ): GroundedSuggestion | null {
-  try {
-    // Strip any accidental markdown fences the model may have added.
-    const cleaned = raw
-      .replace(/```(?:json)?\s*/gi, '')
-      .replace(/```\s*/g, '')
-      .trim();
-    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+  const result = parseGroundedOutput(workflowType, raw);
+  if (result.ok) return result.data;
 
-    if (workflowType === 'event') {
-      const s = parsed as Partial<EventSuggestion>;
-      if (typeof s.title === 'string' && typeof s.description === 'string') {
-        return {
-          title: s.title,
-          description: s.description,
-          venueType: typeof s.venueType === 'string' ? s.venueType : '',
-          promotionalTips: Array.isArray(s.promotionalTips) ? (s.promotionalTips as string[]) : [],
-        };
-      }
-    }
-
-    if (workflowType === 'task') {
-      const s = parsed as Partial<TaskSuggestion>;
-      if (typeof s.actionTitle === 'string') {
-        return {
-          actionTitle: s.actionTitle,
-          dueDateRange: typeof s.dueDateRange === 'string' ? s.dueDateRange : '',
-          owner: typeof s.owner === 'string' ? s.owner : '',
-          dependencies: Array.isArray(s.dependencies) ? (s.dependencies as string[]) : [],
-        };
-      }
-    }
-
-    if (workflowType === 'rsvp') {
-      const s = parsed as Partial<RsvpSuggestion>;
-      if (typeof s.confirmationMessage === 'string') {
-        return {
-          confirmationMessage: s.confirmationMessage,
-          reminderMessage: typeof s.reminderMessage === 'string' ? s.reminderMessage : '',
-          capacityTip: typeof s.capacityTip === 'string' ? s.capacityTip : '',
-        };
-      }
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
+  // Emit validation errors for observability without blocking the call.
+  const errorSummary = formatValidationErrors(result.errors);
+  console.warn(
+    `[ai-schemas] parseStructuredOutput validation failed for '${workflowType}': ${errorSummary}`,
+  );
+  return null;
 }
 
 // ── Controller ────────────────────────────────────────────────────────────────
@@ -902,42 +890,22 @@ function buildTaskBreakdownUserMessage(ctx: TaskBreakdownContext, userPrompt: st
 
 /**
  * Parse raw AI model output into an array of TaskBreakdownItem objects.
- * Returns null if parsing fails or the output does not match the expected schema.
+ *
+ * Delegates to the shared `ai-schemas` module for runtime validation with
+ * actionable error details.  Returns `null` on failure to maintain backward
+ * compatibility with existing consumers; validation errors are emitted to the
+ * logger for observability.
+ *
+ * @deprecated Prefer `parseTaskBreakdownOutput` from `../lib/ai-schemas` directly
+ * to access the full `ParseResult<TaskBreakdownItemSchema[]>` with errors.
  */
 export function parseTaskBreakdownOutput(raw: string): TaskBreakdownItem[] | null {
-  try {
-    const cleaned = raw
-      .replace(/```(?:json)?\s*/gi, '')
-      .replace(/```\s*/g, '')
-      .trim();
+  const result = parseTaskBreakdownSchema(raw);
+  if (result.ok) return result.data;
 
-    const parsed = JSON.parse(cleaned) as unknown;
-    if (!Array.isArray(parsed)) return null;
-
-    const VALID_PRIORITIES = new Set<string>(['low', 'medium', 'high', 'urgent']);
-
-    const items: TaskBreakdownItem[] = [];
-    for (const item of parsed) {
-      if (typeof item !== 'object' || item === null) continue;
-      const t = item as Record<string, unknown>;
-      if (typeof t.title !== 'string' || !t.title) continue;
-
-      items.push({
-        title: t.title,
-        owner: typeof t.owner === 'string' ? t.owner : '',
-        dueWindow: typeof t.dueWindow === 'string' ? t.dueWindow : '',
-        dependencies: Array.isArray(t.dependencies) ? (t.dependencies as string[]) : [],
-        priority: VALID_PRIORITIES.has(t.priority as string)
-          ? (t.priority as TaskBreakdownItem['priority'])
-          : 'medium',
-        timelineConstraint: typeof t.timelineConstraint === 'string' ? t.timelineConstraint : '',
-      });
-    }
-
-    return items.length > 0 ? items : null;
-  } catch {
-    return null;
-  }
+  const errorSummary = formatValidationErrors(result.errors);
+  console.warn(`[ai-schemas] parseTaskBreakdownOutput validation failed: ${errorSummary}`);
+  return null;
 }
 
 /**
@@ -1053,8 +1021,8 @@ export interface BudgetCategorySnapshot {
   name: string;
   allocated: number;
   spent: number;
-  variance: number;        // allocated - spent  (negative = overspend)
-  variancePct: number;     // variance / allocated * 100  (NaN when allocated = 0)
+  variance: number; // allocated - spent  (negative = overspend)
+  variancePct: number; // variance / allocated * 100  (NaN when allocated = 0)
   isOverspent: boolean;
   expenseCount: number;
 }
@@ -1250,8 +1218,9 @@ function buildBudgetInsightUserMessage(ctx: BudgetInsightContext, userPrompt: st
     lines.push('');
     lines.push('Category breakdown:');
     for (const cat of ctx.categories) {
-      const pct =
-        !isNaN(cat.variancePct) ? ` (${cat.variancePct >= 0 ? '' : '-'}${Math.abs(cat.variancePct).toFixed(1)}% variance)` : '';
+      const pct = !isNaN(cat.variancePct)
+        ? ` (${cat.variancePct >= 0 ? '' : '-'}${Math.abs(cat.variancePct).toFixed(1)}% variance)`
+        : '';
       const flag = cat.isOverspent ? ' ⚠ OVERSPENT' : '';
       lines.push(
         `- ${cat.name}: allocated $${cat.allocated.toFixed(2)}, spent $${cat.spent.toFixed(2)}, variance $${cat.variance.toFixed(2)}${pct}${flag}`,
@@ -1274,7 +1243,14 @@ function buildBudgetInsightUserMessage(ctx: BudgetInsightContext, userPrompt: st
 
 /**
  * Parse raw AI model output into a structured BudgetInsightResponse payload.
- * Returns null if parsing fails or the output does not match the expected schema.
+ *
+ * Delegates to the shared `ai-schemas` module for runtime validation with
+ * actionable error details.  Returns `null` on failure to maintain backward
+ * compatibility with existing consumers; validation errors are emitted to the
+ * logger for observability.
+ *
+ * @deprecated Prefer `parseBudgetInsightOutput` from `../lib/ai-schemas` directly
+ * to access the full `ParseResult<BudgetInsightOutputSchema>` with errors.
  */
 export function parseBudgetInsightOutput(raw: string): {
   summary: string;
@@ -1282,50 +1258,12 @@ export function parseBudgetInsightOutput(raw: string): {
   anomalies: string[];
   recommendations: BudgetRecommendation[];
 } | null {
-  try {
-    const cleaned = raw
-      .replace(/```(?:json)?\s*/gi, '')
-      .replace(/```\s*/g, '')
-      .trim();
+  const result = parseBudgetInsightSchema(raw);
+  if (result.ok) return result.data;
 
-    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
-    if (typeof parsed !== 'object' || parsed === null) return null;
-
-    const VALID_RISK = new Set(['low', 'medium', 'high', 'critical']);
-    const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
-
-    const summary = typeof parsed.summary === 'string' ? parsed.summary : '';
-    const riskLevel = VALID_RISK.has(parsed.riskLevel as string)
-      ? (parsed.riskLevel as BudgetInsightResponse['riskLevel'])
-      : 'medium';
-
-    const anomalies = Array.isArray(parsed.anomalies)
-      ? (parsed.anomalies as unknown[]).filter((a): a is string => typeof a === 'string')
-      : [];
-
-    if (!Array.isArray(parsed.recommendations)) return null;
-
-    const recommendations: BudgetRecommendation[] = [];
-    for (const item of parsed.recommendations as unknown[]) {
-      if (typeof item !== 'object' || item === null) continue;
-      const r = item as Record<string, unknown>;
-      if (typeof r.insight !== 'string' || !r.insight) continue;
-      recommendations.push({
-        category: typeof r.category === 'string' ? r.category : 'Overall',
-        insight: r.insight,
-        action: typeof r.action === 'string' ? r.action : '',
-        priority: VALID_PRIORITY.has(r.priority as string)
-          ? (r.priority as BudgetRecommendation['priority'])
-          : 'medium',
-      });
-    }
-
-    if (recommendations.length === 0) return null;
-
-    return { summary, riskLevel, anomalies, recommendations };
-  } catch {
-    return null;
-  }
+  const errorSummary = formatValidationErrors(result.errors);
+  console.warn(`[ai-schemas] parseBudgetInsightOutput validation failed: ${errorSummary}`);
+  return null;
 }
 
 /**
