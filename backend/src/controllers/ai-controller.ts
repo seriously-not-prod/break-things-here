@@ -28,6 +28,14 @@
  * compatible shim exports keep the existing `null`-on-failure contract for
  * the controller's public API surface while internally surfacing structured
  * validation errors for observability.
+ *
+ * Story #956 — AI Safety and Prompt Injection Controls:
+ * All user-supplied prompt text is now processed by the shared `ai-safety`
+ * module before being embedded in provider requests.  The module provides:
+ * enhanced injection detection with per-category threat metadata; output safety
+ * validation (sensitive data, excessive length); system-prompt hardening;
+ * provider-request timeouts to prevent hung connections; and structured
+ * safety-event logging to `ai_safety_events` for audit/observability.
  */
 import { Request, Response } from 'express';
 import https from 'https';
@@ -41,6 +49,13 @@ import {
   type TaskSuggestionSchema,
   type RsvpSuggestionSchema,
 } from '../lib/ai-schemas.js';
+import {
+  sanitiseInput,
+  validateAiOutput,
+  hardenSystemPrompt,
+  withProviderTimeout,
+  logAiSafetyEvent,
+} from '../lib/ai-safety.js';
 
 function readEnv(...keys: string[]): string {
   for (const key of keys) {
@@ -251,16 +266,26 @@ async function checkAiRateLimit(userId: number): Promise<boolean> {
   return (row?.count ?? Number.POSITIVE_INFINITY) <= AI_RATE_LIMIT_PER_HOUR;
 }
 
-/** Sanitise user-supplied text before including in prompts to prevent prompt injection. */
-function sanitisePrompt(input: string): string {
-  return input
-    .replace(/ignore\s+(previous|prior|above)\s+instructions?/gi, '[FILTERED]')
-    .replace(/you\s+are\s+now\s+/gi, '[FILTERED] ')
-    .replace(/system\s*prompt/gi, '[FILTERED]')
-    .replace(/\[SYSTEM\]/gi, '[FILTERED]')
-    .replace(/<[^>]{0,200}>/g, '')
-    .substring(0, 2000)
-    .trim();
+/**
+ * Sanitise user-supplied text before including in prompts.
+ *
+ * Delegates to the `ai-safety` module which provides enhanced injection
+ * detection with structured threat metadata and safety-event logging.
+ * Returns the cleaned text for backward-compatible use by prompt builders.
+ */
+function sanitisePrompt(input: string, workflowType: string, userId?: number, entityId?: number | null): string {
+  const result = sanitiseInput(input);
+  if (result.injectionDetected) {
+    void logAiSafetyEvent({
+      userId,
+      eventType: 'input_sanitised',
+      workflowType,
+      entityId: entityId ?? null,
+      threatCategories: result.detectedCategories,
+      detail: `Injection patterns detected (${result.substitutionCount} substitution(s)): ${result.detectedCategories.join(', ')}`,
+    });
+  }
+  return result.text;
 }
 
 /** POST /api/ai/suggest */
@@ -298,10 +323,34 @@ export async function getSuggestion(req: AuthRequest, res: Response): Promise<Re
   }
 
   try {
-    const suggestion = await callAiProvider(provider, SYSTEM_PROMPTS[ctx], sanitisePrompt(prompt));
-    return res.json({ suggestion });
+    const safePrompt = sanitisePrompt(prompt, ctx, userId);
+    const raw = await withProviderTimeout(
+      callAiProvider(provider, hardenSystemPrompt(SYSTEM_PROMPTS[ctx]), safePrompt),
+    );
+    const outputCheck = validateAiOutput(raw);
+    if (!outputCheck.safe) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'output_rejected',
+        workflowType: ctx,
+        entityId: null,
+        threatCategories: [],
+        detail: `Output safety issues: ${outputCheck.issues.join('; ')}`,
+      });
+    }
+    return res.json({ suggestion: outputCheck.text });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown AI error';
+    if (message.includes('timed out')) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'provider_timeout',
+        workflowType: ctx,
+        entityId: null,
+        threatCategories: [],
+        detail: message,
+      });
+    }
     return res.status(502).json({ error: `AI request failed: ${message}` });
   }
 }
@@ -705,12 +754,16 @@ export async function getGroundedSuggestion(req: AuthRequest, res: Response): Pr
     });
   }
 
-  const systemPrompt = GROUNDED_SYSTEM_PROMPTS[workflowType];
-  const userMessage = buildGroundedUserMessage(workflowType, context, sanitisePrompt(prompt));
+  const systemPrompt = hardenSystemPrompt(GROUNDED_SYSTEM_PROMPTS[workflowType]);
+  const userMessage = buildGroundedUserMessage(
+    workflowType,
+    context,
+    sanitisePrompt(prompt, workflowType, userId, parsedEntityId),
+  );
 
   const startTime = Date.now();
   try {
-    const raw = await callAiProvider(provider, systemPrompt, userMessage);
+    const raw = await withProviderTimeout(callAiProvider(provider, systemPrompt, userMessage));
     const durationMs = Date.now() - startTime;
 
     void logAiRequest({
@@ -722,12 +775,24 @@ export async function getGroundedSuggestion(req: AuthRequest, res: Response): Pr
       status: 'success',
     });
 
-    const structured = parseStructuredOutput(workflowType, raw);
+    const outputCheck = validateAiOutput(raw);
+    if (!outputCheck.safe) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'output_rejected',
+        workflowType,
+        entityId: parsedEntityId,
+        threatCategories: [],
+        detail: `Output safety issues: ${outputCheck.issues.join('; ')}`,
+      });
+    }
+
+    const structured = parseStructuredOutput(workflowType, outputCheck.text);
     const response: GroundedSuggestionResponse = {
       workflowType,
       entityId: parsedEntityId,
       structured: structured ?? ({} as GroundedSuggestion),
-      raw,
+      raw: outputCheck.text,
       // Traceability: include the event fields that were grounded into the prompt.
       ...(workflowType === 'event' && {
         contextSummary: { groundedFields: resolvePopulatedEventFields(context as EventContext) },
@@ -746,6 +811,16 @@ export async function getGroundedSuggestion(req: AuthRequest, res: Response): Pr
       status: 'error',
       errorMessage: message,
     });
+    if (message.includes('timed out')) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'provider_timeout',
+        workflowType,
+        entityId: parsedEntityId,
+        threatCategories: [],
+        detail: message,
+      });
+    }
     return res.status(502).json({ error: `AI request failed: ${message}` });
   }
 }
@@ -964,11 +1039,16 @@ export async function getTaskBreakdown(req: AuthRequest, res: Response): Promise
     return res.status(404).json({ error: `Event ${parsedEventId} not found.` });
   }
 
-  const userMessage = buildTaskBreakdownUserMessage(context, sanitisePrompt(effectivePrompt));
+  const userMessage = buildTaskBreakdownUserMessage(
+    context,
+    sanitisePrompt(effectivePrompt, 'task-breakdown', userId, parsedEventId),
+  );
 
   const startTime = Date.now();
   try {
-    const raw = await callAiProvider(provider, TASK_BREAKDOWN_SYSTEM_PROMPT, userMessage);
+    const raw = await withProviderTimeout(
+      callAiProvider(provider, hardenSystemPrompt(TASK_BREAKDOWN_SYSTEM_PROMPT), userMessage),
+    );
     const durationMs = Date.now() - startTime;
 
     void logAiRequest({
@@ -980,13 +1060,25 @@ export async function getTaskBreakdown(req: AuthRequest, res: Response): Promise
       status: 'success',
     });
 
-    const tasks = parseTaskBreakdownOutput(raw) ?? [];
+    const outputCheck = validateAiOutput(raw);
+    if (!outputCheck.safe) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'output_rejected',
+        workflowType: 'task-breakdown',
+        entityId: parsedEventId,
+        threatCategories: [],
+        detail: `Output safety issues: ${outputCheck.issues.join('; ')}`,
+      });
+    }
+
+    const tasks = parseTaskBreakdownOutput(outputCheck.text) ?? [];
     const response: TaskBreakdownResponse = {
       workflowType: 'task-breakdown',
       eventId: parsedEventId,
       eventTitle: context.eventTitle,
       tasks,
-      raw,
+      raw: outputCheck.text,
       contextSummary: {
         groundedFields: resolveTaskBreakdownGroundedFields(context),
         totalExistingTasks: context.existingTasks.length,
@@ -1005,6 +1097,16 @@ export async function getTaskBreakdown(req: AuthRequest, res: Response): Promise
       status: 'error',
       errorMessage: message,
     });
+    if (message.includes('timed out')) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'provider_timeout',
+        workflowType: 'task-breakdown',
+        entityId: parsedEventId,
+        threatCategories: [],
+        detail: message,
+      });
+    }
     return res.status(502).json({ error: `AI request failed: ${message}` });
   }
 }
@@ -1323,11 +1425,16 @@ export async function getBudgetInsight(req: AuthRequest, res: Response): Promise
     return res.status(404).json({ error: `Event ${parsedEventId} not found.` });
   }
 
-  const userMessage = buildBudgetInsightUserMessage(context, sanitisePrompt(effectivePrompt));
+  const userMessage = buildBudgetInsightUserMessage(
+    context,
+    sanitisePrompt(effectivePrompt, 'budget_insight', userId, parsedEventId),
+  );
 
   const startTime = Date.now();
   try {
-    const raw = await callAiProvider(provider, BUDGET_INSIGHT_SYSTEM_PROMPT, userMessage);
+    const raw = await withProviderTimeout(
+      callAiProvider(provider, hardenSystemPrompt(BUDGET_INSIGHT_SYSTEM_PROMPT), userMessage),
+    );
     const durationMs = Date.now() - startTime;
 
     void logAiRequest({
@@ -1339,7 +1446,19 @@ export async function getBudgetInsight(req: AuthRequest, res: Response): Promise
       status: 'success',
     });
 
-    const parsed = parseBudgetInsightOutput(raw);
+    const outputCheck = validateAiOutput(raw);
+    if (!outputCheck.safe) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'output_rejected',
+        workflowType: 'budget_insight',
+        entityId: parsedEventId,
+        threatCategories: [],
+        detail: `Output safety issues: ${outputCheck.issues.join('; ')}`,
+      });
+    }
+
+    const parsed = parseBudgetInsightOutput(outputCheck.text);
 
     const response: BudgetInsightResponse = {
       workflowType: 'budget-insight',
@@ -1353,7 +1472,7 @@ export async function getBudgetInsight(req: AuthRequest, res: Response): Promise
       overspentCategories: context.overspentCategories,
       anomalies: parsed?.anomalies ?? [],
       recommendations: parsed?.recommendations ?? [],
-      raw,
+      raw: outputCheck.text,
       contextSummary: {
         groundedFields: resolveBudgetGroundedFields(context),
         categoryCount: context.categories.length,
@@ -1373,6 +1492,16 @@ export async function getBudgetInsight(req: AuthRequest, res: Response): Promise
       status: 'error',
       errorMessage: message,
     });
+    if (message.includes('timed out')) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'provider_timeout',
+        workflowType: 'budget_insight',
+        entityId: parsedEventId,
+        threatCategories: [],
+        detail: message,
+      });
+    }
     return res.status(502).json({ error: `AI request failed: ${message}` });
   }
 }
