@@ -56,9 +56,7 @@ function trendLabel(direction: NarrativeTrendDirection): string {
   return 'Stable';
 }
 
-function trendColor(
-  direction: NarrativeTrendDirection,
-): 'success' | 'error' | 'default' {
+function trendColor(direction: NarrativeTrendDirection): 'success' | 'error' | 'default' {
   if (direction === 'up') return 'success';
   if (direction === 'down') return 'error';
   return 'default';
@@ -75,8 +73,7 @@ export function AnalyticsNarrativePanel({
   const [expanded, setExpanded] = useState(false);
 
   async function handleGenerate(): Promise<void> {
-    const numericId =
-      typeof eventId === 'string' ? parseInt(eventId, 10) : eventId;
+    const numericId = typeof eventId === 'string' ? parseInt(eventId, 10) : eventId;
     if (!Number.isFinite(numericId) || numericId <= 0) {
       setError('Invalid event ID.');
       return;
@@ -117,11 +114,7 @@ export function AnalyticsNarrativePanel({
         <Button
           variant="contained"
           startIcon={
-            loading ? (
-              <CircularProgress size={16} color="inherit" />
-            ) : (
-              <AutoAwesomeRounded />
-            )
+            loading ? <CircularProgress size={16} color="inherit" /> : <AutoAwesomeRounded />
           }
           onClick={() => void handleGenerate()}
           disabled={loading}
@@ -180,10 +173,7 @@ export function AnalyticsNarrativePanel({
               <List dense disablePadding sx={{ mb: 1 }}>
                 {result.notableChanges.map((change, i) => (
                   <ListItem key={i} disableGutters sx={{ py: 0.25 }}>
-                    <ListItemText
-                      primary={change}
-                      primaryTypographyProps={{ variant: 'body2' }}
-                    />
+                    <ListItemText primary={change} primaryTypographyProps={{ variant: 'body2' }} />
                   </ListItem>
                 ))}
               </List>
@@ -200,10 +190,7 @@ export function AnalyticsNarrativePanel({
               <List dense disablePadding>
                 {result.suggestedActions.map((action, i) => (
                   <ListItem key={i} disableGutters sx={{ py: 0.25 }}>
-                    <ListItemText
-                      primary={action}
-                      primaryTypographyProps={{ variant: 'body2' }}
-                    />
+                    <ListItemText primary={action} primaryTypographyProps={{ variant: 'body2' }} />
                   </ListItem>
                 ))}
               </List>

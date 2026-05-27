@@ -807,10 +807,8 @@ export function parseConflictResolutionOutput(
       activityBTitle: typeof s.activityBTitle === 'string' ? s.activityBTitle.trim() : '',
       reason: typeof s.reason === 'string' ? s.reason.trim() : 'overlap',
       suggestion: s.suggestion.trim(),
-      dependencyImpact:
-        typeof s.dependencyImpact === 'string' ? s.dependencyImpact.trim() : '',
-      resourceImpact:
-        typeof s.resourceImpact === 'string' ? s.resourceImpact.trim() : '',
+      dependencyImpact: typeof s.dependencyImpact === 'string' ? s.dependencyImpact.trim() : '',
+      resourceImpact: typeof s.resourceImpact === 'string' ? s.resourceImpact.trim() : '',
       alternativeSlots: Array.isArray(s.alternativeSlots)
         ? (s.alternativeSlots as unknown[]).filter((sl): sl is string => typeof sl === 'string')
         : [],
@@ -1008,9 +1006,7 @@ export function parseAnalyticsNarrativeOutput(
   const summary = (p.summary as string).trim();
 
   const notableChanges: string[] = Array.isArray(p.notableChanges)
-    ? (p.notableChanges as unknown[])
-        .filter((c): c is string => typeof c === 'string')
-        .slice(0, 5)
+    ? (p.notableChanges as unknown[]).filter((c): c is string => typeof c === 'string').slice(0, 5)
     : [];
 
   const suggestedActions: string[] = Array.isArray(p.suggestedActions)

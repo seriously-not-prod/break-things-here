@@ -60,9 +60,7 @@ export async function fetchAnalyticsNarrative(
 
   if (!response.ok) {
     const data = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      data.error ?? `Analytics narrative request failed (${response.status})`,
-    );
+    throw new Error(data.error ?? `Analytics narrative request failed (${response.status})`);
   }
 
   return response.json() as Promise<AnalyticsNarrativeResponse>;
