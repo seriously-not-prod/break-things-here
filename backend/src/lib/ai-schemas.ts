@@ -690,6 +690,152 @@ export function parseVendorRecommendationOutput(
   });
 }
 
+// ── Conflict resolution schema — Story #954 ──────────────────────────────────
+
+/**
+ * A single advisory conflict resolution suggestion.
+ *
+ * All fields are grounded in real timeline activity data fetched from the
+ * database; the AI model is explicitly instructed not to fabricate activity
+ * names, IDs, or time constraints.
+ */
+export interface ConflictResolutionSuggestionSchema {
+  /** Composite key identifying the conflicting pair: "<activityAId>-<activityBId>". */
+  conflictId: string;
+  /** Database ID of the first activity in the conflict pair. */
+  activityAId: number;
+  /** Title of the first activity (from grounded data). */
+  activityATitle: string;
+  /** Database ID of the second activity in the conflict pair. */
+  activityBId: number;
+  /** Title of the second activity (from grounded data). */
+  activityBTitle: string;
+  /** Reason for the conflict (mirrors ConflictReason from timeline-conflict service). */
+  reason: string;
+  /** Plain-text advisory suggestion for resolving the conflict. */
+  suggestion: string;
+  /** Notes on how the proposed resolution affects task/activity dependencies. */
+  dependencyImpact: string;
+  /** Notes on how the proposed resolution affects shared resources (vendor/location). */
+  resourceImpact: string;
+  /** Optional list of concrete alternative time slot proposals. */
+  alternativeSlots: string[];
+}
+
+/**
+ * Structured output for the timeline conflict resolution AI endpoint (#954).
+ */
+export interface ConflictResolutionOutputSchema {
+  /** Plain-text overview of all detected conflicts and resolution approach. */
+  summary: string;
+  /** Number of conflicts detected and passed to the model for grounding. */
+  conflictCount: number;
+  /** One suggestion per detected conflict, advisory-only. */
+  suggestions: ConflictResolutionSuggestionSchema[];
+  /** Advisory disclaimer that must be surfaced in every UI rendering. */
+  advisoryLabel: string;
+}
+
+/**
+ * Parse and validate the AI model response for the conflict resolution endpoint.
+ *
+ * Required field: `suggestions` (array; may be empty when no conflicts exist).
+ * Optional fields default to safe empty values.
+ * Activity IDs are cross-validated against the `validActivityIds` set to prevent
+ * the AI from referencing activities not present in the grounded data.
+ */
+export function parseConflictResolutionOutput(
+  raw: string,
+  validActivityIds: Set<number>,
+): ParseResult<ConflictResolutionOutputSchema> {
+  const jsonResult = extractJson(raw);
+  if (!jsonResult.ok) return fail(jsonResult.errors);
+
+  const p = jsonResult.data;
+  const errors: SchemaValidationError[] = [];
+
+  if (!Array.isArray(p.suggestions)) {
+    errors.push({
+      field: 'suggestions',
+      message: 'suggestions must be an array',
+      received: p.suggestions,
+    });
+  }
+
+  if (errors.length > 0) return fail(errors);
+
+  const suggestions: ConflictResolutionSuggestionSchema[] = [];
+  const rawSuggestions = p.suggestions as unknown[];
+
+  for (let i = 0; i < rawSuggestions.length; i++) {
+    const item = rawSuggestions[i];
+    if (typeof item !== 'object' || item === null) continue;
+    const s = item as Record<string, unknown>;
+
+    // Both activity IDs must reference grounded activities.
+    const aId =
+      typeof s.activityAId === 'number'
+        ? s.activityAId
+        : typeof s.activityAId === 'string'
+          ? parseInt(s.activityAId, 10)
+          : NaN;
+    const bId =
+      typeof s.activityBId === 'number'
+        ? s.activityBId
+        : typeof s.activityBId === 'string'
+          ? parseInt(s.activityBId, 10)
+          : NaN;
+
+    if (
+      !Number.isFinite(aId) ||
+      !Number.isFinite(bId) ||
+      !validActivityIds.has(aId) ||
+      !validActivityIds.has(bId)
+    ) {
+      // Drop suggestions referencing activity IDs outside the grounded set.
+      continue;
+    }
+
+    if (typeof s.suggestion !== 'string' || !s.suggestion.trim()) continue;
+
+    suggestions.push({
+      conflictId: `${aId}-${bId}`,
+      activityAId: aId,
+      activityATitle: typeof s.activityATitle === 'string' ? s.activityATitle.trim() : '',
+      activityBId: bId,
+      activityBTitle: typeof s.activityBTitle === 'string' ? s.activityBTitle.trim() : '',
+      reason: typeof s.reason === 'string' ? s.reason.trim() : 'overlap',
+      suggestion: s.suggestion.trim(),
+      dependencyImpact:
+        typeof s.dependencyImpact === 'string' ? s.dependencyImpact.trim() : '',
+      resourceImpact:
+        typeof s.resourceImpact === 'string' ? s.resourceImpact.trim() : '',
+      alternativeSlots: Array.isArray(s.alternativeSlots)
+        ? (s.alternativeSlots as unknown[]).filter((sl): sl is string => typeof sl === 'string')
+        : [],
+    });
+  }
+
+  const ADVISORY_FALLBACK =
+    'AI advisory only — suggestions are based solely on detected timeline conflict data. Review each proposal carefully before making any scheduling changes.';
+
+  const rawCount = p.conflictCount;
+  const conflictCount =
+    typeof rawCount === 'number' && Number.isInteger(rawCount) && rawCount >= 0
+      ? rawCount
+      : suggestions.length;
+
+  return ok({
+    summary: typeof p.summary === 'string' ? p.summary.trim() : '',
+    conflictCount,
+    suggestions,
+    advisoryLabel:
+      typeof p.advisoryLabel === 'string' && p.advisoryLabel.trim()
+        ? p.advisoryLabel.trim()
+        : ADVISORY_FALLBACK,
+  });
+}
+
 // ── Workflow-type dispatcher ───────────────────────────────────────────────────
 
 export type GroundedWorkflowType = 'event' | 'task' | 'rsvp';
