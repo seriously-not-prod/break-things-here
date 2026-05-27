@@ -341,6 +341,11 @@ export function SeatingPage(): JSX.Element {
         y: clamp(currentPosition.y + deltaY, 0, LAYOUT_HEIGHT - TABLE_HEIGHT),
       };
 
+      // Update the ref synchronously before persisting so persistTableLayout
+      // reads the new position even when React 18 batches the setTables call.
+      latestTablesRef.current = latestTablesRef.current.map((t) =>
+        t.id === tableId ? { ...t, layout_x: nextPosition.x, layout_y: nextPosition.y } : t,
+      );
       updateDraggedTablePosition(tableId, nextPosition);
       void persistTableLayout(tableId);
     },

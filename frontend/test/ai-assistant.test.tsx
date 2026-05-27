@@ -55,16 +55,18 @@ describe('AiAssistant — panel toggle', () => {
   it('opens the panel on button click', async () => {
     render(<AiAssistant />);
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
-    expect(screen.getByText('AI Planning Assistant')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'AI Planning Assistant' })).toBeInTheDocument();
   });
 
   it('closes the panel when close button is clicked', async () => {
     render(<AiAssistant />);
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
-    expect(screen.getByText('AI Planning Assistant')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'AI Planning Assistant' })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /close/i }));
-    expect(screen.queryByText('AI Planning Assistant')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'AI Planning Assistant' }),
+    ).not.toBeInTheDocument();
   });
 });
 
