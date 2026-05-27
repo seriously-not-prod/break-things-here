@@ -36,6 +36,15 @@
  * validation (sensitive data, excessive length); system-prompt hardening;
  * provider-request timeouts to prevent hung connections; and structured
  * safety-event logging to `ai_safety_events` for audit/observability.
+ *
+ * Story #957 — AI Data Privacy and PII Minimization:
+ * All prompt text passes through `redactPii` (from `ai-privacy`) after
+ * injection sanitisation so that PII embedded in free-text inputs (email,
+ * phone, SSN, credit-card, IP, address) is replaced with typed placeholder
+ * tokens before being sent to the AI provider.  Structured context objects
+ * (event, task, RSVP) are passed through `filterProviderPayload` which
+ * excludes RESTRICTED fields entirely and redacts SENSITIVE fields.  Privacy
+ * events are logged to `ai_privacy_events` for compliance audit.
  */
 import { Request, Response } from 'express';
 import https from 'https';
@@ -56,6 +65,11 @@ import {
   withProviderTimeout,
   logAiSafetyEvent,
 } from '../lib/ai-safety.js';
+import {
+  filterProviderPayload,
+  redactPii,
+  logAiPrivacyEvent,
+} from '../lib/ai-privacy.js';
 
 function readEnv(...keys: string[]): string {
   for (const key of keys) {
@@ -269,9 +283,17 @@ async function checkAiRateLimit(userId: number): Promise<boolean> {
 /**
  * Sanitise user-supplied text before including in prompts.
  *
- * Delegates to the `ai-safety` module which provides enhanced injection
- * detection with structured threat metadata and safety-event logging.
- * Returns the cleaned text for backward-compatible use by prompt builders.
+ * Applies two layers of protection (in order):
+ * 1. Injection sanitisation via the `ai-safety` module — detects and
+ *    neutralises prompt-injection, role-hijack, jailbreak, and delimiter
+ *    patterns.
+ * 2. PII minimisation via the `ai-privacy` module — replaces email, phone,
+ *    SSN, credit-card, IP-address, and address patterns with typed
+ *    placeholder tokens so that personal data is not forwarded to the AI
+ *    provider even if the user embeds it in free-text input.
+ *
+ * Returns the doubly-cleaned text for backward-compatible use by prompt
+ * builders.
  */
 function sanitisePrompt(
   input: string,
@@ -279,18 +301,34 @@ function sanitisePrompt(
   userId?: number,
   entityId?: number | null,
 ): string {
-  const result = sanitiseInput(input);
-  if (result.injectionDetected) {
+  // Layer 1: injection sanitisation.
+  const safetyResult = sanitiseInput(input);
+  if (safetyResult.injectionDetected) {
     void logAiSafetyEvent({
       userId,
       eventType: 'input_sanitised',
       workflowType,
       entityId: entityId ?? null,
-      threatCategories: result.detectedCategories,
-      detail: `Injection patterns detected (${result.substitutionCount} substitution(s)): ${result.detectedCategories.join(', ')}`,
+      threatCategories: safetyResult.detectedCategories,
+      detail: `Injection patterns detected (${safetyResult.substitutionCount} substitution(s)): ${safetyResult.detectedCategories.join(', ')}`,
     });
   }
-  return result.text;
+
+  // Layer 2: PII minimisation.
+  const privacyResult = redactPii(safetyResult.text);
+  if (privacyResult.piiDetected) {
+    void logAiPrivacyEvent({
+      userId,
+      eventType: 'pii_detected',
+      workflowType,
+      entityId: entityId ?? null,
+      piiCategories: privacyResult.detectedCategories,
+      fieldNames: ['prompt'],
+      detail: `PII redacted from prompt (${privacyResult.substitutionCount} substitution(s)): ${privacyResult.detectedCategories.join(', ')}`,
+    });
+  }
+
+  return privacyResult.text;
 }
 
 /** POST /api/ai/suggest */
@@ -759,10 +797,31 @@ export async function getGroundedSuggestion(req: AuthRequest, res: Response): Pr
     });
   }
 
+  // Apply privacy filtering to the context object before building the prompt.
+  // This ensures that any field returned by the DB layer that maps to a
+  // SENSITIVE or RESTRICTED classification is redacted/excluded before the
+  // data reaches the AI provider payload.
+  const privacyFilter = filterProviderPayload(context as unknown as Record<string, unknown>);
+  if (privacyFilter.filtered) {
+    const redactedFields = privacyFilter.classifications
+      .filter((c) => c.redacted)
+      .map((c) => c.field);
+    void logAiPrivacyEvent({
+      userId,
+      eventType: 'payload_filtered',
+      workflowType,
+      entityId: parsedEntityId,
+      piiCategories: [],
+      fieldNames: redactedFields,
+      detail: `Context payload filtered: ${redactedFields.join(', ')}`,
+    });
+  }
+  const safeContext = privacyFilter.payload as unknown as EventContext | TaskContext | RsvpContext;
+
   const systemPrompt = hardenSystemPrompt(GROUNDED_SYSTEM_PROMPTS[workflowType]);
   const userMessage = buildGroundedUserMessage(
     workflowType,
-    context,
+    safeContext,
     sanitisePrompt(prompt, workflowType, userId, parsedEntityId),
   );
 
