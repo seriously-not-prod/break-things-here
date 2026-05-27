@@ -67,9 +67,7 @@ export async function fetchConflictResolutionSuggestions(
 
   if (!response.ok) {
     const data = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      data.error ?? `Conflict resolution request failed (${response.status})`,
-    );
+    throw new Error(data.error ?? `Conflict resolution request failed (${response.status})`);
   }
 
   return response.json() as Promise<ConflictResolutionResponse>;

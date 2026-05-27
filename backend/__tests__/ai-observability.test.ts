@@ -376,15 +376,15 @@ describe('logAiAuditEvent', () => {
     expect(mockRun).toHaveBeenCalledOnce();
     const [sql, params] = mockRun.mock.calls[0] as [string, unknown[]];
     expect(sql).toMatch(/INSERT INTO ai_audit_events/i);
-    expect(params[0]).toBe(7);          // user_id
+    expect(params[0]).toBe(7); // user_id
     expect(params[1]).toBe('grounded'); // workflow_type
-    expect(params[2]).toBe(99);         // entity_id
-    expect(params[3]).toBe('azure');    // provider
-    expect(params[4]).toBe(450);        // duration_ms
-    expect(params[5]).toBe('success');  // outcome
-    expect(params[6]).toBe(200);        // http_status
-    expect(params[7]).toBeNull();       // safe_error_message
-    expect(params[8]).toBe(0);          // retry_count
+    expect(params[2]).toBe(99); // entity_id
+    expect(params[3]).toBe('azure'); // provider
+    expect(params[4]).toBe(450); // duration_ms
+    expect(params[5]).toBe('success'); // outcome
+    expect(params[6]).toBe(200); // http_status
+    expect(params[7]).toBeNull(); // safe_error_message
+    expect(params[8]).toBe(0); // retry_count
   });
 
   it('uses null for userId when undefined', async () => {

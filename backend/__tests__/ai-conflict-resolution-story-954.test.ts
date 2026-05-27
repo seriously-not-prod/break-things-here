@@ -21,9 +21,7 @@ import { EventEmitter } from 'node:events';
 import https from 'https';
 import type { Request, Response } from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  parseConflictResolutionOutput,
-} from '../src/lib/ai-schemas.js';
+import { parseConflictResolutionOutput } from '../src/lib/ai-schemas.js';
 
 // ── Shared test helpers ────────────────────────────────────────────────────────
 
@@ -204,8 +202,7 @@ const validConflictResponseJson = JSON.stringify({
       activityBId: 11,
       activityBTitle: 'Main Show',
       reason: 'resource_double_book',
-      suggestion:
-        'Consider moving Sound Check to 09:00-10:00 to avoid overlapping with Main Show.',
+      suggestion: 'Consider moving Sound Check to 09:00-10:00 to avoid overlapping with Main Show.',
       dependencyImpact: 'Sound Check must complete before Main Show begins.',
       resourceImpact:
         'Both activities share vendor 5 and Main Stage; rescheduling frees the shared resource.',
@@ -407,9 +404,7 @@ describe('getConflictResolutionSuggestions controller', () => {
 
   it('drops suggestions with hallucinated activity IDs', async () => {
     process.env.OPENAI_API_KEY = 'sk-test';
-    mockDb.get
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({ title: 'Summer Fest' });
+    mockDb.get.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ title: 'Summer Fest' });
     mockDb.all.mockResolvedValueOnce(conflictActivities);
 
     const hallucinatedResponse = JSON.stringify({
@@ -463,9 +458,7 @@ describe('getConflictResolutionSuggestions controller', () => {
 
   it('returns 502 when AI provider call fails', async () => {
     process.env.OPENAI_API_KEY = 'sk-test';
-    mockDb.get
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({ title: 'Summer Fest' });
+    mockDb.get.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ title: 'Summer Fest' });
     mockDb.all.mockResolvedValueOnce(conflictActivities);
 
     vi.spyOn(https, 'request').mockImplementation((_, callback) => {
@@ -477,7 +470,10 @@ describe('getConflictResolutionSuggestions controller', () => {
       req.end = () => {
         const resEmitter = new EventEmitter();
         callback(resEmitter as never);
-        resEmitter.emit('data', Buffer.from(JSON.stringify({ error: { message: 'quota exceeded' } })));
+        resEmitter.emit(
+          'data',
+          Buffer.from(JSON.stringify({ error: { message: 'quota exceeded' } })),
+        );
         resEmitter.emit('end');
       };
       return req as never;
@@ -496,9 +492,7 @@ describe('getConflictResolutionSuggestions controller', () => {
 
   it('advisory label is always present in the response', async () => {
     process.env.OPENAI_API_KEY = 'sk-test';
-    mockDb.get
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({ title: 'Summer Fest' });
+    mockDb.get.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ title: 'Summer Fest' });
     mockDb.all.mockResolvedValueOnce(conflictFreeActivities);
 
     const { restore } = mockHttpsJsonReply({
@@ -521,18 +515,22 @@ describe('getConflictResolutionSuggestions controller', () => {
 
   it('accepts a string eventId (coerces to integer)', async () => {
     process.env.OPENAI_API_KEY = 'sk-test';
-    mockDb.get
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({ title: 'Summer Fest' });
+    mockDb.get.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ title: 'Summer Fest' });
     mockDb.all.mockResolvedValueOnce([]);
 
     const { restore } = mockHttpsJsonReply({
-      choices: [{ message: { content: JSON.stringify({
-        summary: 'No conflicts.',
-        conflictCount: 0,
-        advisoryLabel: 'AI advisory only.',
-        suggestions: [],
-      }) } }],
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              summary: 'No conflicts.',
+              conflictCount: 0,
+              advisoryLabel: 'AI advisory only.',
+              suggestions: [],
+            }),
+          },
+        },
+      ],
     });
 
     const ctrl = await loadController();

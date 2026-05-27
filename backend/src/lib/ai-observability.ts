@@ -160,10 +160,7 @@ export function resetAiMetrics(): void {
 }
 
 /** Returns or creates a zeroed `DimensionCounters` for a dimension key. */
-function ensureDimension(
-  map: Record<string, DimensionCounters>,
-  key: string,
-): DimensionCounters {
+function ensureDimension(map: Record<string, DimensionCounters>, key: string): DimensionCounters {
   if (!map[key]) {
     map[key] = { total: 0, success: 0, failure: 0, rateLimited: 0, timedOut: 0 };
   }
@@ -242,14 +239,8 @@ export function getAiMetricsSnapshot(): AiMetricsSnapshot {
       maxMs,
     },
     // Deep-copy dimension maps so callers cannot mutate internal state.
-    byWorkflow: JSON.parse(JSON.stringify(_state.byWorkflow)) as Record<
-      string,
-      DimensionCounters
-    >,
-    byProvider: JSON.parse(JSON.stringify(_state.byProvider)) as Record<
-      string,
-      DimensionCounters
-    >,
+    byWorkflow: JSON.parse(JSON.stringify(_state.byWorkflow)) as Record<string, DimensionCounters>,
+    byProvider: JSON.parse(JSON.stringify(_state.byProvider)) as Record<string, DimensionCounters>,
     lastResetAt: _state.lastResetAt.toISOString(),
   };
 }
@@ -308,7 +299,9 @@ export async function logAiAuditEvent(record: AiRequestRecord): Promise<void> {
  * - `"degraded"` — success rate ≥ 50 %
  * - `"unhealthy"` — success rate < 50 %
  */
-export function computeAiHealthSignal(snapshot: AiMetricsSnapshot): 'healthy' | 'degraded' | 'unhealthy' {
+export function computeAiHealthSignal(
+  snapshot: AiMetricsSnapshot,
+): 'healthy' | 'degraded' | 'unhealthy' {
   const { total, success } = snapshot.counters;
   if (total === 0) return 'healthy';
   const ratio = success / total;
@@ -358,10 +351,7 @@ export function buildSafeErrorMessage(err: unknown, provider: string): string {
  * @param httpStatus - HTTP status from the provider response (optional).
  * @param err        - Caught error, used when `httpStatus` is absent.
  */
-export function classifyAiOutcome(
-  httpStatus: number | undefined,
-  err: unknown,
-): AiRequestOutcome {
+export function classifyAiOutcome(httpStatus: number | undefined, err: unknown): AiRequestOutcome {
   if (httpStatus !== undefined) {
     if (httpStatus === 429) return 'rate_limited';
     if (httpStatus >= 200 && httpStatus < 300) return 'success';

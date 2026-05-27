@@ -185,8 +185,7 @@ const sampleAiRecommendationPayload = {
               vendorName: 'Budget Caterers',
               rank: 3,
               score: 55,
-              rationale:
-                'Lowest quoted amount but average rating (3/5) and no contract on file.',
+              rationale: 'Lowest quoted amount but average rating (3/5) and no contract on file.',
               strengths: ['Lowest quoted amount'],
               concerns: ['3-star rating', 'No contract on file'],
             },
@@ -344,7 +343,12 @@ describe('getVendorRecommendation — successful generation', () => {
 
     mockDb.get
       .mockResolvedValueOnce({ count: 1 }) // rate limit
-      .mockResolvedValueOnce({ id: 1, title: 'Summer Festival', date: '2025-08-15', status: 'active' });
+      .mockResolvedValueOnce({
+        id: 1,
+        title: 'Summer Festival',
+        date: '2025-08-15',
+        status: 'active',
+      });
     mockDb.all.mockResolvedValueOnce(sampleVendors);
     // log write
     mockDb.run.mockResolvedValue(undefined);
@@ -365,7 +369,13 @@ describe('getVendorRecommendation — successful generation', () => {
       eventId: number;
       eventTitle: string;
       summary: string;
-      recommendations: Array<{ vendorId: number; rank: number; score: number; rationale: string; advisoryLabel?: string }>;
+      recommendations: Array<{
+        vendorId: number;
+        rank: number;
+        score: number;
+        rationale: string;
+        advisoryLabel?: string;
+      }>;
       advisoryLabel: string;
       raw: string;
       contextSummary: { groundedFields: string[]; vendorCount: number };
@@ -575,9 +585,8 @@ describe('getVendorRecommendation — rate limit', () => {
 
 describe('parseVendorRecommendationOutput — schema validation', () => {
   it('parses valid JSON with grounded vendor IDs', async () => {
-    const { parseVendorRecommendationOutput: parseOutput } = await import(
-      '../src/lib/ai-schemas.js'
-    );
+    const { parseVendorRecommendationOutput: parseOutput } =
+      await import('../src/lib/ai-schemas.js');
 
     const raw = JSON.stringify({
       summary: 'Advisory summary.',
@@ -605,9 +614,8 @@ describe('parseVendorRecommendationOutput — schema validation', () => {
   });
 
   it('strips markdown fences before parsing', async () => {
-    const { parseVendorRecommendationOutput: parseOutput } = await import(
-      '../src/lib/ai-schemas.js'
-    );
+    const { parseVendorRecommendationOutput: parseOutput } =
+      await import('../src/lib/ai-schemas.js');
 
     const raw =
       '```json\n' +
@@ -636,9 +644,8 @@ describe('parseVendorRecommendationOutput — schema validation', () => {
   });
 
   it('returns failure for invalid JSON', async () => {
-    const { parseVendorRecommendationOutput: parseOutput } = await import(
-      '../src/lib/ai-schemas.js'
-    );
+    const { parseVendorRecommendationOutput: parseOutput } =
+      await import('../src/lib/ai-schemas.js');
 
     const result = parseOutput('not valid json', new Set([1]));
     expect(result.ok).toBe(false);
@@ -648,9 +655,8 @@ describe('parseVendorRecommendationOutput — schema validation', () => {
   });
 
   it('returns failure when recommendations array is missing', async () => {
-    const { parseVendorRecommendationOutput: parseOutput } = await import(
-      '../src/lib/ai-schemas.js'
-    );
+    const { parseVendorRecommendationOutput: parseOutput } =
+      await import('../src/lib/ai-schemas.js');
 
     const raw = JSON.stringify({ summary: 'No recs here.' });
     const result = parseOutput(raw, new Set([1]));
@@ -658,9 +664,8 @@ describe('parseVendorRecommendationOutput — schema validation', () => {
   });
 
   it('filters out hallucinated vendorIds not in the valid set', async () => {
-    const { parseVendorRecommendationOutput: parseOutput } = await import(
-      '../src/lib/ai-schemas.js'
-    );
+    const { parseVendorRecommendationOutput: parseOutput } =
+      await import('../src/lib/ai-schemas.js');
 
     const raw = JSON.stringify({
       summary: 'Advisory summary.',
@@ -697,9 +702,8 @@ describe('parseVendorRecommendationOutput — schema validation', () => {
   });
 
   it('fails when all recommendations have hallucinated vendorIds', async () => {
-    const { parseVendorRecommendationOutput: parseOutput } = await import(
-      '../src/lib/ai-schemas.js'
-    );
+    const { parseVendorRecommendationOutput: parseOutput } =
+      await import('../src/lib/ai-schemas.js');
 
     const raw = JSON.stringify({
       summary: 'Advisory summary.',
@@ -722,9 +726,8 @@ describe('parseVendorRecommendationOutput — schema validation', () => {
   });
 
   it('clamps score to 0-100 range', async () => {
-    const { parseVendorRecommendationOutput: parseOutput } = await import(
-      '../src/lib/ai-schemas.js'
-    );
+    const { parseVendorRecommendationOutput: parseOutput } =
+      await import('../src/lib/ai-schemas.js');
 
     const raw = JSON.stringify({
       summary: 'Summary.',
@@ -750,17 +753,40 @@ describe('parseVendorRecommendationOutput — schema validation', () => {
   });
 
   it('sorts recommendations by rank ascending', async () => {
-    const { parseVendorRecommendationOutput: parseOutput } = await import(
-      '../src/lib/ai-schemas.js'
-    );
+    const { parseVendorRecommendationOutput: parseOutput } =
+      await import('../src/lib/ai-schemas.js');
 
     const raw = JSON.stringify({
       summary: 'Summary.',
       advisoryLabel: 'Advisory.',
       recommendations: [
-        { vendorId: 2, vendorName: 'B', rank: 3, score: 50, rationale: 'Third.', strengths: [], concerns: [] },
-        { vendorId: 1, vendorName: 'A', rank: 1, score: 90, rationale: 'First.', strengths: [], concerns: [] },
-        { vendorId: 3, vendorName: 'C', rank: 2, score: 70, rationale: 'Second.', strengths: [], concerns: [] },
+        {
+          vendorId: 2,
+          vendorName: 'B',
+          rank: 3,
+          score: 50,
+          rationale: 'Third.',
+          strengths: [],
+          concerns: [],
+        },
+        {
+          vendorId: 1,
+          vendorName: 'A',
+          rank: 1,
+          score: 90,
+          rationale: 'First.',
+          strengths: [],
+          concerns: [],
+        },
+        {
+          vendorId: 3,
+          vendorName: 'C',
+          rank: 2,
+          score: 70,
+          rationale: 'Second.',
+          strengths: [],
+          concerns: [],
+        },
       ],
     });
 
@@ -773,15 +799,22 @@ describe('parseVendorRecommendationOutput — schema validation', () => {
   });
 
   it('uses default advisory label when model omits it', async () => {
-    const { parseVendorRecommendationOutput: parseOutput } = await import(
-      '../src/lib/ai-schemas.js'
-    );
+    const { parseVendorRecommendationOutput: parseOutput } =
+      await import('../src/lib/ai-schemas.js');
 
     const raw = JSON.stringify({
       summary: 'Summary.',
       // advisoryLabel intentionally omitted
       recommendations: [
-        { vendorId: 1, vendorName: 'A', rank: 1, score: 80, rationale: 'Good.', strengths: [], concerns: [] },
+        {
+          vendorId: 1,
+          vendorName: 'A',
+          rank: 1,
+          score: 80,
+          rationale: 'Good.',
+          strengths: [],
+          concerns: [],
+        },
       ],
     });
 
