@@ -738,7 +738,7 @@ export function AiAssistant(): JSX.Element {
                       setWorkflowError(null);
                     }}
                     fullWidth
-                    aria-label="Workflow type"
+                    SelectDisplayProps={{ 'aria-label': 'Workflow type' }}
                   >
                     {(Object.keys(WORKFLOW_LABELS) as WorkflowType[]).map((k) => (
                       <MenuItem key={k} value={k}>
