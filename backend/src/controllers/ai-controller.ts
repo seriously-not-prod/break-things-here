@@ -21,6 +21,15 @@
  * least 3 actionable recommendations, a risk level, anomalies, and a summary.
  * Handles missing/partial budget data safely (empty categories, no expenses).
  *
+ * Story #953 — Add Vendor Recommendation and Comparison Assistance:
+ * POST /api/ai/vendor-recommendation fetches live vendor records for an event
+ * (name, category, status, quoted amount, rating, contract file, communication
+ * count, last contact date) and calls the AI model to produce a ranked, scored
+ * advisory recommendation list.  Hallucination is prevented by cross-validating
+ * returned vendorId values against the grounded set; fabricated IDs are
+ * silently dropped.  All output is explicitly labelled advisory-only and
+ * structured for deterministic UI rendering.
+ *
  * Story #964 — Introduce Structured AI Output Schemas:
  * All parser functions now delegate to the shared `ai-schemas` module which
  * provides typed ParseResult<T> responses with actionable validation errors,
@@ -53,10 +62,12 @@ import {
   parseGroundedOutput,
   parseBudgetInsightOutput as parseBudgetInsightSchema,
   parseTaskBreakdownOutput as parseTaskBreakdownSchema,
+  parseVendorRecommendationOutput as parseVendorRecommendationSchema,
   formatValidationErrors,
   type EventSuggestionSchema,
   type TaskSuggestionSchema,
   type RsvpSuggestionSchema,
+  type VendorRecommendationItemSchema,
 } from '../lib/ai-schemas.js';
 import {
   sanitiseInput,
@@ -1561,6 +1572,369 @@ export async function getBudgetInsight(req: AuthRequest, res: Response): Promise
         userId,
         eventType: 'provider_timeout',
         workflowType: 'budget_insight',
+        entityId: parsedEventId,
+        threatCategories: [],
+        detail: message,
+      });
+    }
+    return res.status(502).json({ error: `AI request failed: ${message}` });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Vendor Recommendation and Comparison Assistance — Story #953
+//
+// Fetches live vendor records for an event (name, category, status, quoted
+// amount, rating, contract_file, communication count, last contact date) then
+// calls the AI model to produce a ranked, scored advisory recommendation list.
+//
+// Hallucination prevention: the system prompt forbids inventing vendor facts
+// and the parser cross-validates all returned vendorId values against the set
+// of IDs actually fetched — any hallucinated record is silently dropped.
+//
+// Output is explicitly labelled as advisory-only and must be clearly surfaced
+// in the UI.  Scores and rationale are derived exclusively from grounded data.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A vendor snapshot fetched from the DB for grounding the AI prompt. */
+export interface VendorSnapshot {
+  id: number;
+  name: string;
+  category: string;
+  status: string;
+  quoted_amount: number | null;
+  rating: number | null;
+  contract_file: string | null;
+  communication_count: number;
+  last_contact_at: string | null;
+}
+
+/** Context object passed to the vendor recommendation prompt builder. */
+interface VendorRecommendationContext {
+  eventId: number;
+  eventTitle: string;
+  eventDate: string | null;
+  eventStatus: string;
+  vendors: VendorSnapshot[];
+}
+
+/** Full response returned by POST /api/ai/vendor-recommendation. */
+export interface VendorRecommendationResponse {
+  workflowType: 'vendor-recommendation';
+  eventId: number;
+  eventTitle: string;
+  summary: string;
+  recommendations: VendorRecommendationItemSchema[];
+  advisoryLabel: string;
+  raw: string;
+  contextSummary: {
+    groundedFields: string[];
+    vendorCount: number;
+  };
+}
+
+interface VendorRecommendationBody {
+  eventId: number;
+  prompt?: string;
+}
+
+async function fetchVendorRecommendationContext(
+  eventId: number,
+): Promise<VendorRecommendationContext | null> {
+  const db = getDatabase();
+
+  const event = await db.get<{
+    id: number;
+    title: string;
+    date: string | null;
+    status: string;
+  }>(
+    `SELECT id, title, date, status
+     FROM events WHERE id = $1 AND deleted_at IS NULL`,
+    [eventId],
+  );
+  if (!event) return null;
+
+  const vendors = await db.all<{
+    id: number;
+    name: string;
+    category: string;
+    status: string;
+    quoted_amount: number | null;
+    rating: number | null;
+    contract_file: string | null;
+    communication_count: number;
+    last_contact_at: string | null;
+  }>(
+    `SELECT
+       v.id,
+       v.name,
+       v.category,
+       v.status,
+       v.quoted_amount,
+       v.rating,
+       v.contract_file,
+       COALESCE(comm.cnt, 0)::int AS communication_count,
+       comm.last_contact_at
+     FROM vendors v
+     LEFT JOIN (
+       SELECT vendor_id,
+              COUNT(*)::int AS cnt,
+              MAX(sent_at) AS last_contact_at
+       FROM vendor_communications
+       WHERE event_id = $1
+       GROUP BY vendor_id
+     ) comm ON comm.vendor_id = v.id
+     WHERE v.event_id = $1
+     ORDER BY v.created_at ASC
+     LIMIT 20`,
+    [eventId],
+  );
+
+  return {
+    eventId: event.id,
+    eventTitle: event.title,
+    eventDate: event.date,
+    eventStatus: event.status,
+    vendors,
+  };
+}
+
+function resolveVendorRecommendationGroundedFields(ctx: VendorRecommendationContext): string[] {
+  const fields: string[] = ['eventTitle', 'eventStatus'];
+  if (ctx.eventDate) fields.push('eventDate');
+  if (ctx.vendors.length > 0) {
+    fields.push('vendorList');
+    if (ctx.vendors.some((v) => v.quoted_amount !== null)) fields.push('quotedAmounts');
+    if (ctx.vendors.some((v) => v.rating !== null)) fields.push('ratings');
+    if (ctx.vendors.some((v) => v.contract_file !== null)) fields.push('contractFiles');
+    if (ctx.vendors.some((v) => v.communication_count > 0)) fields.push('communicationHistory');
+  }
+  return fields;
+}
+
+const VENDOR_RECOMMENDATION_SYSTEM_PROMPT = `You are a vendor selection advisory AI for festival event management.
+You will receive structured data about vendors for a specific event: each vendor's id, name, category, status, quoted amount, rating (1-5), whether a contract is on file, communication count, and last contact date.
+Your task is to rank the vendors and provide advisory scoring and rationale based ONLY on the data provided.
+
+CRITICAL RULES — you MUST follow these without exception:
+1. ONLY reference vendors that appear in the provided data. Do NOT invent, hallucinate, or add any vendor not in the list.
+2. Use ONLY the fields provided. Do NOT infer, assume, or fabricate any vendor attribute not explicitly given.
+3. All scores (0-100) must be directly derived from the supplied data fields.
+4. All rationale must cite only the data fields provided. Do NOT make general claims about vendor reputation, history, or capabilities beyond the data.
+5. The advisoryLabel must clearly state these are AI-generated suggestions for advisory purposes only.
+
+Return ONLY a valid JSON object (no markdown, no explanation):
+{
+  "summary": "2-3 sentence overall advisory summary using only the supplied data",
+  "advisoryLabel": "AI advisory only — recommendations are based solely on available vendor data. Verify all information independently before making contracting decisions.",
+  "recommendations": [
+    {
+      "vendorId": <exact id from data>,
+      "vendorName": "<exact name from data>",
+      "rank": 1,
+      "score": <0-100 integer derived from data>,
+      "rationale": "<explanation citing only the supplied data fields>",
+      "strengths": ["<observable strength from data>"],
+      "concerns": ["<observable concern from data, or empty array>"]
+    }
+  ]
+}
+
+Scoring guidance (apply only when the field is present in data):
+- Rating (40% weight): Higher is better. 5-star = 40 pts, 4-star = 32 pts, 3-star = 24 pts, 2-star = 16 pts, 1-star = 8 pts, no rating = 20 pts (neutral).
+- Quoted amount (30% weight): Lower quoted amount relative to others is better. Normalize across vendors present.
+- Contract on file (15% weight): Yes = 15 pts, No = 0 pts.
+- Communication engagement (15% weight): More communications = better engagement. Normalize across vendors present.
+- Status bonus: Confirmed or Booked vendors get a 5-point bonus; Cancelled vendors are excluded from recommendations.`;
+
+function buildVendorRecommendationUserMessage(
+  ctx: VendorRecommendationContext,
+  userPrompt: string,
+): string {
+  const lines: string[] = ['Event details:'];
+  lines.push(`Title: ${ctx.eventTitle}`);
+  lines.push(`Status: ${ctx.eventStatus}`);
+  if (ctx.eventDate) lines.push(`Date: ${ctx.eventDate}`);
+  lines.push('');
+
+  if (ctx.vendors.length === 0) {
+    lines.push('Vendors: none found for this event.');
+  } else {
+    lines.push(`Vendors (${ctx.vendors.length} total):`);
+    for (const v of ctx.vendors) {
+      const quoted = v.quoted_amount !== null ? `$${v.quoted_amount.toFixed(2)}` : 'not quoted';
+      const rating = v.rating !== null ? `${v.rating}/5` : 'no rating';
+      const contract = v.contract_file ? 'yes' : 'no';
+      const lastContact = v.last_contact_at
+        ? new Date(v.last_contact_at).toLocaleDateString('en-CA')
+        : 'never';
+      lines.push(
+        `- id:${v.id} | name:"${v.name}" | category:"${v.category}" | status:"${v.status}" | quoted:${quoted} | rating:${rating} | contract:${contract} | communications:${v.communication_count} | last_contact:${lastContact}`,
+      );
+    }
+  }
+
+  lines.push('');
+  lines.push(`User request: ${userPrompt}`);
+  return lines.join('\n');
+}
+
+/**
+ * POST /api/ai/vendor-recommendation
+ *
+ * Fetches live vendor records for an event and calls the AI model to produce
+ * a ranked, scored advisory recommendation list.  Returns a structured JSON
+ * response with:
+ * - overall advisory summary
+ * - ranked vendor recommendations with scores and rationale
+ * - explicit advisory-only label (must be surfaced in the UI)
+ * - raw model output for traceability
+ * - contextSummary listing the grounded fields used
+ *
+ * Hallucination prevention: the AI is instructed to use only provided data
+ * and the parser drops any recommendation referencing an unknown vendor ID.
+ */
+export async function getVendorRecommendation(req: AuthRequest, res: Response): Promise<Response> {
+  const { eventId, prompt } = req.body as Partial<VendorRecommendationBody>;
+
+  const effectivePrompt =
+    prompt?.trim() ||
+    'Rank the vendors for this event and provide advisory recommendations based on the available data.';
+
+  const parsedEventId = typeof eventId === 'string' ? parseInt(eventId, 10) : eventId;
+  if (
+    !parsedEventId ||
+    typeof parsedEventId !== 'number' ||
+    !Number.isInteger(parsedEventId) ||
+    parsedEventId <= 0
+  ) {
+    return res.status(400).json({ error: 'eventId must be a positive integer.' });
+  }
+
+  const userId = req.user?.id;
+  if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    return res
+      .status(429)
+      .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
+  }
+
+  const provider = resolveAiProviderConfig();
+  if (provider.kind === 'misconfigured') {
+    return res.status(503).json({ error: provider.message });
+  }
+  if (provider.kind === 'none') {
+    return res.status(503).json({
+      error:
+        'AI suggestions are not configured. Set Azure OpenAI (AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY + AZURE_OPENAI_DEPLOYMENT) or OPENAI_API_KEY.',
+    });
+  }
+
+  let context: VendorRecommendationContext | null = null;
+  try {
+    context = await fetchVendorRecommendationContext(parsedEventId);
+  } catch {
+    return res.status(500).json({ error: 'Failed to fetch vendor context.' });
+  }
+
+  if (!context) {
+    return res.status(404).json({ error: `Event ${parsedEventId} not found.` });
+  }
+
+  if (context.vendors.length === 0) {
+    return res.status(422).json({
+      error: 'No vendors found for this event. Add vendors before requesting AI recommendations.',
+    });
+  }
+
+  // Build the set of valid vendor IDs for hallucination prevention.
+  const validVendorIds = new Set(context.vendors.map((v) => v.id));
+
+  const userMessage = buildVendorRecommendationUserMessage(
+    context,
+    sanitisePrompt(effectivePrompt, 'vendor_recommendation', userId, parsedEventId),
+  );
+
+  const startTime = Date.now();
+  try {
+    const raw = await withProviderTimeout(
+      callAiProvider(
+        provider,
+        hardenSystemPrompt(VENDOR_RECOMMENDATION_SYSTEM_PROMPT),
+        userMessage,
+      ),
+    );
+    const durationMs = Date.now() - startTime;
+
+    void logAiRequest({
+      userId,
+      workflowType: 'vendor_recommendation',
+      entityId: parsedEventId,
+      provider: provider.kind,
+      durationMs,
+      status: 'success',
+    });
+
+    const outputCheck = validateAiOutput(raw);
+    if (!outputCheck.safe) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'output_rejected',
+        workflowType: 'vendor_recommendation',
+        entityId: parsedEventId,
+        threatCategories: [],
+        detail: `Output safety issues: ${outputCheck.issues.join('; ')}`,
+      });
+    }
+
+    // Parse with hallucination guard: only return recommendations for grounded vendor IDs.
+    const schemaResult = parseVendorRecommendationSchema(outputCheck.text, validVendorIds);
+    const parsedSummary = schemaResult.ok ? schemaResult.data.summary : '';
+    const ADVISORY_LABEL =
+      'AI advisory only — recommendations are based solely on available vendor data. Verify all information independently before making contracting decisions.';
+    const parsedAdvisoryLabel = schemaResult.ok
+      ? schemaResult.data.advisoryLabel
+      : ADVISORY_LABEL;
+    const recommendations = schemaResult.ok ? schemaResult.data.recommendations : [];
+
+    if (!schemaResult.ok) {
+      const errorSummary = formatValidationErrors(schemaResult.errors);
+      console.warn(
+        `[ai-schemas] getVendorRecommendation schema validation failed: ${errorSummary}`,
+      );
+    }
+
+    const response: VendorRecommendationResponse = {
+      workflowType: 'vendor-recommendation',
+      eventId: parsedEventId,
+      eventTitle: context.eventTitle,
+      summary: parsedSummary,
+      recommendations,
+      advisoryLabel: parsedAdvisoryLabel || ADVISORY_LABEL,
+      raw: outputCheck.text,
+      contextSummary: {
+        groundedFields: resolveVendorRecommendationGroundedFields(context),
+        vendorCount: context.vendors.length,
+      },
+    };
+    return res.json(response);
+  } catch (err) {
+    const durationMs = Date.now() - startTime;
+    const message = err instanceof Error ? err.message : 'Unknown AI error';
+    void logAiRequest({
+      userId,
+      workflowType: 'vendor_recommendation',
+      entityId: parsedEventId,
+      provider: provider.kind,
+      durationMs,
+      status: 'error',
+      errorMessage: message,
+    });
+    if (message.includes('timed out')) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'provider_timeout',
+        workflowType: 'vendor_recommendation',
         entityId: parsedEventId,
         threatCategories: [],
         detail: message,

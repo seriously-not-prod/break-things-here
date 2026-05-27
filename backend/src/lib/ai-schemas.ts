@@ -552,6 +552,144 @@ export function parseTaskBreakdownOutput(raw: string): ParseResult<TaskBreakdown
   return ok(items);
 }
 
+// ── Vendor recommendation schema — Story #953 ────────────────────────────────
+
+/**
+ * A single ranked vendor recommendation entry.
+ *
+ * All fields are grounded exclusively in data fetched from the database;
+ * the AI model is explicitly instructed not to invent vendor facts.
+ */
+export interface VendorRecommendationItemSchema {
+  /** Database ID of the vendor — allows UI to link back to the record. */
+  vendorId: number;
+  /** Vendor name as stored in the database. */
+  vendorName: string;
+  /** Rank position (1 = best). */
+  rank: number;
+  /** Composite advisory score 0–100 derived only from supplied data. */
+  score: number;
+  /** Plain-text explanation of the ranking using only the supplied fields. */
+  rationale: string;
+  /** Short list of observable strengths drawn from the grounded data. */
+  strengths: string[];
+  /** Short list of observable concerns drawn from the grounded data (may be empty). */
+  concerns: string[];
+}
+
+/**
+ * Structured output for the vendor recommendation AI endpoint (#953).
+ */
+export interface VendorRecommendationOutputSchema {
+  /** Plain-text overall advisory summary. */
+  summary: string;
+  /** Ranked list of vendor recommendations grounded in real data. */
+  recommendations: VendorRecommendationItemSchema[];
+  /** Advisory disclaimer that must be surfaced in every UI rendering. */
+  advisoryLabel: string;
+}
+
+/**
+ * Parse and validate the AI model response for the vendor recommendation endpoint.
+ *
+ * Required field: `recommendations` (non-empty array).
+ * Optional fields default to safe empty values.
+ * Vendor IDs are cross-validated against the supplied `validVendorIds` set so
+ * the AI cannot hallucinate vendor records that were not included in the prompt.
+ */
+export function parseVendorRecommendationOutput(
+  raw: string,
+  validVendorIds: Set<number>,
+): ParseResult<VendorRecommendationOutputSchema> {
+  const jsonResult = extractJson(raw);
+  if (!jsonResult.ok) return fail(jsonResult.errors);
+
+  const p = jsonResult.data;
+  const errors: SchemaValidationError[] = [];
+
+  if (!Array.isArray(p.recommendations)) {
+    errors.push({
+      field: 'recommendations',
+      message: 'recommendations must be an array',
+      received: p.recommendations,
+    });
+  }
+
+  if (errors.length > 0) return fail(errors);
+
+  const recommendations: VendorRecommendationItemSchema[] = [];
+  const rawRecs = p.recommendations as unknown[];
+
+  for (let i = 0; i < rawRecs.length; i++) {
+    const item = rawRecs[i];
+    if (typeof item !== 'object' || item === null) continue;
+    const r = item as Record<string, unknown>;
+
+    // Require vendorId to be a number present in the grounded data set.
+    const vendorId =
+      typeof r.vendorId === 'number'
+        ? r.vendorId
+        : typeof r.vendorId === 'string'
+          ? parseInt(r.vendorId, 10)
+          : NaN;
+
+    if (!Number.isFinite(vendorId) || !validVendorIds.has(vendorId)) {
+      // Skip recommendations referencing vendor IDs not in the grounded set —
+      // this is the primary hallucination-prevention guard.
+      continue;
+    }
+
+    if (typeof r.rationale !== 'string' || !r.rationale.trim()) continue;
+
+    const rawScore = typeof r.score === 'number' ? r.score : parseFloat(String(r.score));
+    const score = Number.isFinite(rawScore) ? Math.min(100, Math.max(0, Math.round(rawScore))) : 0;
+
+    const rawRank = typeof r.rank === 'number' ? r.rank : parseInt(String(r.rank), 10);
+    const rank = Number.isFinite(rawRank) && rawRank > 0 ? rawRank : i + 1;
+
+    recommendations.push({
+      vendorId,
+      vendorName:
+        typeof r.vendorName === 'string' && r.vendorName.trim() ? r.vendorName.trim() : '',
+      rank,
+      score,
+      rationale: r.rationale.trim(),
+      strengths: Array.isArray(r.strengths)
+        ? (r.strengths as unknown[]).filter((s): s is string => typeof s === 'string')
+        : [],
+      concerns: Array.isArray(r.concerns)
+        ? (r.concerns as unknown[]).filter((c): c is string => typeof c === 'string')
+        : [],
+    });
+  }
+
+  if (recommendations.length === 0) {
+    return fail([
+      {
+        field: 'recommendations',
+        message:
+          'At least one valid recommendation with a grounded vendorId and non-empty rationale is required',
+        received: p.recommendations,
+      },
+    ]);
+  }
+
+  // Sort by rank ascending for deterministic output order.
+  recommendations.sort((a, b) => a.rank - b.rank);
+
+  const ADVISORY_FALLBACK =
+    'AI advisory only — recommendations are based solely on available vendor data. Verify all information independently before making contracting decisions.';
+
+  return ok({
+    summary: typeof p.summary === 'string' ? p.summary.trim() : '',
+    recommendations,
+    advisoryLabel:
+      typeof p.advisoryLabel === 'string' && p.advisoryLabel.trim()
+        ? p.advisoryLabel.trim()
+        : ADVISORY_FALLBACK,
+  });
+}
+
 // ── Workflow-type dispatcher ───────────────────────────────────────────────────
 
 export type GroundedWorkflowType = 'event' | 'task' | 'rsvp';
