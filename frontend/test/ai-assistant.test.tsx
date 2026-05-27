@@ -219,7 +219,8 @@ describe('AiAssistant — Grounded Workflow tab', () => {
 
     // Switch to rsvp workflow
     const workflowSelect = screen.getByRole('combobox', { name: /Workflow type/i });
-    fireEvent.change(workflowSelect, { target: { value: 'rsvp' } });
+    await userEvent.click(workflowSelect);
+    await userEvent.click(screen.getByRole('option', { name: /RSVP suggestions/i }));
 
     const entityIdInput = screen.getByRole('spinbutton', { name: /Event ID/i });
     await userEvent.type(entityIdInput, '10');
