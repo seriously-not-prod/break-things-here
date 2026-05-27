@@ -637,7 +637,7 @@ export function AiAssistant(): JSX.Element {
   return (
     <>
       {/* Floating button */}
-      <Tooltip title="AI Planning Assistant" placement="left" disableFocusListener>
+      <Tooltip title="Open AI assistant" placement="left" disableFocusListener>
         <Fab
           color="primary"
           aria-label="AI assistant"
@@ -925,7 +925,7 @@ export function AiAssistant(): JSX.Element {
                       setWorkflowError(null);
                     }}
                     fullWidth
-                    aria-label="Workflow type"
+                    inputProps={{ 'aria-label': 'Workflow type' }}
                   >
                     {(Object.keys(WORKFLOW_LABELS) as WorkflowType[]).map((k) => (
                       <MenuItem key={k} value={k}>
