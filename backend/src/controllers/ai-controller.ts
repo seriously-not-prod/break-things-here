@@ -2943,7 +2943,14 @@ export async function getRsvpCommunicationDraft(
 ): Promise<Response> {
   const { entityId, tone, draftLength, prompt } = req.body as Partial<RsvpCommunicationDraftBody>;
 
-  const parsedEntityId = typeof entityId === 'string' ? parseInt(entityId, 10) : entityId;
+  const rawTone = scalar(body.tone);
+  const tone = typeof rawTone === 'string' ? (rawTone as RsvpDraftTone) : undefined;
+
+  const rawLength = scalar(body.length);
+  const length = typeof rawLength === 'string' ? (rawLength as RsvpDraftLength) : undefined;
+
+  const rawPrompt = scalar(body.prompt);
+  const prompt = typeof rawPrompt === 'string' ? rawPrompt : undefined;
   if (
     !parsedEntityId ||
     typeof parsedEntityId !== 'number' ||

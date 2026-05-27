@@ -917,6 +917,7 @@ export function AiAssistant(): JSX.Element {
                 </Typography>
                 <Stack spacing={1}>
                   <Select
+                    native
                     size="small"
                     value={workflowType}
                     onChange={(e) => {
@@ -928,9 +929,9 @@ export function AiAssistant(): JSX.Element {
                     inputProps={{ 'aria-label': 'Workflow type' }}
                   >
                     {(Object.keys(WORKFLOW_LABELS) as WorkflowType[]).map((k) => (
-                      <MenuItem key={k} value={k}>
+                      <option key={k} value={k}>
                         {WORKFLOW_LABELS[k]}
-                      </MenuItem>
+                      </option>
                     ))}
                   </Select>
                   <Autocomplete<EventOption>
