@@ -208,6 +208,10 @@ router.post(
   applyAiPrivacyControls,
   aiController.getAnalyticsNarrative,
 );
+// Issue #958 — AI Observability health/metrics endpoint.
+// Requires authentication only; no AI RBAC so ops staff can query without
+// needing AI feature entitlements.
+router.get('/ai/health', authenticateToken, aiController.getAiHealth);
 
 // ============ PUBLIC RSVP ROUTES ==========
 // All unauthenticated public endpoints share a tighter per-IP limiter

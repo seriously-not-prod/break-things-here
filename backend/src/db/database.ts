@@ -3749,6 +3749,52 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       occurred_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+
+  // v28 — Issue #958: AI observability audit trail.
+  // Records structured audit events for every user-triggered AI action so
+  // outcomes, latency, rate-limit incidents, and retries are traceable.
+  // Only safe operational metadata is stored — no PII or user-supplied text.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_audit_events (
+      id                  SERIAL PRIMARY KEY,
+      user_id             INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      workflow_type       TEXT    NOT NULL,
+      entity_id           INTEGER,
+      provider            TEXT    NOT NULL,
+      duration_ms         INTEGER NOT NULL DEFAULT 0,
+      outcome             TEXT    NOT NULL
+                            CHECK (outcome IN (
+                              'success',
+                              'failure',
+                              'rate_limited',
+                              'timed_out'
+                            )),
+      http_status         INTEGER,
+      safe_error_message  TEXT,
+      retry_count         INTEGER NOT NULL DEFAULT 0,
+      occurred_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ai_audit_events_occurred_at
+      ON ai_audit_events (occurred_at DESC)
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ai_audit_events_user_id
+      ON ai_audit_events (user_id)
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ai_audit_events_outcome
+      ON ai_audit_events (outcome)
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ai_audit_events_workflow_type
+      ON ai_audit_events (workflow_type)
+  `);
 }
 
 async function seedTimelineTemplates(db: DatabaseAdapter): Promise<void> {
