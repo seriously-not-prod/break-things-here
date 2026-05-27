@@ -17,7 +17,7 @@ export interface RsvpCommunicationDraft {
 export interface RsvpCommunicationDraftResponse {
   entityId: number;
   tone: RsvpDraftTone;
-  length: RsvpDraftLength;
+  draftLength: RsvpDraftLength;
   drafts: RsvpCommunicationDraft;
   raw: string;
 }

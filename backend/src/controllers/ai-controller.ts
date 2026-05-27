@@ -2780,7 +2780,7 @@ export interface RsvpCommunicationDraft {
 interface RsvpCommunicationDraftResponse {
   entityId: number;
   tone: RsvpDraftTone;
-  length: RsvpDraftLength;
+  draftLength: RsvpDraftLength;
   drafts: RsvpCommunicationDraft;
   raw: string;
 }
@@ -2947,8 +2947,8 @@ export async function getRsvpCommunicationDraft(
   const rawTone = Array.isArray(_tone) ? _tone[0] : _tone;
   const tone = typeof rawTone === 'string' ? (rawTone as RsvpDraftTone) : undefined;
 
-  const _length = body.length;
-  const rawLength = Array.isArray(_length) ? _length[0] : _length;
+  const _draftLength = body.draftLength;
+  const rawLength = Array.isArray(_draftLength) ? _draftLength[0] : _draftLength;
   const length = typeof rawLength === 'string' ? (rawLength as RsvpDraftLength) : undefined;
 
   const _prompt = body.prompt;
