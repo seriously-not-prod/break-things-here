@@ -3724,6 +3724,31 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       occurred_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+
+  // v27 — Issue #957: AI data privacy and PII minimisation audit log.
+  // Records PII detection, field redaction, payload filtering, and log
+  // sanitisation events so privacy-incident patterns can be reviewed and
+  // compliance obligations met.  Writes are best-effort (failures are
+  // swallowed in the privacy module so they never affect the caller).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_privacy_events (
+      id             SERIAL PRIMARY KEY,
+      user_id        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      event_type     TEXT NOT NULL
+                       CHECK (event_type IN (
+                         'pii_detected',
+                         'field_redacted',
+                         'payload_filtered',
+                         'log_sanitised'
+                       )),
+      workflow_type  TEXT NOT NULL,
+      entity_id      INTEGER,
+      pii_categories JSONB NOT NULL DEFAULT '[]'::jsonb,
+      field_names    JSONB NOT NULL DEFAULT '[]'::jsonb,
+      detail         TEXT NOT NULL DEFAULT '',
+      occurred_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
 }
 
 async function seedTimelineTemplates(db: DatabaseAdapter): Promise<void> {

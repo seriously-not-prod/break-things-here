@@ -61,6 +61,7 @@ import * as seatingGroupsController from '../controllers/seating-groups-controll
 
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
 import { requireAiAccess } from '../middleware/ai-rbac.js';
+import { applyAiPrivacyControls } from '../middleware/ai-privacy-middleware.js';
 import {
   apiLimiter,
   createAuthLimiter,
@@ -170,18 +171,20 @@ router.get('/auth/entra/login', entraAuthController.initiateEntraLogin);
 router.post('/auth/entra/callback', createAuthLimiter(), entraAuthController.handleEntraCallback);
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
-router.post('/ai/suggest', authenticateToken, requireAiAccess, aiController.getSuggestion);
-router.post('/ai/grounded', authenticateToken, requireAiAccess, aiController.getGroundedSuggestion);
+router.post('/ai/suggest', authenticateToken, requireAiAccess, applyAiPrivacyControls, aiController.getSuggestion);
+router.post('/ai/grounded', authenticateToken, requireAiAccess, applyAiPrivacyControls, aiController.getGroundedSuggestion);
 router.post(
   '/ai/task-breakdown',
   authenticateToken,
   requireAiAccess,
+  applyAiPrivacyControls,
   aiController.getTaskBreakdown,
 );
 router.post(
   '/ai/budget-insight',
   authenticateToken,
   requireAiAccess,
+  applyAiPrivacyControls,
   aiController.getBudgetInsight,
 );
 
