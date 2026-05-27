@@ -176,10 +176,10 @@ describe('requireAiAccess — access denied (no permission)', () => {
   });
 
   it('includes path, method, and roleId in the denial audit context', async () => {
-    const req = makeReq(
-      { id: 5, email: 'viewer@example.com', role_id: 6 },
-      { path: '/api/ai/grounded', method: 'POST' } as Partial<Request>,
-    );
+    const req = makeReq({ id: 5, email: 'viewer@example.com', role_id: 6 }, {
+      path: '/api/ai/grounded',
+      method: 'POST',
+    } as Partial<Request>);
     const res = makeRes();
     const next = vi.fn();
 
@@ -249,10 +249,10 @@ describe('requireAiAccess — access granted (has permission)', () => {
   });
 
   it('includes path and method in the grant audit context', async () => {
-    const req = makeReq(
-      { id: 7, email: 'organizer@example.com', role_id: 2 },
-      { path: '/api/ai/budget-insight', method: 'POST' } as Partial<Request>,
-    );
+    const req = makeReq({ id: 7, email: 'organizer@example.com', role_id: 2 }, {
+      path: '/api/ai/budget-insight',
+      method: 'POST',
+    } as Partial<Request>);
     const res = makeRes();
     const next = vi.fn();
 
