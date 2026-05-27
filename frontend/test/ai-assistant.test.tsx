@@ -216,9 +216,9 @@ describe('AiAssistant — Grounded Workflow tab', () => {
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
     await userEvent.click(screen.getByRole('tab', { name: /Grounded/i }));
 
-    // Switch to rsvp workflow
-    const workflowSelect = screen.getByRole('combobox', { name: /Workflow type/i });
-    fireEvent.change(workflowSelect, { target: { value: 'rsvp' } });
+    // Switch to rsvp workflow — MUI Select uses a div[role=combobox], must click to open then pick item
+    await userEvent.click(screen.getByRole('combobox', { name: /Workflow type/i }));
+    await userEvent.click(screen.getByRole('option', { name: /RSVP suggestions/i }));
 
     const entityIdInput = screen.getByRole('spinbutton', { name: /Event ID/i });
     await userEvent.type(entityIdInput, '10');
