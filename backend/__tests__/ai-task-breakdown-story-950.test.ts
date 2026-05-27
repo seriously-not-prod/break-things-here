@@ -206,7 +206,14 @@ describe('#950 — parseTaskBreakdownOutput schema validation', () => {
 
     for (const priority of ['low', 'medium', 'high', 'urgent']) {
       const raw = JSON.stringify([
-        { title: 'Task', owner: '', dueWindow: '', dependencies: [], priority, timelineConstraint: '' },
+        {
+          title: 'Task',
+          owner: '',
+          dueWindow: '',
+          dependencies: [],
+          priority,
+          timelineConstraint: '',
+        },
       ]);
       const result = parseTaskBreakdownOutput(raw);
       expect(result).not.toBeNull();
@@ -254,7 +261,14 @@ describe('#950 — parseTaskBreakdownOutput schema validation', () => {
 
     const raw = JSON.stringify([
       { owner: 'Lead' }, // no title — should be skipped
-      { title: 'Valid task', owner: 'Planner', dueWindow: '2 weeks', dependencies: [], priority: 'medium', timelineConstraint: '' },
+      {
+        title: 'Valid task',
+        owner: 'Planner',
+        dueWindow: '2 weeks',
+        dependencies: [],
+        priority: 'medium',
+        timelineConstraint: '',
+      },
     ]);
     const result = parseTaskBreakdownOutput(raw);
 
@@ -281,9 +295,7 @@ describe('#950 — getTaskBreakdown happy path', () => {
       capacity: 5000,
       tags: 'music, outdoor, family',
     };
-    const taskRows = [
-      { title: 'Book headliner', status: 'In Progress', due_date: '2026-05-01' },
-    ];
+    const taskRows = [{ title: 'Book headliner', status: 'In Progress', due_date: '2026-05-01' }];
 
     mockDb.get
       .mockResolvedValueOnce({ count: 1 }) // rate limit
@@ -395,9 +407,17 @@ describe('#950 — getTaskBreakdown happy path', () => {
   it('uses a default prompt when no prompt is supplied', async () => {
     process.env.OPENAI_API_KEY = 'openai-key';
 
-    mockDb.get
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({ id: 3, title: 'Art Fair', date: null, end_date: null, event_time: null, event_type: null, status: 'Active', capacity: null, tags: null });
+    mockDb.get.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({
+      id: 3,
+      title: 'Art Fair',
+      date: null,
+      end_date: null,
+      event_time: null,
+      event_type: null,
+      status: 'Active',
+      capacity: null,
+      tags: null,
+    });
     mockDb.all.mockResolvedValueOnce([]);
 
     const { captured, restore } = mockHttpsJsonReply({
@@ -405,7 +425,14 @@ describe('#950 — getTaskBreakdown happy path', () => {
         {
           message: {
             content: JSON.stringify([
-              { title: 'Set up exhibits', owner: 'Curator', dueWindow: '1 week before event', dependencies: [], priority: 'high', timelineConstraint: '' },
+              {
+                title: 'Set up exhibits',
+                owner: 'Curator',
+                dueWindow: '1 week before event',
+                dependencies: [],
+                priority: 'high',
+                timelineConstraint: '',
+              },
             ]),
           },
         },
@@ -439,19 +466,17 @@ describe('#950 — grounded user message includes timeline context', () => {
   it('includes event dates in the user message for timeline-aware generation', async () => {
     process.env.OPENAI_API_KEY = 'openai-key';
 
-    mockDb.get
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({
-        id: 7,
-        title: 'Winter Gala',
-        date: '2026-12-20',
-        end_date: '2026-12-20',
-        event_time: '19:00',
-        event_type: 'Gala',
-        status: 'Draft',
-        capacity: 300,
-        tags: null,
-      });
+    mockDb.get.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({
+      id: 7,
+      title: 'Winter Gala',
+      date: '2026-12-20',
+      end_date: '2026-12-20',
+      event_time: '19:00',
+      event_type: 'Gala',
+      status: 'Draft',
+      capacity: 300,
+      tags: null,
+    });
     mockDb.all.mockResolvedValueOnce([
       { title: 'Venue deposit paid', status: 'Complete', due_date: '2026-10-01' },
       { title: 'Send invitations', status: 'Pending', due_date: '2026-11-01' },
@@ -513,19 +538,17 @@ describe('#950 — grounded user message includes timeline context', () => {
   it('omits null event fields from the grounded user message (noise reduction)', async () => {
     process.env.OPENAI_API_KEY = 'openai-key';
 
-    mockDb.get
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({
-        id: 9,
-        title: 'Unnamed Event',
-        date: null,
-        end_date: null,
-        event_time: null,
-        event_type: null,
-        status: 'Draft',
-        capacity: null,
-        tags: null,
-      });
+    mockDb.get.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({
+      id: 9,
+      title: 'Unnamed Event',
+      date: null,
+      end_date: null,
+      event_time: null,
+      event_type: null,
+      status: 'Draft',
+      capacity: null,
+      tags: null,
+    });
     mockDb.all.mockResolvedValueOnce([]);
 
     const { captured, restore } = mockHttpsJsonReply({
@@ -533,7 +556,14 @@ describe('#950 — grounded user message includes timeline context', () => {
         {
           message: {
             content: JSON.stringify([
-              { title: 'Define event scope', owner: 'Organiser', dueWindow: 'ASAP', dependencies: [], priority: 'urgent', timelineConstraint: '' },
+              {
+                title: 'Define event scope',
+                owner: 'Organiser',
+                dueWindow: 'ASAP',
+                dependencies: [],
+                priority: 'urgent',
+                timelineConstraint: '',
+              },
             ]),
           },
         },
@@ -542,7 +572,10 @@ describe('#950 — grounded user message includes timeline context', () => {
 
     try {
       const { getTaskBreakdown } = await loadController();
-      const req = makeReq({ eventId: 9, prompt: 'Start planning' }, { id: 1, email: 'planner@test.com', role_id: 2 });
+      const req = makeReq(
+        { eventId: 9, prompt: 'Start planning' },
+        { id: 1, email: 'planner@test.com', role_id: 2 },
+      );
       const res = makeRes();
 
       await getTaskBreakdown(req, res);
@@ -577,12 +610,27 @@ describe('#950 — structured output for manual copy/apply', () => {
     process.env.OPENAI_API_KEY = 'openai-key';
 
     const rawContent = JSON.stringify([
-      { title: 'Print programmes', owner: 'Design team', dueWindow: '2 weeks before event', dependencies: [], priority: 'low', timelineConstraint: '' },
+      {
+        title: 'Print programmes',
+        owner: 'Design team',
+        dueWindow: '2 weeks before event',
+        dependencies: [],
+        priority: 'low',
+        timelineConstraint: '',
+      },
     ]);
 
-    mockDb.get
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({ id: 11, title: 'Book Launch', date: '2026-09-10', end_date: null, event_time: null, event_type: 'Conference', status: 'Active', capacity: 100, tags: null });
+    mockDb.get.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({
+      id: 11,
+      title: 'Book Launch',
+      date: '2026-09-10',
+      end_date: null,
+      event_time: null,
+      event_type: 'Conference',
+      status: 'Active',
+      capacity: 100,
+      tags: null,
+    });
     mockDb.all.mockResolvedValueOnce([]);
 
     const { restore } = mockHttpsJsonReply({
@@ -591,7 +639,10 @@ describe('#950 — structured output for manual copy/apply', () => {
 
     try {
       const { getTaskBreakdown } = await loadController();
-      const req = makeReq({ eventId: 11, prompt: 'Plan tasks' }, { id: 2, email: 'user@test.com', role_id: 2 });
+      const req = makeReq(
+        { eventId: 11, prompt: 'Plan tasks' },
+        { id: 2, email: 'user@test.com', role_id: 2 },
+      );
       const res = makeRes();
 
       await getTaskBreakdown(req, res);
@@ -615,9 +666,17 @@ describe('#950 — structured output for manual copy/apply', () => {
   it('returns empty tasks array (not an error) when model returns unparseable JSON', async () => {
     process.env.OPENAI_API_KEY = 'openai-key';
 
-    mockDb.get
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({ id: 12, title: 'Bad Output Event', date: null, end_date: null, event_time: null, event_type: null, status: 'Draft', capacity: null, tags: null });
+    mockDb.get.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({
+      id: 12,
+      title: 'Bad Output Event',
+      date: null,
+      end_date: null,
+      event_time: null,
+      event_type: null,
+      status: 'Draft',
+      capacity: null,
+      tags: null,
+    });
     mockDb.all.mockResolvedValueOnce([]);
 
     const { restore } = mockHttpsJsonReply({
@@ -626,7 +685,10 @@ describe('#950 — structured output for manual copy/apply', () => {
 
     try {
       const { getTaskBreakdown } = await loadController();
-      const req = makeReq({ eventId: 12, prompt: 'plan tasks' }, { id: 1, email: 'planner@test.com', role_id: 2 });
+      const req = makeReq(
+        { eventId: 12, prompt: 'plan tasks' },
+        { id: 1, email: 'planner@test.com', role_id: 2 },
+      );
       const res = makeRes();
 
       await getTaskBreakdown(req, res);
@@ -745,9 +807,17 @@ describe('#950 — getTaskBreakdown AI provider failure', () => {
   it('returns 502 when the AI provider call throws an error', async () => {
     process.env.OPENAI_API_KEY = 'openai-key';
 
-    mockDb.get
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({ id: 15, title: 'Error Event', date: null, end_date: null, event_time: null, event_type: null, status: 'Draft', capacity: null, tags: null });
+    mockDb.get.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({
+      id: 15,
+      title: 'Error Event',
+      date: null,
+      end_date: null,
+      event_time: null,
+      event_type: null,
+      status: 'Draft',
+      capacity: null,
+      tags: null,
+    });
     mockDb.all.mockResolvedValueOnce([]);
 
     const spy = vi.spyOn(https, 'request').mockImplementation((_options, _callback) => {
@@ -783,19 +853,17 @@ describe('#950 — contextSummary groundedFields', () => {
   it('lists only populated event context fields in groundedFields', async () => {
     process.env.OPENAI_API_KEY = 'openai-key';
 
-    mockDb.get
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({
-        id: 20,
-        title: 'Partial Event',
-        date: '2026-06-01',
-        end_date: null,  // missing
-        event_time: null, // missing
-        event_type: 'Conference',
-        status: 'Active',
-        capacity: 200,
-        tags: null, // missing
-      });
+    mockDb.get.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({
+      id: 20,
+      title: 'Partial Event',
+      date: '2026-06-01',
+      end_date: null, // missing
+      event_time: null, // missing
+      event_type: 'Conference',
+      status: 'Active',
+      capacity: 200,
+      tags: null, // missing
+    });
     mockDb.all.mockResolvedValueOnce([
       { title: 'Reserve speakers', status: 'Pending', due_date: null },
     ]);
@@ -805,7 +873,14 @@ describe('#950 — contextSummary groundedFields', () => {
         {
           message: {
             content: JSON.stringify([
-              { title: 'Arrange AV setup', owner: 'AV team', dueWindow: '1 week before', dependencies: [], priority: 'medium', timelineConstraint: '' },
+              {
+                title: 'Arrange AV setup',
+                owner: 'AV team',
+                dueWindow: '1 week before',
+                dependencies: [],
+                priority: 'medium',
+                timelineConstraint: '',
+              },
             ]),
           },
         },
