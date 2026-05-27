@@ -52,9 +52,7 @@ export async function fetchVendorRecommendation(
 
   if (!response.ok) {
     const data = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      data.error ?? `Vendor recommendation request failed (${response.status})`,
-    );
+    throw new Error(data.error ?? `Vendor recommendation request failed (${response.status})`);
   }
 
   return response.json() as Promise<VendorRecommendationResponse>;

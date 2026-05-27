@@ -39,11 +39,7 @@ const SCORE_COLOR = (score: number): 'success' | 'warning' | 'error' | 'default'
   return 'default';
 };
 
-function VendorRecommendationCard({
-  item,
-}: {
-  item: VendorRecommendationItem;
-}): JSX.Element {
+function VendorRecommendationCard({ item }: { item: VendorRecommendationItem }): JSX.Element {
   const scoreColor = SCORE_COLOR(item.score);
 
   return (
@@ -134,11 +130,7 @@ export default function VendorAiRecommendationPanel({ eventId }: Props): JSX.Ele
         <Typography variant="h6">AI Vendor Recommendations</Typography>
       </Stack>
 
-      <Alert
-        icon={<InfoOutlinedIcon fontSize="inherit" />}
-        severity="info"
-        sx={{ mb: 2 }}
-      >
+      <Alert icon={<InfoOutlinedIcon fontSize="inherit" />} severity="info" sx={{ mb: 2 }}>
         <strong>Advisory only.</strong> Recommendations are generated from available vendor data
         only. Verify all information independently before making contracting decisions.
       </Alert>
@@ -157,7 +149,9 @@ export default function VendorAiRecommendationPanel({ eventId }: Props): JSX.Ele
           variant="contained"
           onClick={() => void handleRequest()}
           disabled={loading}
-          startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <AutoAwesomeRoundedIcon />}
+          startIcon={
+            loading ? <CircularProgress size={16} color="inherit" /> : <AutoAwesomeRoundedIcon />
+          }
           sx={{ whiteSpace: 'nowrap' }}
         >
           {loading ? 'Analysing…' : 'Get Recommendations'}
@@ -193,14 +187,19 @@ export default function VendorAiRecommendationPanel({ eventId }: Props): JSX.Ele
           <Divider sx={{ mb: 1 }} />
 
           <Stack direction="row" spacing={0.5} alignItems="flex-start">
-            <InfoOutlinedIcon fontSize="inherit" sx={{ color: 'text.disabled', mt: '2px', flexShrink: 0 }} />
+            <InfoOutlinedIcon
+              fontSize="inherit"
+              sx={{ color: 'text.disabled', mt: '2px', flexShrink: 0 }}
+            />
             <Typography variant="caption" color="text.disabled">
               {result.advisoryLabel}
             </Typography>
           </Stack>
 
           <Typography variant="caption" color="text.disabled" display="block" mt={0.5}>
-            Grounded on: {result.contextSummary.groundedFields.join(', ')} ({result.contextSummary.vendorCount} vendor{result.contextSummary.vendorCount !== 1 ? 's' : ''})
+            Grounded on: {result.contextSummary.groundedFields.join(', ')} (
+            {result.contextSummary.vendorCount} vendor
+            {result.contextSummary.vendorCount !== 1 ? 's' : ''})
           </Typography>
         </Box>
       )}
