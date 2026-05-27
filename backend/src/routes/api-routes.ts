@@ -171,8 +171,20 @@ router.get('/auth/entra/login', entraAuthController.initiateEntraLogin);
 router.post('/auth/entra/callback', createAuthLimiter(), entraAuthController.handleEntraCallback);
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
-router.post('/ai/suggest', authenticateToken, requireAiAccess, applyAiPrivacyControls, aiController.getSuggestion);
-router.post('/ai/grounded', authenticateToken, requireAiAccess, applyAiPrivacyControls, aiController.getGroundedSuggestion);
+router.post(
+  '/ai/suggest',
+  authenticateToken,
+  requireAiAccess,
+  applyAiPrivacyControls,
+  aiController.getSuggestion,
+);
+router.post(
+  '/ai/grounded',
+  authenticateToken,
+  requireAiAccess,
+  applyAiPrivacyControls,
+  aiController.getGroundedSuggestion,
+);
 router.post(
   '/ai/task-breakdown',
   authenticateToken,
