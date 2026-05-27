@@ -2943,13 +2943,16 @@ export async function getRsvpCommunicationDraft(
 ): Promise<Response> {
   const { entityId, tone, draftLength, prompt } = req.body as Partial<RsvpCommunicationDraftBody>;
 
-  const rawTone = Array.isArray(body.tone) ? body.tone[0] : body.tone;
+  const _tone = body.tone;
+  const rawTone = Array.isArray(_tone) ? _tone[0] : _tone;
   const tone = typeof rawTone === 'string' ? (rawTone as RsvpDraftTone) : undefined;
 
-  const rawLength = Array.isArray(body.length) ? body.length[0] : body.length;
+  const _length = body.length;
+  const rawLength = Array.isArray(_length) ? _length[0] : _length;
   const length = typeof rawLength === 'string' ? (rawLength as RsvpDraftLength) : undefined;
 
-  const rawPrompt = Array.isArray(body.prompt) ? body.prompt[0] : body.prompt;
+  const _prompt = body.prompt;
+  const rawPrompt = Array.isArray(_prompt) ? _prompt[0] : _prompt;
   const prompt = typeof rawPrompt === 'string' ? rawPrompt : undefined;
   if (
     !parsedEntityId ||
