@@ -65,11 +65,7 @@ import {
   withProviderTimeout,
   logAiSafetyEvent,
 } from '../lib/ai-safety.js';
-import {
-  filterProviderPayload,
-  redactPii,
-  logAiPrivacyEvent,
-} from '../lib/ai-privacy.js';
+import { filterProviderPayload, redactPii, logAiPrivacyEvent } from '../lib/ai-privacy.js';
 
 function readEnv(...keys: string[]): string {
   for (const key of keys) {
