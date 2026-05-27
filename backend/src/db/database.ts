@@ -3700,6 +3700,30 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
       requested_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+
+  // v26 — Issue #956: AI safety event audit log.
+  // Records prompt injection detections, output rejections, and provider
+  // timeouts so security incidents can be reviewed and patterns analysed.
+  // Writes are best-effort (failures are swallowed in the safety module).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_safety_events (
+      id                SERIAL PRIMARY KEY,
+      user_id           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      event_type        TEXT NOT NULL
+                          CHECK (event_type IN (
+                            'input_sanitised',
+                            'injection_blocked',
+                            'output_rejected',
+                            'provider_timeout',
+                            'context_violation'
+                          )),
+      workflow_type     TEXT NOT NULL,
+      entity_id         INTEGER,
+      threat_categories JSONB NOT NULL DEFAULT '[]'::jsonb,
+      detail            TEXT NOT NULL DEFAULT '',
+      occurred_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
 }
 
 async function seedTimelineTemplates(db: DatabaseAdapter): Promise<void> {
