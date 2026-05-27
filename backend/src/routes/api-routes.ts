@@ -201,6 +201,13 @@ router.post(
   applyAiPrivacyControls,
   aiController.getConflictResolutionSuggestions,
 );
+router.post(
+  '/ai/analytics-narrative',
+  authenticateToken,
+  requireAiAccess,
+  applyAiPrivacyControls,
+  aiController.getAnalyticsNarrative,
+);
 
 // ============ PUBLIC RSVP ROUTES ==========
 // All unauthenticated public endpoints share a tighter per-IP limiter

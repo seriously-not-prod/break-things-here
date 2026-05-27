@@ -138,7 +138,8 @@ export type AiOutputSchema =
   | TaskSuggestionSchema
   | RsvpSuggestionSchema
   | GeneralSuggestionSchema
-  | RsvpCommunicationDraftSchema;
+  | RsvpCommunicationDraftSchema
+  | AnalyticsNarrativeSummarySchema;
 
 // ── Schema validators ─────────────────────────────────────────────────────────
 
@@ -873,4 +874,161 @@ export function formatValidationErrors(errors: SchemaValidationError[]): string 
         `[${e.field}] ${e.message}${e.received !== undefined ? ` (got: ${JSON.stringify(e.received)})` : ''}`,
     )
     .join('; ');
+}
+
+// ── Analytics narrative summary schema — Story #955 ──────────────────────────
+
+/**
+ * Direction of the primary trend observed across the analytics metrics.
+ * - `up`     — Metrics are improving (e.g. acceptance rate rising, tasks completing).
+ * - `down`   — Metrics are declining (e.g. RSVP drops, budget overrun).
+ * - `stable` — No statistically meaningful change detected.
+ */
+export type NarrativeTrendDirection = 'up' | 'down' | 'stable';
+
+/**
+ * Quality of the underlying analytics data used to generate the narrative.
+ * - `sufficient` — Enough data was present to produce a grounded narrative.
+ * - `sparse`     — Limited data was available; narrative scope is reduced.
+ */
+export type NarrativeDataQuality = 'sufficient' | 'sparse';
+
+/**
+ * Structured output for the analytics narrative summary AI endpoint (#955).
+ *
+ * All fields are grounded exclusively in analytics metrics fetched from the
+ * database.  The AI model must not invent metrics or draw conclusions that
+ * are unsupported by the supplied data.
+ */
+export interface AnalyticsNarrativeSummarySchema {
+  /**
+   * One-line headline (max 120 characters) summarising the overall picture.
+   * Must reference at least one concrete metric from the supplied data.
+   */
+  headline: string;
+  /** Overall trend direction derived from comparing current vs prior metrics. */
+  trendDirection: NarrativeTrendDirection;
+  /**
+   * 1–3 sentence narrative grounded exclusively in the supplied metrics.
+   * Must not introduce metrics or facts not present in the input context.
+   */
+  summary: string;
+  /**
+   * Ordered list of notable metric changes (max 5).
+   * Each entry is a short plain-text statement referencing a specific metric
+   * and its change (e.g. "Confirmed RSVPs rose from 45 to 62 this week").
+   */
+  notableChanges: string[];
+  /**
+   * Ordered list of suggested actions (max 3).
+   * Each is a short, actionable recommendation grounded in the observed data.
+   */
+  suggestedActions: string[];
+  /** Reflects whether the input data was rich enough to produce full analysis. */
+  dataQuality: NarrativeDataQuality;
+}
+
+/**
+ * Parse and validate the AI model response for the analytics narrative
+ * summary endpoint (#955).
+ *
+ * Required fields: `headline`, `summary` (non-empty strings).
+ * Optional array fields default to empty arrays.
+ * Enum fields default to safe neutral values.
+ */
+export function parseAnalyticsNarrativeOutput(
+  raw: string,
+): ParseResult<AnalyticsNarrativeSummarySchema> {
+  const jsonResult = extractJson(raw);
+  if (!jsonResult.ok) return fail(jsonResult.errors);
+
+  const p = jsonResult.data;
+  const errors: SchemaValidationError[] = [];
+
+  if (typeof p.headline !== 'string' || p.headline.trim() === '') {
+    errors.push({
+      field: 'headline',
+      message: 'headline must be a non-empty string',
+      received: p.headline,
+    });
+  }
+
+  if (typeof p.summary !== 'string' || p.summary.trim() === '') {
+    errors.push({
+      field: 'summary',
+      message: 'summary must be a non-empty string',
+      received: p.summary,
+    });
+  }
+
+  const rawChanges = p.notableChanges;
+  if (rawChanges !== undefined && !Array.isArray(rawChanges)) {
+    errors.push({
+      field: 'notableChanges',
+      message: 'notableChanges must be an array when provided',
+      received: rawChanges,
+    });
+  } else if (Array.isArray(rawChanges)) {
+    (rawChanges as unknown[]).forEach((item, i) => {
+      if (typeof item !== 'string') {
+        errors.push({
+          field: `notableChanges[${i}]`,
+          message: 'Each notable change must be a string',
+          received: item,
+        });
+      }
+    });
+  }
+
+  const rawActions = p.suggestedActions;
+  if (rawActions !== undefined && !Array.isArray(rawActions)) {
+    errors.push({
+      field: 'suggestedActions',
+      message: 'suggestedActions must be an array when provided',
+      received: rawActions,
+    });
+  } else if (Array.isArray(rawActions)) {
+    (rawActions as unknown[]).forEach((item, i) => {
+      if (typeof item !== 'string') {
+        errors.push({
+          field: `suggestedActions[${i}]`,
+          message: 'Each suggested action must be a string',
+          received: item,
+        });
+      }
+    });
+  }
+
+  if (errors.length > 0) return fail(errors);
+
+  const VALID_TREND = new Set<string>(['up', 'down', 'stable']);
+  const VALID_QUALITY = new Set<string>(['sufficient', 'sparse']);
+
+  const headline = (p.headline as string).trim().substring(0, 120);
+  const summary = (p.summary as string).trim();
+
+  const notableChanges: string[] = Array.isArray(p.notableChanges)
+    ? (p.notableChanges as unknown[])
+        .filter((c): c is string => typeof c === 'string')
+        .slice(0, 5)
+    : [];
+
+  const suggestedActions: string[] = Array.isArray(p.suggestedActions)
+    ? (p.suggestedActions as unknown[])
+        .filter((a): a is string => typeof a === 'string')
+        .slice(0, 3)
+    : [];
+
+  return ok({
+    headline,
+    trendDirection: VALID_TREND.has(p.trendDirection as string)
+      ? (p.trendDirection as NarrativeTrendDirection)
+      : 'stable',
+    summary,
+    notableChanges,
+    suggestedActions,
+    dataQuality: VALID_QUALITY.has(p.dataQuality as string)
+      ? (p.dataQuality as NarrativeDataQuality)
+      : 'sufficient',
+  });
 }
