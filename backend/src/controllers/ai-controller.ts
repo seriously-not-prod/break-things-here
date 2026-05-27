@@ -76,11 +76,7 @@ import {
   withProviderTimeout,
   logAiSafetyEvent,
 } from '../lib/ai-safety.js';
-import {
-  filterProviderPayload,
-  redactPii,
-  logAiPrivacyEvent,
-} from '../lib/ai-privacy.js';
+import { filterProviderPayload, redactPii, logAiPrivacyEvent } from '../lib/ai-privacy.js';
 
 function readEnv(...keys: string[]): string {
   for (const key of keys) {
@@ -1892,9 +1888,7 @@ export async function getVendorRecommendation(req: AuthRequest, res: Response): 
     const parsedSummary = schemaResult.ok ? schemaResult.data.summary : '';
     const ADVISORY_LABEL =
       'AI advisory only — recommendations are based solely on available vendor data. Verify all information independently before making contracting decisions.';
-    const parsedAdvisoryLabel = schemaResult.ok
-      ? schemaResult.data.advisoryLabel
-      : ADVISORY_LABEL;
+    const parsedAdvisoryLabel = schemaResult.ok ? schemaResult.data.advisoryLabel : ADVISORY_LABEL;
     const recommendations = schemaResult.ok ? schemaResult.data.recommendations : [];
 
     if (!schemaResult.ok) {
