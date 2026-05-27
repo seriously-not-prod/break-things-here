@@ -273,7 +273,12 @@ async function checkAiRateLimit(userId: number): Promise<boolean> {
  * detection with structured threat metadata and safety-event logging.
  * Returns the cleaned text for backward-compatible use by prompt builders.
  */
-function sanitisePrompt(input: string, workflowType: string, userId?: number, entityId?: number | null): string {
+function sanitisePrompt(
+  input: string,
+  workflowType: string,
+  userId?: number,
+  entityId?: number | null,
+): string {
   const result = sanitiseInput(input);
   if (result.injectionDetected) {
     void logAiSafetyEvent({

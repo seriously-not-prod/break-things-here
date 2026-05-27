@@ -172,8 +172,18 @@ router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
 router.post('/ai/suggest', authenticateToken, requireAiAccess, aiController.getSuggestion);
 router.post('/ai/grounded', authenticateToken, requireAiAccess, aiController.getGroundedSuggestion);
-router.post('/ai/task-breakdown', authenticateToken, requireAiAccess, aiController.getTaskBreakdown);
-router.post('/ai/budget-insight', authenticateToken, requireAiAccess, aiController.getBudgetInsight);
+router.post(
+  '/ai/task-breakdown',
+  authenticateToken,
+  requireAiAccess,
+  aiController.getTaskBreakdown,
+);
+router.post(
+  '/ai/budget-insight',
+  authenticateToken,
+  requireAiAccess,
+  aiController.getBudgetInsight,
+);
 
 // ============ PUBLIC RSVP ROUTES ==========
 // All unauthenticated public endpoints share a tighter per-IP limiter

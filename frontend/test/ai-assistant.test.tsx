@@ -146,7 +146,7 @@ describe('AiAssistant — Grounded Workflow tab', () => {
   async function openGroundedTab() {
     render(<AiAssistant />);
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
-    await userEvent.click(screen.getByRole('tab', { name: /Grounded Workflow/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Grounded/i }));
   }
 
   it('switches to the Grounded Workflow tab', async () => {
@@ -212,7 +212,7 @@ describe('AiAssistant — Grounded Workflow tab', () => {
 
     render(<AiAssistant />);
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
-    await userEvent.click(screen.getByRole('tab', { name: /Grounded Workflow/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Grounded/i }));
 
     // Switch to rsvp workflow
     const workflowSelect = screen.getByRole('combobox', { name: /Workflow type/i });
@@ -263,9 +263,7 @@ describe('AiAssistant — Grounded Workflow tab', () => {
     await userEvent.click(screen.getByRole('button', { name: /Run Grounded Workflow/i }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
-    expect(
-      screen.getByText(/You do not have permission to use AI features/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/You do not have permission to use AI features/i)).toBeInTheDocument();
   });
 });
 

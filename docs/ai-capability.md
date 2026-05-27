@@ -90,7 +90,16 @@ JSON object** and the raw model response for traceability.
   },
   "raw": "raw model output string",
   "contextSummary": {
-    "groundedFields": ["title", "status", "description", "event_type", "date", "location", "capacity", "rsvp_stats"]
+    "groundedFields": [
+      "title",
+      "status",
+      "description",
+      "event_type",
+      "date",
+      "location",
+      "capacity",
+      "rsvp_stats"
+    ]
   }
 }
 ```
