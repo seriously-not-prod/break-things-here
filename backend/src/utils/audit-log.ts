@@ -102,6 +102,9 @@ export const AUDIT_ACTIONS = {
   VENDOR_CREATE: 'VENDOR_CREATE',
   VENDOR_UPDATE: 'VENDOR_UPDATE',
   VENDOR_DELETE: 'VENDOR_DELETE',
+  // AI access events (#963)
+  AI_ACCESS_GRANTED: 'AI_ACCESS_GRANTED',
+  AI_ACCESS_DENIED: 'AI_ACCESS_DENIED',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

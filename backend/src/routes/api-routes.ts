@@ -60,6 +60,7 @@ import * as attendanceBoardController from '../controllers/attendance-board-cont
 import * as seatingGroupsController from '../controllers/seating-groups-controller.js';
 
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
+import { requireAiAccess } from '../middleware/ai-rbac.js';
 import {
   apiLimiter,
   createAuthLimiter,
@@ -169,10 +170,10 @@ router.get('/auth/entra/login', entraAuthController.initiateEntraLogin);
 router.post('/auth/entra/callback', createAuthLimiter(), entraAuthController.handleEntraCallback);
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
-router.post('/ai/suggest', authenticateToken, aiController.getSuggestion);
-router.post('/ai/grounded', authenticateToken, aiController.getGroundedSuggestion);
-router.post('/ai/task-breakdown', authenticateToken, aiController.getTaskBreakdown);
-router.post('/ai/budget-insight', authenticateToken, aiController.getBudgetInsight);
+router.post('/ai/suggest', authenticateToken, requireAiAccess, aiController.getSuggestion);
+router.post('/ai/grounded', authenticateToken, requireAiAccess, aiController.getGroundedSuggestion);
+router.post('/ai/task-breakdown', authenticateToken, requireAiAccess, aiController.getTaskBreakdown);
+router.post('/ai/budget-insight', authenticateToken, requireAiAccess, aiController.getBudgetInsight);
 
 // ============ PUBLIC RSVP ROUTES ==========
 // All unauthenticated public endpoints share a tighter per-IP limiter

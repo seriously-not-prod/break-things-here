@@ -246,4 +246,48 @@ describe('AiAssistant — Grounded Workflow tab', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
     expect(screen.getByText(/Event not found/i)).toBeInTheDocument();
   });
+
+  it('shows permission-denied message when grounded workflow returns 403', async () => {
+    mockedApi.post.mockRejectedValueOnce(
+      new ApiError('AI features require elevated permissions.', 403),
+    );
+
+    await openGroundedTab();
+
+    const entityIdInput = screen.getByRole('spinbutton', { name: /Event ID/i });
+    await userEvent.type(entityIdInput, '42');
+
+    const promptInput = screen.getByRole('textbox', { name: /Workflow prompt/i });
+    await userEvent.type(promptInput, 'Improve event');
+
+    await userEvent.click(screen.getByRole('button', { name: /Run Grounded Workflow/i }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(
+      screen.getByText(/You do not have permission to use AI features/i),
+    ).toBeInTheDocument();
+  });
+});
+
+// ── RBAC permission-denied handling ───────────────────────────────────────────
+
+describe('AiAssistant — RBAC permission-denied (403)', () => {
+  it('shows permission-denied message in chat when 403 is returned', async () => {
+    mockedApi.post.mockRejectedValueOnce(
+      new ApiError('AI features require elevated permissions.', 403),
+    );
+
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+
+    const input = screen.getByRole('textbox', { name: /AI prompt input/i });
+    await userEvent.type(input, 'Test question');
+    await userEvent.click(screen.getByRole('button', { name: /Send/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/You do not have permission to use AI features/i),
+      ).toBeInTheDocument(),
+    );
+  });
 });
