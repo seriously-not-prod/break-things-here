@@ -263,9 +263,7 @@ describe('AiAssistant — Grounded Workflow tab', () => {
     await userEvent.click(screen.getByRole('button', { name: /Run Grounded Workflow/i }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
-    expect(
-      screen.getByText(/You do not have permission to use AI features/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/You do not have permission to use AI features/i)).toBeInTheDocument();
   });
 });
 

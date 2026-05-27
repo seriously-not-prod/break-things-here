@@ -331,7 +331,12 @@ function TaskBreakdownCard({
         </Typography>
       )}
       {item.timelineConstraint && (
-        <Typography variant="caption" color="text.disabled" display="block" sx={{ fontStyle: 'italic' }}>
+        <Typography
+          variant="caption"
+          color="text.disabled"
+          display="block"
+          sx={{ fontStyle: 'italic' }}
+        >
           {item.timelineConstraint}
         </Typography>
       )}
@@ -504,18 +509,17 @@ export function AiAssistant(): JSX.Element {
   function handleCopyAllTasks(): void {
     if (!breakdownResult) return;
     const text = breakdownResult.tasks
-      .map(
-        (t, i) =>
-          [
-            `${i + 1}. ${t.title}`,
-            t.owner ? `   Owner: ${t.owner}` : '',
-            t.dueWindow ? `   Due: ${t.dueWindow}` : '',
-            t.priority ? `   Priority: ${t.priority}` : '',
-            t.timelineConstraint ? `   Timeline: ${t.timelineConstraint}` : '',
-            t.dependencies.length > 0 ? `   Depends on: ${t.dependencies.join(', ')}` : '',
-          ]
-            .filter(Boolean)
-            .join('\n'),
+      .map((t, i) =>
+        [
+          `${i + 1}. ${t.title}`,
+          t.owner ? `   Owner: ${t.owner}` : '',
+          t.dueWindow ? `   Due: ${t.dueWindow}` : '',
+          t.priority ? `   Priority: ${t.priority}` : '',
+          t.timelineConstraint ? `   Timeline: ${t.timelineConstraint}` : '',
+          t.dependencies.length > 0 ? `   Depends on: ${t.dependencies.join(', ')}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
       )
       .join('\n\n');
     void navigator.clipboard.writeText(text).then(() => {
@@ -877,9 +881,7 @@ export function AiAssistant(): JSX.Element {
                     }
                     onClick={runTaskBreakdown}
                     disabled={
-                      breakdownLoading ||
-                      !breakdownEventId ||
-                      parseInt(breakdownEventId, 10) <= 0
+                      breakdownLoading || !breakdownEventId || parseInt(breakdownEventId, 10) <= 0
                     }
                     aria-label="Generate task breakdown"
                   >
@@ -992,7 +994,9 @@ export function AiAssistant(): JSX.Element {
                     label="Event ID"
                     type="number"
                     value={budgetEventId}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setBudgetEventId(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                      setBudgetEventId(e.target.value)
+                    }
                     inputProps={{ min: 1, 'aria-label': 'Event ID for budget insight' }}
                     fullWidth
                   />
@@ -1082,7 +1086,12 @@ export function AiAssistant(): JSX.Element {
                     </Stack>
 
                     {budgetResult.summary && (
-                      <Typography variant="body2" color="text.secondary" mb={1} sx={{ fontSize: '0.75rem' }}>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        mb={1}
+                        sx={{ fontSize: '0.75rem' }}
+                      >
                         {budgetResult.summary}
                       </Typography>
                     )}
@@ -1099,8 +1108,8 @@ export function AiAssistant(): JSX.Element {
                       }}
                     >
                       <Typography variant="caption" color="text.secondary" display="block">
-                        Allocated: <strong>${budgetResult.totalAllocated.toFixed(2)}</strong> · Spent:{' '}
-                        <strong>${budgetResult.totalSpent.toFixed(2)}</strong> · Variance:{' '}
+                        Allocated: <strong>${budgetResult.totalAllocated.toFixed(2)}</strong> ·
+                        Spent: <strong>${budgetResult.totalSpent.toFixed(2)}</strong> · Variance:{' '}
                         <strong
                           style={{ color: budgetResult.totalVariance >= 0 ? 'inherit' : '#d32f2f' }}
                         >
@@ -1117,11 +1126,22 @@ export function AiAssistant(): JSX.Element {
                     {/* Anomalies */}
                     {budgetResult.anomalies.length > 0 && (
                       <Box mb={1}>
-                        <Typography variant="caption" fontWeight={700} color="warning.dark" display="block" mb={0.25}>
+                        <Typography
+                          variant="caption"
+                          fontWeight={700}
+                          color="warning.dark"
+                          display="block"
+                          mb={0.25}
+                        >
                           Anomalies detected:
                         </Typography>
                         {budgetResult.anomalies.map((a, i) => (
-                          <Typography key={i} variant="caption" color="text.secondary" display="block">
+                          <Typography
+                            key={i}
+                            variant="caption"
+                            color="text.secondary"
+                            display="block"
+                          >
                             ⚠ {a}
                           </Typography>
                         ))}
@@ -1177,7 +1197,12 @@ export function AiAssistant(): JSX.Element {
                                 {rec.insight}
                               </Typography>
                               {rec.action && (
-                                <Typography variant="caption" color="primary" display="block" mt={0.25}>
+                                <Typography
+                                  variant="caption"
+                                  color="primary"
+                                  display="block"
+                                  mt={0.25}
+                                >
                                   → {rec.action}
                                 </Typography>
                               )}
