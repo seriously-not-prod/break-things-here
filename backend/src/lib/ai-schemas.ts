@@ -806,10 +806,8 @@ export function parseConflictResolutionOutput(
       activityBTitle: typeof s.activityBTitle === 'string' ? s.activityBTitle.trim() : '',
       reason: typeof s.reason === 'string' ? s.reason.trim() : 'overlap',
       suggestion: s.suggestion.trim(),
-      dependencyImpact:
-        typeof s.dependencyImpact === 'string' ? s.dependencyImpact.trim() : '',
-      resourceImpact:
-        typeof s.resourceImpact === 'string' ? s.resourceImpact.trim() : '',
+      dependencyImpact: typeof s.dependencyImpact === 'string' ? s.dependencyImpact.trim() : '',
+      resourceImpact: typeof s.resourceImpact === 'string' ? s.resourceImpact.trim() : '',
       alternativeSlots: Array.isArray(s.alternativeSlots)
         ? (s.alternativeSlots as unknown[]).filter((sl): sl is string => typeof sl === 'string')
         : [],

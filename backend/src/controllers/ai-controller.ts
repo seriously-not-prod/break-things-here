@@ -82,11 +82,7 @@ import {
   withProviderTimeout,
   logAiSafetyEvent,
 } from '../lib/ai-safety.js';
-import {
-  filterProviderPayload,
-  redactPii,
-  logAiPrivacyEvent,
-} from '../lib/ai-privacy.js';
+import { filterProviderPayload, redactPii, logAiPrivacyEvent } from '../lib/ai-privacy.js';
 
 function readEnv(...keys: string[]): string {
   for (const key of keys) {
@@ -1898,9 +1894,7 @@ export async function getVendorRecommendation(req: AuthRequest, res: Response): 
     const parsedSummary = schemaResult.ok ? schemaResult.data.summary : '';
     const ADVISORY_LABEL =
       'AI advisory only — recommendations are based solely on available vendor data. Verify all information independently before making contracting decisions.';
-    const parsedAdvisoryLabel = schemaResult.ok
-      ? schemaResult.data.advisoryLabel
-      : ADVISORY_LABEL;
+    const parsedAdvisoryLabel = schemaResult.ok ? schemaResult.data.advisoryLabel : ADVISORY_LABEL;
     const recommendations = schemaResult.ok ? schemaResult.data.recommendations : [];
 
     if (!schemaResult.ok) {
@@ -2196,11 +2190,7 @@ export async function getConflictResolutionSuggestions(
   const startTime = Date.now();
   try {
     const raw = await withProviderTimeout(
-      callAiProvider(
-        provider,
-        hardenSystemPrompt(CONFLICT_RESOLUTION_SYSTEM_PROMPT),
-        userMessage,
-      ),
+      callAiProvider(provider, hardenSystemPrompt(CONFLICT_RESOLUTION_SYSTEM_PROMPT), userMessage),
     );
     const durationMs = Date.now() - startTime;
 
@@ -2246,7 +2236,7 @@ export async function getConflictResolutionSuggestions(
       suggestions: schemaResult.ok ? schemaResult.data.suggestions : [],
       summary: schemaResult.ok ? schemaResult.data.summary : '',
       advisoryLabel: schemaResult.ok
-        ? (schemaResult.data.advisoryLabel || ADVISORY_FALLBACK)
+        ? schemaResult.data.advisoryLabel || ADVISORY_FALLBACK
         : ADVISORY_FALLBACK,
       raw: outputCheck.text,
       contextSummary: {

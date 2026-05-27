@@ -23,11 +23,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import {
-  redactPii,
-  logAiPrivacyEvent,
-  type PiiCategory,
-} from '../lib/ai-privacy.js';
+import { redactPii, logAiPrivacyEvent, type PiiCategory } from '../lib/ai-privacy.js';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -90,9 +86,7 @@ export async function applyAiPrivacyControls(
     if (!result.piiDetected) continue;
 
     // Check whether any blocking PII category was found.
-    const blockingFound = result.detectedCategories.filter((c) =>
-      BLOCKING_PII_CATEGORIES.has(c),
-    );
+    const blockingFound = result.detectedCategories.filter((c) => BLOCKING_PII_CATEGORIES.has(c));
 
     if (blockingFound.length > 0) {
       // Log the incident before returning — best effort.

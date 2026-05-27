@@ -170,7 +170,8 @@ const PII_PATTERNS: ReadonlyArray<{
   },
   // ── IPv4 addresses ────────────────────────────────────────────────────────
   {
-    pattern: /\b(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g,
+    pattern:
+      /\b(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g,
     category: 'IP_ADDRESS',
     replacement: '[IP_ADDRESS]',
   },
@@ -192,7 +193,8 @@ const PII_PATTERNS: ReadonlyArray<{
   // ── Street address fragments ──────────────────────────────────────────────
   {
     // Matches numbered street addresses: "123 Main Street", "45 Oak Ave", etc.
-    pattern: /\b\d{1,5}\s+[A-Za-z0-9\s]{3,40}(?:street|st|avenue|ave|road|rd|lane|ln|drive|dr|court|ct|boulevard|blvd|way|place|pl)\b/gi,
+    pattern:
+      /\b\d{1,5}\s+[A-Za-z0-9\s]{3,40}(?:street|st|avenue|ave|road|rd|lane|ln|drive|dr|court|ct|boulevard|blvd|way|place|pl)\b/gi,
     category: 'ADDRESS',
     replacement: '[ADDRESS]',
   },
@@ -391,9 +393,7 @@ export function sanitiseForLog(value: unknown): string {
  *
  * @param payload - Arbitrary object to sanitise (e.g. event context record).
  */
-export function filterProviderPayload(
-  payload: Record<string, unknown>,
-): PayloadFilterResult {
+export function filterProviderPayload(payload: Record<string, unknown>): PayloadFilterResult {
   const sanitised: Record<string, unknown> = {};
   const classifications: FieldClassification[] = [];
   let filtered = false;
