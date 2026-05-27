@@ -43,6 +43,7 @@ import {
   type EventAnalytics,
 } from '../../services/analytics-service';
 import { CommunicationMetricsPanel } from './communication-metrics-panel';
+import { AnalyticsNarrativePanel } from './analytics-narrative-panel';
 
 const RSVP_COLORS = ['#16a34a', '#f59e0b', '#dc2626'];
 const DIETARY_COLOR = '#0ea5e9';
@@ -272,6 +273,12 @@ export function AnalyticsPage(): JSX.Element {
             tone="info"
           />
         </Stack>
+
+        {id !== undefined && (
+          <SectionCard title="AI Narrative Summary">
+            <AnalyticsNarrativePanel eventId={id} windowDays={7} />
+          </SectionCard>
+        )}
 
         <Grid container spacing={3}>
           <Grid item xs={12} lg={7}>

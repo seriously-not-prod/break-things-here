@@ -64,12 +64,16 @@ import {
   parseTaskBreakdownOutput as parseTaskBreakdownSchema,
   parseVendorRecommendationOutput as parseVendorRecommendationSchema,
   parseConflictResolutionOutput as parseConflictResolutionSchema,
+  parseAnalyticsNarrativeOutput as parseAnalyticsNarrativeSchema,
   formatValidationErrors,
   type EventSuggestionSchema,
   type TaskSuggestionSchema,
   type RsvpSuggestionSchema,
   type VendorRecommendationItemSchema,
   type ConflictResolutionSuggestionSchema,
+  type AnalyticsNarrativeSummarySchema,
+  type NarrativeTrendDirection,
+  type NarrativeDataQuality,
 } from '../lib/ai-schemas.js';
 import {
   detectTimelineConflicts,
@@ -2272,6 +2276,455 @@ export async function getConflictResolutionSuggestions(
         userId,
         eventType: 'provider_timeout',
         workflowType: 'conflict_resolution',
+        entityId: parsedEventId,
+        threatCategories: [],
+        detail: message,
+      });
+    }
+    return res.status(502).json({ error: `AI request failed: ${message}` });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Analytics Narrative Summary — Story #955
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Analytics snapshot used for grounding the narrative prompt.
+ * All values are derived exclusively from live database queries.
+ */
+interface AnalyticsPeriodSnapshot {
+  confirmedRsvps: number;
+  totalRsvps: number;
+  acceptanceRatePct: number;
+  tasksComplete: number;
+  totalTasks: number;
+  taskCompletionRatePct: number;
+  budgetSpent: number;
+  budgetAllocated: number;
+  budgetUtilizationPct: number;
+}
+
+interface AnalyticsNarrativeContext {
+  eventTitle: string;
+  eventStatus: string;
+  current: AnalyticsPeriodSnapshot;
+  /** Prior-period snapshot; null when insufficient historical data exists. */
+  prior: AnalyticsPeriodSnapshot | null;
+  windowDays: number;
+}
+
+interface AnalyticsNarrativeResponse {
+  workflowType: 'analytics-narrative';
+  eventId: number;
+  eventTitle: string;
+  headline: string;
+  trendDirection: NarrativeTrendDirection;
+  summary: string;
+  notableChanges: string[];
+  suggestedActions: string[];
+  dataQuality: NarrativeDataQuality;
+  contextSummary: {
+    windowDays: number;
+    currentPeriodGrounded: boolean;
+    priorPeriodGrounded: boolean;
+  };
+  raw: string;
+}
+
+const ANALYTICS_NARRATIVE_SYSTEM_PROMPT = `You are a data analytics AI for festival event planning. \
+You will receive current and prior-period metrics for a real event fetched directly from a database. \
+Your task is to produce a concise, grounded narrative summary for the event organiser. \
+
+STRICT RULES:
+- Use ONLY the metrics provided. Never invent, extrapolate, or assume values not present in the input.
+- If prior-period data is absent, base observations solely on current-period values.
+- Headline must be ≤ 120 characters and reference at least one concrete metric.
+- Summary must be 1–3 sentences. Do not repeat the headline verbatim.
+- Limit notableChanges to 5 items maximum. Each must cite specific numbers from the input.
+- Limit suggestedActions to 3 items maximum. Each must be actionable and grounded in the data.
+- Set dataQuality to "sparse" if total RSVPs < 5 AND total tasks < 3 AND budget allocated = 0.
+- Set trendDirection to "up" if the primary trend across RSVP acceptance, task completion, and budget utilisation is improving vs the prior period; "down" if declining; "stable" if mixed or no prior data.
+
+Return ONLY a valid JSON object with this exact schema (no markdown, no explanation):
+{"headline":"string","trendDirection":"up"|"down"|"stable","summary":"string","notableChanges":["string",...],"suggestedActions":["string",...],"dataQuality":"sufficient"|"sparse"}`;
+
+async function fetchAnalyticsNarrativeContext(
+  eventId: number,
+  windowDays: number,
+): Promise<AnalyticsNarrativeContext | null> {
+  const db = getDatabase();
+
+  const event = await db.get<{ title: string; status: string }>(
+    `SELECT title, status FROM events WHERE id = $1 AND deleted_at IS NULL`,
+    [eventId],
+  );
+  if (!event) return null;
+
+  // ── Current period metrics ─────────────────────────────────────────────────
+  const currentRsvp = await db.get<{
+    confirmed: string;
+    total: string;
+  }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE canonical_status IN ('confirmed', 'checked_in'))::int AS confirmed,
+       COUNT(*)::int AS total
+     FROM rsvps WHERE event_id = $1`,
+    [eventId],
+  );
+
+  const currentTasks = await db.get<{ complete: string; total: string }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE status = 'Complete')::int AS complete,
+       COUNT(*)::int AS total
+     FROM tasks WHERE event_id = $1`,
+    [eventId],
+  );
+
+  const currentBudget = await db.get<{ allocated: string; spent: string }>(
+    `SELECT
+       COALESCE(SUM(bc.allocated_amount), 0)::numeric AS allocated,
+       COALESCE(SUM(ex.amount), 0)::numeric AS spent
+     FROM budget_categories bc
+     LEFT JOIN expenses ex ON ex.category_id = bc.id
+     WHERE bc.event_id = $1`,
+    [eventId],
+  );
+
+  const curConfirmed = Number(currentRsvp?.confirmed ?? 0);
+  const curTotal = Number(currentRsvp?.total ?? 0);
+  const curComplete = Number(currentTasks?.complete ?? 0);
+  const curTotalTasks = Number(currentTasks?.total ?? 0);
+  const curAllocated = Number(currentBudget?.allocated ?? 0);
+  const curSpent = Number(currentBudget?.spent ?? 0);
+
+  const current: AnalyticsPeriodSnapshot = {
+    confirmedRsvps: curConfirmed,
+    totalRsvps: curTotal,
+    acceptanceRatePct: curTotal > 0 ? Math.round((curConfirmed / curTotal) * 100) : 0,
+    tasksComplete: curComplete,
+    totalTasks: curTotalTasks,
+    taskCompletionRatePct:
+      curTotalTasks > 0 ? Math.round((curComplete / curTotalTasks) * 100) : 0,
+    budgetSpent: curSpent,
+    budgetAllocated: curAllocated,
+    budgetUtilizationPct:
+      curAllocated > 0 ? Math.round((curSpent / curAllocated) * 100) : 0,
+  };
+
+  // ── Prior period metrics (state before the comparison window) ──────────────
+  // Prior RSVPs: those created before (now - windowDays)
+  const priorRsvp = await db.get<{ confirmed: string; total: string }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE canonical_status IN ('confirmed', 'checked_in'))::int AS confirmed,
+       COUNT(*)::int AS total
+     FROM rsvps
+     WHERE event_id = $1
+       AND created_at < NOW() - ($2 || ' days')::interval`,
+    [eventId, String(windowDays)],
+  );
+
+  // Prior tasks: those completed before the window cutoff
+  const priorTasks = await db.get<{ complete: string; total: string }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE status = 'Complete')::int AS complete,
+       COUNT(*)::int AS total
+     FROM tasks
+     WHERE event_id = $1
+       AND created_at < NOW() - ($2 || ' days')::interval`,
+    [eventId, String(windowDays)],
+  );
+
+  // Prior budget: expenses recorded before the window cutoff
+  const priorBudget = await db.get<{ allocated: string; spent: string }>(
+    `SELECT
+       COALESCE(SUM(bc.allocated_amount), 0)::numeric AS allocated,
+       COALESCE(SUM(ex.amount), 0)::numeric AS spent
+     FROM budget_categories bc
+     LEFT JOIN expenses ex
+       ON ex.category_id = bc.id
+       AND ex.created_at < NOW() - ($2 || ' days')::interval
+     WHERE bc.event_id = $1`,
+    [eventId, String(windowDays)],
+  );
+
+  const priorConfirmed = Number(priorRsvp?.confirmed ?? 0);
+  const priorTotal = Number(priorRsvp?.total ?? 0);
+  const priorComplete = Number(priorTasks?.complete ?? 0);
+  const priorTotalTasks = Number(priorTasks?.total ?? 0);
+  const priorAllocated = Number(priorBudget?.allocated ?? 0);
+  const priorSpent = Number(priorBudget?.spent ?? 0);
+
+  // Treat prior period as absent when all counts are zero (no historical data).
+  const priorHasData = priorTotal > 0 || priorTotalTasks > 0 || priorAllocated > 0;
+
+  const prior: AnalyticsPeriodSnapshot | null = priorHasData
+    ? {
+        confirmedRsvps: priorConfirmed,
+        totalRsvps: priorTotal,
+        acceptanceRatePct:
+          priorTotal > 0 ? Math.round((priorConfirmed / priorTotal) * 100) : 0,
+        tasksComplete: priorComplete,
+        totalTasks: priorTotalTasks,
+        taskCompletionRatePct:
+          priorTotalTasks > 0 ? Math.round((priorComplete / priorTotalTasks) * 100) : 0,
+        budgetSpent: priorSpent,
+        budgetAllocated: priorAllocated,
+        budgetUtilizationPct:
+          priorAllocated > 0 ? Math.round((priorSpent / priorAllocated) * 100) : 0,
+      }
+    : null;
+
+  return {
+    eventTitle: event.title,
+    eventStatus: event.status,
+    current,
+    prior,
+    windowDays,
+  };
+}
+
+function buildAnalyticsNarrativeUserMessage(
+  context: AnalyticsNarrativeContext,
+  userPrompt: string | null,
+): string {
+  const lines: string[] = [
+    `Event: ${context.eventTitle}`,
+    `Status: ${context.eventStatus}`,
+    `Comparison window: last ${context.windowDays} days`,
+    '',
+    '=== CURRENT PERIOD METRICS ===',
+    `RSVPs: ${context.current.confirmedRsvps} confirmed / ${context.current.totalRsvps} total (${context.current.acceptanceRatePct}% acceptance rate)`,
+    `Tasks: ${context.current.tasksComplete} complete / ${context.current.totalTasks} total (${context.current.taskCompletionRatePct}% completion rate)`,
+    `Budget: $${context.current.budgetSpent.toFixed(2)} spent of $${context.current.budgetAllocated.toFixed(2)} allocated (${context.current.budgetUtilizationPct}% utilisation)`,
+  ];
+
+  if (context.prior !== null) {
+    lines.push(
+      '',
+      `=== PRIOR PERIOD METRICS (before last ${context.windowDays} days) ===`,
+      `RSVPs: ${context.prior.confirmedRsvps} confirmed / ${context.prior.totalRsvps} total (${context.prior.acceptanceRatePct}% acceptance rate)`,
+      `Tasks: ${context.prior.tasksComplete} complete / ${context.prior.totalTasks} total (${context.prior.taskCompletionRatePct}% completion rate)`,
+      `Budget: $${context.prior.budgetSpent.toFixed(2)} spent of $${context.prior.budgetAllocated.toFixed(2)} allocated (${context.prior.budgetUtilizationPct}% utilisation)`,
+    );
+
+    // Compute deltas for explicit context
+    const rsvpDelta = context.current.confirmedRsvps - context.prior.confirmedRsvps;
+    const taskDelta = context.current.tasksComplete - context.prior.tasksComplete;
+    const budgetDelta = context.current.budgetSpent - context.prior.budgetSpent;
+
+    lines.push(
+      '',
+      '=== PERIOD DELTAS ===',
+      `Confirmed RSVPs change: ${rsvpDelta >= 0 ? '+' : ''}${rsvpDelta}`,
+      `Tasks completed change: ${taskDelta >= 0 ? '+' : ''}${taskDelta}`,
+      `Budget spent change: ${budgetDelta >= 0 ? '+' : ''}$${budgetDelta.toFixed(2)}`,
+    );
+  } else {
+    lines.push('', '=== PRIOR PERIOD: No historical data available ===');
+  }
+
+  if (userPrompt) {
+    lines.push('', `Organiser focus: ${userPrompt}`);
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * POST /api/ai/analytics-narrative
+ *
+ * Generates a grounded AI narrative summary for a single event's analytics.
+ * Compares current metrics against a configurable prior period (default 7 days).
+ * Falls back gracefully when data is sparse.
+ *
+ * Request body: { eventId: number, windowDays?: number, prompt?: string }
+ */
+export async function getAnalyticsNarrative(
+  req: AuthRequest,
+  res: Response,
+): Promise<Response> {
+  const { eventId, windowDays: rawWindowDays, prompt: rawPrompt } = req.body as {
+    eventId?: unknown;
+    windowDays?: unknown;
+    prompt?: unknown;
+  };
+
+  // ── Validate eventId ───────────────────────────────────────────────────────
+  const parsedEventId =
+    typeof eventId === 'number'
+      ? eventId
+      : typeof eventId === 'string'
+        ? parseInt(eventId, 10)
+        : NaN;
+
+  if (!Number.isFinite(parsedEventId) || parsedEventId <= 0 || !Number.isInteger(parsedEventId)) {
+    return res.status(400).json({ error: 'eventId must be a positive integer.' });
+  }
+
+  // ── Validate windowDays (optional, 1–90, default 7) ───────────────────────
+  const parsedWindowDays =
+    rawWindowDays === undefined || rawWindowDays === null
+      ? 7
+      : typeof rawWindowDays === 'number'
+        ? rawWindowDays
+        : typeof rawWindowDays === 'string'
+          ? parseInt(rawWindowDays, 10)
+          : NaN;
+
+  if (
+    !Number.isFinite(parsedWindowDays) ||
+    parsedWindowDays < 1 ||
+    parsedWindowDays > 90 ||
+    !Number.isInteger(parsedWindowDays)
+  ) {
+    return res.status(400).json({ error: 'windowDays must be an integer between 1 and 90.' });
+  }
+
+  // ── Validate optional prompt ───────────────────────────────────────────────
+  const userPromptRaw =
+    typeof rawPrompt === 'string' && rawPrompt.trim() !== '' ? rawPrompt.trim() : null;
+  if (userPromptRaw !== null && userPromptRaw.length > 500) {
+    return res.status(400).json({ error: 'prompt must not exceed 500 characters.' });
+  }
+
+  const userId = req.user?.id;
+
+  // ── Rate limit check ───────────────────────────────────────────────────────
+  if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    return res
+      .status(429)
+      .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
+  }
+
+  // ── Provider check ─────────────────────────────────────────────────────────
+  const provider = resolveAiProviderConfig();
+  if (provider.kind === 'misconfigured') {
+    return res.status(503).json({ error: provider.message });
+  }
+  if (provider.kind === 'none') {
+    return res.status(503).json({
+      error:
+        'AI suggestions are not configured. Set Azure OpenAI (AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY + AZURE_OPENAI_DEPLOYMENT) or OPENAI_API_KEY.',
+    });
+  }
+
+  const startTime = Date.now();
+
+  // ── Fetch grounded context ─────────────────────────────────────────────────
+  const context = await fetchAnalyticsNarrativeContext(parsedEventId, parsedWindowDays);
+  if (!context) {
+    return res.status(404).json({ error: `Event ${parsedEventId} not found.` });
+  }
+
+  // ── Detect sparse data ─────────────────────────────────────────────────────
+  const isSparse =
+    context.current.totalRsvps < 5 &&
+    context.current.totalTasks < 3 &&
+    context.current.budgetAllocated === 0;
+
+  // ── Sanitise optional user prompt ─────────────────────────────────────────
+  const safeUserPrompt =
+    userPromptRaw !== null
+      ? sanitisePrompt(userPromptRaw, 'analytics_narrative', userId, parsedEventId)
+      : null;
+
+  const userMessage = buildAnalyticsNarrativeUserMessage(context, safeUserPrompt);
+
+  try {
+    const raw = await withProviderTimeout(
+      callAiProvider(
+        provider,
+        hardenSystemPrompt(ANALYTICS_NARRATIVE_SYSTEM_PROMPT),
+        userMessage,
+      ),
+    );
+    const durationMs = Date.now() - startTime;
+
+    void logAiRequest({
+      userId,
+      workflowType: 'analytics_narrative',
+      entityId: parsedEventId,
+      provider: provider.kind,
+      durationMs,
+      status: 'success',
+    });
+
+    const outputCheck = validateAiOutput(raw);
+    if (!outputCheck.safe) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'output_rejected',
+        workflowType: 'analytics_narrative',
+        entityId: parsedEventId,
+        threatCategories: [],
+        detail: `Output safety issues: ${outputCheck.issues.join('; ')}`,
+      });
+    }
+
+    // ── Parse and validate structured output ──────────────────────────────────
+    const schemaResult = parseAnalyticsNarrativeSchema(outputCheck.text);
+
+    if (!schemaResult.ok) {
+      const errorSummary = formatValidationErrors(schemaResult.errors);
+      console.warn(
+        `[ai-schemas] getAnalyticsNarrative schema validation failed: ${errorSummary}`,
+      );
+    }
+
+    // ── Build fallback when schema validation fails ────────────────────────────
+    const narrativeData: AnalyticsNarrativeSummarySchema = schemaResult.ok
+      ? schemaResult.data
+      : {
+          headline: `Analytics summary for ${context.eventTitle}`,
+          trendDirection: 'stable',
+          summary: outputCheck.text.substring(0, 300),
+          notableChanges: [],
+          suggestedActions: [],
+          dataQuality: isSparse ? 'sparse' : 'sufficient',
+        };
+
+    // Override dataQuality if data is sparse (regardless of what the model returned)
+    if (isSparse) {
+      narrativeData.dataQuality = 'sparse';
+    }
+
+    const response: AnalyticsNarrativeResponse = {
+      workflowType: 'analytics-narrative',
+      eventId: parsedEventId,
+      eventTitle: context.eventTitle,
+      headline: narrativeData.headline,
+      trendDirection: narrativeData.trendDirection,
+      summary: narrativeData.summary,
+      notableChanges: narrativeData.notableChanges,
+      suggestedActions: narrativeData.suggestedActions,
+      dataQuality: narrativeData.dataQuality,
+      contextSummary: {
+        windowDays: parsedWindowDays,
+        currentPeriodGrounded: true,
+        priorPeriodGrounded: context.prior !== null,
+      },
+      raw: outputCheck.text,
+    };
+
+    return res.json(response);
+  } catch (err) {
+    const durationMs = Date.now() - startTime;
+    const message = err instanceof Error ? err.message : 'Unknown AI error';
+    void logAiRequest({
+      userId,
+      workflowType: 'analytics_narrative',
+      entityId: parsedEventId,
+      provider: provider.kind,
+      durationMs,
+      status: 'error',
+      errorMessage: message,
+    });
+    if (message.includes('timed out')) {
+      void logAiSafetyEvent({
+        userId,
+        eventType: 'provider_timeout',
+        workflowType: 'analytics_narrative',
         entityId: parsedEventId,
         threatCategories: [],
         detail: message,
