@@ -91,6 +91,14 @@ import {
   redactPii,
   logAiPrivacyEvent,
 } from '../lib/ai-privacy.js';
+import {
+  recordAiRequestMetrics,
+  logAiAuditEvent,
+  getAiMetricsSnapshot,
+  computeAiHealthSignal,
+  buildSafeErrorMessage,
+  classifyAiOutcome,
+} from '../lib/ai-observability.js';
 
 function readEnv(...keys: string[]): string {
   for (const key of keys) {
@@ -302,6 +310,34 @@ async function checkAiRateLimit(userId: number): Promise<boolean> {
 }
 
 /**
+ * Records an in-app rate-limit hit to the in-memory metrics counters and
+ * the ai_audit_events table. Best-effort; does not throw.
+ *
+ * Called at every `checkAiRateLimit` rejection site so that rate-limit
+ * incidents are visible in the observability health snapshot.
+ */
+function recordRateLimitHit(userId: number | undefined, workflowType: string): void {
+  recordAiRequestMetrics({
+    userId,
+    workflowType,
+    entityId: null,
+    provider: 'app',
+    durationMs: 0,
+    outcome: 'rate_limited',
+    safeErrorMessage: 'in-app rate limit exceeded',
+  });
+  void logAiAuditEvent({
+    userId,
+    workflowType,
+    entityId: null,
+    provider: 'app',
+    durationMs: 0,
+    outcome: 'rate_limited',
+    safeErrorMessage: 'in-app rate limit exceeded',
+  });
+}
+
+/**
  * Sanitise user-supplied text before including in prompts.
  *
  * Applies two layers of protection (in order):
@@ -362,6 +398,7 @@ export async function getSuggestion(req: AuthRequest, res: Response): Promise<Re
 
   const userId = req.user?.id;
   if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    recordRateLimitHit(userId, 'suggest');
     return res
       .status(429)
       .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
@@ -388,9 +425,19 @@ export async function getSuggestion(req: AuthRequest, res: Response): Promise<Re
 
   try {
     const safePrompt = sanitisePrompt(prompt, ctx, userId);
+    const startTime = Date.now();
     const raw = await withProviderTimeout(
       callAiProvider(provider, hardenSystemPrompt(SYSTEM_PROMPTS[ctx]), safePrompt),
     );
+    const durationMs = Date.now() - startTime;
+    void logAiRequest({
+      userId,
+      workflowType: ctx,
+      entityId: null,
+      provider: provider.kind,
+      durationMs,
+      status: 'success',
+    });
     const outputCheck = validateAiOutput(raw);
     if (!outputCheck.safe) {
       void logAiSafetyEvent({
@@ -404,7 +451,17 @@ export async function getSuggestion(req: AuthRequest, res: Response): Promise<Re
     }
     return res.json({ suggestion: outputCheck.text });
   } catch (err) {
+    const durationMs = 0;
     const message = err instanceof Error ? err.message : 'Unknown AI error';
+    void logAiRequest({
+      userId,
+      workflowType: ctx,
+      entityId: null,
+      provider: provider.kind,
+      durationMs,
+      status: 'error',
+      errorMessage: buildSafeErrorMessage(err, provider.kind),
+    });
     if (message.includes('timed out')) {
       void logAiSafetyEvent({
         userId,
@@ -474,7 +531,42 @@ async function logAiRequest(params: {
   durationMs: number;
   status: 'success' | 'error';
   errorMessage?: string;
+  /** HTTP status code from the provider response, when available. */
+  httpStatus?: number;
+  /** Number of retries attempted before this outcome. */
+  retryCount?: number;
 }): Promise<void> {
+  // ── Issue #958: record in-memory metrics and persist audit event ──────────
+  const outcome =
+    params.status === 'success'
+      ? ('success' as const)
+      : classifyAiOutcome(params.httpStatus, new Error(params.errorMessage ?? ''));
+
+  recordAiRequestMetrics({
+    userId: params.userId,
+    workflowType: params.workflowType,
+    entityId: params.entityId,
+    provider: params.provider,
+    durationMs: params.durationMs,
+    outcome,
+    httpStatus: params.httpStatus,
+    safeErrorMessage: params.errorMessage,
+    retryCount: params.retryCount,
+  });
+
+  void logAiAuditEvent({
+    userId: params.userId,
+    workflowType: params.workflowType,
+    entityId: params.entityId,
+    provider: params.provider,
+    durationMs: params.durationMs,
+    outcome,
+    httpStatus: params.httpStatus,
+    safeErrorMessage: params.errorMessage,
+    retryCount: params.retryCount,
+  });
+
+  // ── Persist to ai_request_logs (existing observability table) ─────────────
   try {
     const db = getDatabase();
     await db.run(
@@ -786,6 +878,7 @@ export async function getGroundedSuggestion(req: AuthRequest, res: Response): Pr
 
   const userId = req.user?.id;
   if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    recordRateLimitHit(userId, 'grounded');
     return res
       .status(429)
       .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
@@ -1097,6 +1190,7 @@ export async function getTaskBreakdown(req: AuthRequest, res: Response): Promise
 
   const userId = req.user?.id;
   if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    recordRateLimitHit(userId, 'task_breakdown');
     return res
       .status(429)
       .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
@@ -1483,6 +1577,7 @@ export async function getBudgetInsight(req: AuthRequest, res: Response): Promise
 
   const userId = req.user?.id;
   if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    recordRateLimitHit(userId, 'budget_insight');
     return res
       .status(429)
       .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
@@ -1824,6 +1919,7 @@ export async function getVendorRecommendation(req: AuthRequest, res: Response): 
 
   const userId = req.user?.id;
   if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    recordRateLimitHit(userId, 'vendor_recommendation');
     return res
       .status(429)
       .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
@@ -2157,6 +2253,7 @@ export async function getConflictResolutionSuggestions(
 
   const userId = req.user?.id;
   if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    recordRateLimitHit(userId, 'conflict_resolution');
     return res
       .status(429)
       .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
@@ -2592,6 +2689,7 @@ export async function getAnalyticsNarrative(
 
   // ── Rate limit check ───────────────────────────────────────────────────────
   if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    recordRateLimitHit(userId, 'analytics_narrative');
     return res
       .status(429)
       .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
@@ -2732,4 +2830,38 @@ export async function getAnalyticsNarrative(
     }
     return res.status(502).json({ error: `AI request failed: ${message}` });
   }
+}
+
+// ── AI Observability Health Endpoint — Issue #958 ─────────────────────────────
+
+/**
+ * GET /api/ai/health
+ *
+ * Returns a structured AI health signal based on in-process metrics counters.
+ *
+ * Response shape:
+ * ```json
+ * {
+ *   "status": "healthy",
+ *   "metrics": { "counters": { ... }, "latency": { ... }, "byWorkflow": { ... },
+ *                "byProvider": { ... }, "lastResetAt": "..." },
+ *   "generatedAt": "2026-05-27T12:34:56.789Z"
+ * }
+ * ```
+ *
+ * `status` values: `"healthy"` (≥90 % success ratio), `"degraded"` (≥50 %),
+ * `"unhealthy"` (<50 %).  Returns `"healthy"` with zero counters before any
+ * request has been processed.
+ *
+ * Requires `authenticateToken`. Does not require AI RBAC so operations staff
+ * can check health without needing AI feature entitlements.
+ */
+export function getAiHealth(_req: Request, res: Response): Response {
+  const snapshot = getAiMetricsSnapshot();
+  const status = computeAiHealthSignal(snapshot);
+  return res.json({
+    status,
+    metrics: snapshot,
+    generatedAt: new Date().toISOString(),
+  });
 }
