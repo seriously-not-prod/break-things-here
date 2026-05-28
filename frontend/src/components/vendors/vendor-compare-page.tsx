@@ -1,6 +1,6 @@
 /**
- * Vendor Compare Page (#452)
- * Side-by-side comparison of selected vendors.
+ * Vendor Compare Page (#452 / #953)
+ * Side-by-side comparison of selected vendors with AI recommendation panel.
  */
 
 import { useEffect, useState } from 'react';
@@ -10,6 +10,7 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Divider,
   Paper,
   Rating,
   Stack,
@@ -24,6 +25,7 @@ import {
 import CompareArrowsRounded from '@mui/icons-material/CompareArrowsRounded';
 import { api } from '../../lib/api-client';
 import { compareVendors, VendorCompare } from '../../services/vendor-communication-service';
+import VendorAiRecommendationPanel from './vendor-ai-recommendation-panel';
 
 interface VendorRow {
   id: number;
@@ -243,6 +245,11 @@ export default function VendorComparePage({ eventId }: Props): JSX.Element {
           </Table>
         </TableContainer>
       )}
+
+      <Divider sx={{ my: 3 }} />
+
+      {/* AI Vendor Recommendation Panel — Story #953 */}
+      <VendorAiRecommendationPanel eventId={eventId} />
     </Box>
   );
 }

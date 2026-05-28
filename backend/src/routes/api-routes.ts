@@ -7,21 +7,17 @@ import * as passwordResetController from '../controllers/password-reset-controll
 import * as eventController from '../controllers/event-controller.js';
 import * as taskController from '../controllers/task-controller.js';
 import * as tasksController from '../controllers/tasks-controller.js';
-import * as legacyRsvpController from '../controllers/rsvp-controller.js';
 import * as rsvpController from '../controllers/rsvps-controller.js';
 import * as eventMembersController from '../controllers/event-members-controller.js';
 import * as adminController from '../controllers/admin-controller.js';
 import * as gdprController from '../controllers/gdpr-controller.js';
 import * as announcementController from '../controllers/announcement-controller.js';
 import * as budgetController from '../controllers/budget-controller.js';
-import * as guestGroupsController from '../controllers/guest-groups-controller.js';
 import * as eventDocumentsController from '../controllers/event-documents-controller.js';
 import * as analyticsController from '../controllers/analytics-controller.js';
 import * as notificationsController from '../controllers/notifications-controller.js';
 import * as notificationPreferencesController from '../controllers/notification-preferences-controller.js';
 import * as activityFeedController from '../controllers/activity-feed-controller.js';
-import * as vendorsController from '../controllers/vendors-controller.js';
-import * as shoppingController from '../controllers/shopping-controller.js';
 import * as timelineController from '../controllers/timeline-controller.js';
 import * as seatingController from '../controllers/seating-controller.js';
 import * as communicationController from '../controllers/guest-communication-controller.js';
@@ -35,16 +31,9 @@ import * as budgetTemplatesController from '../controllers/budget-templates-cont
 import * as taskDepsController from '../controllers/task-dependencies-controller.js';
 import * as taskTemplatesController from '../controllers/task-templates-controller.js';
 import * as workloadController from '../controllers/workload-controller.js';
-import * as shoppingBudgetSyncController from '../controllers/shopping-budget-sync-controller.js';
-import * as vendorCommController from '../controllers/vendor-communication-controller.js';
-import * as vendorPerfController from '../controllers/vendor-performance-controller.js';
-import * as storeSuggestionsController from '../controllers/store-suggestions-controller.js';
 import * as entraAuthController from '../controllers/entra-auth-controller.js';
 import * as trackingController from '../controllers/tracking-controller.js';
-import * as guestMergeController from '../controllers/guest-merge-controller.js';
-import * as rsvpConfirmationController from '../controllers/rsvp-confirmation-controller.js';
 import * as rsvpTokenController from '../controllers/rsvp-token-controller.js';
-import * as waitlistController from '../controllers/waitlist-controller.js';
 import * as rsvpQuestionsController from '../controllers/rsvp-questions-controller.js';
 import * as currencyController from '../controllers/currency-controller.js';
 import * as budgetForecastController from '../controllers/budget-forecast-controller.js';
@@ -63,15 +52,16 @@ import * as realtimeController from '../controllers/realtime-controller.js';
 import * as presenceController from '../controllers/presence-controller.js';
 import * as eventChatController from '../controllers/event-chat-controller.js';
 import * as entityVersionsController from '../controllers/entity-versions-controller.js';
-import * as guestExportController from '../controllers/guest-export-controller.js';
-import * as mealOptionsController from '../controllers/meal-options-controller.js';
+
 import * as commTemplatesController from '../controllers/communication-templates-controller.js';
 import * as unsubscribeController from '../controllers/unsubscribe-controller.js';
 import * as qrCheckinController from '../controllers/qr-checkin-controller.js';
 import * as attendanceBoardController from '../controllers/attendance-board-controller.js';
 import * as seatingGroupsController from '../controllers/seating-groups-controller.js';
-import * as guestsController from '../controllers/guests-controller.js';
+
 import { authenticateToken, authorizeRole, authorizePermission } from '../middleware/auth.js';
+import { requireAiAccess } from '../middleware/ai-rbac.js';
+import { applyAiPrivacyControls } from '../middleware/ai-privacy-middleware.js';
 import {
   apiLimiter,
   createAuthLimiter,
@@ -84,11 +74,17 @@ import path from 'path';
 import fs from 'fs';
 import { hashPassword } from '../utils/auth-helpers.js';
 import { getDatabase } from '../db/database.js';
+import vendorRoutes from './vendor.routes.js';
+import guestRoutes from './guest.routes.js';
 
 const router = Router();
 
 // Apply rate limiting to all API routes
 router.use(apiLimiter);
+
+// Mount extracted sub-routers
+router.use(vendorRoutes);
+router.use(guestRoutes);
 
 // Ensure uploads directory exists outside web root
 const UPLOADS_DIR = path.resolve('uploads/profile-photos');
@@ -96,33 +92,6 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const DOCUMENTS_DIR = path.resolve('uploads/event-documents');
 if (!fs.existsSync(DOCUMENTS_DIR)) fs.mkdirSync(DOCUMENTS_DIR, { recursive: true });
-
-const VENDOR_CONTRACTS_DIR = path.resolve('uploads/vendor-contracts');
-if (!fs.existsSync(VENDOR_CONTRACTS_DIR)) fs.mkdirSync(VENDOR_CONTRACTS_DIR, { recursive: true });
-
-// In-memory multer for CSV / XLSX imports (no disk write needed)
-const csvUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const lower = file.originalname.toLowerCase();
-    const acceptedMimes = new Set([
-      'text/csv',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ]);
-    if (
-      acceptedMimes.has(file.mimetype) ||
-      lower.endsWith('.csv') ||
-      lower.endsWith('.xlsx') ||
-      lower.endsWith('.xls')
-    ) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only CSV and Excel files (.csv, .xlsx, .xls) are accepted'));
-    }
-  },
-});
 
 // Configure multer for profile photo uploads
 const storage = multer.diskStorage({
@@ -174,27 +143,6 @@ const documentUpload = multer({
   },
 });
 
-const contractStorage = multer.diskStorage({
-  destination: VENDOR_CONTRACTS_DIR,
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, 'contract-' + uniqueSuffix + ext);
-  },
-});
-
-const contractUpload = multer({
-  storage: contractStorage,
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only PDF files are accepted for contracts'));
-    }
-  },
-});
-
 const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB — spec requirement (BRD/FRD)
@@ -223,7 +171,59 @@ router.get('/auth/entra/login', entraAuthController.initiateEntraLogin);
 router.post('/auth/entra/callback', createAuthLimiter(), entraAuthController.handleEntraCallback);
 router.post('/auth/logout', authenticateToken, authController.logout);
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
-router.post('/ai/suggest', authenticateToken, aiController.getSuggestion);
+router.post(
+  '/ai/suggest',
+  authenticateToken,
+  requireAiAccess,
+  applyAiPrivacyControls,
+  aiController.getSuggestion,
+);
+router.post(
+  '/ai/grounded',
+  authenticateToken,
+  requireAiAccess,
+  applyAiPrivacyControls,
+  aiController.getGroundedSuggestion,
+);
+router.post(
+  '/ai/task-breakdown',
+  authenticateToken,
+  requireAiAccess,
+  applyAiPrivacyControls,
+  aiController.getTaskBreakdown,
+);
+router.post(
+  '/ai/budget-insight',
+  authenticateToken,
+  requireAiAccess,
+  applyAiPrivacyControls,
+  aiController.getBudgetInsight,
+);
+router.post(
+  '/ai/vendor-recommendation',
+  authenticateToken,
+  requireAiAccess,
+  applyAiPrivacyControls,
+  aiController.getVendorRecommendation,
+);
+router.post(
+  '/ai/conflict-resolution',
+  authenticateToken,
+  requireAiAccess,
+  applyAiPrivacyControls,
+  aiController.getConflictResolutionSuggestions,
+);
+router.post(
+  '/ai/analytics-narrative',
+  authenticateToken,
+  requireAiAccess,
+  applyAiPrivacyControls,
+  aiController.getAnalyticsNarrative,
+);
+// Issue #958 — AI Observability health/metrics endpoint.
+// Requires authentication only; no AI RBAC so ops staff can query without
+// needing AI feature entitlements.
+router.get('/ai/health', authenticateToken, aiController.getAiHealth);
 
 // ============ PUBLIC RSVP ROUTES ==========
 // All unauthenticated public endpoints share a tighter per-IP limiter
@@ -290,135 +290,6 @@ router.patch(
   authenticateToken,
   notificationPreferencesController.patchPreferences,
 );
-router.get('/rsvps', authenticateToken, legacyRsvpController.getAllRsvps);
-router.get('/rsvps/:id', authenticateToken, legacyRsvpController.getRsvpById);
-router.post('/rsvps', legacyRsvpController.submitRsvp);
-router.put('/rsvps/:id', authenticateToken, legacyRsvpController.updateRsvp);
-router.delete('/rsvps/:id', authenticateToken, legacyRsvpController.deleteRsvp);
-router.get('/events/:eventId/guests', authenticateToken, rsvpController.listRsvps);
-router.post('/events/:eventId/guests', authenticateToken, rsvpController.createRsvp);
-router.get('/events/:eventId/rsvps', authenticateToken, rsvpController.listRsvps);
-router.post('/events/:eventId/rsvps', rsvpController.createRsvp);
-// Specific sub-paths must be registered BEFORE /:id parameterized routes
-router.get('/events/:eventId/guests/export', authenticateToken, rsvpController.exportRsvpsCsv);
-router.post(
-  '/events/:eventId/guests/import',
-  authenticateToken,
-  csvUpload.single('file'),
-  rsvpController.importCsv,
-);
-router.patch('/events/:eventId/guests/:id', authenticateToken, rsvpController.updateRsvp);
-router.delete('/events/:eventId/guests/:id', authenticateToken, rsvpController.deleteRsvp);
-router.patch('/events/:eventId/guests/:id/checkin', authenticateToken, rsvpController.checkInGuest);
-router.get('/events/:eventId/rsvps/export', authenticateToken, rsvpController.exportRsvpsCsv);
-router.get(
-  '/events/:eventId/rsvps/import/template.csv',
-  authenticateToken,
-  rsvpController.exportRsvpsImportTemplateCsv,
-);
-router.get(
-  '/events/:eventId/rsvps/export.xlsx',
-  authenticateToken,
-  guestExportController.exportRsvpsXlsx,
-);
-router.get(
-  '/events/:eventId/rsvps/export.pdf',
-  authenticateToken,
-  guestExportController.exportRsvpsPdfData,
-);
-router.post(
-  '/events/:eventId/rsvps/import',
-  authenticateToken,
-  csvUpload.single('file'),
-  rsvpController.importCsv,
-);
-router.get(
-  '/events/:eventId/rsvps/duplicates',
-  authenticateToken,
-  guestMergeController.listDuplicates,
-);
-router.get(
-  '/events/:eventId/rsvps/lookup',
-  authenticateToken,
-  guestMergeController.lookupRsvpsByEmail,
-);
-router.get('/events/:eventId/guest-merges', authenticateToken, guestMergeController.listMergeAudit);
-router.post(
-  '/events/:eventId/rsvps/:id/merge',
-  authenticateToken,
-  guestMergeController.mergeGuests,
-);
-router.post(
-  '/events/:eventId/rsvps/:id/send-confirmation',
-  authenticateToken,
-  rsvpConfirmationController.sendRsvpConfirmation,
-);
-router.get(
-  '/events/:eventId/rsvps/:id/ics',
-  authenticateToken,
-  rsvpConfirmationController.downloadRsvpIcs,
-);
-router.get(
-  '/events/:eventId/rsvps/:id/qr.svg',
-  authenticateToken,
-  rsvpConfirmationController.getRsvpQr,
-);
-router.post(
-  '/events/:eventId/rsvps/:id/token',
-  authenticateToken,
-  rsvpTokenController.issueRsvpToken,
-);
-router.patch('/events/:eventId/rsvps/:id', authenticateToken, rsvpController.updateRsvp);
-router.patch('/events/:eventId/rsvps/:id/checkin', authenticateToken, rsvpController.checkInGuest);
-// Planner-side unsubscribe toggle (#444)
-router.patch(
-  '/events/:eventId/rsvps/:id/unsubscribe',
-  authenticateToken,
-  rsvpController.setUnsubscribed,
-);
-router.delete('/events/:eventId/rsvps/:id', authenticateToken, rsvpController.deleteRsvp);
-
-// ============ WAITLIST ROUTES — #413, #442 ============
-router.get('/events/:eventId/waitlist', authenticateToken, waitlistController.listWaitlist);
-router.post('/events/:eventId/waitlist', authenticateToken, waitlistController.addRsvpToWaitlist);
-router.post(
-  '/events/:eventId/waitlist/promote',
-  authenticateToken,
-  waitlistController.promoteWaitlist,
-);
-router.delete(
-  '/events/:eventId/waitlist/:id',
-  authenticateToken,
-  waitlistController.removeFromWaitlist,
-);
-
-// ============ CUSTOM RSVP QUESTIONS — #413, #443 ============
-router.get(
-  '/events/:eventId/rsvp-questions',
-  authenticateToken,
-  rsvpQuestionsController.listQuestions,
-);
-router.post(
-  '/events/:eventId/rsvp-questions',
-  authenticateToken,
-  rsvpQuestionsController.createQuestion,
-);
-router.patch(
-  '/events/:eventId/rsvp-questions/:id',
-  authenticateToken,
-  rsvpQuestionsController.updateQuestion,
-);
-router.delete(
-  '/events/:eventId/rsvp-questions/:id',
-  authenticateToken,
-  rsvpQuestionsController.deleteQuestion,
-);
-router.get(
-  '/events/:eventId/rsvp-questions/responses',
-  authenticateToken,
-  rsvpQuestionsController.listResponses,
-);
-
 // ============ CURRENCY & EXCHANGE RATES — #418, #461 ============
 router.get('/currency/supported', currencyController.listSupportedCurrencies);
 router.get('/currency/rates', authenticateToken, currencyController.listRates);
@@ -480,28 +351,6 @@ router.post(
   '/events/:eventId/communication/templates/:id/preview',
   authenticateToken,
   commTemplatesController.previewTemplate,
-);
-
-// ============ MEAL OPTIONS (#591) ============
-router.get(
-  '/events/:eventId/meal-options',
-  authenticateToken,
-  mealOptionsController.listMealOptions,
-);
-router.post(
-  '/events/:eventId/meal-options',
-  authenticateToken,
-  mealOptionsController.createMealOption,
-);
-router.patch(
-  '/events/:eventId/meal-options/:id',
-  authenticateToken,
-  mealOptionsController.updateMealOption,
-);
-router.delete(
-  '/events/:eventId/meal-options/:id',
-  authenticateToken,
-  mealOptionsController.deleteMealOption,
 );
 
 // ============ QR CHECK-IN + ATTENDANCE BOARD (#546, #589, #594, #595) ============
@@ -1042,124 +891,6 @@ router.delete('/notifications/:id', authenticateToken, notificationsController.d
 router.post('/notifications/mark-all-read', authenticateToken, notificationsController.markAllRead);
 router.get('/notifications/digest', authenticateToken, notificationsController.getDueTaskAlerts);
 
-// ============ VENDOR ROUTES — BRD 3.6 ============
-// Static sub-paths must be registered BEFORE parameterised /:id routes
-router.get('/events/:eventId/vendors', authenticateToken, vendorsController.listVendors);
-router.post('/events/:eventId/vendors', authenticateToken, vendorsController.createVendor);
-router.get(
-  '/events/:eventId/vendors/favorites',
-  authenticateToken,
-  vendorsController.listFavoriteVendors,
-);
-router.get(
-  '/events/:eventId/vendors/compare',
-  authenticateToken,
-  vendorCommController.compareVendors,
-);
-router.get(
-  '/events/:eventId/vendors/performance',
-  authenticateToken,
-  vendorPerfController.listVendorPerformance,
-);
-router.put('/events/:eventId/vendors/:id', authenticateToken, vendorsController.updateVendor);
-router.delete('/events/:eventId/vendors/:id', authenticateToken, vendorsController.deleteVendor);
-router.put(
-  '/events/:eventId/vendors/:id/favorite',
-  authenticateToken,
-  vendorsController.setVendorFavorite,
-);
-router.post(
-  '/events/:eventId/vendors/:id/contract',
-  authenticateToken,
-  contractUpload.single('file'),
-  vendorsController.uploadContract,
-);
-router.get(
-  '/events/:eventId/vendors/:id/booking',
-  authenticateToken,
-  vendorsController.getVendorBooking,
-);
-router.put(
-  '/events/:eventId/vendors/:id/booking',
-  authenticateToken,
-  vendorsController.upsertVendorBooking,
-);
-router.get(
-  '/events/:eventId/vendors/:id/payment-schedules',
-  authenticateToken,
-  vendorsController.listVendorPaymentSchedules,
-);
-router.post(
-  '/events/:eventId/vendors/:id/payment-schedules',
-  authenticateToken,
-  vendorsController.createVendorPaymentSchedule,
-);
-router.get(
-  '/events/:eventId/vendors/:vendorId/communication',
-  authenticateToken,
-  vendorCommController.listVendorCommunication,
-);
-router.post(
-  '/events/:eventId/vendors/:vendorId/communication',
-  authenticateToken,
-  vendorCommController.addVendorCommunication,
-);
-router.delete(
-  '/events/:eventId/vendors/:vendorId/communication/:logId',
-  authenticateToken,
-  vendorCommController.deleteVendorCommunication,
-);
-router.get(
-  '/events/:eventId/vendors/:vendorId/performance',
-  authenticateToken,
-  vendorPerfController.getVendorPerformance,
-);
-
-// ============ SHOPPING LIST ROUTES — BRD 3.7 ============
-router.get('/events/:eventId/shopping-lists', authenticateToken, shoppingController.listLists);
-router.post('/events/:eventId/shopping-lists', authenticateToken, shoppingController.createList);
-router.delete(
-  '/events/:eventId/shopping-lists/:listId',
-  authenticateToken,
-  shoppingController.deleteList,
-);
-router.get(
-  '/events/:eventId/shopping-lists/:listId/items',
-  authenticateToken,
-  shoppingController.listItems,
-);
-router.post(
-  '/events/:eventId/shopping-lists/:listId/items',
-  authenticateToken,
-  shoppingController.createItem,
-);
-router.put(
-  '/events/:eventId/shopping-lists/:listId/items/:itemId',
-  authenticateToken,
-  shoppingController.updateItem,
-);
-router.delete(
-  '/events/:eventId/shopping-lists/:listId/items/:itemId',
-  authenticateToken,
-  shoppingController.deleteItem,
-);
-// #552/#608 — price comparison endpoints
-router.patch(
-  '/events/:eventId/shopping-lists/:listId/items/:itemId/price-data',
-  authenticateToken,
-  shoppingController.updateItemPriceData,
-);
-router.get(
-  '/events/:eventId/shopping-lists/:listId/price-comparison',
-  authenticateToken,
-  shoppingController.getListPriceComparison,
-);
-router.get(
-  '/events/:eventId/shopping/price-comparison',
-  authenticateToken,
-  shoppingController.getEventPriceComparison,
-);
-
 // ============ TIMELINE ROUTES — BRD 3.8 ============
 // /conflicts and /comparison must be before /:id to avoid being swallowed by a future parameterised GET
 router.get(
@@ -1360,60 +1091,6 @@ router.delete(
 // ============ WORKLOAD DASHBOARD — #451 ============
 router.get('/events/:eventId/workload', authenticateToken, workloadController.getWorkload);
 
-// ============ SHOPPING → BUDGET SYNC — #439 / #800 ============
-router.post(
-  '/events/:eventId/shopping-lists/:listId/items/:itemId/sync-to-budget',
-  authenticateToken,
-  shoppingBudgetSyncController.syncItemToBudget,
-);
-router.delete(
-  '/events/:eventId/shopping-lists/:listId/items/:itemId/sync-to-budget',
-  authenticateToken,
-  shoppingBudgetSyncController.unsyncItemFromBudget,
-);
-
-// ============ VENDOR COMMUNICATION LOG & COMPARE — #452 (registered in vendor section above)
-
-// ============ VENDOR PERFORMANCE METRICS — #463 (registered in vendor section above)
-
-// ============ STORE SUGGESTIONS — #464
-router.get(
-  '/events/:eventId/store-suggestions',
-  authenticateToken,
-  storeSuggestionsController.listStoreSuggestions,
-);
-router.post(
-  '/events/:eventId/store-suggestions',
-  authenticateToken,
-  storeSuggestionsController.createStoreSuggestion,
-);
-router.patch(
-  '/events/:eventId/store-suggestions/:id',
-  authenticateToken,
-  storeSuggestionsController.updateStoreSuggestionStatus,
-);
-router.delete(
-  '/events/:eventId/store-suggestions/:id',
-  authenticateToken,
-  storeSuggestionsController.deleteStoreSuggestion,
-);
-// #607 — store suggestion engine
-router.get(
-  '/events/:eventId/store-suggestions/recommendations',
-  authenticateToken,
-  storeSuggestionsController.getStoreSuggestionRecommendations,
-);
-router.get(
-  '/events/:eventId/store-suggestions/categories',
-  authenticateToken,
-  storeSuggestionsController.listStoreSuggestionCategories,
-);
-router.post(
-  '/events/:eventId/store-suggestions/:id/select',
-  authenticateToken,
-  storeSuggestionsController.selectStoreSuggestion,
-);
-
 // ============ TIMELINE CONFLICT DETECTION — #441 (registered in timeline section above)
 
 // ============ SCHEDULED REPORTS — #562 ============
@@ -1585,6 +1262,9 @@ router.get('/realtime/stream', authenticateToken, realtimeController.streamRealt
 // ── #811: User presence (online/offline/idle) ─────────────────────────────────────────────
 router.post('/user-presence/heartbeat', authenticateToken, presenceController.heartbeat);
 router.delete('/user-presence/leave', authenticateToken, presenceController.leave);
+// POST alias for leave — navigator.sendBeacon can only send POST requests,
+// so tab-close / page-unload signals arrive as POST.
+router.post('/user-presence/leave', authenticateToken, presenceController.leave);
 router.get('/user-presence/online', authenticateToken, presenceController.online);
 
 // ── #628: Event team chat ─────────────────────────────────────────────────────────────────
@@ -1642,58 +1322,6 @@ router.post(
   '/events/:eventId/entities/:entityId/rollback',
   authenticateToken,
   entityVersionsController.rollbackEntityVersion,
-);
-
-// ============ GUEST GROUPS & BULK OPS — #667 ============
-router.get(
-  '/events/:eventId/guest-groups',
-  authenticateToken,
-  guestGroupsController.listGuestGroups,
-);
-router.post(
-  '/events/:eventId/guest-groups',
-  authenticateToken,
-  guestGroupsController.createGuestGroup,
-);
-router.put(
-  '/events/:eventId/guest-groups/:id',
-  authenticateToken,
-  guestGroupsController.updateGuestGroup,
-);
-router.delete(
-  '/events/:eventId/guest-groups/:id',
-  authenticateToken,
-  guestGroupsController.deleteGuestGroup,
-);
-router.post(
-  '/events/:eventId/guest-groups/:id/members',
-  authenticateToken,
-  guestGroupsController.addGroupMembers,
-);
-router.delete(
-  '/events/:eventId/guest-groups/:id/members',
-  authenticateToken,
-  guestGroupsController.removeGroupMembers,
-);
-router.post(
-  '/events/:eventId/guest-groups/csv-import',
-  authenticateToken,
-  guestGroupsController.csvImportGuests,
-);
-router.post(
-  '/events/:eventId/guest-groups/bulk-checkin',
-  authenticateToken,
-  guestGroupsController.bulkCheckIn,
-);
-
-router.get('/events/:eventId/guest-records', authenticateToken, guestsController.listGuests);
-router.get('/events/:eventId/guest-records/:id', authenticateToken, guestsController.getGuest);
-router.post('/events/:eventId/guest-records', authenticateToken, guestsController.createGuest);
-router.put('/events/:eventId/guest-records/:id', authenticateToken, guestsController.updateGuest);
-router.delete(
-  '/events/:eventId/guest-records/:id',
-  authenticateToken,
-  guestsController.deleteGuest,
 );
 
 // ============ GDPR — #680 ============

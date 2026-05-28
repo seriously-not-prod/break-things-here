@@ -7,7 +7,7 @@ export default defineConfig({
     include: ['react-router-dom', 'react', 'react-dom'],
   },
   server: {
-    port: 3000,
+    port: 8081,
     proxy: {
       '/api': {
         target: 'http://localhost:4000',

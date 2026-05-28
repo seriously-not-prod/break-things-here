@@ -25,13 +25,13 @@ export function usePresenceHeartbeat(isAuthenticated: boolean): void {
     };
 
     const sendLeave = (): void => {
-      // navigator.sendBeacon is fire-and-forget for unload scenarios
+      // navigator.sendBeacon is fire-and-forget for unload scenarios (always POST)
       try {
         navigator.sendBeacon('/api/user-presence/leave');
       } catch {
-        // Fallback: try fetch with keepalive
+        // Fallback: try fetch with keepalive (POST matches sendBeacon behaviour)
         fetch('/api/user-presence/leave', {
-          method: 'DELETE',
+          method: 'POST',
           credentials: 'include',
           keepalive: true,
         }).catch(() => undefined);

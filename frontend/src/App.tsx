@@ -41,7 +41,7 @@ import { RoleGuard } from './components/auth/role-guard';
 import { useKeyboardShortcuts, type ShortcutDefinition } from './hooks/use-keyboard-shortcuts';
 import { KeyboardShortcutsOverlay } from './components/keyboard-shortcuts/keyboard-shortcuts-overlay';
 import { canEditEvent, isAdmin } from './utils/roles';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 
 type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password';
 
@@ -281,10 +281,10 @@ function AppShell(): JSX.Element {
   const [helpOpen, setHelpOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  const handleToggleHelp = useMemo(() => () => setHelpOpen((v) => !v), []);
-  const handleOpenHelp = useMemo(() => () => setHelpOpen(true), []);
-  const handleCloseHelp = useMemo(() => () => setHelpOpen(false), []);
-  const handleToggleSidebar = useMemo(() => () => setSidebarCollapsed((v) => !v), []);
+  const handleToggleHelp = useCallback(() => setHelpOpen((v) => !v), []);
+  const handleOpenHelp = useCallback(() => setHelpOpen(true), []);
+  const handleCloseHelp = useCallback(() => setHelpOpen(false), []);
+  const handleToggleSidebar = useCallback(() => setSidebarCollapsed((v) => !v), []);
 
   if (loading) {
     return (
