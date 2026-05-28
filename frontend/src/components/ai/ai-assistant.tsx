@@ -1,6 +1,7 @@
-import { ChangeEvent, KeyboardEvent, useState } from 'react';
+import { ChangeEvent, KeyboardEvent, useEffect, useState } from 'react';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -45,6 +46,11 @@ function resolveAiErrorMessage(err: unknown): string {
 interface Message {
   role: 'user' | 'assistant';
   text: string;
+}
+
+interface EventOption {
+  id: number;
+  title: string;
 }
 
 interface EventSuggestion {
@@ -372,9 +378,13 @@ export function AiAssistant(): JSX.Element {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Shared event picker state (used across Grounded, Task Plan, Budget tabs)
+  const [events, setEvents] = useState<EventOption[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+
   // Grounded workflow state
   const [workflowType, setWorkflowType] = useState<WorkflowType>('event');
-  const [entityId, setEntityId] = useState('');
+  const [selectedGroundedEvent, setSelectedGroundedEvent] = useState<EventOption | null>(null);
   const [workflowPrompt, setWorkflowPrompt] = useState('');
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const [workflowResult, setWorkflowResult] = useState<GroundedResponse | null>(null);
@@ -385,19 +395,37 @@ export function AiAssistant(): JSX.Element {
   const [chatRetryPrompt, setChatRetryPrompt] = useState<string | null>(null);
 
   // #952 — Budget insight state
-  const [budgetEventId, setBudgetEventId] = useState('');
+  const [selectedBudgetEvent, setSelectedBudgetEvent] = useState<EventOption | null>(null);
   const [budgetPrompt, setBudgetPrompt] = useState('');
   const [budgetLoading, setBudgetLoading] = useState(false);
   const [budgetResult, setBudgetResult] = useState<BudgetInsightResponse | null>(null);
   const [budgetError, setBudgetError] = useState<string | null>(null);
 
   // #950 — Task breakdown state
-  const [breakdownEventId, setBreakdownEventId] = useState('');
+  const [selectedBreakdownEvent, setSelectedBreakdownEvent] = useState<EventOption | null>(null);
   const [breakdownPrompt, setBreakdownPrompt] = useState('');
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   const [breakdownResult, setBreakdownResult] = useState<TaskBreakdownResponse | null>(null);
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
   const [allCopied, setAllCopied] = useState(false);
+
+  // Fetch shared event list once when the panel opens
+  useEffect(() => {
+    if (!open || events.length > 0) return;
+    setEventsLoading(true);
+    api
+      .get<EventOption[] | { events: EventOption[] }>('/api/events?limit=200')
+      .then((data) => {
+        const list = Array.isArray(data)
+          ? data
+          : ((data as { events: EventOption[] }).events ?? []);
+        setEvents(list);
+      })
+      .catch(() => {
+        // Non-critical — user can still type event details manually via prompt
+      })
+      .finally(() => setEventsLoading(false));
+  }, [open]);
 
   /** #959 — Shared chat request dispatcher; used by sendMessage and retryChatMessage. */
   async function dispatchChatRequest(text: string): Promise<void> {
@@ -434,8 +462,7 @@ export function AiAssistant(): JSX.Element {
   }
 
   async function runGroundedWorkflow(): Promise<void> {
-    const eid = parseInt(entityId, 10);
-    if (!workflowPrompt.trim() || !Number.isFinite(eid) || eid <= 0) return;
+    if (!workflowPrompt.trim() || !selectedGroundedEvent) return;
 
     setWorkflowLoading(true);
     setWorkflowError(null);
@@ -444,7 +471,7 @@ export function AiAssistant(): JSX.Element {
     try {
       const data = await api.post<GroundedResponse>('/api/ai/grounded', {
         workflowType,
-        entityId: eid,
+        entityId: selectedGroundedEvent.id,
         prompt: workflowPrompt.trim(),
       });
       setWorkflowResult(data);
@@ -472,8 +499,7 @@ export function AiAssistant(): JSX.Element {
 
   // #950 — Task breakdown functions
   async function runTaskBreakdown(): Promise<void> {
-    const eid = parseInt(breakdownEventId, 10);
-    if (!Number.isFinite(eid) || eid <= 0) return;
+    if (!selectedBreakdownEvent) return;
 
     setBreakdownLoading(true);
     setBreakdownError(null);
@@ -481,7 +507,7 @@ export function AiAssistant(): JSX.Element {
 
     try {
       const data = await api.post<TaskBreakdownResponse>('/api/ai/task-breakdown', {
-        eventId: eid,
+        eventId: selectedBreakdownEvent.id,
         prompt: breakdownPrompt.trim() || undefined,
       });
       setBreakdownResult(data);
@@ -495,8 +521,7 @@ export function AiAssistant(): JSX.Element {
 
   // #952 — Budget insight functions
   async function runBudgetInsight(): Promise<void> {
-    const eid = parseInt(budgetEventId, 10);
-    if (!Number.isFinite(eid) || eid <= 0) return;
+    if (!selectedBudgetEvent) return;
 
     setBudgetLoading(true);
     setBudgetError(null);
@@ -504,7 +529,7 @@ export function AiAssistant(): JSX.Element {
 
     try {
       const data = await fetchBudgetInsight({
-        eventId: eid,
+        eventId: selectedBudgetEvent.id,
         prompt: budgetPrompt.trim() || undefined,
       });
       setBudgetResult(data);
@@ -845,13 +870,33 @@ export function AiAssistant(): JSX.Element {
                       </MenuItem>
                     ))}
                   </Select>
-                  <TextField
+                  <Autocomplete<EventOption>
                     size="small"
-                    label="Event ID"
-                    type="number"
-                    value={entityId}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setEntityId(e.target.value)}
-                    inputProps={{ min: 1, 'aria-label': 'Event ID' }}
+                    options={events}
+                    value={selectedGroundedEvent}
+                    onChange={(_e, val) => setSelectedGroundedEvent(val)}
+                    loading={eventsLoading}
+                    getOptionLabel={(opt) => opt.title}
+                    isOptionEqualToValue={(a, b) => a.id === b.id}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Event"
+                        placeholder="Select an event"
+                        inputProps={{ ...params.inputProps, 'aria-label': 'Select event' }}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {eventsLoading ? (
+                                <CircularProgress color="inherit" size={16} />
+                              ) : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
                     fullWidth
                   />
                   <TextField
@@ -879,12 +924,7 @@ export function AiAssistant(): JSX.Element {
                       )
                     }
                     onClick={() => void runGroundedWorkflow()}
-                    disabled={
-                      workflowLoading ||
-                      !workflowPrompt.trim() ||
-                      !entityId ||
-                      parseInt(entityId, 10) <= 0
-                    }
+                    disabled={workflowLoading || !workflowPrompt.trim() || !selectedGroundedEvent}
                     aria-label="Run grounded workflow"
                   >
                     {workflowLoading ? 'Fetching context…' : 'Run Workflow'}
@@ -902,7 +942,7 @@ export function AiAssistant(): JSX.Element {
               >
                 {!workflowLoading && !workflowResult && !workflowError && (
                   <Typography variant="body2" color="text.secondary" textAlign="center" mt={1}>
-                    Enter an Event ID and a prompt, then run the workflow to get grounded AI
+                    Select an event and a prompt, then run the workflow to get grounded AI
                     suggestions.
                   </Typography>
                 )}
@@ -966,15 +1006,36 @@ export function AiAssistant(): JSX.Element {
                   suggestions, due-windows, priorities, dependencies, and timeline constraints.
                 </Typography>
                 <Stack spacing={1}>
-                  <TextField
+                  <Autocomplete<EventOption>
                     size="small"
-                    label="Event ID"
-                    type="number"
-                    value={breakdownEventId}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                      setBreakdownEventId(e.target.value)
-                    }
-                    inputProps={{ min: 1, 'aria-label': 'Event ID for task breakdown' }}
+                    options={events}
+                    value={selectedBreakdownEvent}
+                    onChange={(_e, val) => setSelectedBreakdownEvent(val)}
+                    loading={eventsLoading}
+                    getOptionLabel={(opt) => opt.title}
+                    isOptionEqualToValue={(a, b) => a.id === b.id}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Event"
+                        placeholder="Select an event"
+                        inputProps={{
+                          ...params.inputProps,
+                          'aria-label': 'Select event for task breakdown',
+                        }}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {eventsLoading ? (
+                                <CircularProgress color="inherit" size={16} />
+                              ) : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
                     fullWidth
                   />
                   <TextField
@@ -1002,9 +1063,7 @@ export function AiAssistant(): JSX.Element {
                       )
                     }
                     onClick={() => void runTaskBreakdown()}
-                    disabled={
-                      breakdownLoading || !breakdownEventId || parseInt(breakdownEventId, 10) <= 0
-                    }
+                    disabled={breakdownLoading || !selectedBreakdownEvent}
                     aria-label="Generate task breakdown"
                   >
                     {breakdownLoading ? 'Generating breakdown…' : 'Generate Task Breakdown'}
@@ -1022,7 +1081,7 @@ export function AiAssistant(): JSX.Element {
               >
                 {!breakdownLoading && !breakdownResult && !breakdownError && (
                   <Typography variant="body2" color="text.secondary" textAlign="center" mt={1}>
-                    Enter an Event ID and click Generate to receive an AI task breakdown grounded in
+                    Select an event and click Generate to receive an AI task breakdown grounded in
                     your event context.
                   </Typography>
                 )}
@@ -1129,15 +1188,36 @@ export function AiAssistant(): JSX.Element {
                   level, spending anomalies, and at least 3 actionable recommendations.
                 </Typography>
                 <Stack spacing={1}>
-                  <TextField
+                  <Autocomplete<EventOption>
                     size="small"
-                    label="Event ID"
-                    type="number"
-                    value={budgetEventId}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                      setBudgetEventId(e.target.value)
-                    }
-                    inputProps={{ min: 1, 'aria-label': 'Event ID for budget insight' }}
+                    options={events}
+                    value={selectedBudgetEvent}
+                    onChange={(_e, val) => setSelectedBudgetEvent(val)}
+                    loading={eventsLoading}
+                    getOptionLabel={(opt) => opt.title}
+                    isOptionEqualToValue={(a, b) => a.id === b.id}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Event"
+                        placeholder="Select an event"
+                        inputProps={{
+                          ...params.inputProps,
+                          'aria-label': 'Select event for budget insight',
+                        }}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {eventsLoading ? (
+                                <CircularProgress color="inherit" size={16} />
+                              ) : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
                     fullWidth
                   />
                   <TextField
@@ -1163,7 +1243,7 @@ export function AiAssistant(): JSX.Element {
                       )
                     }
                     onClick={() => void runBudgetInsight()}
-                    disabled={budgetLoading || !budgetEventId || parseInt(budgetEventId, 10) <= 0}
+                    disabled={budgetLoading || !selectedBudgetEvent}
                     aria-label="Analyse budget"
                   >
                     {budgetLoading ? 'Analysing budget…' : 'Analyse Budget'}
@@ -1181,7 +1261,7 @@ export function AiAssistant(): JSX.Element {
               >
                 {!budgetLoading && !budgetResult && !budgetError && (
                   <Typography variant="body2" color="text.secondary" textAlign="center" mt={1}>
-                    Enter an Event ID and click Analyse Budget to receive AI-powered financial
+                    Select an event and click Analyse Budget to receive AI-powered financial
                     variance and risk insights.
                   </Typography>
                 )}

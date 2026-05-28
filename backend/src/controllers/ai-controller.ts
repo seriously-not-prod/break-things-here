@@ -92,6 +92,7 @@ import {
   logAiAuditEvent,
   getAiMetricsSnapshot,
   computeAiHealthSignal,
+  evaluateCurrentSlos,
   buildSafeErrorMessage,
   classifyAiOutcome,
 } from '../lib/ai-observability.js';
@@ -2819,7 +2820,8 @@ export async function getAnalyticsNarrative(req: AuthRequest, res: Response): Pr
 /**
  * GET /api/ai/health
  *
- * Returns a structured AI health signal based on in-process metrics counters.
+ * Returns a structured AI health signal based on in-process metrics counters,
+ * extended with SLO compliance evaluation (#962).
  *
  * Response shape:
  * ```json
@@ -2827,13 +2829,19 @@ export async function getAnalyticsNarrative(req: AuthRequest, res: Response): Pr
  *   "status": "healthy",
  *   "metrics": { "counters": { ... }, "latency": { ... }, "byWorkflow": { ... },
  *                "byProvider": { ... }, "lastResetAt": "..." },
+ *   "sloCompliance": {
+ *     "allCompliant": true,
+ *     "checks": [ { "slo": "success-rate", "compliant": true, ... } ],
+ *     "evaluatedAt": "..."
+ *   },
  *   "generatedAt": "2026-05-27T12:34:56.789Z"
  * }
  * ```
  *
- * `status` values: `"healthy"` (≥90 % success ratio), `"degraded"` (≥50 %),
- * `"unhealthy"` (<50 %).  Returns `"healthy"` with zero counters before any
- * request has been processed.
+ * `status` values: `"healthy"` (≥95 % success ratio), `"degraded"` (≥90 %),
+ * `"unhealthy"` (<90 %).  Returns `"healthy"` with zero counters before any
+ * request has been processed.  SLO thresholds are defined in
+ * `backend/src/lib/ai-slo.ts` and documented in `docs/operations/ai-slos.md`.
  *
  * Requires `authenticateToken`. Does not require AI RBAC so operations staff
  * can check health without needing AI feature entitlements.
@@ -2841,9 +2849,11 @@ export async function getAnalyticsNarrative(req: AuthRequest, res: Response): Pr
 export function getAiHealth(_req: Request, res: Response): Response {
   const snapshot = getAiMetricsSnapshot();
   const status = computeAiHealthSignal(snapshot);
+  const sloCompliance = evaluateCurrentSlos();
   return res.json({
     status,
     metrics: snapshot,
+    sloCompliance,
     generatedAt: new Date().toISOString(),
   });
 }
