@@ -377,7 +377,7 @@ function TaskBreakdownCard({
 
 export function AiAssistant(): JSX.Element {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<0 | 1 | 2 | 3>(0);
+  const [activeTab, setActiveTab] = useState<0 | 1 | 2 | 3 | 4>(0);
 
   // Chat mode state
   const [context, setContext] = useState<Context>('general');
@@ -417,7 +417,7 @@ export function AiAssistant(): JSX.Element {
   const [allCopied, setAllCopied] = useState(false);
 
   // #951 — RSVP communication drafting state
-  const [draftEntityId, setDraftEntityId] = useState('');
+  const [selectedDraftEvent, setSelectedDraftEvent] = useState<EventOption | null>(null);
   const [draftTone, setDraftTone] = useState<RsvpDraftTone>('friendly');
   const [draftLength, setDraftLength] = useState<RsvpDraftLength>('medium');
   const [draftPrompt, setDraftPrompt] = useState('');
@@ -599,8 +599,8 @@ export function AiAssistant(): JSX.Element {
 
   // #951 — RSVP Communication Drafting functions
   async function generateDraft(): Promise<void> {
-    const eid = parseInt(draftEntityId, 10);
-    if (!Number.isFinite(eid) || eid <= 0) return;
+    const eid = selectedDraftEvent?.id;
+    if (!eid || eid <= 0) return;
 
     setDraftLoading(true);
     setDraftError(null);
@@ -694,7 +694,7 @@ export function AiAssistant(): JSX.Element {
           {/* Mode tabs */}
           <Tabs
             value={activeTab}
-            onChange={(_e, v: number) => setActiveTab(v as 0 | 1 | 2 | 3)}
+            onChange={(_e, v: number) => setActiveTab(v as 0 | 1 | 2 | 3 | 4)}
             variant="fullWidth"
             sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 40 }}
           >
@@ -1539,15 +1539,36 @@ export function AiAssistant(): JSX.Element {
                   Edit the drafts before sending.
                 </Typography>
                 <Stack spacing={1}>
-                  <TextField
+                  <Autocomplete<EventOption>
                     size="small"
-                    label="Event ID"
-                    type="number"
-                    value={draftEntityId}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                      setDraftEntityId(e.target.value)
-                    }
-                    inputProps={{ min: 1, 'aria-label': 'Event ID for RSVP draft' }}
+                    options={events}
+                    value={selectedDraftEvent}
+                    onChange={(_e, val) => setSelectedDraftEvent(val)}
+                    loading={eventsLoading}
+                    getOptionLabel={(opt) => opt.title}
+                    isOptionEqualToValue={(a, b) => a.id === b.id}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Event"
+                        placeholder="Select an event"
+                        inputProps={{
+                          ...params.inputProps,
+                          'aria-label': 'Select event for RSVP draft',
+                        }}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {eventsLoading ? (
+                                <CircularProgress color="inherit" size={16} />
+                              ) : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
                     fullWidth
                   />
                   <Stack direction="row" spacing={1}>
@@ -1603,7 +1624,7 @@ export function AiAssistant(): JSX.Element {
                       draftLoading ? <CircularProgress size={14} color="inherit" /> : undefined
                     }
                     onClick={() => void generateDraft()}
-                    disabled={draftLoading || !draftEntityId || parseInt(draftEntityId, 10) <= 0}
+                    disabled={draftLoading || !selectedDraftEvent}
                     aria-label="Generate RSVP communication drafts"
                   >
                     {draftLoading ? 'Generating drafts…' : 'Generate Drafts'}
@@ -1618,7 +1639,7 @@ export function AiAssistant(): JSX.Element {
               >
                 {!draftLoading && !draftResult && !draftError && (
                   <Typography variant="body2" color="text.secondary" textAlign="center" mt={1}>
-                    Enter an Event ID and select tone/length, then generate drafts to get AI-written
+                    Select an event and choose tone/length, then generate drafts to get AI-written
                     RSVP messages you can edit and send.
                   </Typography>
                 )}
