@@ -25,6 +25,7 @@ import {
   ContentCopyRounded,
   HubRounded,
   ListAltRounded,
+  ReplayRounded,
   SendRounded,
 } from '@mui/icons-material';
 import { fetchBudgetInsight, BudgetInsightResponse } from '../../services/budget-insight-service';
@@ -99,6 +100,13 @@ interface GroundedResponse {
   /** #949: Traceability — event context fields included in the grounded prompt. */
   contextSummary?: { groundedFields: string[] };
 }
+
+const QUICK_START_PROMPTS = [
+  'Event venue ideas',
+  'Task timeline tips',
+  'RSVP strategy',
+  'Budget planning tips',
+] as const;
 
 const CONTEXT_LABELS: Record<Context, string> = {
   general: 'General planning',
@@ -372,6 +380,10 @@ export function AiAssistant(): JSX.Element {
   const [workflowResult, setWorkflowResult] = useState<GroundedResponse | null>(null);
   const [workflowError, setWorkflowError] = useState<string | null>(null);
 
+  // #959 — Chat error + retry state
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [chatRetryPrompt, setChatRetryPrompt] = useState<string | null>(null);
+
   // #952 — Budget insight state
   const [budgetEventId, setBudgetEventId] = useState('');
   const [budgetPrompt, setBudgetPrompt] = useState('');
@@ -387,14 +399,11 @@ export function AiAssistant(): JSX.Element {
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
   const [allCopied, setAllCopied] = useState(false);
 
-  async function sendMessage(): Promise<void> {
-    const text = prompt.trim();
-    if (!text || loading) return;
-
-    setMessages((prev) => [...prev, { role: 'user', text }]);
-    setPrompt('');
+  /** #959 — Shared chat request dispatcher; used by sendMessage and retryChatMessage. */
+  async function dispatchChatRequest(text: string): Promise<void> {
+    setChatError(null);
+    setChatRetryPrompt(null);
     setLoading(true);
-
     try {
       const data = await api.post<{ suggestion: string }>('/api/ai/suggest', {
         context,
@@ -403,10 +412,25 @@ export function AiAssistant(): JSX.Element {
       setMessages((prev) => [...prev, { role: 'assistant', text: data.suggestion }]);
     } catch (err) {
       const message = resolveAiErrorMessage(err);
-      setMessages((prev) => [...prev, { role: 'assistant', text: `⚠️ ${message}` }]);
+      setChatError(message);
+      setChatRetryPrompt(text);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function sendMessage(): Promise<void> {
+    const text = prompt.trim();
+    if (!text || loading) return;
+    setMessages((prev) => [...prev, { role: 'user', text }]);
+    setPrompt('');
+    await dispatchChatRequest(text);
+  }
+
+  /** #959 — Retry last failed chat message. */
+  async function retryChatMessage(): Promise<void> {
+    if (!chatRetryPrompt || loading) return;
+    await dispatchChatRequest(chatRetryPrompt);
   }
 
   async function runGroundedWorkflow(): Promise<void> {
@@ -592,24 +616,32 @@ export function AiAssistant(): JSX.Element {
             sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 40 }}
           >
             <Tab
+              id="ai-tab-chat"
+              aria-controls="ai-panel-chat"
               label="Chat"
               icon={<AutoAwesomeRounded fontSize="small" />}
               iconPosition="start"
               sx={{ minHeight: 40, py: 0, fontSize: '0.7rem' }}
             />
             <Tab
+              id="ai-tab-grounded"
+              aria-controls="ai-panel-grounded"
               label="Grounded"
               icon={<HubRounded fontSize="small" />}
               iconPosition="start"
               sx={{ minHeight: 40, py: 0, fontSize: '0.7rem' }}
             />
             <Tab
+              id="ai-tab-breakdown"
+              aria-controls="ai-panel-breakdown"
               label="Task Plan"
               icon={<ListAltRounded fontSize="small" />}
               iconPosition="start"
               sx={{ minHeight: 40, py: 0, fontSize: '0.7rem' }}
             />
             <Tab
+              id="ai-tab-budget"
+              aria-controls="ai-panel-budget"
               label="Budget"
               icon={<BarChartRounded fontSize="small" />}
               iconPosition="start"
@@ -619,7 +651,12 @@ export function AiAssistant(): JSX.Element {
 
           {/* ── Tab 0: Chat ───────────────────────────────────────────── */}
           {activeTab === 0 && (
-            <>
+            <Box
+              id="ai-panel-chat"
+              role="tabpanel"
+              aria-labelledby="ai-tab-chat"
+              sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}
+            >
               {/* Context selector */}
               <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider' }}>
                 <Select
@@ -641,6 +678,7 @@ export function AiAssistant(): JSX.Element {
               <Box
                 role="log"
                 aria-live="polite"
+                aria-busy={loading}
                 aria-label="AI conversation"
                 sx={{
                   flexGrow: 1,
@@ -652,16 +690,44 @@ export function AiAssistant(): JSX.Element {
                   minHeight: 200,
                 }}
               >
+                {/* #959 — Actionable onboarding empty state with quick-start chips */}
                 {messages.length === 0 && !loading && (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    textAlign="center"
-                    sx={{ mt: 2 }}
-                  >
-                    Ask me anything about festival planning — event ideas, task tips, RSVP
-                    strategies, and more.
-                  </Typography>
+                  <Box>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      textAlign="center"
+                      sx={{ mt: 2, mb: 1.5 }}
+                    >
+                      Ask me anything about festival planning — event ideas, task tips, RSVP
+                      strategies, and more.
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      color="text.disabled"
+                      textAlign="center"
+                      display="block"
+                      mb={1}
+                    >
+                      Quick start:
+                    </Typography>
+                    <Box
+                      sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, justifyContent: 'center' }}
+                    >
+                      {QUICK_START_PROMPTS.map((suggestion) => (
+                        <Chip
+                          key={suggestion}
+                          label={suggestion}
+                          size="small"
+                          variant="outlined"
+                          color="primary"
+                          clickable
+                          onClick={() => setPrompt(suggestion)}
+                          aria-label={`Use prompt: ${suggestion}`}
+                        />
+                      ))}
+                    </Box>
+                  </Box>
                 )}
                 {messages.map((msg, i) => (
                   <Box
@@ -681,8 +747,12 @@ export function AiAssistant(): JSX.Element {
                     </Typography>
                   </Box>
                 ))}
+                {/* #959 — Non-blocking loading indicator */}
                 {loading && (
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }} aria-label="Loading">
+                  <Box
+                    sx={{ display: 'flex', gap: 1, alignItems: 'center' }}
+                    aria-label="AI is thinking"
+                  >
                     <CircularProgress size={16} />
                     <Typography variant="caption" color="text.secondary">
                       Thinking…
@@ -690,6 +760,25 @@ export function AiAssistant(): JSX.Element {
                   </Box>
                 )}
               </Box>
+
+              {/* #959 — Chat error state with retry support */}
+              {chatError && !loading && (
+                <Alert
+                  severity="error"
+                  sx={{ mx: 1.5, mb: 0.5, fontSize: '0.75rem' }}
+                  action={
+                    <IconButton
+                      size="small"
+                      aria-label="Retry last message"
+                      onClick={() => void retryChatMessage()}
+                    >
+                      <ReplayRounded fontSize="small" />
+                    </IconButton>
+                  }
+                >
+                  {chatError}
+                </Alert>
+              )}
 
               {/* Input */}
               <Box sx={{ p: 1.5, borderTop: 1, borderColor: 'divider' }}>
@@ -708,7 +797,7 @@ export function AiAssistant(): JSX.Element {
                   />
                   <IconButton
                     color="primary"
-                    onClick={sendMessage}
+                    onClick={() => void sendMessage()}
                     disabled={loading || !prompt.trim()}
                     aria-label="Send"
                   >
@@ -716,12 +805,17 @@ export function AiAssistant(): JSX.Element {
                   </IconButton>
                 </Stack>
               </Box>
-            </>
+            </Box>
           )}
 
           {/* ── Tab 1: Grounded Workflow ───────────────────────────────── */}
           {activeTab === 1 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
+            <Box
+              id="ai-panel-grounded"
+              role="tabpanel"
+              aria-labelledby="ai-tab-grounded"
+              sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}
+            >
               {/* Workflow form */}
               <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
                 <Typography variant="caption" color="text.secondary" display="block" mb={1}>
@@ -779,7 +873,7 @@ export function AiAssistant(): JSX.Element {
                         <HubRounded />
                       )
                     }
-                    onClick={runGroundedWorkflow}
+                    onClick={() => void runGroundedWorkflow()}
                     disabled={
                       workflowLoading ||
                       !workflowPrompt.trim() ||
@@ -798,6 +892,7 @@ export function AiAssistant(): JSX.Element {
                 role="region"
                 aria-label="Grounded workflow result"
                 aria-live="polite"
+                aria-busy={workflowLoading}
                 sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}
               >
                 {!workflowLoading && !workflowResult && !workflowError && (
@@ -820,7 +915,19 @@ export function AiAssistant(): JSX.Element {
                 )}
 
                 {workflowError && !workflowLoading && (
-                  <Alert severity="error" sx={{ fontSize: '0.75rem' }}>
+                  <Alert
+                    severity="error"
+                    sx={{ fontSize: '0.75rem' }}
+                    action={
+                      <IconButton
+                        size="small"
+                        aria-label="Retry workflow"
+                        onClick={() => void runGroundedWorkflow()}
+                      >
+                        <ReplayRounded fontSize="small" />
+                      </IconButton>
+                    }
+                  >
                     {workflowError}
                   </Alert>
                 )}
@@ -841,7 +948,12 @@ export function AiAssistant(): JSX.Element {
 
           {/* ── Tab 2: Task Breakdown (#950) ───────────────────────── */}
           {activeTab === 2 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
+            <Box
+              id="ai-panel-breakdown"
+              role="tabpanel"
+              aria-labelledby="ai-tab-breakdown"
+              sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}
+            >
               {/* Form */}
               <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
                 <Typography variant="caption" color="text.secondary" display="block" mb={1}>
@@ -884,7 +996,7 @@ export function AiAssistant(): JSX.Element {
                         <ListAltRounded />
                       )
                     }
-                    onClick={runTaskBreakdown}
+                    onClick={() => void runTaskBreakdown()}
                     disabled={
                       breakdownLoading || !breakdownEventId || parseInt(breakdownEventId, 10) <= 0
                     }
@@ -900,6 +1012,7 @@ export function AiAssistant(): JSX.Element {
                 role="region"
                 aria-label="Task breakdown result"
                 aria-live="polite"
+                aria-busy={breakdownLoading}
                 sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}
               >
                 {!breakdownLoading && !breakdownResult && !breakdownError && (
@@ -922,7 +1035,19 @@ export function AiAssistant(): JSX.Element {
                 )}
 
                 {breakdownError && !breakdownLoading && (
-                  <Alert severity="error" sx={{ fontSize: '0.75rem' }}>
+                  <Alert
+                    severity="error"
+                    sx={{ fontSize: '0.75rem' }}
+                    action={
+                      <IconButton
+                        size="small"
+                        aria-label="Retry task breakdown"
+                        onClick={() => void runTaskBreakdown()}
+                      >
+                        <ReplayRounded fontSize="small" />
+                      </IconButton>
+                    }
+                  >
                     {breakdownError}
                   </Alert>
                 )}
@@ -986,7 +1111,12 @@ export function AiAssistant(): JSX.Element {
           )}
           {/* ── Tab 3: Budget Insight (#952) ─────────────────────── */}
           {activeTab === 3 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
+            <Box
+              id="ai-panel-budget"
+              role="tabpanel"
+              aria-labelledby="ai-tab-budget"
+              sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}
+            >
               {/* Form */}
               <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
                 <Typography variant="caption" color="text.secondary" display="block" mb={1}>
@@ -1027,7 +1157,7 @@ export function AiAssistant(): JSX.Element {
                         <BarChartRounded />
                       )
                     }
-                    onClick={runBudgetInsight}
+                    onClick={() => void runBudgetInsight()}
                     disabled={budgetLoading || !budgetEventId || parseInt(budgetEventId, 10) <= 0}
                     aria-label="Analyse budget"
                   >
@@ -1041,6 +1171,7 @@ export function AiAssistant(): JSX.Element {
                 role="region"
                 aria-label="Budget insight result"
                 aria-live="polite"
+                aria-busy={budgetLoading}
                 sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}
               >
                 {!budgetLoading && !budgetResult && !budgetError && (
@@ -1063,7 +1194,19 @@ export function AiAssistant(): JSX.Element {
                 )}
 
                 {budgetError && !budgetLoading && (
-                  <Alert severity="error" sx={{ fontSize: '0.75rem' }}>
+                  <Alert
+                    severity="error"
+                    sx={{ fontSize: '0.75rem' }}
+                    action={
+                      <IconButton
+                        size="small"
+                        aria-label="Retry budget insight"
+                        onClick={() => void runBudgetInsight()}
+                      >
+                        <ReplayRounded fontSize="small" />
+                      </IconButton>
+                    }
+                  >
                     {budgetError}
                   </Alert>
                 )}
