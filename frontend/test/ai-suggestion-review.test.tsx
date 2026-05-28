@@ -87,9 +87,7 @@ describe('AiSuggestionReview — render', () => {
     expect(
       screen.getByRole('button', { name: /accept and apply ai suggestion/i }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /reject ai suggestion/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reject ai suggestion/i })).toBeInTheDocument();
   });
 });
 
@@ -147,7 +145,10 @@ describe('AiSuggestionReview — Edit & Apply', () => {
   });
 
   it('applies the edited content with a note when user saves from edit mode', async () => {
-    mockedApi.post.mockResolvedValueOnce({ ...MOCK_APPLIED_RECORD, note: 'applied with user edits' });
+    mockedApi.post.mockResolvedValueOnce({
+      ...MOCK_APPLIED_RECORD,
+      note: 'applied with user edits',
+    });
     render(<AiSuggestionReview {...defaultProps} />);
 
     await userEvent.click(screen.getByRole('button', { name: /edit.*apply/i }));

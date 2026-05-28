@@ -222,11 +222,7 @@ export function AiSuggestionReview({
 
       {/* Suggestion content (read-only or editable) */}
       <Collapse in={!editMode}>
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ whiteSpace: 'pre-wrap', mb: 1 }}
-        >
+        <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', mb: 1 }}>
           {suggestionContent}
         </Typography>
       </Collapse>

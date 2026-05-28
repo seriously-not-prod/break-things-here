@@ -2791,8 +2791,7 @@ interface AiAppliedRecord {
  * Story #965 — Add Human-in-the-Loop Apply Flow for AI Suggestions.
  */
 export async function applyAiSuggestion(req: AuthRequest, res: Response): Promise<Response> {
-  const { workflowType, entityId, suggestionContent, note } =
-    req.body as Partial<AiApplyBody>;
+  const { workflowType, entityId, suggestionContent, note } = req.body as Partial<AiApplyBody>;
 
   if (!workflowType?.trim()) {
     return res.status(400).json({ error: 'workflowType is required.' });
@@ -2810,8 +2809,9 @@ export async function applyAiSuggestion(req: AuthRequest, res: Response): Promis
     const db = getDatabase();
 
     // Ensure the audit table exists (best-effort DDL on first use).
-    await db.run(
-      `CREATE TABLE IF NOT EXISTS ai_applied_suggestions (
+    await db
+      .run(
+        `CREATE TABLE IF NOT EXISTS ai_applied_suggestions (
          id            SERIAL PRIMARY KEY,
          user_id       INTEGER NOT NULL,
          workflow_type TEXT    NOT NULL,
@@ -2820,9 +2820,10 @@ export async function applyAiSuggestion(req: AuthRequest, res: Response): Promis
          note          TEXT,
          applied_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
        )`,
-    ).catch(() => {
-      // Table may already exist; ignore.
-    });
+      )
+      .catch(() => {
+        // Table may already exist; ignore.
+      });
 
     const row = await db.get<AiAppliedRecord>(
       `INSERT INTO ai_applied_suggestions
@@ -2851,7 +2852,7 @@ export async function applyAiSuggestion(req: AuthRequest, res: Response): Promis
 
     return res.status(201).json(row);
   } catch (err) {
-    const message = buildSafeErrorMessage(err);
+    const message = buildSafeErrorMessage(err, 'app');
     return res.status(500).json({ error: message });
   }
 }
@@ -2885,9 +2886,10 @@ export async function rollbackAiSuggestion(req: AuthRequest, res: Response): Pro
     );
 
     // `result.changes` (SQLite) or rowCount (pg) — treat 0 as not-found.
-    const affected = (result as { changes?: number; rowCount?: number }).changes
-      ?? (result as { rowCount?: number }).rowCount
-      ?? 0;
+    const affected =
+      (result as { changes?: number; rowCount?: number }).changes ??
+      (result as { rowCount?: number }).rowCount ??
+      0;
 
     if (affected === 0) {
       return res.status(404).json({ error: 'Applied suggestion not found or access denied.' });
@@ -2895,7 +2897,7 @@ export async function rollbackAiSuggestion(req: AuthRequest, res: Response): Pro
 
     return res.status(204).send();
   } catch (err) {
-    const message = buildSafeErrorMessage(err);
+    const message = buildSafeErrorMessage(err, 'app');
     return res.status(500).json({ error: message });
   }
 }
