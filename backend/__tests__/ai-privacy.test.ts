@@ -218,9 +218,7 @@ describe('redactPii', () => {
   });
 
   it('handles multiple PII categories in a single string', () => {
-    const result = redactPii(
-      'Email: host@event.com, Phone: 555-123-4567, SSN: 987-65-4321',
-    );
+    const result = redactPii('Email: host@event.com, Phone: 555-123-4567, SSN: 987-65-4321');
     expect(result.piiDetected).toBe(true);
     expect(result.detectedCategories).toContain('EMAIL');
     expect(result.detectedCategories).toContain('PHONE');
@@ -285,7 +283,11 @@ describe('filterProviderPayload', () => {
   it('includes PUBLIC fields verbatim', () => {
     const payload = { title: 'Summer Fest', date: '2026-07-04', status: 'published' };
     const result = filterProviderPayload(payload);
-    expect(result.payload).toMatchObject({ title: 'Summer Fest', date: '2026-07-04', status: 'published' });
+    expect(result.payload).toMatchObject({
+      title: 'Summer Fest',
+      date: '2026-07-04',
+      status: 'published',
+    });
     expect(result.filtered).toBe(false);
   });
 
