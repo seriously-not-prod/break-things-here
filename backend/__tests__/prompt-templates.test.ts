@@ -57,9 +57,9 @@ describe('getTemplate — active template retrieval', () => {
   });
 
   it('throws for an unknown template id', () => {
-    expect(() =>
-      getTemplate('unknown-context' as PromptTemplateContext),
-    ).toThrow(/not found|no active/i);
+    expect(() => getTemplate('unknown-context' as PromptTemplateContext)).toThrow(
+      /not found|no active/i,
+    );
   });
 });
 
@@ -72,15 +72,11 @@ describe('getTemplate — version-pinned retrieval (rollback path)', () => {
   });
 
   it('throws when pinned version does not exist', () => {
-    expect(() =>
-      getTemplate('suggest-event', '99.0.0'),
-    ).toThrow(/not found/i);
+    expect(() => getTemplate('suggest-event', '99.0.0')).toThrow(/not found/i);
   });
 
   it('throws when id is valid but version does not exist', () => {
-    expect(() =>
-      getTemplate('grounded-event', '0.0.1'),
-    ).toThrow(/not found/i);
+    expect(() => getTemplate('grounded-event', '0.0.1')).toThrow(/not found/i);
   });
 });
 
@@ -120,11 +116,9 @@ describe('getTemplateHistory', () => {
     const history = getTemplateHistory('suggest-event');
     for (let i = 0; i < history.length - 1; i++) {
       // Newer version should sort >= previous version lexicographically.
-      const cmp = history[i].version.localeCompare(
-        history[i + 1].version,
-        undefined,
-        { numeric: true },
-      );
+      const cmp = history[i].version.localeCompare(history[i + 1].version, undefined, {
+        numeric: true,
+      });
       expect(cmp).toBeGreaterThanOrEqual(0);
     }
   });

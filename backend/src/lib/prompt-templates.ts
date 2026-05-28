@@ -198,7 +198,8 @@ Return ONLY a valid JSON array (no markdown, no explanation) where each element 
   {
     id: 'conflict-resolution',
     version: '1.0.0',
-    description: 'Timeline conflict resolution advisory for a festival event (conflict-resolution endpoint)',
+    description:
+      'Timeline conflict resolution advisory for a festival event (conflict-resolution endpoint)',
     createdAt: '2025-01-01',
     content: `You are a timeline conflict resolution advisory AI for festival event management.
 Analyze timeline conflicts and return ONLY a valid JSON array (no markdown, no explanation):
@@ -231,10 +232,7 @@ recommendations (array of strings).`,
  * Throws if no matching template is found so callers never silently fall back
  * to an empty prompt.
  */
-export function getTemplate(
-  id: PromptTemplateContext,
-  version?: string,
-): PromptTemplate {
+export function getTemplate(id: PromptTemplateContext, version?: string): PromptTemplate {
   if (version !== undefined) {
     const pinned = TEMPLATE_REGISTRY.find((t) => t.id === id && t.version === version);
     if (!pinned) {
@@ -247,9 +245,7 @@ export function getTemplate(
   }
 
   // Latest non-deprecated entry for the id (last entry wins).
-  const active = [...TEMPLATE_REGISTRY]
-    .reverse()
-    .find((t) => t.id === id && !t.deprecated);
+  const active = [...TEMPLATE_REGISTRY].reverse().find((t) => t.id === id && !t.deprecated);
 
   if (!active) {
     throw new Error(

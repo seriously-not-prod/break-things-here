@@ -429,10 +429,13 @@ export async function getSuggestion(req: AuthRequest, res: Response): Promise<Re
     const safePrompt = sanitisePrompt(prompt, ctx, userId);
     // #966 — Use versioned prompt template registry for traceability.
     const templateMeta: PromptVersionMetadata = getTemplateMetadata(
-      ctx === 'event' ? 'suggest-event'
-        : ctx === 'task' ? 'suggest-task'
-        : ctx === 'rsvp' ? 'suggest-rsvp'
-        : 'suggest-general',
+      ctx === 'event'
+        ? 'suggest-event'
+        : ctx === 'task'
+          ? 'suggest-task'
+          : ctx === 'rsvp'
+            ? 'suggest-rsvp'
+            : 'suggest-general',
     );
     const startTime = Date.now();
     const raw = await withProviderTimeout(
@@ -2230,7 +2233,11 @@ export async function getConflictResolutionSuggestions(
   const startTime = Date.now();
   try {
     const raw = await withProviderTimeout(
-      callAiProvider(provider, hardenSystemPrompt(getConflictResolutionSystemPrompt()), userMessage),
+      callAiProvider(
+        provider,
+        hardenSystemPrompt(getConflictResolutionSystemPrompt()),
+        userMessage,
+      ),
     );
     const durationMs = Date.now() - startTime;
 
@@ -2646,7 +2653,11 @@ export async function getAnalyticsNarrative(req: AuthRequest, res: Response): Pr
 
   try {
     const raw = await withProviderTimeout(
-      callAiProvider(provider, hardenSystemPrompt(getAnalyticsNarrativeSystemPrompt()), userMessage),
+      callAiProvider(
+        provider,
+        hardenSystemPrompt(getAnalyticsNarrativeSystemPrompt()),
+        userMessage,
+      ),
     );
     const durationMs = Date.now() - startTime;
 
