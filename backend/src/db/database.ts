@@ -3795,6 +3795,26 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_ai_audit_events_workflow_type
       ON ai_audit_events (workflow_type)
   `);
+
+  // v29 — Issue #963: AI RBAC — seed ai.access permission and grant to Admin + Organizer.
+  // Idempotent: ON CONFLICT DO NOTHING ensures safe re-runs on existing databases.
+  await db.exec(`
+    INSERT INTO permissions (name, description) VALUES
+      ('ai.access', 'Access AI-powered features and endpoints')
+    ON CONFLICT (name) DO NOTHING
+  `);
+
+  await db.exec(`
+    INSERT INTO role_permissions (role_id, permission_id)
+    SELECT 3, id FROM permissions WHERE name = 'ai.access'
+    ON CONFLICT DO NOTHING
+  `);
+
+  await db.exec(`
+    INSERT INTO role_permissions (role_id, permission_id)
+    SELECT 2, id FROM permissions WHERE name = 'ai.access'
+    ON CONFLICT DO NOTHING
+  `);
 }
 
 async function seedTimelineTemplates(db: DatabaseAdapter): Promise<void> {

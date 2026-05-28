@@ -127,11 +127,13 @@ vi.mock('../src/db/database.js', () => ({
  * 7. prior task stats
  * 8. prior budget stats
  */
-function mockSuccessfulDbCalls(opts: {
-  priorTotal?: number;
-  priorTasksTotal?: number;
-  priorAllocated?: number;
-} = {}): void {
+function mockSuccessfulDbCalls(
+  opts: {
+    priorTotal?: number;
+    priorTasksTotal?: number;
+    priorAllocated?: number;
+  } = {},
+): void {
   const { priorTotal = 30, priorTasksTotal = 8, priorAllocated = 5000 } = opts;
 
   mockDb.get
@@ -224,7 +226,9 @@ describe('getAnalyticsNarrative — input validation', () => {
     await getAnalyticsNarrative(req, res);
 
     expect(res.statusCode).toBe(400);
-    expect((res.body as { error: string }).error).toMatch(/windowDays must be an integer between 1 and 90/i);
+    expect((res.body as { error: string }).error).toMatch(
+      /windowDays must be an integer between 1 and 90/i,
+    );
   });
 
   it('returns 400 when windowDays is 91', async () => {
@@ -235,7 +239,9 @@ describe('getAnalyticsNarrative — input validation', () => {
     await getAnalyticsNarrative(req, res);
 
     expect(res.statusCode).toBe(400);
-    expect((res.body as { error: string }).error).toMatch(/windowDays must be an integer between 1 and 90/i);
+    expect((res.body as { error: string }).error).toMatch(
+      /windowDays must be an integer between 1 and 90/i,
+    );
   });
 
   it('returns 400 when prompt exceeds 500 characters', async () => {

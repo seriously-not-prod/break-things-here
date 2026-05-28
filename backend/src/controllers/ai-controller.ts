@@ -86,11 +86,7 @@ import {
   withProviderTimeout,
   logAiSafetyEvent,
 } from '../lib/ai-safety.js';
-import {
-  filterProviderPayload,
-  redactPii,
-  logAiPrivacyEvent,
-} from '../lib/ai-privacy.js';
+import { filterProviderPayload, redactPii, logAiPrivacyEvent } from '../lib/ai-privacy.js';
 import {
   recordAiRequestMetrics,
   logAiAuditEvent,
@@ -1998,9 +1994,7 @@ export async function getVendorRecommendation(req: AuthRequest, res: Response): 
     const parsedSummary = schemaResult.ok ? schemaResult.data.summary : '';
     const ADVISORY_LABEL =
       'AI advisory only — recommendations are based solely on available vendor data. Verify all information independently before making contracting decisions.';
-    const parsedAdvisoryLabel = schemaResult.ok
-      ? schemaResult.data.advisoryLabel
-      : ADVISORY_LABEL;
+    const parsedAdvisoryLabel = schemaResult.ok ? schemaResult.data.advisoryLabel : ADVISORY_LABEL;
     const recommendations = schemaResult.ok ? schemaResult.data.recommendations : [];
 
     if (!schemaResult.ok) {
@@ -2297,11 +2291,7 @@ export async function getConflictResolutionSuggestions(
   const startTime = Date.now();
   try {
     const raw = await withProviderTimeout(
-      callAiProvider(
-        provider,
-        hardenSystemPrompt(CONFLICT_RESOLUTION_SYSTEM_PROMPT),
-        userMessage,
-      ),
+      callAiProvider(provider, hardenSystemPrompt(CONFLICT_RESOLUTION_SYSTEM_PROMPT), userMessage),
     );
     const durationMs = Date.now() - startTime;
 
@@ -2347,7 +2337,7 @@ export async function getConflictResolutionSuggestions(
       suggestions: schemaResult.ok ? schemaResult.data.suggestions : [],
       summary: schemaResult.ok ? schemaResult.data.summary : '',
       advisoryLabel: schemaResult.ok
-        ? (schemaResult.data.advisoryLabel || ADVISORY_FALLBACK)
+        ? schemaResult.data.advisoryLabel || ADVISORY_FALLBACK
         : ADVISORY_FALLBACK,
       raw: outputCheck.text,
       contextSummary: {
@@ -2501,12 +2491,10 @@ async function fetchAnalyticsNarrativeContext(
     acceptanceRatePct: curTotal > 0 ? Math.round((curConfirmed / curTotal) * 100) : 0,
     tasksComplete: curComplete,
     totalTasks: curTotalTasks,
-    taskCompletionRatePct:
-      curTotalTasks > 0 ? Math.round((curComplete / curTotalTasks) * 100) : 0,
+    taskCompletionRatePct: curTotalTasks > 0 ? Math.round((curComplete / curTotalTasks) * 100) : 0,
     budgetSpent: curSpent,
     budgetAllocated: curAllocated,
-    budgetUtilizationPct:
-      curAllocated > 0 ? Math.round((curSpent / curAllocated) * 100) : 0,
+    budgetUtilizationPct: curAllocated > 0 ? Math.round((curSpent / curAllocated) * 100) : 0,
   };
 
   // ── Prior period metrics (state before the comparison window) ──────────────
@@ -2559,8 +2547,7 @@ async function fetchAnalyticsNarrativeContext(
     ? {
         confirmedRsvps: priorConfirmed,
         totalRsvps: priorTotal,
-        acceptanceRatePct:
-          priorTotal > 0 ? Math.round((priorConfirmed / priorTotal) * 100) : 0,
+        acceptanceRatePct: priorTotal > 0 ? Math.round((priorConfirmed / priorTotal) * 100) : 0,
         tasksComplete: priorComplete,
         totalTasks: priorTotalTasks,
         taskCompletionRatePct:
@@ -2637,11 +2624,12 @@ function buildAnalyticsNarrativeUserMessage(
  *
  * Request body: { eventId: number, windowDays?: number, prompt?: string }
  */
-export async function getAnalyticsNarrative(
-  req: AuthRequest,
-  res: Response,
-): Promise<Response> {
-  const { eventId, windowDays: rawWindowDays, prompt: rawPrompt } = req.body as {
+export async function getAnalyticsNarrative(req: AuthRequest, res: Response): Promise<Response> {
+  const {
+    eventId,
+    windowDays: rawWindowDays,
+    prompt: rawPrompt,
+  } = req.body as {
     eventId?: unknown;
     windowDays?: unknown;
     prompt?: unknown;
@@ -2731,11 +2719,7 @@ export async function getAnalyticsNarrative(
 
   try {
     const raw = await withProviderTimeout(
-      callAiProvider(
-        provider,
-        hardenSystemPrompt(ANALYTICS_NARRATIVE_SYSTEM_PROMPT),
-        userMessage,
-      ),
+      callAiProvider(provider, hardenSystemPrompt(ANALYTICS_NARRATIVE_SYSTEM_PROMPT), userMessage),
     );
     const durationMs = Date.now() - startTime;
 
@@ -2765,9 +2749,7 @@ export async function getAnalyticsNarrative(
 
     if (!schemaResult.ok) {
       const errorSummary = formatValidationErrors(schemaResult.errors);
-      console.warn(
-        `[ai-schemas] getAnalyticsNarrative schema validation failed: ${errorSummary}`,
-      );
+      console.warn(`[ai-schemas] getAnalyticsNarrative schema validation failed: ${errorSummary}`);
     }
 
     // ── Build fallback when schema validation fails ────────────────────────────
