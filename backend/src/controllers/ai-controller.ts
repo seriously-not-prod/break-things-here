@@ -2754,6 +2754,152 @@ export async function getAnalyticsNarrative(req: AuthRequest, res: Response): Pr
 
 // ── AI Observability Health Endpoint — Issue #958 ─────────────────────────────
 
+// ── Human-in-the-Loop Apply Flow (#965) ──────────────────────────────────────
+
+interface AiApplyBody {
+  /** Originating workflow type (e.g. 'event', 'task', 'rsvp', 'general'). */
+  workflowType: string;
+  /** Entity the suggestion pertains to (event / task ID). May be null for general context. */
+  entityId: number | null;
+  /**
+   * The full suggestion content as surfaced to the user.
+   * May be the edited version when the user chose to modify before applying.
+   */
+  suggestionContent: string;
+  /** Optional actor-supplied note (e.g. "applied with minor edits"). */
+  note?: string;
+}
+
+interface AiAppliedRecord {
+  id: number;
+  userId: number;
+  workflowType: string;
+  entityId: number | null;
+  suggestionContent: string;
+  note: string | null;
+  appliedAt: string;
+}
+
+/**
+ * POST /api/ai/apply
+ *
+ * Records that an authenticated user explicitly applied (accepted) an AI
+ * suggestion.  The applied record is persisted to `ai_applied_suggestions`
+ * with the actor's user_id and a server-side timestamp so the audit trail is
+ * tamper-resistant.  Returns the created record for client-side display.
+ *
+ * Story #965 — Add Human-in-the-Loop Apply Flow for AI Suggestions.
+ */
+export async function applyAiSuggestion(req: AuthRequest, res: Response): Promise<Response> {
+  const { workflowType, entityId, suggestionContent, note } =
+    req.body as Partial<AiApplyBody>;
+
+  if (!workflowType?.trim()) {
+    return res.status(400).json({ error: 'workflowType is required.' });
+  }
+  if (!suggestionContent?.trim()) {
+    return res.status(400).json({ error: 'suggestionContent is required.' });
+  }
+
+  const userId = req.user?.id;
+  if (userId === undefined) {
+    return res.status(401).json({ error: 'Unauthorized.' });
+  }
+
+  try {
+    const db = getDatabase();
+
+    // Ensure the audit table exists (best-effort DDL on first use).
+    await db.run(
+      `CREATE TABLE IF NOT EXISTS ai_applied_suggestions (
+         id            SERIAL PRIMARY KEY,
+         user_id       INTEGER NOT NULL,
+         workflow_type TEXT    NOT NULL,
+         entity_id     INTEGER,
+         suggestion_content TEXT NOT NULL,
+         note          TEXT,
+         applied_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+       )`,
+    ).catch(() => {
+      // Table may already exist; ignore.
+    });
+
+    const row = await db.get<AiAppliedRecord>(
+      `INSERT INTO ai_applied_suggestions
+         (user_id, workflow_type, entity_id, suggestion_content, note, applied_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       RETURNING id, user_id AS "userId", workflow_type AS "workflowType",
+                 entity_id AS "entityId", suggestion_content AS "suggestionContent",
+                 note, applied_at AS "appliedAt"`,
+      [
+        userId,
+        workflowType.trim(),
+        typeof entityId === 'number' ? entityId : null,
+        suggestionContent.trim(),
+        note?.trim() ?? null,
+      ],
+    );
+
+    void logAiAuditEvent({
+      userId,
+      workflowType: workflowType.trim(),
+      entityId: typeof entityId === 'number' ? entityId : null,
+      provider: 'app',
+      durationMs: 0,
+      outcome: 'success',
+    });
+
+    return res.status(201).json(row);
+  } catch (err) {
+    const message = buildSafeErrorMessage(err);
+    return res.status(500).json({ error: message });
+  }
+}
+
+/**
+ * DELETE /api/ai/apply/:id
+ *
+ * Rolls back an applied AI suggestion by deleting the audit record identified
+ * by `:id`.  Only the user who applied the suggestion may roll it back (row-
+ * level ownership check).  Returns 204 on success, 404 if not found or not
+ * owned by the requesting user.
+ *
+ * Story #965 — Add Human-in-the-Loop Apply Flow for AI Suggestions.
+ */
+export async function rollbackAiSuggestion(req: AuthRequest, res: Response): Promise<Response> {
+  const applyId = parseInt(req.params.id ?? '', 10);
+  if (isNaN(applyId) || applyId <= 0) {
+    return res.status(400).json({ error: 'Invalid apply ID.' });
+  }
+
+  const userId = req.user?.id;
+  if (userId === undefined) {
+    return res.status(401).json({ error: 'Unauthorized.' });
+  }
+
+  try {
+    const db = getDatabase();
+    const result = await db.run(
+      `DELETE FROM ai_applied_suggestions WHERE id = $1 AND user_id = $2`,
+      [applyId, userId],
+    );
+
+    // `result.changes` (SQLite) or rowCount (pg) — treat 0 as not-found.
+    const affected = (result as { changes?: number; rowCount?: number }).changes
+      ?? (result as { rowCount?: number }).rowCount
+      ?? 0;
+
+    if (affected === 0) {
+      return res.status(404).json({ error: 'Applied suggestion not found or access denied.' });
+    }
+
+    return res.status(204).send();
+  } catch (err) {
+    const message = buildSafeErrorMessage(err);
+    return res.status(500).json({ error: message });
+  }
+}
+
 /**
  * GET /api/ai/health
  *
