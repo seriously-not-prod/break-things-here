@@ -55,16 +55,18 @@ describe('AiAssistant — panel toggle', () => {
   it('opens the panel on button click', async () => {
     render(<AiAssistant />);
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
-    expect(screen.getByText('AI Planning Assistant')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /AI Planning Assistant/i })).toBeInTheDocument();
   });
 
   it('closes the panel when close button is clicked', async () => {
     render(<AiAssistant />);
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
-    expect(screen.getByText('AI Planning Assistant')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /AI Planning Assistant/i })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /close/i }));
-    expect(screen.queryByText('AI Planning Assistant')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /AI Planning Assistant/i }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -215,7 +217,7 @@ describe('AiAssistant — Grounded Workflow tab', () => {
     await userEvent.click(screen.getByRole('tab', { name: /Grounded/i }));
 
     // Switch to rsvp workflow
-    const workflowSelect = screen.getByRole('combobox', { name: /Workflow type/i });
+    const workflowSelect = await screen.findByRole('combobox', { name: /Workflow type/i });
     fireEvent.change(workflowSelect, { target: { value: 'rsvp' } });
 
     const entityIdInput = screen.getByRole('spinbutton', { name: /Event ID/i });
