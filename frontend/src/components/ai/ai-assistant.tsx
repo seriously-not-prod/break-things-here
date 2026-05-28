@@ -24,6 +24,7 @@ import {
   BarChartRounded,
   CloseRounded,
   ContentCopyRounded,
+  EmailRounded,
   HubRounded,
   ListAltRounded,
   ReplayRounded,
