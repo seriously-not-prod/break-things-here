@@ -228,12 +228,7 @@ router.get('/ai/health', authenticateToken, aiController.getAiHealth);
 // Story #965 — Human-in-the-Loop Apply Flow.
 // POST records an applied suggestion (actor + timestamp audit trail).
 // DELETE rolls back a previously applied suggestion (ownership-checked).
-router.post(
-  '/ai/apply',
-  authenticateToken,
-  requireAiAccess,
-  aiController.applyAiSuggestion,
-);
+router.post('/ai/apply', authenticateToken, requireAiAccess, aiController.applyAiSuggestion);
 router.delete(
   '/ai/apply/:id',
   authenticateToken,
