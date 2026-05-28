@@ -1,5 +1,5 @@
 /**
- * Tests: AiAssistant component — Task #947
+ * Tests: AiAssistant component — Task #947 / Story #960
  *
  * Covers:
  * - Floating button renders and toggles the panel
@@ -573,5 +573,417 @@ describe('AiAssistant — #959 accessible tab panels', () => {
     expect(panel).toBeInTheDocument();
     expect(panel).toHaveAttribute('role', 'tabpanel');
     expect(panel).toHaveAttribute('aria-labelledby', 'ai-tab-grounded');
+  });
+
+  it('task breakdown panel has role="tabpanel" and aria-labelledby when active', async () => {
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Task Plan/i }));
+
+    const panel = document.getElementById('ai-panel-breakdown');
+    expect(panel).toBeInTheDocument();
+    expect(panel).toHaveAttribute('role', 'tabpanel');
+    expect(panel).toHaveAttribute('aria-labelledby', 'ai-tab-breakdown');
+  });
+
+  it('budget panel has role="tabpanel" and aria-labelledby when active', async () => {
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Budget/i }));
+
+    const panel = document.getElementById('ai-panel-budget');
+    expect(panel).toBeInTheDocument();
+    expect(panel).toHaveAttribute('role', 'tabpanel');
+    expect(panel).toHaveAttribute('aria-labelledby', 'ai-tab-budget');
+  });
+});
+
+// ── #960: Grounded Workflow — task workflow type ───────────────────────────────
+
+describe('AiAssistant — #960 Grounded Workflow task type structured output', () => {
+  it('shows structured task suggestion when workflowType is task', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 7, title: 'Music Fest' }]);
+    mockedApi.post.mockResolvedValueOnce({
+      workflowType: 'task',
+      entityId: 7,
+      structured: {
+        actionTitle: 'Book Stage Crew',
+        dueDateRange: '2 weeks before event',
+        owner: 'Production Lead',
+        dependencies: ['Stage setup confirmed'],
+      },
+      raw: '{}',
+    });
+
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Grounded/i }));
+
+    const groundedPanel = screen.getByRole('tabpanel', { name: /Grounded/i });
+    const workflowInput = groundedPanel.querySelector<HTMLInputElement>('.MuiSelect-nativeInput');
+    fireEvent.change(workflowInput!, { target: { value: 'task' } });
+
+    const eventInput = groundedPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event"]',
+    );
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Music Fest/i });
+    await userEvent.click(option);
+
+    const promptInput = screen.getByRole('textbox', { name: /Workflow prompt/i });
+    await userEvent.type(promptInput, 'What tasks are needed?');
+
+    await userEvent.click(screen.getByRole('button', { name: /Run Grounded Workflow/i }));
+
+    await waitFor(() => expect(screen.getByText('Book Stage Crew')).toBeInTheDocument());
+    expect(screen.getByText('Suggested Task')).toBeInTheDocument();
+    expect(mockedApi.post).toHaveBeenCalledWith('/api/ai/grounded', {
+      workflowType: 'task',
+      entityId: 7,
+      prompt: 'What tasks are needed?',
+    });
+  });
+});
+
+// ── #960: Task Breakdown tab — happy path ─────────────────────────────────────
+
+describe('AiAssistant — #960 Task Breakdown happy path', () => {
+  it('renders generated task cards with title and priority', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 3, title: 'Summer Fest' }]);
+    mockedApi.post.mockResolvedValueOnce({
+      workflowType: 'task-breakdown',
+      eventId: 3,
+      eventTitle: 'Summer Fest',
+      tasks: [
+        {
+          title: 'Set up sound system',
+          owner: 'Alice',
+          dueWindow: '1 week before',
+          dependencies: [],
+          priority: 'high',
+          timelineConstraint: 'Before rehearsal',
+        },
+        {
+          title: 'Arrange catering',
+          owner: 'Bob',
+          dueWindow: '3 days before',
+          dependencies: ['Venue confirmed'],
+          priority: 'medium',
+          timelineConstraint: '',
+        },
+      ],
+      raw: '{}',
+      contextSummary: { groundedFields: ['tasks', 'schedule'], totalExistingTasks: 0 },
+    });
+
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Task Plan/i }));
+
+    const breakdownPanel = screen.getByRole('tabpanel', { name: /Task Plan/i });
+    const eventInput = breakdownPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event for task breakdown"]',
+    );
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Summer Fest/i });
+    await userEvent.click(option);
+
+    await userEvent.click(screen.getByRole('button', { name: /Generate task breakdown/i }));
+
+    // Task cards prefix titles with index: "1. Set up sound system"
+    await waitFor(() => expect(screen.getByText(/Set up sound system/i)).toBeInTheDocument());
+    expect(screen.getByText(/Arrange catering/i)).toBeInTheDocument();
+    expect(screen.getByText(/Summer Fest — 2 tasks generated/i)).toBeInTheDocument();
+  });
+
+  it('sends the correct request payload to /api/ai/task-breakdown', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 3, title: 'Summer Fest' }]);
+    mockedApi.post.mockResolvedValueOnce({
+      workflowType: 'task-breakdown',
+      eventId: 3,
+      eventTitle: 'Summer Fest',
+      tasks: [],
+      raw: '{}',
+      contextSummary: { groundedFields: [], totalExistingTasks: 0 },
+    });
+
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Task Plan/i }));
+
+    const breakdownPanel = screen.getByRole('tabpanel', { name: /Task Plan/i });
+    const eventInput = breakdownPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event for task breakdown"]',
+    );
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Summer Fest/i });
+    await userEvent.click(option);
+
+    await userEvent.click(screen.getByRole('button', { name: /Generate task breakdown/i }));
+
+    await waitFor(() => expect(mockedApi.post).toHaveBeenCalledOnce());
+    expect(mockedApi.post).toHaveBeenCalledWith('/api/ai/task-breakdown', { eventId: 3 });
+  });
+
+  it('shows empty-task fallback message when no tasks are generated', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 3, title: 'Test Event' }]);
+    mockedApi.post.mockResolvedValueOnce({
+      workflowType: 'task-breakdown',
+      eventId: 3,
+      eventTitle: 'Test Event',
+      tasks: [],
+      raw: '{}',
+      contextSummary: { groundedFields: [], totalExistingTasks: 0 },
+    });
+
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Task Plan/i }));
+
+    const breakdownPanel = screen.getByRole('tabpanel', { name: /Task Plan/i });
+    const eventInput = breakdownPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event for task breakdown"]',
+    );
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Test Event/i });
+    await userEvent.click(option);
+
+    await userEvent.click(screen.getByRole('button', { name: /Generate task breakdown/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/No tasks were generated. Try a more specific prompt/i),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it('shows empty-state hint before any run', async () => {
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Task Plan/i }));
+
+    expect(
+      screen.getByText(/Select an event and click Generate to receive an AI task breakdown/i),
+    ).toBeInTheDocument();
+  });
+
+  it('disables Generate button when no event is selected', async () => {
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Task Plan/i }));
+
+    expect(
+      screen.getByRole('button', { name: /Generate task breakdown/i }),
+    ).toBeDisabled();
+  });
+});
+
+// ── #960: Budget Insight tab — happy path ─────────────────────────────────────
+
+describe('AiAssistant — #960 Budget Insight happy path', () => {
+  it('renders risk chip and event title after successful analysis', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 8, title: 'Budget Fest' }]);
+    mockedApi.post.mockResolvedValueOnce({
+      workflowType: 'budget-insight',
+      eventId: 8,
+      eventTitle: 'Budget Fest',
+      summary: 'Budget is mostly on track.',
+      riskLevel: 'medium',
+      totalAllocated: 5000,
+      totalSpent: 4200,
+      totalVariance: 800,
+      overspentCategories: ['Catering'],
+      anomalies: [],
+      recommendations: [
+        {
+          category: 'Catering',
+          insight: 'Over budget',
+          action: 'Reduce per-head cost',
+          priority: 'high',
+        },
+      ],
+      raw: '{}',
+      contextSummary: { groundedFields: ['budget', 'expenses'], categoryCount: 4, expenseCount: 20 },
+    });
+
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Budget/i }));
+
+    const budgetPanel = screen.getByRole('tabpanel', { name: /Budget/i });
+    const eventInput = budgetPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event for budget insight"]',
+    );
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Budget Fest/i });
+    await userEvent.click(option);
+
+    await userEvent.click(screen.getByRole('button', { name: /Analyse budget/i }));
+
+    await waitFor(() => expect(screen.getByText(/Risk: MEDIUM/i)).toBeInTheDocument());
+    expect(screen.getByText('Budget Fest')).toBeInTheDocument();
+  });
+
+  it('renders summary text after successful analysis', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 8, title: 'Budget Fest' }]);
+    mockedApi.post.mockResolvedValueOnce({
+      workflowType: 'budget-insight',
+      eventId: 8,
+      eventTitle: 'Budget Fest',
+      summary: 'Budget is mostly on track.',
+      riskLevel: 'low',
+      totalAllocated: 5000,
+      totalSpent: 3000,
+      totalVariance: 2000,
+      overspentCategories: [],
+      anomalies: [],
+      recommendations: [],
+      raw: '{}',
+      contextSummary: { groundedFields: ['budget'], categoryCount: 2, expenseCount: 5 },
+    });
+
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Budget/i }));
+
+    const budgetPanel = screen.getByRole('tabpanel', { name: /Budget/i });
+    const eventInput = budgetPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event for budget insight"]',
+    );
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Budget Fest/i });
+    await userEvent.click(option);
+
+    await userEvent.click(screen.getByRole('button', { name: /Analyse budget/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Budget is mostly on track/i)).toBeInTheDocument(),
+    );
+  });
+
+  it('renders recommendation category and action text', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 8, title: 'Budget Fest' }]);
+    mockedApi.post.mockResolvedValueOnce({
+      workflowType: 'budget-insight',
+      eventId: 8,
+      eventTitle: 'Budget Fest',
+      summary: '',
+      riskLevel: 'high',
+      totalAllocated: 5000,
+      totalSpent: 5500,
+      totalVariance: -500,
+      overspentCategories: ['Catering'],
+      anomalies: [],
+      recommendations: [
+        {
+          category: 'Catering',
+          insight: 'Over budget by 10%',
+          action: 'Reduce per-head cost',
+          priority: 'high',
+        },
+      ],
+      raw: '{}',
+      contextSummary: { groundedFields: ['budget'], categoryCount: 1, expenseCount: 3 },
+    });
+
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Budget/i }));
+
+    const budgetPanel = screen.getByRole('tabpanel', { name: /Budget/i });
+    const eventInput = budgetPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event for budget insight"]',
+    );
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Budget Fest/i });
+    await userEvent.click(option);
+
+    await userEvent.click(screen.getByRole('button', { name: /Analyse budget/i }));
+
+    await waitFor(() => expect(screen.getByText('Catering')).toBeInTheDocument());
+    expect(screen.getByText(/→ Reduce per-head cost/i)).toBeInTheDocument();
+  });
+
+  it('sends correct payload to /api/ai/budget-insight', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 8, title: 'Budget Fest' }]);
+    mockedApi.post.mockResolvedValueOnce({
+      workflowType: 'budget-insight',
+      eventId: 8,
+      eventTitle: 'Budget Fest',
+      summary: '',
+      riskLevel: 'low',
+      totalAllocated: 0,
+      totalSpent: 0,
+      totalVariance: 0,
+      overspentCategories: [],
+      anomalies: [],
+      recommendations: [],
+      raw: '{}',
+      contextSummary: { groundedFields: [], categoryCount: 0, expenseCount: 0 },
+    });
+
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Budget/i }));
+
+    const budgetPanel = screen.getByRole('tabpanel', { name: /Budget/i });
+    const eventInput = budgetPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event for budget insight"]',
+    );
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Budget Fest/i });
+    await userEvent.click(option);
+
+    await userEvent.click(screen.getByRole('button', { name: /Analyse budget/i }));
+
+    await waitFor(() => expect(mockedApi.post).toHaveBeenCalledOnce());
+    expect(mockedApi.post).toHaveBeenCalledWith('/api/ai/budget-insight', { eventId: 8 });
+  });
+
+  it('shows empty-state hint before any run', async () => {
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Budget/i }));
+
+    expect(
+      screen.getByText(/Select an event and click Analyse Budget/i),
+    ).toBeInTheDocument();
+  });
+
+  it('disables Analyse Budget button when no event is selected', async () => {
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /Budget/i }));
+
+    expect(screen.getByRole('button', { name: /Analyse budget/i })).toBeDisabled();
+  });
+});
+
+// ── #960: Context selector — API payload contract ─────────────────────────────
+
+describe('AiAssistant — #960 context selector payload contract', () => {
+  it('sends selected context value in the chat request payload', async () => {
+    mockedApi.post.mockResolvedValueOnce({ suggestion: 'RSVP tip: send reminders 3 days out.' });
+
+    render(<AiAssistant />);
+    await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
+
+    // Change context via native input (MUI Select)
+    const contextInput = document
+      .getElementById('ai-panel-chat')!
+      .querySelector<HTMLInputElement>('.MuiSelect-nativeInput');
+    fireEvent.change(contextInput!, { target: { value: 'rsvp' } });
+
+    const input = screen.getByRole('textbox', { name: /AI prompt input/i });
+    await userEvent.type(input, 'How do I manage RSVPs?');
+    await userEvent.click(screen.getByRole('button', { name: /Send/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText('RSVP tip: send reminders 3 days out.')).toBeInTheDocument(),
+    );
+    expect(mockedApi.post).toHaveBeenCalledWith(
+      '/api/ai/suggest',
+      expect.objectContaining({ context: 'rsvp', prompt: 'How do I manage RSVPs?' }),
+    );
   });
 });
