@@ -96,6 +96,11 @@ import {
   buildSafeErrorMessage,
   classifyAiOutcome,
 } from '../lib/ai-observability.js';
+import {
+  getTemplate,
+  getTemplateMetadata,
+  type PromptVersionMetadata,
+} from '../lib/prompt-templates.js';
 
 function readEnv(...keys: string[]): string {
   for (const key of keys) {
@@ -257,19 +262,19 @@ function callAiProvider(
   });
 }
 
-const SYSTEM_PROMPTS: Record<SuggestBody['context'], string> = {
-  event: `You are a festival event planning assistant. Given partial event details, 
-    suggest a catchy title, a short engaging description, an ideal venue type, 
-    and 3 promotional tips. Be concise and practical.`,
-  task: `You are a festival event planning assistant specialising in task management. 
-    Given a task description, suggest a clear action title, a realistic due-date 
-    range, who should own it, and any dependencies. Be brief.`,
-  rsvp: `You are a festival event planning assistant. Given RSVP data context, 
-    suggest personalised confirmation messages, follow-up reminders, and capacity 
-    management tips. Be friendly and concise.`,
-  general: `You are a helpful festival event planning assistant. Answer the user's 
-    question with practical, actionable advice for running a successful festival event.`,
-};
+/**
+ * Returns the system prompt content for the suggest endpoint context,
+ * sourced from the versioned prompt template registry (#966).
+ */
+function getSuggestSystemPrompt(context: SuggestBody['context']): string {
+  const contextMap: Record<SuggestBody['context'], Parameters<typeof getTemplate>[0]> = {
+    event: 'suggest-event',
+    task: 'suggest-task',
+    rsvp: 'suggest-rsvp',
+    general: 'suggest-general',
+  };
+  return getTemplate(contextMap[context]).content;
+}
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role_id: number };
@@ -422,14 +427,21 @@ export async function getSuggestion(req: AuthRequest, res: Response): Promise<Re
 
   try {
     const safePrompt = sanitisePrompt(prompt, ctx, userId);
+    // #966 — Use versioned prompt template registry for traceability.
+    const templateMeta: PromptVersionMetadata = getTemplateMetadata(
+      ctx === 'event' ? 'suggest-event'
+        : ctx === 'task' ? 'suggest-task'
+        : ctx === 'rsvp' ? 'suggest-rsvp'
+        : 'suggest-general',
+    );
     const startTime = Date.now();
     const raw = await withProviderTimeout(
-      callAiProvider(provider, hardenSystemPrompt(SYSTEM_PROMPTS[ctx]), safePrompt),
+      callAiProvider(provider, hardenSystemPrompt(getSuggestSystemPrompt(ctx)), safePrompt),
     );
     const durationMs = Date.now() - startTime;
     void logAiRequest({
       userId,
-      workflowType: ctx,
+      workflowType: `${ctx} [tpl:${templateMeta.version}]`,
       entityId: null,
       provider: provider.kind,
       durationMs,
@@ -718,19 +730,18 @@ async function fetchRsvpContext(entityId: number): Promise<RsvpContext | null> {
 
 // ── Grounded prompt builders ───────────────────────────────────────────────────
 
-// System prompts instruct the model to return ONLY a JSON object so that
-// the response can be deterministically parsed into a typed structure.
-const GROUNDED_SYSTEM_PROMPTS: Record<WorkflowType, string> = {
-  event: `You are a festival event planning AI assistant. You will receive details about a real event including its title, description, type, dates, location, capacity, tags, and current RSVP numbers.
-Use ALL provided fields to tailor your response specifically to this event. Return ONLY a valid JSON object with this exact schema (no markdown, no explanation):
-{"title":"improved title suggestion","description":"improved description","venueType":"ideal venue type","promotionalTips":["tip 1","tip 2","tip 3"]}`,
-  task: `You are a task management AI for festival events. You will receive an event title and its current task list.
-Suggest the next best task and return ONLY a valid JSON object (no markdown, no explanation):
-{"actionTitle":"task title","dueDateRange":"suggested due date range","owner":"suggested role/person type","dependencies":["dep1","dep2"]}`,
-  rsvp: `You are an RSVP management AI for festival events. You will receive attendance statistics for a real event.
-Analyze and return ONLY a valid JSON object (no markdown, no explanation):
-{"confirmationMessage":"suggested confirmation message","reminderMessage":"suggested reminder message","capacityTip":"capacity management tip"}`,
-};
+/**
+ * Returns the grounded system prompt for the specified workflow type,
+ * sourced from the versioned prompt template registry (#966).
+ */
+function getGroundedSystemPrompt(workflowType: WorkflowType): string {
+  const idMap: Record<WorkflowType, Parameters<typeof getTemplate>[0]> = {
+    event: 'grounded-event',
+    task: 'grounded-task',
+    rsvp: 'grounded-rsvp',
+  };
+  return getTemplate(idMap[workflowType]).content;
+}
 
 /**
  * Returns the set of event context field names that have non-null, non-empty
@@ -929,7 +940,8 @@ export async function getGroundedSuggestion(req: AuthRequest, res: Response): Pr
   }
   const safeContext = privacyFilter.payload as unknown as EventContext | TaskContext | RsvpContext;
 
-  const systemPrompt = hardenSystemPrompt(GROUNDED_SYSTEM_PROMPTS[workflowType]);
+  // #966 — Source system prompt from versioned template registry.
+  const systemPrompt = hardenSystemPrompt(getGroundedSystemPrompt(workflowType));
   const userMessage = buildGroundedUserMessage(
     workflowType,
     safeContext,
@@ -1098,16 +1110,12 @@ function resolveTaskBreakdownGroundedFields(ctx: TaskBreakdownContext): string[]
   return fields;
 }
 
-const TASK_BREAKDOWN_SYSTEM_PROMPT = `You are a festival event planning AI specializing in task management and project planning.
-You will receive event details (title, type, dates, capacity, status, tags) and the current task list.
-Generate a comprehensive task breakdown for the organizer. Return ONLY a valid JSON array of up to 8 tasks (no markdown, no explanation):
-[{"title":"task title","owner":"suggested role or person type","dueWindow":"e.g. 6-8 weeks before event","dependencies":["existing or prior task name"],"priority":"high","timelineConstraint":"must be completed before venue booking"},...]
-Rules:
-- priority must be one of: low, medium, high, urgent
-- dueWindow must reference the event date when known (e.g. "4 weeks before event" or a date range like "2026-07-01 to 2026-07-07")
-- timelineConstraint must explain the scheduling rationale
-- dependencies must reference either existing tasks or other generated tasks by title
-- owner should be a role or person type (e.g. "Event coordinator", "AV team", "Marketing lead")`;
+// #966 — Task breakdown system prompt sourced from versioned template registry.
+// The inline constant is retained here as a comment for historical reference;
+// the active content lives in backend/src/lib/prompt-templates.ts (task-breakdown).
+function getTaskBreakdownSystemPrompt(): string {
+  return getTemplate('task-breakdown').content;
+}
 
 function buildTaskBreakdownUserMessage(ctx: TaskBreakdownContext, userPrompt: string): string {
   const lines: string[] = ['Event details:'];
@@ -1223,7 +1231,7 @@ export async function getTaskBreakdown(req: AuthRequest, res: Response): Promise
   const startTime = Date.now();
   try {
     const raw = await withProviderTimeout(
-      callAiProvider(provider, hardenSystemPrompt(TASK_BREAKDOWN_SYSTEM_PROMPT), userMessage),
+      callAiProvider(provider, hardenSystemPrompt(getTaskBreakdownSystemPrompt()), userMessage),
     );
     const durationMs = Date.now() - startTime;
 
@@ -1462,24 +1470,10 @@ function resolveBudgetGroundedFields(ctx: BudgetInsightContext): string[] {
   return fields;
 }
 
-const BUDGET_INSIGHT_SYSTEM_PROMPT = `You are a financial risk analyst AI for festival event management.
-You will receive live budget data for an event: category allocations, actual spend, variance figures, and overspend flags.
-Analyse the data and return ONLY a valid JSON object (no markdown, no explanation):
-{
-  "summary": "2-3 sentence overall budget health summary",
-  "riskLevel": "low|medium|high|critical",
-  "anomalies": ["anomaly 1", "anomaly 2"],
-  "recommendations": [
-    {"category":"category name or Overall","insight":"what the data shows","action":"specific action to take","priority":"low|medium|high|critical"},
-    ...at least 3 recommendations...
-  ]
+// #966 — Budget insight system prompt sourced from versioned template registry.
+function getBudgetInsightSystemPrompt(): string {
+  return getTemplate('budget-insight').content;
 }
-Rules:
-- riskLevel must be one of: low, medium, high, critical
-- priority must be one of: low, medium, high, critical
-- Include at least 3 recommendations. When categories are overspent or at risk, provide category-specific recommendations.
-- anomalies should flag unusual patterns: sudden large expenses, zero allocation with spend, categories >90% spent, etc.
-- When budget data is empty or partial, still return valid JSON with recommendations about setting up budgets.`;
 
 function buildBudgetInsightUserMessage(ctx: BudgetInsightContext, userPrompt: string): string {
   const lines: string[] = ['Event budget data:'];
@@ -1610,7 +1604,7 @@ export async function getBudgetInsight(req: AuthRequest, res: Response): Promise
   const startTime = Date.now();
   try {
     const raw = await withProviderTimeout(
-      callAiProvider(provider, hardenSystemPrompt(BUDGET_INSIGHT_SYSTEM_PROMPT), userMessage),
+      callAiProvider(provider, hardenSystemPrompt(getBudgetInsightSystemPrompt()), userMessage),
     );
     const durationMs = Date.now() - startTime;
 
@@ -1815,40 +1809,10 @@ function resolveVendorRecommendationGroundedFields(ctx: VendorRecommendationCont
   return fields;
 }
 
-const VENDOR_RECOMMENDATION_SYSTEM_PROMPT = `You are a vendor selection advisory AI for festival event management.
-You will receive structured data about vendors for a specific event: each vendor's id, name, category, status, quoted amount, rating (1-5), whether a contract is on file, communication count, and last contact date.
-Your task is to rank the vendors and provide advisory scoring and rationale based ONLY on the data provided.
-
-CRITICAL RULES — you MUST follow these without exception:
-1. ONLY reference vendors that appear in the provided data. Do NOT invent, hallucinate, or add any vendor not in the list.
-2. Use ONLY the fields provided. Do NOT infer, assume, or fabricate any vendor attribute not explicitly given.
-3. All scores (0-100) must be directly derived from the supplied data fields.
-4. All rationale must cite only the data fields provided. Do NOT make general claims about vendor reputation, history, or capabilities beyond the data.
-5. The advisoryLabel must clearly state these are AI-generated suggestions for advisory purposes only.
-
-Return ONLY a valid JSON object (no markdown, no explanation):
-{
-  "summary": "2-3 sentence overall advisory summary using only the supplied data",
-  "advisoryLabel": "AI advisory only — recommendations are based solely on available vendor data. Verify all information independently before making contracting decisions.",
-  "recommendations": [
-    {
-      "vendorId": <exact id from data>,
-      "vendorName": "<exact name from data>",
-      "rank": 1,
-      "score": <0-100 integer derived from data>,
-      "rationale": "<explanation citing only the supplied data fields>",
-      "strengths": ["<observable strength from data>"],
-      "concerns": ["<observable concern from data, or empty array>"]
-    }
-  ]
+// #966 — Vendor recommendation system prompt sourced from versioned template registry.
+function getVendorRecommendationSystemPrompt(): string {
+  return getTemplate('vendor-recommendation').content;
 }
-
-Scoring guidance (apply only when the field is present in data):
-- Rating (40% weight): Higher is better. 5-star = 40 pts, 4-star = 32 pts, 3-star = 24 pts, 2-star = 16 pts, 1-star = 8 pts, no rating = 20 pts (neutral).
-- Quoted amount (30% weight): Lower quoted amount relative to others is better. Normalize across vendors present.
-- Contract on file (15% weight): Yes = 15 pts, No = 0 pts.
-- Communication engagement (15% weight): More communications = better engagement. Normalize across vendors present.
-- Status bonus: Confirmed or Booked vendors get a 5-point bonus; Cancelled vendors are excluded from recommendations.`;
 
 function buildVendorRecommendationUserMessage(
   ctx: VendorRecommendationContext,
@@ -1963,7 +1927,7 @@ export async function getVendorRecommendation(req: AuthRequest, res: Response): 
     const raw = await withProviderTimeout(
       callAiProvider(
         provider,
-        hardenSystemPrompt(VENDOR_RECOMMENDATION_SYSTEM_PROMPT),
+        hardenSystemPrompt(getVendorRecommendationSystemPrompt()),
         userMessage,
       ),
     );
@@ -2123,36 +2087,10 @@ async function fetchConflictResolutionContext(eventId: number): Promise<{
   return { eventTitle: event.title, activities };
 }
 
-const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `You are a timeline conflict resolution advisory AI for festival event management.
-You will receive a list of timeline activities for an event and the detected scheduling conflicts between them.
-Your task is to suggest advisory resolution options for each conflict based ONLY on the data provided.
-
-CRITICAL RULES — you MUST follow these without exception:
-1. ONLY reference activities that appear in the provided data using their exact IDs and titles. Do NOT invent activities.
-2. Use ONLY the fields provided. Do NOT fabricate time constraints, vendor names, or resource details not given.
-3. All suggestions must be advisory-only. Do NOT instruct the system to automatically apply any changes.
-4. Each suggestion must address: the proposed resolution, dependency impact, and resource impact.
-5. The advisoryLabel must clearly state these are AI-generated suggestions for review only.
-
-Return ONLY a valid JSON object (no markdown, no explanation):
-{
-  "summary": "2-3 sentence overview of all detected conflicts and general resolution strategy",
-  "conflictCount": <integer matching the number of conflicts provided>,
-  "advisoryLabel": "AI advisory only — suggestions are based solely on detected timeline conflict data. Review each proposal carefully before making any scheduling changes.",
-  "suggestions": [
-    {
-      "activityAId": <exact id from conflict data>,
-      "activityATitle": "<exact title from conflict data>",
-      "activityBId": <exact id from conflict data>,
-      "activityBTitle": "<exact title from conflict data>",
-      "reason": "<conflict reason from data: overlap|adjacent_no_buffer|resource_double_book|sort_dependency>",
-      "suggestion": "<specific, actionable advisory suggestion using only the supplied data>",
-      "dependencyImpact": "<notes on how this resolution affects dependent activities>",
-      "resourceImpact": "<notes on shared vendor or location impact>",
-      "alternativeSlots": ["<concrete time slot proposal 1>", "<concrete time slot proposal 2>"]
-    }
-  ]
-}`;
+// #966 — Conflict resolution system prompt sourced from versioned template registry.
+function getConflictResolutionSystemPrompt(): string {
+  return getTemplate('conflict-resolution').content;
+}
 
 function buildConflictResolutionUserMessage(
   eventTitle: string,
@@ -2292,7 +2230,7 @@ export async function getConflictResolutionSuggestions(
   const startTime = Date.now();
   try {
     const raw = await withProviderTimeout(
-      callAiProvider(provider, hardenSystemPrompt(CONFLICT_RESOLUTION_SYSTEM_PROMPT), userMessage),
+      callAiProvider(provider, hardenSystemPrompt(getConflictResolutionSystemPrompt()), userMessage),
     );
     const durationMs = Date.now() - startTime;
 
@@ -2420,22 +2358,10 @@ interface AnalyticsNarrativeResponse {
   raw: string;
 }
 
-const ANALYTICS_NARRATIVE_SYSTEM_PROMPT = `You are a data analytics AI for festival event planning. \
-You will receive current and prior-period metrics for a real event fetched directly from a database. \
-Your task is to produce a concise, grounded narrative summary for the event organiser. \
-
-STRICT RULES:
-- Use ONLY the metrics provided. Never invent, extrapolate, or assume values not present in the input.
-- If prior-period data is absent, base observations solely on current-period values.
-- Headline must be ≤ 120 characters and reference at least one concrete metric.
-- Summary must be 1–3 sentences. Do not repeat the headline verbatim.
-- Limit notableChanges to 5 items maximum. Each must cite specific numbers from the input.
-- Limit suggestedActions to 3 items maximum. Each must be actionable and grounded in the data.
-- Set dataQuality to "sparse" if total RSVPs < 5 AND total tasks < 3 AND budget allocated = 0.
-- Set trendDirection to "up" if the primary trend across RSVP acceptance, task completion, and budget utilisation is improving vs the prior period; "down" if declining; "stable" if mixed or no prior data.
-
-Return ONLY a valid JSON object with this exact schema (no markdown, no explanation):
-{"headline":"string","trendDirection":"up"|"down"|"stable","summary":"string","notableChanges":["string",...],"suggestedActions":["string",...],"dataQuality":"sufficient"|"sparse"}`;
+// #966 — Analytics narrative system prompt sourced from versioned template registry.
+function getAnalyticsNarrativeSystemPrompt(): string {
+  return getTemplate('analytics-narrative').content;
+}
 
 async function fetchAnalyticsNarrativeContext(
   eventId: number,
@@ -2720,7 +2646,7 @@ export async function getAnalyticsNarrative(req: AuthRequest, res: Response): Pr
 
   try {
     const raw = await withProviderTimeout(
-      callAiProvider(provider, hardenSystemPrompt(ANALYTICS_NARRATIVE_SYSTEM_PROMPT), userMessage),
+      callAiProvider(provider, hardenSystemPrompt(getAnalyticsNarrativeSystemPrompt()), userMessage),
     );
     const durationMs = Date.now() - startTime;
 
