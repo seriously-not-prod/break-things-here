@@ -38,6 +38,9 @@ const mockedApi = vi.mocked(api);
 
 beforeEach(() => {
   mockedApi.post.mockReset();
+  // Default: events endpoint returns an empty list so the useEffect in
+  // AiAssistant (which calls api.get('/api/events')) does not crash tests.
+  mockedApi.get.mockResolvedValue([]);
 });
 
 afterEach(() => {
