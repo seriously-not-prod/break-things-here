@@ -599,7 +599,7 @@ Schema reference alignment note (BRD v2.0 §1.4):
 - Native mobile applications (iOS/Android)
 - Payment processing and ticket sales
 - Live streaming integration for virtual events
-- AI-powered event recommendations and optimization
+- AI-powered **automated** event recommendations and optimization engine (ML-based, unsolicited — distinct from the in-scope interactive AI Planning Assistant; see §6.4)
 - Social media platform integration (Facebook, Instagram)
 - Email marketing campaigns and newsletters
 - Attendee networking features (matchmaking, chat)
@@ -611,6 +611,16 @@ Schema reference alignment note (BRD v2.0 §1.4):
 - Advanced analytics with machine learning insights
 - Event website builder
 - Sponsor and exhibitor management
+- Auto-application of AI output without explicit user confirmation
+- Third-party AI agent orchestration frameworks (LangChain, Semantic Kernel, etc.)
+
+## 6.4 In-Scope AI Capability (Current Stack)
+
+The **AI Planning Assistant** is an in-scope, implemented capability on the current Vite + React Router + Express + PostgreSQL stack. It is an interactive, user-driven chat assistant — not an automated recommendation engine.
+
+For the full AI requirement set, implementation status, traceability matrix, and clarifications, see:
+
+> **[docs/requirements/ai-requirement-baseline.md](ai-requirement-baseline.md)** — AI Requirement Baseline and Traceability (Story #948)
 
 ---
 

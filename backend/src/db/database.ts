@@ -916,6 +916,13 @@ export async function initializeDatabase(): Promise<DatabaseAdapter> {
     statement_timeout: 30000,
     query_timeout: 30000,
   });
+
+  // Handle unexpected pool-level errors (e.g., backend terminations) to
+  // prevent unhandled 'error' events from crashing the process.
+  pool.on('error', (err) => {
+    console.error('[DATABASE] Unexpected pool error on idle client:', err.message);
+  });
+
   const client = await pool.connect();
   client.release();
   dbWrapper = new PgWrapper(pool);
@@ -3673,6 +3680,140 @@ async function runMigrations(db: DatabaseAdapter): Promise<void> {
           orphan_count;
       END IF;
     END $$;
+  `);
+
+  // v25 — Task #947: AI request observability logging table.
+  // Stores per-request audit records for grounded AI workflow calls so that
+  // provider usage, latency, and failure patterns remain observable.
+  // All writes are best-effort (failures are swallowed in the controller),
+  // so ON DELETE SET NULL is used for the user FK to avoid cascaded loss.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_request_logs (
+      id            SERIAL PRIMARY KEY,
+      user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      workflow_type TEXT NOT NULL,
+      entity_id     INTEGER,
+      provider      TEXT NOT NULL,
+      duration_ms   INTEGER NOT NULL DEFAULT 0,
+      status        TEXT NOT NULL CHECK (status IN ('success', 'error')),
+      error_message TEXT,
+      requested_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // v26 — Issue #956: AI safety event audit log.
+  // Records prompt injection detections, output rejections, and provider
+  // timeouts so security incidents can be reviewed and patterns analysed.
+  // Writes are best-effort (failures are swallowed in the safety module).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_safety_events (
+      id                SERIAL PRIMARY KEY,
+      user_id           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      event_type        TEXT NOT NULL
+                          CHECK (event_type IN (
+                            'input_sanitised',
+                            'injection_blocked',
+                            'output_rejected',
+                            'provider_timeout',
+                            'context_violation'
+                          )),
+      workflow_type     TEXT NOT NULL,
+      entity_id         INTEGER,
+      threat_categories JSONB NOT NULL DEFAULT '[]'::jsonb,
+      detail            TEXT NOT NULL DEFAULT '',
+      occurred_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // v27 — Issue #957: AI data privacy and PII minimisation audit log.
+  // Records PII detection, field redaction, payload filtering, and log
+  // sanitisation events so privacy-incident patterns can be reviewed and
+  // compliance obligations met.  Writes are best-effort (failures are
+  // swallowed in the privacy module so they never affect the caller).
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_privacy_events (
+      id             SERIAL PRIMARY KEY,
+      user_id        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      event_type     TEXT NOT NULL
+                       CHECK (event_type IN (
+                         'pii_detected',
+                         'field_redacted',
+                         'payload_filtered',
+                         'log_sanitised'
+                       )),
+      workflow_type  TEXT NOT NULL,
+      entity_id      INTEGER,
+      pii_categories JSONB NOT NULL DEFAULT '[]'::jsonb,
+      field_names    JSONB NOT NULL DEFAULT '[]'::jsonb,
+      detail         TEXT NOT NULL DEFAULT '',
+      occurred_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // v28 — Issue #958: AI observability audit trail.
+  // Records structured audit events for every user-triggered AI action so
+  // outcomes, latency, rate-limit incidents, and retries are traceable.
+  // Only safe operational metadata is stored — no PII or user-supplied text.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_audit_events (
+      id                  SERIAL PRIMARY KEY,
+      user_id             INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      workflow_type       TEXT    NOT NULL,
+      entity_id           INTEGER,
+      provider            TEXT    NOT NULL,
+      duration_ms         INTEGER NOT NULL DEFAULT 0,
+      outcome             TEXT    NOT NULL
+                            CHECK (outcome IN (
+                              'success',
+                              'failure',
+                              'rate_limited',
+                              'timed_out'
+                            )),
+      http_status         INTEGER,
+      safe_error_message  TEXT,
+      retry_count         INTEGER NOT NULL DEFAULT 0,
+      occurred_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ai_audit_events_occurred_at
+      ON ai_audit_events (occurred_at DESC)
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ai_audit_events_user_id
+      ON ai_audit_events (user_id)
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ai_audit_events_outcome
+      ON ai_audit_events (outcome)
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ai_audit_events_workflow_type
+      ON ai_audit_events (workflow_type)
+  `);
+
+  // v29 — Issue #963: AI RBAC — seed ai.access permission and grant to Admin + Organizer.
+  // Idempotent: ON CONFLICT DO NOTHING ensures safe re-runs on existing databases.
+  await db.exec(`
+    INSERT INTO permissions (name, description) VALUES
+      ('ai.access', 'Access AI-powered features and endpoints')
+    ON CONFLICT (name) DO NOTHING
+  `);
+
+  await db.exec(`
+    INSERT INTO role_permissions (role_id, permission_id)
+    SELECT 3, id FROM permissions WHERE name = 'ai.access'
+    ON CONFLICT DO NOTHING
+  `);
+
+  await db.exec(`
+    INSERT INTO role_permissions (role_id, permission_id)
+    SELECT 2, id FROM permissions WHERE name = 'ai.access'
+    ON CONFLICT DO NOTHING
   `);
 }
 
