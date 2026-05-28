@@ -187,7 +187,9 @@ describe('AiAssistant — Grounded Workflow tab', () => {
 
     // MUI Autocomplete uses input[role="combobox"] — use querySelector inside the tabpanel
     const groundedPanel = screen.getByRole('tabpanel', { name: /Grounded/i });
-    const eventInput = groundedPanel.querySelector<HTMLInputElement>('input[aria-label="Select event"]');
+    const eventInput = groundedPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event"]',
+    );
     await userEvent.click(eventInput!);
     const option = await screen.findByRole('option', { name: /Test Event/i });
     await userEvent.click(option);
@@ -233,7 +235,9 @@ describe('AiAssistant — Grounded Workflow tab', () => {
     fireEvent.change(workflowInput!, { target: { value: 'rsvp' } });
 
     // MUI Autocomplete uses input[role="combobox"] — use querySelector inside the tabpanel
-    const eventInput = groundedPanel.querySelector<HTMLInputElement>('input[aria-label="Select event"]');
+    const eventInput = groundedPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event"]',
+    );
     await userEvent.click(eventInput!);
     const option = await screen.findByRole('option', { name: /Test Event/i });
     await userEvent.click(option);
@@ -254,7 +258,9 @@ describe('AiAssistant — Grounded Workflow tab', () => {
     await openGroundedTab();
 
     const groundedPanel = screen.getByRole('tabpanel', { name: /Grounded/i });
-    const eventInput = groundedPanel.querySelector<HTMLInputElement>('input[aria-label="Select event"]');
+    const eventInput = groundedPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event"]',
+    );
     await userEvent.click(eventInput!);
     const option = await screen.findByRole('option', { name: /Test Event/i });
     await userEvent.click(option);
@@ -277,7 +283,9 @@ describe('AiAssistant — Grounded Workflow tab', () => {
     await openGroundedTab();
 
     const groundedPanel = screen.getByRole('tabpanel', { name: /Grounded/i });
-    const eventInput = groundedPanel.querySelector<HTMLInputElement>('input[aria-label="Select event"]');
+    const eventInput = groundedPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event"]',
+    );
     await userEvent.click(eventInput!);
     const option = await screen.findByRole('option', { name: /Test Event/i });
     await userEvent.click(option);
@@ -475,7 +483,9 @@ describe('AiAssistant — #959 retry in Grounded Workflow tab', () => {
     await userEvent.click(screen.getByRole('tab', { name: /Grounded/i }));
 
     const groundedPanel = screen.getByRole('tabpanel', { name: /Grounded/i });
-    const eventInput = groundedPanel.querySelector<HTMLInputElement>('input[aria-label="Select event"]');
+    const eventInput = groundedPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event"]',
+    );
     await userEvent.click(eventInput!);
     const option = await screen.findByRole('option', { name: /Test Event/i });
     await userEvent.click(option);
@@ -501,7 +511,9 @@ describe('AiAssistant — #959 retry in Task Breakdown tab', () => {
     await userEvent.click(screen.getByRole('tab', { name: /Task Plan/i }));
 
     const breakdownPanel = screen.getByRole('tabpanel', { name: /Task Plan/i });
-    const eventInput = breakdownPanel.querySelector<HTMLInputElement>('input[aria-label="Select event for task breakdown"]');
+    const eventInput = breakdownPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event for task breakdown"]',
+    );
     await userEvent.click(eventInput!);
     const option = await screen.findByRole('option', { name: /Test Event/i });
     await userEvent.click(option);
@@ -524,7 +536,9 @@ describe('AiAssistant — #959 retry in Budget Insight tab', () => {
     await userEvent.click(screen.getByRole('tab', { name: /Budget/i }));
 
     const budgetPanel = screen.getByRole('tabpanel', { name: /Budget/i });
-    const eventInput = budgetPanel.querySelector<HTMLInputElement>('input[aria-label="Select event for budget insight"]');
+    const eventInput = budgetPanel.querySelector<HTMLInputElement>(
+      'input[aria-label="Select event for budget insight"]',
+    );
     await userEvent.click(eventInput!);
     const option = await screen.findByRole('option', { name: /Test Event/i });
     await userEvent.click(option);
