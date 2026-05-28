@@ -161,7 +161,7 @@ describe('AiAssistant — Grounded Workflow tab', () => {
 
   it('shows empty-state hint before any run', async () => {
     await openGroundedTab();
-    expect(screen.getByText(/Enter an Event ID and a prompt/i)).toBeInTheDocument();
+    expect(screen.getByText(/Select an event and a prompt/i)).toBeInTheDocument();
   });
 
   it('disables Run Workflow button when inputs are empty', async () => {
@@ -170,6 +170,7 @@ describe('AiAssistant — Grounded Workflow tab', () => {
   });
 
   it('shows structured event suggestion on success', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 42, title: 'Test Event' }]);
     mockedApi.post.mockResolvedValueOnce({
       workflowType: 'event',
       entityId: 42,
@@ -184,8 +185,12 @@ describe('AiAssistant — Grounded Workflow tab', () => {
 
     await openGroundedTab();
 
-    const entityIdInput = screen.getByRole('spinbutton', { name: /Event ID/i });
-    await userEvent.type(entityIdInput, '42');
+    // MUI Autocomplete uses input[role="combobox"] — use querySelector inside the tabpanel
+    const groundedPanel = screen.getByRole('tabpanel', { name: /Grounded/i });
+    const eventInput = groundedPanel.querySelector<HTMLInputElement>('input[aria-label="Select event"]');
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Test Event/i });
+    await userEvent.click(option);
 
     const promptInput = screen.getByRole('textbox', { name: /Workflow prompt/i });
     await userEvent.type(promptInput, 'Improve this event');
@@ -215,6 +220,7 @@ describe('AiAssistant — Grounded Workflow tab', () => {
       raw: '{}',
     });
 
+    mockedApi.get.mockResolvedValueOnce([{ id: 10, title: 'Test Event' }]);
     render(<AiAssistant />);
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
     await userEvent.click(screen.getByRole('tab', { name: /Grounded/i }));
@@ -226,8 +232,11 @@ describe('AiAssistant — Grounded Workflow tab', () => {
     const workflowInput = groundedPanel.querySelector<HTMLInputElement>('.MuiSelect-nativeInput');
     fireEvent.change(workflowInput!, { target: { value: 'rsvp' } });
 
-    const entityIdInput = screen.getByRole('spinbutton', { name: /Event ID/i });
-    await userEvent.type(entityIdInput, '10');
+    // MUI Autocomplete uses input[role="combobox"] — use querySelector inside the tabpanel
+    const eventInput = groundedPanel.querySelector<HTMLInputElement>('input[aria-label="Select event"]');
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Test Event/i });
+    await userEvent.click(option);
 
     const promptInput = screen.getByRole('textbox', { name: /Workflow prompt/i });
     await userEvent.type(promptInput, 'Help manage RSVPs');
@@ -239,12 +248,16 @@ describe('AiAssistant — Grounded Workflow tab', () => {
   });
 
   it('shows error Alert when grounded workflow API call fails', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 999, title: 'Test Event' }]);
     mockedApi.post.mockRejectedValueOnce(new ApiError('Event not found', 404));
 
     await openGroundedTab();
 
-    const entityIdInput = screen.getByRole('spinbutton', { name: /Event ID/i });
-    await userEvent.type(entityIdInput, '999');
+    const groundedPanel = screen.getByRole('tabpanel', { name: /Grounded/i });
+    const eventInput = groundedPanel.querySelector<HTMLInputElement>('input[aria-label="Select event"]');
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Test Event/i });
+    await userEvent.click(option);
 
     const promptInput = screen.getByRole('textbox', { name: /Workflow prompt/i });
     await userEvent.type(promptInput, 'help');
@@ -256,14 +269,18 @@ describe('AiAssistant — Grounded Workflow tab', () => {
   });
 
   it('shows permission-denied message when grounded workflow returns 403', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 42, title: 'Test Event' }]);
     mockedApi.post.mockRejectedValueOnce(
       new ApiError('AI features require elevated permissions.', 403),
     );
 
     await openGroundedTab();
 
-    const entityIdInput = screen.getByRole('spinbutton', { name: /Event ID/i });
-    await userEvent.type(entityIdInput, '42');
+    const groundedPanel = screen.getByRole('tabpanel', { name: /Grounded/i });
+    const eventInput = groundedPanel.querySelector<HTMLInputElement>('input[aria-label="Select event"]');
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Test Event/i });
+    await userEvent.click(option);
 
     const promptInput = screen.getByRole('textbox', { name: /Workflow prompt/i });
     await userEvent.type(promptInput, 'Improve event');
@@ -450,14 +467,18 @@ describe('AiAssistant — #959 chat error state with retry', () => {
 
 describe('AiAssistant — #959 retry in Grounded Workflow tab', () => {
   it('shows a retry button when grounded workflow fails', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 1, title: 'Test Event' }]);
     mockedApi.post.mockRejectedValueOnce(new ApiError('Service error', 503));
 
     render(<AiAssistant />);
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
     await userEvent.click(screen.getByRole('tab', { name: /Grounded/i }));
 
-    const entityIdInput = screen.getByRole('spinbutton', { name: /Event ID/i });
-    await userEvent.type(entityIdInput, '1');
+    const groundedPanel = screen.getByRole('tabpanel', { name: /Grounded/i });
+    const eventInput = groundedPanel.querySelector<HTMLInputElement>('input[aria-label="Select event"]');
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Test Event/i });
+    await userEvent.click(option);
 
     const promptInput = screen.getByRole('textbox', { name: /Workflow prompt/i });
     await userEvent.type(promptInput, 'help');
@@ -472,14 +493,18 @@ describe('AiAssistant — #959 retry in Grounded Workflow tab', () => {
 
 describe('AiAssistant — #959 retry in Task Breakdown tab', () => {
   it('shows a retry button when task breakdown fails', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 1, title: 'Test Event' }]);
     mockedApi.post.mockRejectedValueOnce(new ApiError('Breakdown failed', 500));
 
     render(<AiAssistant />);
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
     await userEvent.click(screen.getByRole('tab', { name: /Task Plan/i }));
 
-    const entityIdInput = screen.getByRole('spinbutton', { name: /Event ID for task breakdown/i });
-    await userEvent.type(entityIdInput, '1');
+    const breakdownPanel = screen.getByRole('tabpanel', { name: /Task Plan/i });
+    const eventInput = breakdownPanel.querySelector<HTMLInputElement>('input[aria-label="Select event for task breakdown"]');
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Test Event/i });
+    await userEvent.click(option);
 
     await userEvent.click(screen.getByRole('button', { name: /Generate task breakdown/i }));
 
@@ -491,14 +516,18 @@ describe('AiAssistant — #959 retry in Task Breakdown tab', () => {
 
 describe('AiAssistant — #959 retry in Budget Insight tab', () => {
   it('shows a retry button when budget insight fails', async () => {
+    mockedApi.get.mockResolvedValueOnce([{ id: 1, title: 'Test Event' }]);
     mockedApi.post.mockRejectedValueOnce(new ApiError('Budget error', 500));
 
     render(<AiAssistant />);
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
     await userEvent.click(screen.getByRole('tab', { name: /Budget/i }));
 
-    const entityIdInput = screen.getByRole('spinbutton', { name: /Event ID for budget insight/i });
-    await userEvent.type(entityIdInput, '1');
+    const budgetPanel = screen.getByRole('tabpanel', { name: /Budget/i });
+    const eventInput = budgetPanel.querySelector<HTMLInputElement>('input[aria-label="Select event for budget insight"]');
+    await userEvent.click(eventInput!);
+    const option = await screen.findByRole('option', { name: /Test Event/i });
+    await userEvent.click(option);
 
     await userEvent.click(screen.getByRole('button', { name: /Analyse budget/i }));
 
