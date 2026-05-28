@@ -225,6 +225,17 @@ router.post(
 // needing AI feature entitlements.
 router.get('/ai/health', authenticateToken, aiController.getAiHealth);
 
+// Story #965 — Human-in-the-Loop Apply Flow.
+// POST records an applied suggestion (actor + timestamp audit trail).
+// DELETE rolls back a previously applied suggestion (ownership-checked).
+router.post('/ai/apply', authenticateToken, requireAiAccess, aiController.applyAiSuggestion);
+router.delete(
+  '/ai/apply/:id',
+  authenticateToken,
+  requireAiAccess,
+  aiController.rollbackAiSuggestion,
+);
+
 // ============ PUBLIC RSVP ROUTES ==========
 // All unauthenticated public endpoints share a tighter per-IP limiter
 // (publicLimiter) on top of the global apiLimiter so a single attacker IP
