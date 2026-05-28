@@ -93,7 +93,11 @@ describe('Budget Insight Service — request contract', () => {
         },
       ],
       raw: '{}',
-      contextSummary: { groundedFields: ['budget', 'expenses'], categoryCount: 3, expenseCount: 12 },
+      contextSummary: {
+        groundedFields: ['budget', 'expenses'],
+        categoryCount: 3,
+        expenseCount: 12,
+      },
     };
 
     mockedApi.post.mockResolvedValueOnce(expectedResponse);

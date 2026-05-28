@@ -88,23 +88,17 @@ describe('VendorAiRecommendationPanel — initial render', () => {
 
   it('renders the Get Recommendations button in enabled state', () => {
     render(<VendorAiRecommendationPanel eventId={10} />);
-    expect(
-      screen.getByRole('button', { name: /Get Recommendations/i }),
-    ).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /Get Recommendations/i })).not.toBeDisabled();
   });
 
   it('accepts a numeric eventId', () => {
     render(<VendorAiRecommendationPanel eventId={10} />);
-    expect(
-      screen.getByRole('button', { name: /Get Recommendations/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Get Recommendations/i })).toBeInTheDocument();
   });
 
   it('accepts a string eventId without crashing', () => {
     render(<VendorAiRecommendationPanel eventId="10" />);
-    expect(
-      screen.getByRole('button', { name: /Get Recommendations/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Get Recommendations/i })).toBeInTheDocument();
   });
 });
 
@@ -135,9 +129,7 @@ describe('VendorAiRecommendationPanel — loading state', () => {
     render(<VendorAiRecommendationPanel eventId={10} />);
     await userEvent.click(screen.getByRole('button', { name: /Get Recommendations/i }));
 
-    expect(
-      screen.getByRole('textbox', { name: /Optional recommendation prompt/i }),
-    ).toBeDisabled();
+    expect(screen.getByRole('textbox', { name: /Optional recommendation prompt/i })).toBeDisabled();
   });
 });
 
@@ -151,9 +143,7 @@ describe('VendorAiRecommendationPanel — error state', () => {
     await userEvent.click(screen.getByRole('button', { name: /Get Recommendations/i }));
 
     // The advisory info alert is always present; wait for the error text specifically.
-    await waitFor(() =>
-      expect(screen.getByText(/Service unavailable/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/Service unavailable/i)).toBeInTheDocument());
   });
 
   it('re-enables the button after an error', async () => {
@@ -163,9 +153,7 @@ describe('VendorAiRecommendationPanel — error state', () => {
     await userEvent.click(screen.getByRole('button', { name: /Get Recommendations/i }));
 
     await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: /Get Recommendations/i }),
-      ).not.toBeDisabled(),
+      expect(screen.getByRole('button', { name: /Get Recommendations/i })).not.toBeDisabled(),
     );
   });
 
@@ -258,9 +246,7 @@ describe('VendorAiRecommendationPanel — happy path', () => {
     await userEvent.click(screen.getByRole('button', { name: /Get Recommendations/i }));
 
     await waitFor(() =>
-      expect(
-        screen.getByText(/Excellent track record for outdoor events/i),
-      ).toBeInTheDocument(),
+      expect(screen.getByText(/Excellent track record for outdoor events/i)).toBeInTheDocument(),
     );
   });
 
@@ -309,9 +295,7 @@ describe('VendorAiRecommendationPanel — happy path', () => {
     await userEvent.click(screen.getByRole('button', { name: /Get Recommendations/i }));
 
     await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: /Get Recommendations/i }),
-      ).not.toBeDisabled(),
+      expect(screen.getByRole('button', { name: /Get Recommendations/i })).not.toBeDisabled(),
     );
   });
 });
@@ -330,9 +314,7 @@ describe('VendorAiRecommendationPanel — empty recommendations', () => {
     await userEvent.click(screen.getByRole('button', { name: /Get Recommendations/i }));
 
     await waitFor(() =>
-      expect(
-        screen.getByText(/No ranked recommendations could be generated/i),
-      ).toBeInTheDocument(),
+      expect(screen.getByText(/No ranked recommendations could be generated/i)).toBeInTheDocument(),
     );
   });
 });

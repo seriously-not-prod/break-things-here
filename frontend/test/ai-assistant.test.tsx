@@ -772,9 +772,7 @@ describe('AiAssistant — #960 Task Breakdown happy path', () => {
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
     await userEvent.click(screen.getByRole('tab', { name: /Task Plan/i }));
 
-    expect(
-      screen.getByRole('button', { name: /Generate task breakdown/i }),
-    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Generate task breakdown/i })).toBeDisabled();
   });
 });
 
@@ -803,7 +801,11 @@ describe('AiAssistant — #960 Budget Insight happy path', () => {
         },
       ],
       raw: '{}',
-      contextSummary: { groundedFields: ['budget', 'expenses'], categoryCount: 4, expenseCount: 20 },
+      contextSummary: {
+        groundedFields: ['budget', 'expenses'],
+        categoryCount: 4,
+        expenseCount: 20,
+      },
     });
 
     render(<AiAssistant />);
@@ -856,9 +858,7 @@ describe('AiAssistant — #960 Budget Insight happy path', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Analyse budget/i }));
 
-    await waitFor(() =>
-      expect(screen.getByText(/Budget is mostly on track/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/Budget is mostly on track/i)).toBeInTheDocument());
   });
 
   it('renders recommendation category and action text', async () => {
@@ -945,9 +945,7 @@ describe('AiAssistant — #960 Budget Insight happy path', () => {
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
     await userEvent.click(screen.getByRole('tab', { name: /Budget/i }));
 
-    expect(
-      screen.getByText(/Select an event and click Analyse Budget/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Select an event and click Analyse Budget/i)).toBeInTheDocument();
   });
 
   it('disables Analyse Budget button when no event is selected', async () => {
