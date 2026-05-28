@@ -118,16 +118,37 @@ const _encKey: Buffer = (() => {
 })();
 
 /**
+ * In-memory LRU cache for hashToken results to avoid repeated scryptSync
+ * calls on the same token (e.g., auth middleware on every request).
+ * Bounded to prevent unbounded memory growth.
+ */
+const _hashCache = new Map<string, string>();
+const HASH_CACHE_MAX_SIZE = 2000;
+
+/**
  * Computes a secure derived key for a token for safe storage.
  * Uses the scrypt KDF (computationally expensive) with a server-side
  * secret/salt to make offline brute-force attacks impractical.
+ * Results are cached in-memory to avoid blocking the event loop on
+ * repeated lookups (e.g., per-request auth middleware).
  * Provide a secret via `TOKEN_HASH_SECRET` or `PASSWORD_RESET_SALT` env var.
  * @param token - The token string to derive a key from
  * @returns Hex-encoded derived key
  */
 export function hashToken(token: string): string {
+  const cached = _hashCache.get(token);
+  if (cached !== undefined) return cached;
+
   const derived = crypto.scryptSync(token, _tokenHashSecret, 32);
-  return derived.toString('hex');
+  const hex = derived.toString('hex');
+
+  // Evict oldest entry if cache is full
+  if (_hashCache.size >= HASH_CACHE_MAX_SIZE) {
+    const firstKey = _hashCache.keys().next().value;
+    if (firstKey !== undefined) _hashCache.delete(firstKey);
+  }
+  _hashCache.set(token, hex);
+  return hex;
 }
 
 /**
