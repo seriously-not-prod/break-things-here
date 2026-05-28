@@ -220,6 +220,14 @@ router.post(
   applyAiPrivacyControls,
   aiController.getAnalyticsNarrative,
 );
+// Story #951 — RSVP Communication Drafting Assistance.
+router.post(
+  '/ai/rsvp-draft',
+  authenticateToken,
+  requireAiAccess,
+  applyAiPrivacyControls,
+  aiController.getRsvpCommunicationDraft,
+);
 // Issue #958 — AI Observability health/metrics endpoint.
 // Requires authentication only; no AI RBAC so ops staff can query without
 // needing AI feature entitlements.

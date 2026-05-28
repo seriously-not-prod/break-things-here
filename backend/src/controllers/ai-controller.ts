@@ -2752,6 +2752,321 @@ export async function getAnalyticsNarrative(req: AuthRequest, res: Response): Pr
   }
 }
 
+// ── RSVP Communication Drafting — Story #951 ─────────────────────────────────
+
+export type RsvpDraftTone = 'formal' | 'friendly' | 'casual' | 'urgent';
+export type RsvpDraftLength = 'short' | 'medium' | 'long';
+
+interface RsvpCommunicationDraftBody {
+  entityId: number;
+  tone: RsvpDraftTone;
+  draftLength: RsvpDraftLength;
+  prompt?: string;
+}
+
+/**
+ * Structured output for the RSVP communication drafting endpoint.
+ * All three variants are editable before sending.
+ */
+export interface RsvpCommunicationDraft {
+  /** Reminder message targeted at pending/maybe guests. */
+  reminderVariant: string;
+  /** Confirmation/thank-you message for confirmed guests. */
+  confirmationVariant: string;
+  /** Urgent deadline-reminder for guests who have not yet responded. */
+  deadlineReminder: string;
+}
+
+interface RsvpCommunicationDraftResponse {
+  entityId: number;
+  tone: RsvpDraftTone;
+  draftLength: RsvpDraftLength;
+  drafts: RsvpCommunicationDraft;
+  raw: string;
+}
+
+interface RsvpDraftContext {
+  eventTitle: string;
+  eventDate: string | null;
+  rsvpDeadline: string | null;
+  capacity: number | null;
+  confirmed: number;
+  declined: number;
+  pending: number;
+  maybe: number;
+  waitlisted: number;
+  cancelled: number;
+  total: number;
+}
+
+async function fetchRsvpDraftContext(entityId: number): Promise<RsvpDraftContext | null> {
+  const db = getDatabase();
+  const event = await db.get<{
+    title: string;
+    date: string | null;
+    rsvp_deadline: string | null;
+    capacity: number | null;
+  }>(
+    `SELECT title, date, rsvp_deadline, capacity
+     FROM events WHERE id = $1 AND deleted_at IS NULL`,
+    [entityId],
+  );
+  if (!event) return null;
+
+  const stats = await db.get<{
+    confirmed: number;
+    declined: number;
+    pending: number;
+    maybe: number;
+    waitlisted: number;
+    cancelled: number;
+    total: number;
+  }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE canonical_status = 'confirmed')::int  AS confirmed,
+       COUNT(*) FILTER (WHERE canonical_status = 'declined')::int   AS declined,
+       COUNT(*) FILTER (WHERE canonical_status = 'pending')::int    AS pending,
+       COUNT(*) FILTER (WHERE canonical_status = 'maybe')::int      AS maybe,
+       COUNT(*) FILTER (WHERE canonical_status = 'waitlist')::int   AS waitlisted,
+       COUNT(*) FILTER (WHERE canonical_status = 'cancelled')::int  AS cancelled,
+       COUNT(*)::int                                                  AS total
+     FROM rsvps WHERE event_id = $1`,
+    [entityId],
+  );
+
+  return {
+    eventTitle: event.title,
+    eventDate: event.date,
+    rsvpDeadline: event.rsvp_deadline,
+    capacity: event.capacity,
+    confirmed: stats?.confirmed ?? 0,
+    declined: stats?.declined ?? 0,
+    pending: stats?.pending ?? 0,
+    maybe: stats?.maybe ?? 0,
+    waitlisted: stats?.waitlisted ?? 0,
+    cancelled: stats?.cancelled ?? 0,
+    total: stats?.total ?? 0,
+  };
+}
+
+const LENGTH_INSTRUCTIONS: Record<RsvpDraftLength, string> = {
+  short: '1–2 sentences per variant',
+  medium: '2–4 sentences per variant',
+  long: '4–6 sentences per variant',
+};
+
+const TONE_INSTRUCTIONS_RSVP: Record<RsvpDraftTone, string> = {
+  formal: 'professional and formal tone, avoid contractions',
+  friendly: 'warm and friendly tone',
+  casual: 'casual and conversational tone',
+  urgent: 'urgent and action-oriented tone that conveys time-sensitivity',
+};
+
+const RSVP_DRAFT_SYSTEM_PROMPT = `You are an RSVP communications assistant for festival event organizers.
+You will receive live RSVP data and event details. Generate three distinct communication drafts.
+Use the specified tone and length strictly.
+Return ONLY a valid JSON object (no markdown, no explanation):
+{"reminderVariant":"message for pending/maybe guests to encourage response","confirmationVariant":"thank-you message for confirmed guests with event details","deadlineReminder":"urgent message for non-responders emphasizing the RSVP deadline"}`;
+
+function buildRsvpDraftUserMessage(
+  ctx: RsvpDraftContext,
+  tone: RsvpDraftTone,
+  length: RsvpDraftLength,
+  userPrompt: string | undefined,
+): string {
+  const lines: string[] = ['Event context:'];
+  lines.push(`Event: ${ctx.eventTitle}`);
+  if (ctx.eventDate) lines.push(`Date: ${ctx.eventDate}`);
+  if (ctx.rsvpDeadline) lines.push(`RSVP Deadline: ${ctx.rsvpDeadline}`);
+  if (ctx.capacity !== null) lines.push(`Capacity: ${ctx.capacity}`);
+  lines.push(`RSVP Status Mix:`);
+  lines.push(`  Confirmed: ${ctx.confirmed}`);
+  lines.push(`  Pending: ${ctx.pending}`);
+  lines.push(`  Maybe: ${ctx.maybe}`);
+  lines.push(`  Declined: ${ctx.declined}`);
+  lines.push(`  Waitlisted: ${ctx.waitlisted}`);
+  lines.push(`  Cancelled: ${ctx.cancelled}`);
+  lines.push(`  Total: ${ctx.total}`);
+  if (ctx.capacity && ctx.capacity > 0) {
+    const fillRate = Math.round((ctx.confirmed / ctx.capacity) * 100);
+    lines.push(`  Fill rate: ${fillRate}%`);
+  }
+  lines.push('');
+  lines.push(`Tone: ${TONE_INSTRUCTIONS_RSVP[tone]}`);
+  lines.push(`Length: ${LENGTH_INSTRUCTIONS[length]}`);
+  if (userPrompt?.trim()) {
+    lines.push('');
+    lines.push(`Additional context from organizer: ${userPrompt}`);
+  }
+  return lines.join('\n');
+}
+
+export function parseRsvpDraftOutput(raw: string): RsvpCommunicationDraft | null {
+  try {
+    const cleaned = raw
+      .replace(/```(?:json)?\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+    if (typeof parsed.reminderVariant === 'string') {
+      return {
+        reminderVariant: parsed.reminderVariant,
+        confirmationVariant:
+          typeof parsed.confirmationVariant === 'string' ? parsed.confirmationVariant : '',
+        deadlineReminder:
+          typeof parsed.deadlineReminder === 'string' ? parsed.deadlineReminder : '',
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * POST /api/ai/rsvp-draft
+ *
+ * Generates AI-drafted RSVP communication messages grounded in live RSVP
+ * context for a given event. Returns three editable variants:
+ *   - reminderVariant: for pending / maybe guests
+ *   - confirmationVariant: for confirmed guests
+ *   - deadlineReminder: urgent message for non-responders
+ *
+ * Supports tone (formal | friendly | casual | urgent) and
+ * draftLength (short | medium | long) controls.
+ *
+ * Story #951 — Provide RSVP Communication Drafting Assistance.
+ */
+export async function getRsvpCommunicationDraft(
+  req: AuthRequest,
+  res: Response,
+): Promise<Response> {
+  const body = req.body as Partial<RsvpCommunicationDraftBody>;
+
+  const _entityId = body.entityId;
+  const rawEntityId = Array.isArray(_entityId) ? _entityId[0] : _entityId;
+  const parsedEntityId =
+    typeof rawEntityId === 'number'
+      ? rawEntityId
+      : typeof rawEntityId === 'string'
+        ? parseInt(rawEntityId, 10)
+        : NaN;
+
+  const _tone = body.tone;
+  const rawTone = Array.isArray(_tone) ? _tone[0] : _tone;
+  const tone = typeof rawTone === 'string' ? (rawTone as RsvpDraftTone) : undefined;
+
+  const _draftLength = body.draftLength;
+  const rawLength = Array.isArray(_draftLength) ? _draftLength[0] : _draftLength;
+  const draftLength = typeof rawLength === 'string' ? (rawLength as RsvpDraftLength) : undefined;
+
+  const _prompt = body.prompt;
+  const rawPrompt = Array.isArray(_prompt) ? _prompt[0] : _prompt;
+  const prompt = typeof rawPrompt === 'string' ? rawPrompt : undefined;
+
+  if (
+    !Number.isFinite(parsedEntityId) ||
+    !Number.isInteger(parsedEntityId) ||
+    parsedEntityId <= 0
+  ) {
+    return res.status(400).json({ error: 'entityId must be a positive integer.' });
+  }
+
+  const VALID_TONES = new Set<RsvpDraftTone>(['formal', 'friendly', 'casual', 'urgent']);
+  if (!tone || !VALID_TONES.has(tone)) {
+    return res
+      .status(400)
+      .json({ error: 'tone must be one of: formal, friendly, casual, urgent.' });
+  }
+
+  const VALID_LENGTHS = new Set<RsvpDraftLength>(['short', 'medium', 'long']);
+  if (!draftLength || !VALID_LENGTHS.has(draftLength)) {
+    return res.status(400).json({ error: 'draftLength must be one of: short, medium, long.' });
+  }
+
+  const userId = req.user?.id;
+  if (userId !== undefined && !(await checkAiRateLimit(userId))) {
+    recordRateLimitHit(userId, 'rsvp_draft');
+    return res
+      .status(429)
+      .json({ error: 'AI rate limit exceeded. You can make 20 AI requests per hour.' });
+  }
+
+  const provider = resolveAiProviderConfig();
+  if (provider.kind === 'misconfigured') {
+    return res.status(503).json({ error: provider.message });
+  }
+  if (provider.kind === 'none') {
+    return res.status(503).json({
+      error:
+        'AI suggestions are not configured. Set Azure OpenAI (AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY + AZURE_OPENAI_DEPLOYMENT) or OPENAI_API_KEY.',
+    });
+  }
+
+  let ctx: RsvpDraftContext | null = null;
+  try {
+    ctx = await fetchRsvpDraftContext(parsedEntityId);
+  } catch {
+    return res.status(500).json({ error: 'Failed to fetch RSVP context.' });
+  }
+
+  if (!ctx) {
+    return res
+      .status(404)
+      .json({ error: `Event ${parsedEntityId} not found or has been deleted.` });
+  }
+
+  const safePrompt = prompt?.trim()
+    ? sanitisePrompt(prompt.trim(), 'rsvp', userId, parsedEntityId)
+    : undefined;
+  const userMessage = buildRsvpDraftUserMessage(ctx, tone, draftLength, safePrompt);
+
+  const startTime = Date.now();
+  try {
+    const raw = await withProviderTimeout(
+      callAiProvider(provider, hardenSystemPrompt(RSVP_DRAFT_SYSTEM_PROMPT), userMessage),
+    );
+    const durationMs = Date.now() - startTime;
+
+    void logAiRequest({
+      userId,
+      workflowType: 'rsvp_draft',
+      entityId: parsedEntityId,
+      provider: provider.kind,
+      durationMs,
+      status: 'success',
+    });
+
+    const drafts = parseRsvpDraftOutput(raw) ?? {
+      reminderVariant: raw,
+      confirmationVariant: '',
+      deadlineReminder: '',
+    };
+
+    const response: RsvpCommunicationDraftResponse = {
+      entityId: parsedEntityId,
+      tone,
+      draftLength,
+      drafts,
+      raw,
+    };
+    return res.json(response);
+  } catch (err) {
+    const durationMs = Date.now() - startTime;
+    const message = err instanceof Error ? err.message : 'Unknown AI error';
+    void logAiRequest({
+      userId,
+      workflowType: 'rsvp_draft',
+      entityId: parsedEntityId,
+      provider: provider.kind,
+      durationMs,
+      status: 'error',
+      errorMessage: message,
+    });
+    return res.status(502).json({ error: `AI request failed: ${message}` });
+  }
+}
+
 // ── AI Observability Health Endpoint — Issue #958 ─────────────────────────────
 
 // ── Human-in-the-Loop Apply Flow (#965) ──────────────────────────────────────
