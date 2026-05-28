@@ -1543,7 +1543,9 @@ export function AiAssistant(): JSX.Element {
                     label="Event ID"
                     type="number"
                     value={draftEntityId}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setDraftEntityId(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                      setDraftEntityId(e.target.value)
+                    }
                     inputProps={{ min: 1, 'aria-label': 'Event ID for RSVP draft' }}
                     fullWidth
                   />
@@ -1596,7 +1598,9 @@ export function AiAssistant(): JSX.Element {
                   <Button
                     variant="contained"
                     size="small"
-                    endIcon={draftLoading ? <CircularProgress size={14} color="inherit" /> : undefined}
+                    endIcon={
+                      draftLoading ? <CircularProgress size={14} color="inherit" /> : undefined
+                    }
                     onClick={() => void generateDraft()}
                     disabled={draftLoading || !draftEntityId || parseInt(draftEntityId, 10) <= 0}
                     aria-label="Generate RSVP communication drafts"
@@ -1618,7 +1622,9 @@ export function AiAssistant(): JSX.Element {
                   </Typography>
                 )}
                 {draftLoading && (
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  <Box
+                    sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'center' }}
+                  >
                     <CircularProgress size={18} />
                     <Typography variant="caption" color="text.secondary">
                       Fetching RSVP context and drafting messages…
@@ -1663,7 +1669,9 @@ export function AiAssistant(): JSX.Element {
                         minRows={3}
                         maxRows={6}
                         value={editableReminder}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => setEditableReminder(e.target.value)}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                          setEditableReminder(e.target.value)
+                        }
                         fullWidth
                         inputProps={{ 'aria-label': 'Edit reminder draft' }}
                       />
@@ -1681,7 +1689,9 @@ export function AiAssistant(): JSX.Element {
                         <Tooltip title={copiedDraftField === 'confirmation' ? 'Copied!' : 'Copy'}>
                           <IconButton
                             size="small"
-                            onClick={() => copyDraftToClipboard(editableConfirmation, 'confirmation')}
+                            onClick={() =>
+                              copyDraftToClipboard(editableConfirmation, 'confirmation')
+                            }
                             aria-label="Copy confirmation draft"
                           >
                             <ContentCopyRounded fontSize="inherit" />
@@ -1694,7 +1704,9 @@ export function AiAssistant(): JSX.Element {
                         minRows={3}
                         maxRows={6}
                         value={editableConfirmation}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => setEditableConfirmation(e.target.value)}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                          setEditableConfirmation(e.target.value)
+                        }
                         fullWidth
                         inputProps={{ 'aria-label': 'Edit confirmation draft' }}
                       />
@@ -1712,7 +1724,9 @@ export function AiAssistant(): JSX.Element {
                         <Tooltip title={copiedDraftField === 'deadline' ? 'Copied!' : 'Copy'}>
                           <IconButton
                             size="small"
-                            onClick={() => copyDraftToClipboard(editableDeadlineReminder, 'deadline')}
+                            onClick={() =>
+                              copyDraftToClipboard(editableDeadlineReminder, 'deadline')
+                            }
                             aria-label="Copy deadline reminder draft"
                           >
                             <ContentCopyRounded fontSize="inherit" />
@@ -1725,7 +1739,9 @@ export function AiAssistant(): JSX.Element {
                         minRows={3}
                         maxRows={6}
                         value={editableDeadlineReminder}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => setEditableDeadlineReminder(e.target.value)}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                          setEditableDeadlineReminder(e.target.value)
+                        }
                         fullWidth
                         inputProps={{ 'aria-label': 'Edit deadline reminder draft' }}
                       />

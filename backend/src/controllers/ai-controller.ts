@@ -2941,7 +2941,16 @@ export async function getRsvpCommunicationDraft(
   req: AuthRequest,
   res: Response,
 ): Promise<Response> {
-  const { entityId, tone, draftLength, prompt } = req.body as Partial<RsvpCommunicationDraftBody>;
+  const body = req.body as Partial<RsvpCommunicationDraftBody>;
+
+  const _entityId = body.entityId;
+  const rawEntityId = Array.isArray(_entityId) ? _entityId[0] : _entityId;
+  const parsedEntityId =
+    typeof rawEntityId === 'number'
+      ? rawEntityId
+      : typeof rawEntityId === 'string'
+        ? parseInt(rawEntityId, 10)
+        : NaN;
 
   const _tone = body.tone;
   const rawTone = Array.isArray(_tone) ? _tone[0] : _tone;
@@ -2949,14 +2958,14 @@ export async function getRsvpCommunicationDraft(
 
   const _draftLength = body.draftLength;
   const rawLength = Array.isArray(_draftLength) ? _draftLength[0] : _draftLength;
-  const length = typeof rawLength === 'string' ? (rawLength as RsvpDraftLength) : undefined;
+  const draftLength = typeof rawLength === 'string' ? (rawLength as RsvpDraftLength) : undefined;
 
   const _prompt = body.prompt;
   const rawPrompt = Array.isArray(_prompt) ? _prompt[0] : _prompt;
   const prompt = typeof rawPrompt === 'string' ? rawPrompt : undefined;
+
   if (
-    !parsedEntityId ||
-    typeof parsedEntityId !== 'number' ||
+    !Number.isFinite(parsedEntityId) ||
     !Number.isInteger(parsedEntityId) ||
     parsedEntityId <= 0
   ) {
@@ -3037,7 +3046,7 @@ export async function getRsvpCommunicationDraft(
     const response: RsvpCommunicationDraftResponse = {
       entityId: parsedEntityId,
       tone,
-      length: draftLength,
+      draftLength,
       drafts,
       raw,
     };
