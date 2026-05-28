@@ -298,7 +298,9 @@ describe('AiAssistant — #959 actionable empty/onboarding state', () => {
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
 
     expect(screen.getByText('Quick start:')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Use prompt: Event venue ideas/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Use prompt: Event venue ideas/i }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Use prompt: RSVP strategy/i })).toBeInTheDocument();
   });
 

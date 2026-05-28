@@ -712,7 +712,12 @@ export function AiAssistant(): JSX.Element {
                       Quick start:
                     </Typography>
                     <Box
-                      sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, justifyContent: 'center' }}
+                      sx={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 0.75,
+                        justifyContent: 'center',
+                      }}
                     >
                       {QUICK_START_PROMPTS.map((suggestion) => (
                         <Chip
