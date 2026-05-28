@@ -83,6 +83,7 @@ describe('Role-permission seed migration (#265 #287)', () => {
 
     // BRD v2 extended permissions — Admin (3) gets all permissions in the DB
     expect(rolePermissions.get(3)).toEqual([
+      'ai.access',
       'budget.edit',
       'budget.view',
       'checkin.perform',
@@ -111,6 +112,7 @@ describe('Role-permission seed migration (#265 #287)', () => {
 
     // BRD v2 — Organizer has full event + team management permissions
     expect(rolePermissions.get(2)).toEqual([
+      'ai.access',
       'budget.edit',
       'budget.view',
       'checkin.perform',

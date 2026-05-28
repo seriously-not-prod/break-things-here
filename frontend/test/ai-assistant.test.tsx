@@ -216,9 +216,12 @@ describe('AiAssistant — Grounded Workflow tab', () => {
     await userEvent.click(screen.getByRole('button', { name: /AI assistant/i }));
     await userEvent.click(screen.getByRole('tab', { name: /Grounded/i }));
 
-    // Switch to rsvp workflow
-    const workflowSelect = await screen.findByRole('combobox', { name: /Workflow type/i });
-    fireEvent.change(workflowSelect, { target: { value: 'rsvp' } });
+    // MUI v6 Select renders role="combobox" on a <div>, which is inaccessible in
+    // the AT when inside role="tabpanel" (dom-accessibility-api limitation).
+    // Target the hidden native input directly to trigger the MUI onChange handler.
+    const groundedPanel = screen.getByRole('tabpanel', { name: /Grounded/i });
+    const workflowInput = groundedPanel.querySelector<HTMLInputElement>('.MuiSelect-nativeInput');
+    fireEvent.change(workflowInput!, { target: { value: 'rsvp' } });
 
     const entityIdInput = screen.getByRole('spinbutton', { name: /Event ID/i });
     await userEvent.type(entityIdInput, '10');
