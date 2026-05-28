@@ -8,6 +8,7 @@
  * - Privacy-safe logging: no PII or sensitive data in log records
  * - Failure and retry visibility: tracks provider errors with retry context
  * - AI health signal export: aggregated snapshot of in-process counters
+ * - SLO compliance evaluation via `ai-slo.ts` (#962)
  *
  * Design principles:
  * - All I/O functions are best-effort: database errors are silently swallowed
@@ -41,6 +42,14 @@
  */
 
 import { getDatabase } from '../db/database.js';
+import {
+  evaluateAiSlos,
+  AI_SLO_SUCCESS_RATE_DEGRADED_THRESHOLD,
+  type SloEvaluationResult,
+} from './ai-slo.js';
+
+// Re-export SloEvaluationResult so callers can import it from this module.
+export type { SloEvaluationResult };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -294,10 +303,10 @@ export async function logAiAuditEvent(record: AiRequestRecord): Promise<void> {
 /**
  * Returns a simple health signal string based on the current success ratio.
  *
- * Thresholds:
- * - `"healthy"` — success rate ≥ 90 % (or no requests yet)
- * - `"degraded"` — success rate ≥ 50 %
- * - `"unhealthy"` — success rate < 50 %
+ * Thresholds are aligned with the SLO definitions in `ai-slo.ts` (#962):
+ * - `"healthy"` — success rate ≥ 95 % (or no requests yet)
+ * - `"degraded"` — success rate ≥ 90 % (AI_SLO_SUCCESS_RATE_DEGRADED_THRESHOLD)
+ * - `"unhealthy"` — success rate < 90 %
  */
 export function computeAiHealthSignal(
   snapshot: AiMetricsSnapshot,
@@ -305,9 +314,25 @@ export function computeAiHealthSignal(
   const { total, success } = snapshot.counters;
   if (total === 0) return 'healthy';
   const ratio = success / total;
-  if (ratio >= 0.9) return 'healthy';
-  if (ratio >= 0.5) return 'degraded';
+  if (ratio >= 0.95) return 'healthy';
+  if (ratio >= AI_SLO_SUCCESS_RATE_DEGRADED_THRESHOLD) return 'degraded';
   return 'unhealthy';
+}
+
+/**
+ * Evaluates current in-memory SLO compliance using the thresholds defined in
+ * `ai-slo.ts` (#962).
+ *
+ * Returns a structured `SloEvaluationResult` suitable for inclusion in API
+ * health responses or logging.  Only success-rate, rate-limit ratio, and
+ * timeout ratio are evaluated here because the in-memory store tracks min/avg/
+ * max latency rather than full percentile histograms; see `ai-slos.md` for
+ * guidance on percentile queries against `ai_request_logs`.
+ */
+export function evaluateCurrentSlos(): SloEvaluationResult {
+  const snapshot = getAiMetricsSnapshot();
+  const { total, success, rateLimited, timedOut } = snapshot.counters;
+  return evaluateAiSlos(total, success, rateLimited, timedOut);
 }
 
 /**
