@@ -28,7 +28,6 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Collapse,
   IconButton,
   Stack,
   TextField,
@@ -221,13 +220,7 @@ export function AiSuggestionReview({
       </Typography>
 
       {/* Suggestion content (read-only or editable) */}
-      <Collapse in={!editMode}>
-        <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', mb: 1 }}>
-          {suggestionContent}
-        </Typography>
-      </Collapse>
-
-      <Collapse in={editMode} unmountOnExit>
+      {editMode ? (
         <TextField
           multiline
           minRows={3}
@@ -240,7 +233,11 @@ export function AiSuggestionReview({
           sx={{ mb: 1 }}
           inputProps={{ 'aria-label': 'Edit AI suggestion content' }}
         />
-      </Collapse>
+      ) : (
+        <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', mb: 1 }}>
+          {suggestionContent}
+        </Typography>
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 1 }}>
