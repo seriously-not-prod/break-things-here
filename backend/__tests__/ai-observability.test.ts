@@ -25,9 +25,9 @@
  *
  * computeAiHealthSignal
  * - Returns "healthy" when no requests have been recorded
- * - Returns "healthy" when success rate >= 90%
- * - Returns "degraded" when success rate is between 50% and 90%
- * - Returns "unhealthy" when success rate < 50%
+ * - Returns "healthy" when success rate >= 95% (AI_SLO_SUCCESS_RATE_TARGET)
+ * - Returns "degraded" when success rate is between 90% and 95%
+ * - Returns "unhealthy" when success rate < 90% (AI_SLO_SUCCESS_RATE_DEGRADED_THRESHOLD)
  *
  * buildSafeErrorMessage
  * - Identifies rate-limit errors
@@ -235,27 +235,27 @@ describe('computeAiHealthSignal', () => {
     expect(computeAiHealthSignal(snap)).toBe('healthy');
   });
 
-  it('returns "healthy" when success rate is exactly 90%', () => {
-    for (let i = 0; i < 9; i++) recordAiRequestMetrics(makeRecord({ outcome: 'success' }));
-    recordAiRequestMetrics(makeRecord({ outcome: 'failure' }));
-    const snap = getAiMetricsSnapshot();
-    expect(computeAiHealthSignal(snap)).toBe('healthy');
-  });
-
   it('returns "healthy" when success rate is 100%', () => {
     recordAiRequestMetrics(makeRecord({ outcome: 'success' }));
     const snap = getAiMetricsSnapshot();
     expect(computeAiHealthSignal(snap)).toBe('healthy');
   });
 
-  it('returns "degraded" when success rate is between 50% and 90%', () => {
-    for (let i = 0; i < 7; i++) recordAiRequestMetrics(makeRecord({ outcome: 'success' }));
-    for (let i = 0; i < 3; i++) recordAiRequestMetrics(makeRecord({ outcome: 'failure' }));
+  it('returns "healthy" when success rate is exactly 95%', () => {
+    for (let i = 0; i < 19; i++) recordAiRequestMetrics(makeRecord({ outcome: 'success' }));
+    recordAiRequestMetrics(makeRecord({ outcome: 'failure' }));
+    const snap = getAiMetricsSnapshot();
+    expect(computeAiHealthSignal(snap)).toBe('healthy');
+  });
+
+  it('returns "degraded" when success rate is between 90% and 95%', () => {
+    for (let i = 0; i < 9; i++) recordAiRequestMetrics(makeRecord({ outcome: 'success' }));
+    recordAiRequestMetrics(makeRecord({ outcome: 'failure' }));
     const snap = getAiMetricsSnapshot();
     expect(computeAiHealthSignal(snap)).toBe('degraded');
   });
 
-  it('returns "unhealthy" when success rate is below 50%', () => {
+  it('returns "unhealthy" when success rate is below 90%', () => {
     for (let i = 0; i < 3; i++) recordAiRequestMetrics(makeRecord({ outcome: 'success' }));
     for (let i = 0; i < 7; i++) recordAiRequestMetrics(makeRecord({ outcome: 'failure' }));
     const snap = getAiMetricsSnapshot();
