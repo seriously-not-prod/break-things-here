@@ -227,7 +227,7 @@ export function AiSuggestionReview({
         </Typography>
       </Collapse>
 
-      <Collapse in={editMode}>
+      <Collapse in={editMode} unmountOnExit>
         <TextField
           multiline
           minRows={3}
