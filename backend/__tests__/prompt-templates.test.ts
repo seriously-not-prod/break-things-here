@@ -21,7 +21,7 @@ import {
   getTemplateHistory,
   listActiveTemplates,
   type PromptTemplateContext,
-} from '../../src/lib/prompt-templates.js';
+} from '../src/lib/prompt-templates.js';
 
 // All contexts that must have an active template.
 const ALL_CONTEXTS: PromptTemplateContext[] = [
